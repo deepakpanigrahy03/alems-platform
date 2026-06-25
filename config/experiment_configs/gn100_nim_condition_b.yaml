@@ -1,10 +1,9 @@
 study:
-  name: "GN100 vLLM Local Failure Injection Study"
+  name: "GN100 NvidiaNIM Failure Injection Study"
   experiment_type: "failure_injection"
-  experiment_goal: "Paper2 GPU failure injection — retry amplification with GPU energy, vllm_local, GN100 GB10"
-  experiment_notes: "paper2_gn100 group. GPU via DCGM field 156. SPBM pkg. 30 reps. Start with Mistral-7B."
+  experiment_goal: "Condition B — 1 failure per goal, nvidia_nim, GN100 GB10"
+  experiment_notes: "10 reps, all goals fail once then succeed. Retry amplification dose 1."
   workflow_modes: ["agentic", "linear"]
-  group_id: "paper2_gn100"
 tasks:
   - id: gsm8k_basic
   - id: gsm8k_multi_step
@@ -16,10 +15,10 @@ tasks:
   - id: tg_sequential_2
   - id: tg_sequential_3
 providers:
-  - name: vllm_local
-    model_id: Mistral-7B-Instruct-v0.3
+  - name: nvidia_nim
+    model_id: meta/llama-3.3-70b-instruct
 execution:
-  repetitions: 30
+  repetitions: 10
   cool_down_seconds: 30
   inter_task_cooldown_seconds: 90
   save_db: true
@@ -34,8 +33,8 @@ retry_policy:
 failure_injection:
   enabled: true
   mode: controlled_retry
-  target_goal_pct: 0.40
-  per_goal_attempts: 2
-  total_draws_estimate: 30
+  target_goal_pct: 1.0
+  per_goal_attempts: 1
+  total_draws_estimate: 10
 quality:
   enabled: false
