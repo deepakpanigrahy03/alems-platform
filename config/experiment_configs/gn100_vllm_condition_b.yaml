@@ -1,7 +1,7 @@
 study:
-  name: "GN100 NvidiaNIM Failure Injection Study"
+  name: "GN100 vLLM Condition B — 1 failure per goal"
   experiment_type: "failure_injection"
-  experiment_goal: "Condition B — 1 failure per goal, nvidia_nim, GN100 GB10"
+  experiment_goal: "Condition B — 1 failure per goal, vllm_local, GN100 GB10"
   experiment_notes: "10 reps, all goals fail once then succeed. Retry amplification dose 1."
   workflow_modes: ["agentic", "linear"]
 tasks:
@@ -15,8 +15,8 @@ tasks:
   - id: tg_sequential_2
   - id: tg_sequential_3
 providers:
-  - name: nvidia_nim
-    model_id: meta/llama-3.1-8b-instruct
+  - name: vllm_local
+    model_id: Mistral-7B-Instruct-v0.3
 execution:
   repetitions: 10
   cool_down_seconds: 30
