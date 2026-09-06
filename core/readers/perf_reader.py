@@ -128,7 +128,8 @@ class PerfReader(CPUReaderABC):
         # Check if perf is available
         self.perf_available = self._check_perf_availability()
         self.perf_path = self._find_perf_path()
-
+        if self.perf_available and self.perf_path:
+            self.events = self._filter_supported_events(self.events)        
         if self.perf_available:
             logger.info(
                 "PerfReader initialized with %d events: %s",
@@ -156,6 +157,45 @@ class PerfReader(CPUReaderABC):
         except Exception:
             pass
         return None
+    
+    def _filter_supported_events(self, events):
+        """
+        Validate each requested perf event individually against THIS
+        machine's actual hardware, dropping any unsupported.
+
+        Why per-event, not all-at-once: perf stat rejects the ENTIRE
+        -e list if even one event is invalid for the running CPU (e.g.
+        Intel-specific raw PMU events like "l2_rqsts.miss" don't exist
+        on AMD Zen). Without this check, a single bad event silently
+        zeroes out every counter, including universal ones like
+        "instructions"/"cycles" that work everywhere. Confirmed via
+        direct reproduction on AMD Ryzen 5 3600, 2026-09-06 (BUG-03).
+        """
+        supported = []
+        dropped = []
+        for event in events:
+            try:
+                result = subprocess.run(
+                    [self.perf_path, "stat", "-e", event, "sleep", "0.05"],
+                    capture_output=True,
+                    timeout=3,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    supported.append(event)
+                else:
+                    dropped.append(event)
+            except (subprocess.TimeoutExpired, OSError) as e:
+                logger.debug("perf event probe failed for '%s': %s", event, e)
+                dropped.append(event)
+
+        if dropped:
+            logger.warning(
+                "PerfReader: %d event(s) unsupported on this hardware, "
+                "dropped: %s",
+                len(dropped), dropped,
+            )
+        return supported    
 
     def _check_perf_availability(self) -> bool:
         """

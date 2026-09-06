@@ -98,12 +98,23 @@ def _insert_nic_samples(db, run_id: int, samples: list) -> None:
 def _convert_gpu_to_telemetry(gpu_samples):
     """Convert GpuSample list to DeviceTelemetrySample list for device_telemetry table.
     PAC-2: wrapped at call site — this function does not raise.
+
+    BUG-02 fix (2026-09-06): DeviceTelemetrySample requires timestamp_ns,
+    interval_ns, and device_type (no defaults) — this call was missing
+    all three, causing every device_telemetry insert to fail on agentic
+    runs (caught and logged, never crashed the run, but the table was
+    never populated). GpuSample already carries sample_end_ns and
+    interval_ns directly — no upstream signature change needed, this
+    constructor call just wasn't using what was already available.
     """
     from core.readers.energy_sample_v2 import DeviceTelemetrySample, SOURCE_DCGM, SOURCE_NVML
     result = []
     for s in gpu_samples:
         src = SOURCE_DCGM if getattr(s, "source", "") == "dcgm" else SOURCE_NVML
         result.append(DeviceTelemetrySample(
+            timestamp_ns=s.sample_end_ns,
+            interval_ns=s.interval_ns,
+            device_type="GPU",
             source_id=src,
             power_mw=s.power_mw,
             util_pct=s.util_gpu_pct,
@@ -825,16 +836,25 @@ class ExperimentRunner:
             # GPU samples — empty list if NoneBackend, safe to call always
             if "gpu_samples" in linear_result and linear_result["gpu_samples"]:
                 db.insert_gpu_samples(linear_id, linear_result["gpu_samples"])
-            if "v2_samples" in linear_result and linear_result["v2_samples"]:
-                db.insert_energy_samples_v2(linear_id, linear_result["v2_samples"])
-            if "legacy_samples" in linear_result and linear_result["legacy_samples"]:
-                db.insert_energy_samples(linear_id, linear_result["legacy_samples"])
+                # BUG-02 fix (2026-09-06): this device_telemetry conversion
+                # was incorrectly nested inside the "legacy_samples" branch
+                # below, so it only ran when legacy_samples happened to be
+                # non-empty — completely unrelated to whether real GPU data
+                # existed. Confirmed via live runs: gpu_samples had 4-215
+                # real rows across the last 10 runs, device_telemetry was 0
+                # in every single one, because this block never executed
+                # at all. Moved under the actual gpu_samples condition it
+                # depends on.
                 try:
                     telemetry = _convert_gpu_to_telemetry(linear_result["gpu_samples"])
                     if telemetry:
                         db.insert_device_telemetry(linear_id, telemetry)
                 except Exception as e:
-                    logger.warning("device_telemetry insert failed (linear): %s", e)                
+                    logger.warning("device_telemetry insert failed (linear): %s", e)
+            if "v2_samples" in linear_result and linear_result["v2_samples"]:
+                db.insert_energy_samples_v2(linear_id, linear_result["v2_samples"])
+            if "legacy_samples" in linear_result and linear_result["legacy_samples"]:
+                db.insert_energy_samples(linear_id, linear_result["legacy_samples"])                
             # SPBM samples — EnergySampleV2 list, empty on non-GN100 platforms
             if "spbm_samples" in linear_result and linear_result["spbm_samples"]:
                 db.insert_energy_samples_v2(linear_id, linear_result["spbm_samples"])
@@ -1050,16 +1070,19 @@ class ExperimentRunner:
             # GPU samples — empty list if NoneBackend, safe to call always
             if "gpu_samples" in agentic_result and agentic_result["gpu_samples"]:
                 db.insert_gpu_samples(agentic_id, agentic_result["gpu_samples"])
-            if "v2_samples" in agentic_result and agentic_result["v2_samples"]:
-                db.insert_energy_samples_v2(agentic_id, agentic_result["v2_samples"])
-            if "legacy_samples" in agentic_result and agentic_result["legacy_samples"]:
-                db.insert_energy_samples(agentic_id, agentic_result["legacy_samples"])
+                # BUG-02 fix (2026-09-06): moved from under "legacy_samples"
+                # (unrelated condition) to under gpu_samples, where it
+                # actually belongs. See same fix at the linear call site.
                 try:
                     telemetry = _convert_gpu_to_telemetry(agentic_result["gpu_samples"])
                     if telemetry:
                         db.insert_device_telemetry(agentic_id, telemetry)
                 except Exception as e:
-                    logger.warning("device_telemetry insert failed (agentic): %s", e)                
+                    logger.warning("device_telemetry insert failed (agentic): %s", e)
+            if "v2_samples" in agentic_result and agentic_result["v2_samples"]:
+                db.insert_energy_samples_v2(agentic_id, agentic_result["v2_samples"])
+            if "legacy_samples" in agentic_result and agentic_result["legacy_samples"]:
+                db.insert_energy_samples(agentic_id, agentic_result["legacy_samples"])             
             # SPBM samples — EnergySampleV2 list, empty on non-GN100 platforms
             if "spbm_samples" in agentic_result and agentic_result["spbm_samples"]:
                 db.insert_energy_samples_v2(agentic_id, agentic_result["spbm_samples"])
@@ -1572,14 +1595,18 @@ class ExperimentRunner:
             # GPU samples — empty list if NoneBackend, safe to call always
             if "gpu_samples" in result and result["gpu_samples"]:
                 db.insert_gpu_samples(run_id, result["gpu_samples"])
-            if "v2_samples" in result and result["v2_samples"]:
-                db.insert_energy_samples_v2(run_id, result["v2_samples"])
+                # BUG-02 fix (2026-09-06): moved from under "v2_samples"
+                # (unrelated condition — a third, differently-wrong nesting
+                # from the linear/agentic sites) to under gpu_samples,
+                # where it actually belongs.
                 try:
                     telemetry = _convert_gpu_to_telemetry(result["gpu_samples"])
                     if telemetry:
                         db.insert_device_telemetry(run_id, telemetry)
                 except Exception as e:
-                    logger.warning("device_telemetry insert failed (single): %s", e)                
+                    logger.warning("device_telemetry insert failed (single): %s", e)
+            if "v2_samples" in result and result["v2_samples"]:
+                db.insert_energy_samples_v2(run_id, result["v2_samples"])
                 # SPBM samples — EnergySampleV2 list, empty on non-GN100 platforms
             if "spbm_samples" in result and result["spbm_samples"]:
                 db.insert_energy_samples_v2(run_id, result["spbm_samples"])
