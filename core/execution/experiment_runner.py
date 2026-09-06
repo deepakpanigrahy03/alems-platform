@@ -46,6 +46,7 @@ from scripts.etl.aggregate_hardware_metrics import aggregate_hardware_metrics
 # 16D4: Darwin PMU cache data → cpu_samples row builder (mirrors ARM pattern)
 from core.execution.darwin_cpu_sample_builder import _build_darwin_cpu_sample_row
 from core.execution.arm_cpu_sample_builder import _build_arm_cpu_sample_row
+from core.execution.sample_processor import calculate_thermal_metrics
 from scripts.etl.energy_attribution_etl import compute_energy_attribution
 from scripts.etl.duration_fix_etl import fix_run, fix_run_with_pretask
 from scripts.etl.ttft_tpot_etl import populate_run as populate_ttft_tpot
@@ -376,14 +377,25 @@ class ExperimentRunner:
                 stats["cpu_busy_mhz"] = sum(busy_freqs) / len(busy_freqs)
             if avg_freqs:
                 stats["cpu_avg_mhz"] = sum(avg_freqs) / len(avg_freqs)
-        # Temperature from thermal_samples (cpu_temp key) — works on all platforms.
-        # turbostat package_temp empty on ARM and unreliable on x86.
-        _thermal = thermal_samples or []
-        temps = [s.get("cpu_temp") for s in _thermal if s.get("cpu_temp")]
-        if temps:
-            stats["package_temp_celsius"] = sum(temps) / len(temps)
-            stats["max_temp_c"] = max(temps)
-            stats["min_temp_c"] = min(temps)
+
+        # BUG-04 real fix (2026-09-02): this function used to maintain its
+        # own independent thermal extraction (temps = [s.get("cpu_temp")...])
+        # duplicating calculate_thermal_metrics() in sample_processor.py,
+        # which harness.py already calls successfully for start_temp_c.
+        # Two independent implementations of the same computation is what
+        # made BUG-04 possible — one path worked, the other silently
+        # didn't, and nothing forced them to agree (see TECH_DEBT_LOG.md
+        # TD-1). Calling the SAME function here means package_temp_celsius,
+        # max_temp_c, and min_temp_c can never again diverge from
+        # start_temp_c's success/failure state on ANY platform — single
+        # source of truth, not a parallel one to keep in sync by hand.
+        start_temp_c, max_temp_c, min_temp_c, _thermal_delta_c = (
+            calculate_thermal_metrics(cpu_samples, thermal_samples)
+        )
+        if start_temp_c:
+            stats["package_temp_celsius"] = start_temp_c
+            stats["max_temp_c"] = max_temp_c
+            stats["min_temp_c"] = min_temp_c
 
         # Aggregate interrupt samples
         if interrupt_samples:
