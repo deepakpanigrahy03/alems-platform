@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <dlfcn.h>
+#include <inttypes.h>
 
 extern int sysctl(int *, unsigned int, void *, size_t *, void *, size_t);
 
@@ -336,10 +337,9 @@ int main(void)
         cfg_slot++;
     }
 
-
     /* Print JSON. Index: 0=L1D_CACHE_MISS_LD, 1=L1D_TLB_ACCESS */
-    printf("{\"instructions\":%llu,\"cycles\":%llu,"
-           "\"l1d_miss_ld\":%llu,\"l1d_tlb_access\":%llu}\n",
+    printf("{\"instructions\":%" PRIu64 ",\"cycles\":%" PRIu64 ","
+           "\"l1d_miss_ld\":%" PRIu64 ",\"l1d_tlb_access\":%" PRIu64 "}\n",
            fixed_instructions, fixed_cycles,
            cfg_values[0], cfg_values[1]);
 
