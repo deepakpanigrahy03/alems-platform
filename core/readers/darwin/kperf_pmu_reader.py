@@ -313,11 +313,11 @@ class KPerfPMUReader(CPUReaderABC):
         # cache_misses = NONSPEC retired L1D misses (most accurate, no slot conflict)
         # Removed L1D_CACHE_MISS_LD + L1D_CACHE_MISS_ST — they conflict with
         # L1D_CACHE_MISS_LD_NONSPEC for the same hardware counter slot (ret=13)
-        counters.cache_misses = delta.get("l1d_miss_nonspec", 0)
+        counters.cache_misses = delta.get("l1d_miss_ld", 0)
         # cache_references = L1D TLB accesses (proxy for total accesses)
         counters.cache_references = delta.get("l1d_tlb_access", 0)
-        # l1d_cache_misses: NONSPEC variant — retired loads only, most accurate
-        counters.l1d_cache_misses = delta.get("l1d_miss_nonspec", 0)
+        # l1d_cache_misses: L1D load misses (NONSPEC unavailable due to slot conflict)
+        counters.l1d_cache_misses = delta.get("l1d_miss_ld", 0)
 
         # L2 and L3: NOT available on M1 (a14.plist has no such events)
         # These remain 0 here and NULL in the DB (MIC-1: NULL not 0)
