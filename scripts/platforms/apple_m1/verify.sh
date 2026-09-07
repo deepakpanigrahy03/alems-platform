@@ -56,7 +56,7 @@ echo ""
 echo "Detection:"
 HW_CONFIG=$(python3 -c "
 import json, os
-p = 'hw_config.json'
+p = 'config/hw_config.json'
 if os.path.exists(p):
     d = json.load(open(p))
     print(d.get('cpu_vendor','MISSING'))
