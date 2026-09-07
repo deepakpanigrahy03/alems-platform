@@ -913,7 +913,8 @@ class ExperimentRunner:
                         _darwin_row['interval_ns'] = (
                             (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
                         )
-                    db.insert_cpu_samples(linear_id, [_darwin_row])
+                    result_insert = db.insert_cpu_samples(linear_id, [_darwin_row])
+                    print(f"DEBUG darwin insert: run_id={linear_id} row_keys={list(_darwin_row.keys())} result={result_insert}")
             # cpu_idle_states: ARM path — cpuidle sysfs cumulative residency
             if _caps_arch == 'aarch64':
                 try:
