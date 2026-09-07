@@ -59,7 +59,6 @@ def _build_darwin_cpu_sample_row(run_id, result):
     ipc = perf.get("ipc") or None
     l1d_misses = None  # not in derived_energy — comes from KPerfPMUReader directly
 
-    print(f"DEBUG BUILDER: instructions={instructions} cycles={cycles} derived_keys={list(derived.keys()) if derived else 'EMPTY'}")
     if not instructions and not cycles:
         # No PMU data available for this run — log at WARNING for debug
         import json as _json
@@ -86,25 +85,22 @@ def _build_darwin_cpu_sample_row(run_id, result):
     return {
         "run_id":            run_id,
         "timestamp_ns":      now_ns,
-        # sample_start_ns and sample_end_ns are patched in by caller
-        # (same pattern as arm_cpu_sample_builder — set from run record)
+        # sample_start_ns and sample_end_ns patched by caller from run record
         "sample_start_ns":   None,
         "sample_end_ns":     None,
         "interval_ns":       None,
-        # Frequency from IOReportCPUFreqReader (more accurate than psutil)
+        # Frequency from IOReportCPUFreqReader
         "cpu_busy_mhz":      freq_mean or None,
         "cpu_avg_mhz":       freq_mean or None,
-        # cpu_util from IOReport active ratio — more accurate than psutil
+        # cpu_util from IOReport active ratio converted to percent
         "cpu_util_percent":  cpu_util,
-        # PMU counters from KPerfPMUReader
-        "instructions":      instructions or None,
-        "cycles":            cycles or None,
+        # IPC from KPerfPMUReader — only field cpu_samples schema accepts from PMU
         "ipc":               ipc,
-        "cache_misses":      cache_misses if cache_misses else None,
+        # L1D misses from KPerfPMUReader — in schema as l1d_cache_misses
         "l1d_cache_misses":  l1d_misses if l1d_misses else None,
         # L2/L3 not in a14.plist — MIC-1: NULL not zero
         "l2_cache_misses":   None,
         "l3_cache_misses":   None,
-        # package_power not available in this path (IOKit provides energy not power here)
+        # package_power: IOKit provides energy not instantaneous power here
         "package_power":     None,
     }

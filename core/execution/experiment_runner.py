@@ -901,8 +901,6 @@ class ExperimentRunner:
                 _de = linear_result.get('derived_energy', {})
                 _perf = _de.get('performance', {}) if isinstance(_de, dict) else {}
                 _ml = linear_result.get('ml_features', {}) or {}
-                print(f"DEBUG darwin branch: perf={_perf} ml_instructions={_ml.get('instructions')}")
-                print(f"DEBUG de keys: {list(_de.keys()) if _de else 'EMPTY'}")
                 _darwin_row = _build_darwin_cpu_sample_row(linear_id, linear_result)
                 if _darwin_row:
                     _r = db.get_run(linear_id)
@@ -913,8 +911,7 @@ class ExperimentRunner:
                         _darwin_row['interval_ns'] = (
                             (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
                         )
-                    result_insert = db.insert_cpu_samples(linear_id, [_darwin_row])
-                    print(f"DEBUG darwin insert: run_id={linear_id} row_keys={list(_darwin_row.keys())} result={result_insert}")
+                    db.insert_cpu_samples(linear_id, [_darwin_row])
             # cpu_idle_states: ARM path — cpuidle sysfs cumulative residency
             if _caps_arch == 'aarch64':
                 try:
@@ -1344,8 +1341,6 @@ class ExperimentRunner:
         populate_ttft_tpot(agentic_id)
         populate_ttft_tpot(linear_id)
         # v9: duration fix
-        print(f"DEBUG rapl_before_pretask agentic={agentic_result.get('rapl_before_pretask')}")
-        print(f"DEBUG rapl_before_pretask linear={linear_result.get('rapl_before_pretask')}")
         _aml = agentic_result.get("ml_features", {})
         if _aml.get("rapl_before_pretask") is not None:
             fix_run_with_pretask(

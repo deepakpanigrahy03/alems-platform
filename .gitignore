@@ -115,3 +115,4 @@ config/platform.json
 data/test_files/
 data/*.json
 .alems-env
+migrations/migration_manifest.json
