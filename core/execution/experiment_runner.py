@@ -1644,6 +1644,21 @@ class ExperimentRunner:
                 logger.warning("spbm_telemetry_etl failed single run_id=%d: %s", run_id, _e)
                 if "cpu_samples" in result:
                     db.insert_cpu_samples(run_id, result["cpu_samples"])
+                if platform.system() == 'Darwin':
+                    _darwin_row = _build_darwin_cpu_sample_row(run_id, result)
+                    if _darwin_row:
+                        _r = db.get_run(run_id)
+                        if _r:
+                            _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
+                            _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
+                            _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
+                            _darwin_row['interval_ns'] = (
+                                (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
+                            )
+                        try:
+                            db.insert_cpu_samples(run_id, [_darwin_row])
+                        except Exception as _e:
+                            logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
                 # SPEC_03A: NIC samples
                 if result.get("nic_samples"):
                     _insert_nic_samples(db, run_id, result["nic_samples"])
@@ -1801,6 +1816,21 @@ class ExperimentRunner:
 
         if "cpu_samples" in result:
             db.insert_cpu_samples(run_id, result["cpu_samples"])
+        if platform.system() == 'Darwin':
+            _darwin_row = _build_darwin_cpu_sample_row(run_id, result)
+            if _darwin_row:
+                _r = db.get_run(run_id)
+                if _r:
+                    _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
+                    _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
+                    _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
+                    _darwin_row['interval_ns'] = (
+                        (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
+                    )
+                try:
+                    db.insert_cpu_samples(run_id, [_darwin_row])
+                except Exception as _e:
+                    logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
 
         if "interrupt_samples" in result:
             db.insert_interrupt_samples(run_id, result["interrupt_samples"])
