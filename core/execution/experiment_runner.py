@@ -911,7 +911,11 @@ class ExperimentRunner:
                         _darwin_row['interval_ns'] = (
                             (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
                         )
-                    db.insert_cpu_samples(linear_id, [_darwin_row])
+                    try:
+                        db.insert_cpu_samples(linear_id, [_darwin_row])
+                        logger.info("darwin cpu_samples inserted run_id=%d", linear_id)
+                    except Exception as _e:
+                        logger.warning("darwin cpu_samples insert failed run_id=%d: %s", linear_id, _e)
             # cpu_idle_states: ARM path — cpuidle sysfs cumulative residency
             if _caps_arch == 'aarch64':
                 try:
