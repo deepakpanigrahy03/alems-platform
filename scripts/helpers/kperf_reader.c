@@ -172,7 +172,7 @@ static int load_frameworks(void)
 
 /* Event names to configure via kpep */
 static const char *CFG_EVENT_NAMES[] = {
-    "L1D_CACHE_MISS_LD_NONSPEC",
+    "L1D_CACHE_MISS_LD",
     "L1D_TLB_ACCESS",
 };
 #define NUM_CFG_EVENTS 2
@@ -368,12 +368,9 @@ int main(void)
      * Index mapping: 0=L1D_CACHE_MISS_LD, 1=L1D_CACHE_MISS_ST,
      *               2=L1D_CACHE_MISS_LD_NONSPEC, 3=L1D_TLB_ACCESS */
     printf("{\"instructions\":%llu,\"cycles\":%llu,"
-           "\"l1d_miss_ld\":%llu,\"l1d_miss_st\":%llu,"
-           "\"l1d_miss_nonspec\":%llu,\"l1d_tlb_access\":%llu}\n",
+           "\"l1d_miss_ld\":%llu,\"l1d_tlb_access\":%llu}\n",
            fixed_instructions, fixed_cycles,
-           cfg_values[0], cfg_values[1],
-           cfg_values[2], cfg_values[3]);
-
+           cfg_values[0], cfg_values[1]);
     /* Cleanup */
     kpep_config_free(cfg);
     kpep_db_free(db);
