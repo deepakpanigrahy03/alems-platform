@@ -898,6 +898,7 @@ class ExperimentRunner:
                     db.insert_cpu_samples(linear_id, [_arm_row])
             elif platform.system() == 'Darwin':
                 # Darwin: one summary row from KPerfPMUReader (mirrors ARM pattern)
+                print("DEBUG: Darwin elif reached")
                 _de = linear_result.get('derived_energy', {})
                 _perf = _de.get('performance', {}) if isinstance(_de, dict) else {}
                 _ml = linear_result.get('ml_features', {}) or {}
