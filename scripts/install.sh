@@ -119,12 +119,21 @@ if [ -f "$ALEMSRC" ] && grep -q "ALEMS_DATA_ROOT" "$ALEMSRC"; then
     # shellcheck disable=SC1090
     source "$ALEMSRC"
 else
+    # Set platform-appropriate default data root
+    # Darwin: /mnt is read-only — use home directory instead
+    # Linux: /mnt/alems-data is standard (external mount or NFS)
+    if [ "${OS}" = "Darwin" ]; then
+        DEFAULT_DATA_ROOT="${HOME}/alems-data"
+    else
+        DEFAULT_DATA_ROOT="/mnt/alems-data"
+    fi
     echo ""
     echo "  A-LEMS stores experiment data outside the repo."
-    echo "  Default: /mnt/alems-data"
+    echo "  Default: ${DEFAULT_DATA_ROOT}"
+    echo "  (Press Enter to accept, or type a different path)"
     echo ""
-    read -rp "  Data root [/mnt/alems-data]: " DATA_ROOT
-    DATA_ROOT="${DATA_ROOT:-/mnt/alems-data}"
+    read -rp "  Data root [${DEFAULT_DATA_ROOT}]: " DATA_ROOT
+    DATA_ROOT="${DATA_ROOT:-${DEFAULT_DATA_ROOT}}"
 
     MACHINE_DIR="${DATA_ROOT}/${HOSTNAME_LOWER}"
     mkdir -p "$MACHINE_DIR"
