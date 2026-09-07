@@ -59,6 +59,7 @@ def _build_darwin_cpu_sample_row(run_id, result):
     ipc = perf.get("ipc") or None
     l1d_misses = None  # not in derived_energy — comes from KPerfPMUReader directly
 
+    print(f"DEBUG BUILDER: instructions={instructions} cycles={cycles} derived_keys={list(derived.keys()) if derived else 'EMPTY'}")
     if not instructions and not cycles:
         # No PMU data available for this run — log at WARNING for debug
         import json as _json
