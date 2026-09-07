@@ -333,6 +333,17 @@ int main(void)
             cfg_values[i] = 0;
     }
 
+    /* Debug: print kpc_map values to stderr */
+    fprintf(stderr, "DEBUG: n_fixed=%u total=%u events_added=%d\n",
+            kpc_get_counter_count(KPC_CLASS_FIXED),
+            total_counters, events_added);
+    for (int i = 0; i < events_added; i++)
+        fprintf(stderr, "DEBUG: kpc_map[%d]=%zu -> sums[%zu]=%llu\n",
+                i, kpc_map[i], kpc_map[i],
+                kpc_map[i] < MAX_COUNTERS ? sums[kpc_map[i]] : 0);
+    fprintf(stderr, "DEBUG: sums[0]=%llu sums[1]=%llu sums[2]=%llu sums[3]=%llu\n",
+            sums[0], sums[1], sums[2], sums[3]);
+
     /* Print JSON. Index: 0=L1D_CACHE_MISS_LD, 1=L1D_TLB_ACCESS */
     printf("{\"instructions\":%llu,\"cycles\":%llu,"
            "\"l1d_miss_ld\":%llu,\"l1d_tlb_access\":%llu}\n",
