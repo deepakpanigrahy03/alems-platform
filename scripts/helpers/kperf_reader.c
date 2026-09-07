@@ -6,8 +6,8 @@
  *
  * Build:  cc -O2 -o kperf_reader kperf_reader.c
  * Usage:  sudo ./kperf_reader
- * Output: {"instructions":123456,"cycles":789012,"l1d_miss_ld":34,
- *          "l1d_miss_st":12,"l1d_miss_nonspec":30,"l1d_tlb_access":5000}
+ * Output: {"instructions":123456,"cycles":789012,
+ *          "l1d_miss_ld":34,"l1d_tlb_access":5000}
  *
  * Exit codes: 0 = success, 1 = framework load failed,
  *             2 = kpep db failed, 3 = counter config failed,
@@ -15,6 +15,12 @@
  *
  * Requires root (kpc_set_config needs EPERM bypass).
  * System-wide counters (all CPUs, all processes).
+ *
+ * Counter layout on Apple Silicon (verified on M1 Pro):
+ *   fixed=2, configurable=6, combined=8
+ *   Combined buffer: [0]=FIXED_CYCLES [1]=FIXED_INSTRUCTIONS [2-7]=configurable
+ *   kpc_map returns absolute index into combined buffer.
+ *   This layout is generic across all Apple Silicon generations.
  */
 
 #include <stdio.h>
@@ -23,109 +29,78 @@
 #include <string.h>
 #include <dlfcn.h>
 
-/* sysctl for CPU count - add include if compiler warns */
 extern int sysctl(int *, unsigned int, void *, size_t *, void *, size_t);
 
-/* ---------- kperf/kperfdata function pointer typedefs ---------- */
-
-/* Counter classes bitmask */
+/* Counter class bitmasks */
 #define KPC_CLASS_FIXED          (1u << 0)
 #define KPC_CLASS_CONFIGURABLE   (1u << 1)
 #define KPC_CLASS_FIXED_AND_CFG  (KPC_CLASS_FIXED | KPC_CLASS_CONFIGURABLE)
 
-/* Max counters: 2 fixed + 8 configurable on Apple Silicon */
-#define MAX_COUNTERS 10
+/* Conservative upper bound — Apple Silicon has 2 fixed + 6-8 configurable */
+#define MAX_COUNTERS 16
 
-/* kperf functions */
-typedef int (*kpc_get_counter_count_fn)(uint32_t classes);
-typedef int (*kpc_set_counting_fn)(uint32_t classes);
-typedef int (*kpc_get_counting_fn)(void);
-typedef int (*kpc_set_config_fn)(uint32_t classes, uint64_t *config);
-typedef int (*kpc_get_config_fn)(uint32_t classes, uint64_t *config);
-typedef int (*kpc_get_cpu_counters_fn)(int all_cpus, uint32_t classes,
-                                       int cpu_number, uint64_t *buf);
-typedef int (*kpc_force_all_ctrs_set_fn)(int enable);
+/* kperf function pointer typedefs */
+typedef uint32_t (*kpc_get_counter_count_fn)(uint32_t classes);
+typedef int      (*kpc_set_counting_fn)(uint32_t classes);
+typedef int      (*kpc_set_config_fn)(uint32_t classes, uint64_t *config);
+typedef int      (*kpc_get_cpu_counters_fn)(int all_cpus, uint32_t classes,
+                                            int cpu, uint64_t *buf);
+typedef int      (*kpc_force_all_ctrs_set_fn)(int enable);
 
-/* kpep functions (event database lookup) */
-typedef int (*kpep_db_create_fn)(const char *path, void **db_out);
+/* kpep function pointer typedefs */
+typedef int  (*kpep_db_create_fn)(const char *path, void **db_out);
 typedef void (*kpep_db_free_fn)(void *db);
-typedef int (*kpep_db_event_fn)(void *db, const char *name, void **ev_out);
-typedef int (*kpep_event_name_fn)(void *ev, const char **name_out);
-typedef int (*kpep_event_alias_fn)(void *ev, const char **alias_out);
-typedef int (*kpep_event_description_fn)(void *ev, const char **desc_out);
-
-/*
- * kpep_config functions: manage an event configuration object
- * that maps event names to hardware counter slots.
- */
-typedef int (*kpep_config_create_fn)(void *db, void **cfg_out);
+typedef int  (*kpep_db_event_fn)(void *db, const char *name, void **ev_out);
+typedef int  (*kpep_config_create_fn)(void *db, void **cfg_out);
 typedef void (*kpep_config_free_fn)(void *cfg);
-typedef int (*kpep_config_add_event_fn)(void *cfg, void **ev, uint32_t flag,
-                                        uint32_t *err);
-typedef int (*kpep_config_kpc_fn)(void *cfg, uint64_t *buf,
-                                   size_t buf_size);
-typedef int (*kpep_config_kpc_count_fn)(void *cfg, size_t *count_out);
-typedef int (*kpep_config_kpc_classes_fn)(void *cfg, uint32_t *classes_out);
-typedef int (*kpep_config_kpc_map_fn)(void *cfg, size_t *buf,
-                                      size_t buf_size);
+typedef int  (*kpep_config_add_event_fn)(void *cfg, void **ev,
+                                         uint32_t flag, uint32_t *err);
+typedef int  (*kpep_config_kpc_fn)(void *cfg, uint64_t *buf, size_t buf_size);
+typedef int  (*kpep_config_kpc_count_fn)(void *cfg, size_t *count_out);
+typedef int  (*kpep_config_kpc_classes_fn)(void *cfg, uint32_t *classes_out);
+typedef int  (*kpep_config_kpc_map_fn)(void *cfg, size_t *buf, size_t buf_size);
 
-/* ---------- Global function pointers ---------- */
-static kpc_get_counter_count_fn   kpc_get_counter_count;
-static kpc_set_counting_fn        kpc_set_counting;
-static kpc_get_counting_fn        kpc_get_counting;
-static kpc_set_config_fn          kpc_set_config;
-static kpc_get_config_fn          kpc_get_config;
-static kpc_get_cpu_counters_fn    kpc_get_cpu_counters;
-static kpc_force_all_ctrs_set_fn  kpc_force_all_ctrs_set;
+/* Global function pointers */
+static kpc_get_counter_count_fn  kpc_get_counter_count;
+static kpc_set_counting_fn       kpc_set_counting;
+static kpc_set_config_fn         kpc_set_config;
+static kpc_get_cpu_counters_fn   kpc_get_cpu_counters;
+static kpc_force_all_ctrs_set_fn kpc_force_all_ctrs_set;
 
-static kpep_db_create_fn          kpep_db_create;
-static kpep_db_free_fn            kpep_db_free;
-static kpep_db_event_fn           kpep_db_event;
-static kpep_config_create_fn      kpep_config_create;
-static kpep_config_free_fn        kpep_config_free;
-static kpep_config_add_event_fn   kpep_config_add_event;
-static kpep_config_kpc_fn         kpep_config_kpc;
-static kpep_config_kpc_count_fn   kpep_config_kpc_count;
+static kpep_db_create_fn         kpep_db_create;
+static kpep_db_free_fn           kpep_db_free;
+static kpep_db_event_fn          kpep_db_event;
+static kpep_config_create_fn     kpep_config_create;
+static kpep_config_free_fn       kpep_config_free;
+static kpep_config_add_event_fn  kpep_config_add_event;
+static kpep_config_kpc_fn        kpep_config_kpc;
+static kpep_config_kpc_count_fn  kpep_config_kpc_count;
 static kpep_config_kpc_classes_fn kpep_config_kpc_classes;
-static kpep_config_kpc_map_fn     kpep_config_kpc_map;
+static kpep_config_kpc_map_fn    kpep_config_kpc_map;
 
-
-/*
- * load_frameworks: dlopen kperf and kperfdata, resolve all symbols.
- * Returns 0 on success, 1 on failure.
- */
 static int load_frameworks(void)
 {
     void *kperf = dlopen(
-        "/System/Library/PrivateFrameworks/kperf.framework/kperf",
-        RTLD_LAZY
-    );
+        "/System/Library/PrivateFrameworks/kperf.framework/kperf", RTLD_LAZY);
     if (!kperf) {
-        fprintf(stderr, "ERROR: cannot load kperf.framework: %s\n",
-                dlerror());
+        fprintf(stderr, "ERROR: cannot load kperf.framework: %s\n", dlerror());
         return 1;
     }
-
     void *kperfdata = dlopen(
         "/System/Library/PrivateFrameworks/kperfdata.framework/kperfdata",
-        RTLD_LAZY
-    );
+        RTLD_LAZY);
     if (!kperfdata) {
         fprintf(stderr, "ERROR: cannot load kperfdata.framework: %s\n",
                 dlerror());
         return 1;
     }
 
-    /* Resolve kpc functions */
     kpc_get_counter_count  = dlsym(kperf, "kpc_get_counter_count");
     kpc_set_counting       = dlsym(kperf, "kpc_set_counting");
-    kpc_get_counting       = dlsym(kperf, "kpc_get_counting");
     kpc_set_config         = dlsym(kperf, "kpc_set_config");
-    kpc_get_config         = dlsym(kperf, "kpc_get_config");
     kpc_get_cpu_counters   = dlsym(kperf, "kpc_get_cpu_counters");
     kpc_force_all_ctrs_set = dlsym(kperf, "kpc_force_all_ctrs_set");
 
-    /* Resolve kpep functions */
     kpep_db_create          = dlsym(kperfdata, "kpep_db_create");
     kpep_db_free            = dlsym(kperfdata, "kpep_db_free");
     kpep_db_event           = dlsym(kperfdata, "kpep_db_event");
@@ -137,65 +112,54 @@ static int load_frameworks(void)
     kpep_config_kpc_classes = dlsym(kperfdata, "kpep_config_kpc_classes");
     kpep_config_kpc_map     = dlsym(kperfdata, "kpep_config_kpc_map");
 
-    /* Verify critical symbols resolved */
-    if (!kpc_get_counter_count || !kpc_set_counting ||
-        !kpc_set_config || !kpc_get_cpu_counters ||
-        !kpep_db_create || !kpep_db_event ||
-        !kpep_config_create || !kpep_config_add_event ||
-        !kpep_config_kpc || !kpep_config_kpc_count ||
-        !kpep_config_kpc_classes || !kpep_config_kpc_map) {
+    if (!kpc_get_counter_count || !kpc_set_counting || !kpc_set_config ||
+        !kpc_get_cpu_counters  || !kpc_force_all_ctrs_set ||
+        !kpep_db_create || !kpep_db_event || !kpep_config_create ||
+        !kpep_config_add_event || !kpep_config_kpc ||
+        !kpep_config_kpc_count || !kpep_config_kpc_classes ||
+        !kpep_config_kpc_map) {
         fprintf(stderr, "ERROR: failed to resolve required kperf symbols\n");
         return 1;
     }
-
     return 0;
 }
 
-
 /*
- * A-LEMS event list: the events we want to read.
+ * Configurable events to request.
  *
- * Fixed counters (always slot 0 and 1 on Apple Silicon):
- *   FIXED_CYCLES       -> slot 0
- *   FIXED_INSTRUCTIONS -> slot 1
+ * L1D_CACHE_MISS_LD: L1D load cache misses (speculative + retired).
+ *   Available on all Apple Silicon via a14/a15/a16/a17 plist.
  *
- * Configurable counters (resolved via kpep from chip plist):
- *   L1D_CACHE_MISS_LD       -> loads that missed L1D
- *   L1D_CACHE_MISS_ST       -> stores that missed L1D
- *   L1D_CACHE_MISS_LD_NONSPEC -> retired L1D load misses (most accurate)
- *   L1D_TLB_ACCESS           -> proxy for cache_references
+ * L1D_TLB_ACCESS: L1D TLB accesses. Used as proxy for cache_references
+ *   since no direct total-accesses event exists on Apple Silicon.
  *
- * Note: L2 and L3 cache events are NOT available in a14.plist (M1).
- * Those columns will remain NULL. This is a hardware limitation,
- * not a software gap.
+ * L1D_CACHE_MISS_LD_NONSPEC was removed: it conflicts with L1D_CACHE_MISS_LD
+ * for the same hardware counter slot on M1 Pro (ret=13, EACCES).
+ * L1D_CACHE_MISS_LD is used instead — slightly less precise (includes
+ * speculative misses) but available without slot conflict.
  */
-
-/* Event names to configure via kpep */
 static const char *CFG_EVENT_NAMES[] = {
     "L1D_CACHE_MISS_LD",
     "L1D_TLB_ACCESS",
 };
 #define NUM_CFG_EVENTS 2
 
-
 int main(void)
 {
     int ret;
 
-    /* Step 1: Load private frameworks */
     if (load_frameworks() != 0)
         return 1;
 
-    /* Step 2: Create kpep database (auto detects chip from /usr/share/kpep/) */
+    /* Create kpep database — NULL path auto-detects chip from /usr/share/kpep/ */
     void *db = NULL;
-    ret = kpep_db_create(NULL, &db);   /* NULL path = auto detect chip */
+    ret = kpep_db_create(NULL, &db);
     if (ret != 0 || !db) {
-        fprintf(stderr, "ERROR: kpep_db_create failed (ret=%d). "
-                "Check /usr/share/kpep/ exists.\n", ret);
+        fprintf(stderr, "ERROR: kpep_db_create failed (ret=%d)\n", ret);
         return 2;
     }
 
-    /* Step 3: Create kpep config and add configurable events */
+    /* Create kpep config and add configurable events */
     void *cfg = NULL;
     ret = kpep_config_create(db, &cfg);
     if (ret != 0 || !cfg) {
@@ -204,17 +168,19 @@ int main(void)
         return 2;
     }
 
-    /* Look up and add each configurable event */
+    /*
+     * Add each event to config. Track which events succeeded via
+     * event_added[] so we can map output correctly even if some fail.
+     */
+    int event_added[NUM_CFG_EVENTS];
     int events_added = 0;
-    int event_slot_map[NUM_CFG_EVENTS]; /* which output index maps to which */
     for (int i = 0; i < NUM_CFG_EVENTS; i++) {
         void *ev = NULL;
         ret = kpep_db_event(db, CFG_EVENT_NAMES[i], &ev);
         if (ret != 0 || !ev) {
-            /* Event not available on this chip (expected for some chips) */
-            fprintf(stderr, "WARN: event %s not found in chip plist, "
-                    "skipping\n", CFG_EVENT_NAMES[i]);
-            event_slot_map[i] = -1;   /* mark as unavailable */
+            fprintf(stderr, "WARN: event %s not in chip plist, skipping\n",
+                    CFG_EVENT_NAMES[i]);
+            event_added[i] = 0;
             continue;
         }
         uint32_t err = 0;
@@ -222,158 +188,158 @@ int main(void)
         if (ret != 0) {
             fprintf(stderr, "WARN: kpep_config_add_event(%s) failed "
                     "(ret=%d, err=%u)\n", CFG_EVENT_NAMES[i], ret, err);
-            event_slot_map[i] = -1;
+            event_added[i] = 0;
             continue;
         }
-        event_slot_map[i] = events_added;
+        event_added[i] = 1;
         events_added++;
     }
 
-    /* Step 4: Get the KPC config array from kpep */
+    /* Get KPC config classes — tells us which counter classes kpep assigned */
     uint32_t classes = 0;
     ret = kpep_config_kpc_classes(cfg, &classes);
     if (ret != 0) {
         fprintf(stderr, "ERROR: kpep_config_kpc_classes failed\n");
-        kpep_config_free(cfg);
-        kpep_db_free(db);
+        kpep_config_free(cfg); kpep_db_free(db);
         return 3;
     }
-    /* Always include fixed counters */
-    classes |= KPC_CLASS_FIXED;
+    classes |= KPC_CLASS_FIXED;  /* always read fixed counters */
 
-    size_t kpc_count = 0;
-    ret = kpep_config_kpc_count(cfg, &kpc_count);
-    if (ret != 0 || kpc_count == 0) {
-        /* Fallback: 2 fixed + events_added configurable */
-        kpc_count = 2 + events_added;
-    }
-
+    /* Get KPC config array — the hardware event selector values */
     uint64_t kpc_config[MAX_COUNTERS];
     memset(kpc_config, 0, sizeof(kpc_config));
     ret = kpep_config_kpc(cfg, kpc_config, sizeof(kpc_config));
     if (ret != 0) {
         fprintf(stderr, "ERROR: kpep_config_kpc failed (ret=%d)\n", ret);
-        kpep_config_free(cfg);
-        kpep_db_free(db);
+        kpep_config_free(cfg); kpep_db_free(db);
         return 3;
     }
 
-    /* Get the slot map: kpep event index -> kpc counter index */
-    size_t kpc_map[MAX_COUNTERS];
+    /*
+     * Get kpc_map: maps each successfully-added event (in order of addition)
+     * to its absolute index in the COMBINED counter buffer.
+     * Combined buffer layout: [0..n_fixed-1]=fixed, [n_fixed..total-1]=cfg.
+     * Buffer size must be exactly events_added * sizeof(size_t).
+     */
+    size_t kpc_map[NUM_CFG_EVENTS];
     memset(kpc_map, 0, sizeof(kpc_map));
-    ret = kpep_config_kpc_map(cfg, kpc_map, sizeof(kpc_map));
-    if (ret != 0) {
-        fprintf(stderr, "WARN: kpep_config_kpc_map failed, "
-                "using sequential mapping\n");
-        /* Fallback: configurable events start at index 2 (after fixed) */
-        for (int i = 0; i < events_added; i++)
-            kpc_map[i] = 2 + i;
+    if (events_added > 0) {
+        ret = kpep_config_kpc_map(cfg, kpc_map, events_added * sizeof(size_t));
+        if (ret != 0) {
+            fprintf(stderr, "WARN: kpep_config_kpc_map failed (ret=%d), "
+                    "using fallback mapping\n", ret);
+            /*
+             * Fallback: configurable events start after fixed counters.
+             * n_fixed is always 2 on Apple Silicon (verified M1-M4).
+             */
+            uint32_t n_fixed = kpc_get_counter_count(KPC_CLASS_FIXED);
+            if (n_fixed == 0) n_fixed = 2;
+            for (int i = 0; i < events_added; i++)
+                kpc_map[i] = n_fixed + i;
+        }
     }
 
-    /* Step 5: Force enable all counters (requires root) */
+    /* Apply hardware counter configuration (requires root) */
     ret = kpc_force_all_ctrs_set(1);
     if (ret != 0) {
         fprintf(stderr, "ERROR: kpc_force_all_ctrs_set failed (ret=%d). "
-                "Are you running as root?\n", ret);
-        kpep_config_free(cfg);
-        kpep_db_free(db);
+                "Run as root.\n", ret);
+        kpep_config_free(cfg); kpep_db_free(db);
         return 3;
     }
-
-    /* Step 6: Apply the counter configuration */
     ret = kpc_set_config(classes, kpc_config);
     if (ret != 0) {
-        fprintf(stderr, "ERROR: kpc_set_config failed (ret=%d). "
-                "Root required for configurable counters.\n", ret);
-        kpep_config_free(cfg);
-        kpep_db_free(db);
+        fprintf(stderr, "ERROR: kpc_set_config failed (ret=%d)\n", ret);
+        kpep_config_free(cfg); kpep_db_free(db);
         return 3;
     }
-
-    /* Step 7: Enable counting */
     ret = kpc_set_counting(classes);
     if (ret != 0) {
         fprintf(stderr, "ERROR: kpc_set_counting failed (ret=%d)\n", ret);
-        kpep_config_free(cfg);
-        kpep_db_free(db);
+        kpep_config_free(cfg); kpep_db_free(db);
         return 3;
     }
 
-    /* Step 8: Read counters (all CPUs summed) */
-    int total_counters = kpc_get_counter_count(KPC_CLASS_FIXED_AND_CFG);
-    if (total_counters <= 0)
-        total_counters = MAX_COUNTERS;
+    /* Get total combined counter count for buffer sizing */
+    uint32_t total_counters = kpc_get_counter_count(KPC_CLASS_FIXED_AND_CFG);
+    if (total_counters == 0 || total_counters > MAX_COUNTERS)
+        total_counters = 8;  /* verified default on all Apple Silicon */
 
-    /* Buffer: ncpus * total_counters. We request all_cpus=1 to get
-     * per-CPU arrays, then sum across CPUs for system-wide totals. */
+    /* Get CPU count for per-CPU buffer sizing */
     int ncpus = 0;
     {
-        /* Get CPU count via sysctl */
         size_t sz = sizeof(ncpus);
         int mib[] = {6 /* CTL_HW */, 3 /* HW_NCPU */};
         sysctl(mib, 2, &ncpus, &sz, NULL, 0);
         if (ncpus <= 0) ncpus = 1;
     }
 
+    /*
+     * Read ALL counters (fixed + configurable) in ONE call.
+     * kpc_get_cpu_counters with all_cpus=1 returns ncpus * total_counters
+     * values laid out as: [cpu0_ctr0, cpu0_ctr1, ..., cpu1_ctr0, ...].
+     * Combined buffer: [0..n_fixed-1]=fixed, [n_fixed..total-1]=configurable.
+     */
     size_t buf_size = ncpus * total_counters;
     uint64_t *buf = calloc(buf_size, sizeof(uint64_t));
     if (!buf) {
-        fprintf(stderr, "ERROR: calloc failed for %zu counters\n", buf_size);
-        kpep_config_free(cfg);
-        kpep_db_free(db);
+        fprintf(stderr, "ERROR: calloc failed\n");
+        kpep_config_free(cfg); kpep_db_free(db);
         return 4;
     }
-
     ret = kpc_get_cpu_counters(1, classes, 0, buf);
     if (ret != 0) {
         fprintf(stderr, "ERROR: kpc_get_cpu_counters failed (ret=%d)\n", ret);
-        free(buf);
-        kpep_config_free(cfg);
-        kpep_db_free(db);
+        free(buf); kpep_config_free(cfg); kpep_db_free(db);
         return 4;
     }
 
-    /* Step 9: Sum counters across all CPUs */
+    /* Sum each counter slot across all CPUs */
     uint64_t sums[MAX_COUNTERS];
     memset(sums, 0, sizeof(sums));
     for (int cpu = 0; cpu < ncpus; cpu++) {
-        for (int c = 0; c < total_counters && c < MAX_COUNTERS; c++) {
-            sums[c] += buf[cpu * total_counters + c];
+        for (uint32_t c = 0; c < total_counters; c++) {
+            sums[c] += buf[(size_t)cpu * total_counters + c];
         }
     }
-
     free(buf);
 
-    /* Step 10: Extract values by slot.
-     * Fixed counters are always at indices 0 (FIXED_CYCLES) and
-     * 1 (FIXED_INSTRUCTIONS) on Apple Silicon. */
+    /*
+     * Extract fixed counter values.
+     * Fixed slot 0 = FIXED_CYCLES, slot 1 = FIXED_INSTRUCTIONS.
+     * This ordering is consistent across all Apple Silicon generations.
+     */
     uint64_t fixed_cycles       = sums[0];
     uint64_t fixed_instructions = sums[1];
 
-    /* Configurable event values via kpc_map */
+    /*
+     * Extract configurable event values using kpc_map.
+     * kpc_map[i] is the absolute index into sums[] for the i-th
+     * successfully added event. Track position in kpc_map separately
+     * from CFG_EVENT_NAMES index since some events may have been skipped.
+     */
     uint64_t cfg_values[NUM_CFG_EVENTS];
+    memset(cfg_values, 0, sizeof(cfg_values));
+    int map_idx = 0;
     for (int i = 0; i < NUM_CFG_EVENTS; i++) {
-        if (event_slot_map[i] >= 0) {
-            int slot = (int)kpc_map[event_slot_map[i]];
-            if (slot >= 0 && slot < MAX_COUNTERS)
-                cfg_values[i] = sums[slot];
-            else
-                cfg_values[i] = 0;
-        } else {
+        if (!event_added[i]) {
             cfg_values[i] = 0;
+            continue;
         }
+        size_t abs_slot = kpc_map[map_idx++];
+        if (abs_slot < MAX_COUNTERS)
+            cfg_values[i] = sums[abs_slot];
+        else
+            cfg_values[i] = 0;
     }
 
-    /* Step 11: Print JSON (single line).
-     * Index mapping: 0=L1D_CACHE_MISS_LD, 1=L1D_CACHE_MISS_ST,
-     *               2=L1D_CACHE_MISS_LD_NONSPEC, 3=L1D_TLB_ACCESS */
+    /* Print JSON. Index: 0=L1D_CACHE_MISS_LD, 1=L1D_TLB_ACCESS */
     printf("{\"instructions\":%llu,\"cycles\":%llu,"
            "\"l1d_miss_ld\":%llu,\"l1d_tlb_access\":%llu}\n",
            fixed_instructions, fixed_cycles,
            cfg_values[0], cfg_values[1]);
-    /* Cleanup */
+
     kpep_config_free(cfg);
     kpep_db_free(db);
-
     return 0;
 }
