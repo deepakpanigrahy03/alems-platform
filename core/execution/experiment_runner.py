@@ -898,7 +898,6 @@ class ExperimentRunner:
                     db.insert_cpu_samples(linear_id, [_arm_row])
             elif platform.system() == 'Darwin':
                 # Darwin: one summary row from KPerfPMUReader (mirrors ARM pattern)
-                print("DEBUG: Darwin elif reached")
                 _de = linear_result.get('derived_energy', {})
                 _perf = _de.get('performance', {}) if isinstance(_de, dict) else {}
                 _ml = linear_result.get('ml_features', {}) or {}
@@ -1124,6 +1123,21 @@ class ExperimentRunner:
                         _arm_row['sample_end_ns']   = _r.get('end_time_ns')
                         _arm_row['timestamp_ns']    = _r.get('end_time_ns')
                     db.insert_cpu_samples(agentic_id, [_arm_row])
+            elif platform.system() == 'Darwin':
+                _darwin_row = _build_darwin_cpu_sample_row(agentic_id, agentic_result)
+                if _darwin_row:
+                    _r = db.get_run(agentic_id)
+                    if _r:
+                        _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
+                        _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
+                        _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
+                        _darwin_row['interval_ns'] = (
+                            (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
+                        )
+                    try:
+                        db.insert_cpu_samples(agentic_id, [_darwin_row])
+                    except Exception as _e:
+                        logger.warning("darwin cpu_samples insert failed agentic run_id=%d: %s", agentic_id, _e)
             # cpu_idle_states: ARM path
             if _caps_arch == 'aarch64':
                 try:
