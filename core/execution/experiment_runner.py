@@ -902,6 +902,7 @@ class ExperimentRunner:
                 _perf = _de.get('performance', {}) if isinstance(_de, dict) else {}
                 _ml = linear_result.get('ml_features', {}) or {}
                 print(f"DEBUG darwin branch: perf={_perf} ml_instructions={_ml.get('instructions')}")
+                print(f"DEBUG de keys: {list(_de.keys()) if _de else 'EMPTY'}")
                 _darwin_row = _build_darwin_cpu_sample_row(linear_id, linear_result)
                 if _darwin_row:
                     _r = db.get_run(linear_id)
