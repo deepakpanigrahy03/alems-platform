@@ -57,7 +57,7 @@ def _build_darwin_cpu_sample_row(run_id, result):
     cycles = perf.get("cycles") or 0
     cache_misses = perf.get("cache_misses") or None
     ipc = perf.get("ipc") or None
-    l1d_misses = None  # not in derived_energy — comes from KPerfPMUReader directly
+    l1d_misses = perf.get("cache_misses") or None
 
     if not instructions and not cycles:
         # No PMU data available for this run — log at WARNING for debug
