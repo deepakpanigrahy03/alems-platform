@@ -313,24 +313,27 @@ int main(void)
     uint64_t fixed_instructions = sums[1];
 
     /*
-     * Extract configurable event values using kpc_map.
-     * kpc_map[i] is the absolute index into sums[] for the i-th
-     * successfully added event. Track position in kpc_map separately
-     * from CFG_EVENT_NAMES index since some events may have been skipped.
+     * Extract configurable event values.
+     * kpc_map is unreliable on Apple Silicon — it returns fixed counter
+     * indices (0,1) instead of configurable indices (n_fixed+). 
+     * Direct indexing: configurable events start at sums[n_fixed].
+     * Verified: sums[0..n_fixed-1]=fixed, sums[n_fixed..]=configurable.
+     * This is consistent across all Apple Silicon generations.
      */
+    uint32_t n_fixed = kpc_get_counter_count(KPC_CLASS_FIXED);
+    if (n_fixed == 0) n_fixed = 2;
+
     uint64_t cfg_values[NUM_CFG_EVENTS];
     memset(cfg_values, 0, sizeof(cfg_values));
-    int map_idx = 0;
+    int cfg_slot = 0;
     for (int i = 0; i < NUM_CFG_EVENTS; i++) {
         if (!event_added[i]) {
             cfg_values[i] = 0;
             continue;
         }
-        size_t abs_slot = kpc_map[map_idx++];
-        if (abs_slot < MAX_COUNTERS)
-            cfg_values[i] = sums[abs_slot];
-        else
-            cfg_values[i] = 0;
+        size_t abs_slot = n_fixed + cfg_slot;
+        cfg_values[i] = (abs_slot < MAX_COUNTERS) ? sums[abs_slot] : 0;
+        cfg_slot++;
     }
 
     /* Debug: print kpc_map values to stderr */
