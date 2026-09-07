@@ -301,7 +301,24 @@ def apply_one(conn, filepath: Path, version: int, mtype: str,
         )
         conn.execute("COMMIT")
     except Exception as e:
-        conn.execute("ROLLBACK")
+        # Idempotency: "duplicate column name" means the column already exists
+        # in schema.py (fresh install). Treat as success — the schema is correct.
+        if "duplicate column name" in str(e).lower():
+            duration_ms = (time.monotonic_ns() - start) // 1_000_000
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            conn.execute(
+                "UPDATE migration_history SET status='applied', duration_ms=? WHERE id=?",
+                [duration_ms, record_id],
+            )
+            conn.commit()
+            return
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
         duration_ms = (time.monotonic_ns() - start) // 1_000_000
         conn.execute(
             "UPDATE migration_history SET status='failed', duration_ms=? WHERE id=?",
