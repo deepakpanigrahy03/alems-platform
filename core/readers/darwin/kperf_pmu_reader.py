@@ -310,17 +310,13 @@ class KPerfPMUReader(CPUReaderABC):
         counters.instructions_retired = delta.get("instructions", 0)
         counters.cpu_cycles = delta.get("cycles", 0)
 
-        # cache_misses = L1D load misses + store misses (combined metric)
-        # matches semantics of Linux perf cache-misses on L1D
-        counters.cache_misses = (
-            delta.get("l1d_miss_ld", 0) + delta.get("l1d_miss_st", 0)
-        )
-
+        # cache_misses = NONSPEC retired L1D misses (most accurate, no slot conflict)
+        # Removed L1D_CACHE_MISS_LD + L1D_CACHE_MISS_ST — they conflict with
+        # L1D_CACHE_MISS_LD_NONSPEC for the same hardware counter slot (ret=13)
+        counters.cache_misses = delta.get("l1d_miss_nonspec", 0)
         # cache_references = L1D TLB accesses (proxy for total accesses)
-        # L1D_TLB_ACCESS is the closest available event on a14.plist
         counters.cache_references = delta.get("l1d_tlb_access", 0)
-
-        # l1d_cache_misses: use NONSPEC variant (retired only, most accurate)
+        # l1d_cache_misses: NONSPEC variant — retired loads only, most accurate
         counters.l1d_cache_misses = delta.get("l1d_miss_nonspec", 0)
 
         # L2 and L3: NOT available on M1 (a14.plist has no such events)

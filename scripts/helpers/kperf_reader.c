@@ -172,12 +172,10 @@ static int load_frameworks(void)
 
 /* Event names to configure via kpep */
 static const char *CFG_EVENT_NAMES[] = {
-    "L1D_CACHE_MISS_LD",
-    "L1D_CACHE_MISS_ST",
     "L1D_CACHE_MISS_LD_NONSPEC",
     "L1D_TLB_ACCESS",
 };
-#define NUM_CFG_EVENTS 4
+#define NUM_CFG_EVENTS 2
 
 
 int main(void)
