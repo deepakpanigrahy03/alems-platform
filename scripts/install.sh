@@ -106,7 +106,9 @@ fi
 
 # ── Step 4: Hardware detection ───────────────────────────────────────
 echo "[4/12] Hardware detection..."
-python3 scripts/detect_hardware.py
+python3 scripts/detect_hardware.py \
+    --output config/hw_config.json \
+    --merge
 echo "  hw_config.json written"
 
 # ── Step 5: ~/.alemsrc setup ─────────────────────────────────────────

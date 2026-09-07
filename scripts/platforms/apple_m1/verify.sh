@@ -79,7 +79,7 @@ echo "Methodology:"
 MMR_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM measurement_method_registry;" 2>/dev/null || echo "0")
 check "measurement_method_registry > 0" "true" "$([ "$MMR_COUNT" -gt 0 ] && echo true || echo false)"
 
-IOKIT_METHODS=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM measurement_method_registry WHERE method_id LIKE 'iokit%';" 2>/dev/null || echo "0")
+IOKIT_METHODS=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM measurement_method_registry WHERE id LIKE 'iokit%';" 2>/dev/null || echo "0")
 check "IOKit methods registered" "true" "$([ "$IOKIT_METHODS" -gt 0 ] && echo true || echo false)"
 
 echo ""
