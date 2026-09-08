@@ -354,12 +354,30 @@ fi
 # ── Step 10: Environment detection ───────────────────────────────────
 echo "[10/12] Environment detection..."
 python3 scripts/detect_environment.py
-echo "  Environment detected"
+echo "  environment.json written"
+
+echo "[10b/12] Loading hardware and environment configs to DB..."
+python3 scripts/load_hardware_env.py
+echo "  Hardware and environment loaded to DB"
+python3 scripts/load_configs_to_db.py
+echo "  All configs loaded to DB"
 
 # ── Step 11: Methodology seeding ─────────────────────────────────────
 echo "[11/12] Methodology seeding..."
 python3 scripts/seed_methodology.py
 echo "  Methodology registry populated"
+
+echo "[11b/12] Quality config seeding..."
+python3 scripts/seed_quality_config.py
+echo "  task_quality_config seeded"
+
+echo "[11c/12] GPU config detection..."
+python3 scripts/detect_gpu.py
+echo "  gpu_config populated"
+
+echo "[11d/12] YAML config migration to DB..."
+python3 scripts/migrate_yaml_to_db.py
+echo "  query_registry, task_categories, eval_criteria populated"
 
 # ── Step 12: Model/API setup ─────────────────────────────────────────
 echo "[12/12] Model and API setup..."
