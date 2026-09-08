@@ -78,6 +78,7 @@ def _build_darwin_cpu_sample_row(run_id, result):
     return {
         "run_id":            run_id,
         "timestamp_ns":      now_ns,
+        "measurement_source": "darwin_kperf",
         # sample_start_ns and sample_end_ns patched by caller from run record
         "sample_start_ns":   None,
         "sample_end_ns":     None,

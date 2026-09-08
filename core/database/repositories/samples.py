@@ -352,9 +352,10 @@ class SamplesRepository:
                     gpu_rc6,
                     package_temp, ipc,
                     extra_metrics_json,
-                    l1d_cache_misses, l2_cache_misses,l3_cache_hits, l3_cache_misses
+                    l1d_cache_misses, l2_cache_misses,l3_cache_hits, l3_cache_misses, 
+                    measurement_source
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                            ?, ?, ?, ? )
+                            ?, ?, ?, ?, ? )
                 """,
                 (
                     run_id,
@@ -382,7 +383,8 @@ class SamplesRepository:
                     s.get("l1d_cache_misses"),
                     s.get("l2_cache_misses"),
                     s.get("l3_cache_hits"),
-                    s.get("l3_cache_misses"),                    
+                    s.get("l3_cache_misses"),
+                    s.get("measurement_source", "turbostat"),                   
                 ),
             )
     # =========================================================================

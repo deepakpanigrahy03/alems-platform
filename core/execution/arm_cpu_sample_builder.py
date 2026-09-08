@@ -76,6 +76,7 @@ def _build_arm_cpu_sample_row(run_id, result):
     row = {
         "run_id":           run_id,
         "timestamp_ns":     _time.time_ns(),
+        "measurement_source": "arm_pmu",
         # Frequency from ARMCPUFreqReader summary (set by energy_engine.py sampling loop)
         # cpu_busy_mhz mirrors cpu_avg_mhz — ARM has no separate busy/idle frequency split
         "cpu_avg_mhz":      freq_mean,

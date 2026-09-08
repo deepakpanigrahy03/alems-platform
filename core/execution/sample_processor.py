@@ -133,6 +133,7 @@ def process_cpu_samples(raw_energy, canonical_metrics, store_extra=True) -> list
                     "sample_start_ns": sample_start_ns,
                     "sample_end_ns":   sample_end_ns,
                     "interval_ns":     interval_ns,
+                    "measurement_source": "turbostat",
                 }
 
                 # Extract canonical metrics.

@@ -1208,6 +1208,8 @@ CREATE TABLE IF NOT EXISTS cpu_samples (
     -- Temperature & efficiency
     package_temp     REAL,
     ipc              REAL,
+    -- Provenance: which reader actually wrote this row
+    measurement_source TEXT,
     l1d_cache_misses     BIGINT,     -- Chunk 12: L1d cache misses from perf
     l2_cache_misses      BIGINT,     -- Chunk 12: L2 cache misses from perf
     l3_cache_hits        BIGINT,     -- Chunk 12: L3 cache hits from perf
