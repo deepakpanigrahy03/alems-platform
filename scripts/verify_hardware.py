@@ -493,11 +493,17 @@ def run_checks(config):
         results["tsc"]        = check_tsc(config)
 
     elif pclass == "nvidia_grace":
-        # Grace suite: SPBM replaces RAPL, DCGM replaces turbostat
+        # Grace suite: SPBM replaces RAPL, DCGM replaces turbostat.
+        # SPBM requires unsigned kernel module — unavailable when Secure Boot
+        # is enabled. DCGM alone provides GPU energy in that case.
         results["spbm"]    = check_spbm(config)
         results["dcgm"]    = check_dcgm(config)
         results["arm_pmu"] = check_arm_pmu(config)
         results["cpuidle"] = check_cpuidle(config)
+        # If SPBM failed but DCGM succeeded, demote SPBM to warning
+        if not results["spbm"] and results["dcgm"]:
+            print("  ℹ️  SPBM unavailable (Secure Boot may be enabled) — DCGM covers GPU energy")
+            results.pop("spbm")
 
     elif pclass == "linux_arm":
         # Generic ARM: no SPBM/DCGM; just PMU and idle states

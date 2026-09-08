@@ -109,6 +109,15 @@ case "$PLATFORM" in
         check_tool "nvidia-smi" "required" "Install NVIDIA drivers"
         check_tool "perf"       "required" "sudo apt install linux-tools-common"
         check_tool "dcgmi"      "required" "sudo apt install datacenter-gpu-manager && sudo systemctl enable nvidia-dcgm && sudo systemctl start nvidia-dcgm"
+        # SPBM hwmon requires Secure Boot disabled to load unsigned kernel module
+        SB_STATE=$(mokutil --sb-state 2>/dev/null || echo "unknown")
+        if echo "$SB_STATE" | grep -q "enabled"; then
+            echo "  ⚠️  Secure Boot enabled — SPBM hwmon (CPU/system energy) unavailable"
+            echo "      Disable Secure Boot in BIOS to enable full energy measurement"
+            echo "      GPU energy via DCGM will still work"
+        else
+            echo "  ✅ Secure Boot disabled — SPBM hwmon available"
+        fi
         ;;
     intel_x86)
         check_tool "perf"       "required" "sudo apt install linux-tools-common"
