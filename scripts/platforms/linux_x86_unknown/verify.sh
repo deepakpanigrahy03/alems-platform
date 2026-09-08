@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# A-LEMS platform verification: Generic ARM Linux (aarch64, non-Grace)
+# A-LEMS platform verification: Generic Linux x86_64 (VMs, unknown vendors)
 # Called by install.sh with DB_PATH as $1
+# RAPL and MSR checks are soft (warn only) because VMs may lack them.
 set -euo pipefail
 
 DB_PATH="${1:-data/experiments.db}"
 PASS=0
 FAIL=0
+WARN=0
 
 check() {
     local label="$1"
@@ -20,7 +22,21 @@ check() {
     fi
 }
 
-echo "A-LEMS Verification: Generic ARM Linux"
+check_warn() {
+    # Like check but counts as warning not failure when mismatched
+    local label="$1"
+    local expected="$2"
+    local actual="$3"
+    if [ "$actual" = "$expected" ]; then
+        echo "  OK  $label ($actual)"
+        PASS=$((PASS + 1))
+    else
+        echo "  WARN $label (expected $expected, got $actual) — optional on this platform"
+        WARN=$((WARN + 1))
+    fi
+}
+
+echo "A-LEMS Verification: Generic Linux x86_64"
 echo "  DB: ${DB_PATH}"
 echo ""
 
@@ -37,6 +53,21 @@ check "power_limits"             "4"   "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FR
 
 echo ""
 
+# ── Platform-specific (soft checks) ─────────────────────────────────
+echo "Energy hardware (soft — VMs may lack these):"
+
+RAPL_OK="false"
+if ls /sys/class/powercap/intel-rapl*/energy_uj > /dev/null 2>&1; then
+    RAPL_OK="true"
+fi
+check_warn "RAPL energy_uj present" "true" "$RAPL_OK"
+
+MSR_OK="false"
+[ -e "/dev/cpu/0/msr" ] && MSR_OK="true"
+check_warn "MSR device present"    "true" "$MSR_OK"
+
+echo ""
+
 # ── Detection ────────────────────────────────────────────────────────
 echo "Detection:"
 HW_CONFIG=$(python3 -c "
@@ -44,11 +75,16 @@ import json, os
 p = 'config/hw_config.json'
 if os.path.exists(p):
     d = json.load(open(p))
-    print(d.get('cpu_architecture','MISSING'))
+    print(d.get('platform_class','MISSING'))
 else:
     print('NO_FILE')
 " 2>/dev/null)
-check "hw_config.json cpu_architecture" "aarch64" "$HW_CONFIG"
+# Accept any linux x86 platform_class including linux_x86_unknown
+PCLASS_OK="false"
+case "$HW_CONFIG" in
+    intel_x86|amd_x86|linux_x86_unknown) PCLASS_OK="true" ;;
+esac
+check "hw_config.json platform_class is x86" "true" "$PCLASS_OK"
 
 echo ""
 
@@ -71,7 +107,7 @@ RK_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(energy_domains);" \
 check "energy_domains.reader_keys column" "1" "$RK_EXISTS"
 
 echo ""
-echo "Results: ${PASS} passed, ${FAIL} failed"
+echo "Results: ${PASS} passed, ${FAIL} failed, ${WARN} warnings"
 if [ "$FAIL" -gt 0 ]; then
     echo "VERIFICATION FAILED"
     exit 1

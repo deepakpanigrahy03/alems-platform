@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# A-LEMS platform verification: Generic ARM Linux (aarch64, non-Grace)
+# A-LEMS platform verification: Linux ARM (GN100)
 # Called by install.sh with DB_PATH as $1
 set -euo pipefail
 
@@ -20,7 +20,7 @@ check() {
     fi
 }
 
-echo "A-LEMS Verification: Generic ARM Linux"
+echo "A-LEMS Verification: Linux ARM (GN100)"
 echo "  DB: ${DB_PATH}"
 echo ""
 
@@ -34,6 +34,17 @@ check "analysis_domain_config"   "10"  "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FR
 check "analysis_view_config"     "8"   "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM analysis_view_config;")"
 check "metric_analysis_domains"  "132" "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM metric_analysis_domains;")"
 check "power_limits"             "4"   "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM power_limits;")"
+check "power_rails (GN100 SPBM)" "10" "$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM power_rails;")"
+
+echo ""
+
+# ── GN100-specific checks ────────────────────────────────────────────
+echo "GN100-specific:"
+SPBM_DOMAINS=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM energy_domains WHERE name IN ('SOC_PKG','CPU_GPU','VCORE','DC_INPUT','PREREG');")
+check "SPBM telemetry domains"  "5"   "$SPBM_DOMAINS"
+
+DC_INPUT_RAIL=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM power_rails WHERE rail_name='dc_input' AND hwmon_channel='power7';")
+check "dc_input power rail"     "1"   "$DC_INPUT_RAIL"
 
 echo ""
 
@@ -44,30 +55,27 @@ import json, os
 p = 'config/hw_config.json'
 if os.path.exists(p):
     d = json.load(open(p))
-    print(d.get('cpu_architecture','MISSING'))
+    print(d.get('cpu_vendor','MISSING'))
 else:
     print('NO_FILE')
 " 2>/dev/null)
-check "hw_config.json cpu_architecture" "aarch64" "$HW_CONFIG"
+check "hw_config.json cpu_vendor" "nvidia_grace" "$HW_CONFIG"
 
 echo ""
 
 # ── Methodology ──────────────────────────────────────────────────────
 echo "Methodology:"
-MMR_COUNT=$(sqlite3 "$DB_PATH" \
-    "SELECT COUNT(*) FROM measurement_method_registry;" 2>/dev/null || echo "0")
-check "measurement_method_registry > 0" "true" \
-    "$([ "$MMR_COUNT" -gt 0 ] && echo true || echo false)"
+MMR_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM measurement_method_registry;" 2>/dev/null || echo "0")
+check "measurement_method_registry > 0" "true" "$([ "$MMR_COUNT" -gt 0 ] && echo true || echo false)"
 
 echo ""
 
-# ── Schema completeness ──────────────────────────────────────────────
+# ── Schema completeness ─────────────────────────────────────────────
 echo "Schema completeness:"
 TABLE_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM sqlite_master WHERE type='table';")
 check "table count >= 70" "true" "$([ "$TABLE_COUNT" -ge 70 ] && echo true || echo false)"
 
-RK_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(energy_domains);" \
-    | grep -c "reader_keys" || echo "0")
+RK_EXISTS=$(sqlite3 "$DB_PATH" "PRAGMA table_info(energy_domains);" | grep -c "reader_keys" || echo "0")
 check "energy_domains.reader_keys column" "1" "$RK_EXISTS"
 
 echo ""

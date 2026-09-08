@@ -73,7 +73,7 @@ if [ "$(uname -s)" = "Darwin" ]; then
     echo "================================================================="
     echo ""
     echo "Next, run detection:"
-    echo "  python3 scripts/detect_hardware.py --output config/hw_config.json --merge"
+    echo "  python3 scripts/detect_hardware.py --verbose"
     echo "================================================================="
     exit 0
 fi

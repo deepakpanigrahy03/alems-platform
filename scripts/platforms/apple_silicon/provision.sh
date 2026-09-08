@@ -14,13 +14,13 @@ case "$SUBCOMMAND" in
             brew install libjpeg libxml2 libxslt freetype lcms2 webp 2>/dev/null || true
         else
             echo "  WARNING: Homebrew not found. Install from https://brew.sh"
-            echo "  Then re-run: bash scripts/platforms/apple_m1/provision.sh deps"
+            echo "  Then re-run: bash scripts/platforms/apple_silicon/provision.sh deps"
             exit 1
         fi
 
         echo "  Installing Python dependencies..."
         pip install --upgrade pip --quiet
-        pip install -r requirements.txt --quiet
+        pip install -r "${PROJECT_ROOT}/requirements.txt" --quiet
 
         echo "  Installing llama-cpp-python with Metal backend..."
         CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python \

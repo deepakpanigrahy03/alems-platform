@@ -1,0 +1,42 @@
+method_id: cpu_sysfs_sampler
+provenance: MEASURED
+layer: os
+confidence: 0.85
+formula: |
+  U = 1 - (dt_idle + dt_iowait) / dt_total
+  R_Cn = sum_cpu(dt_Cn) / (N_cpu * dt)
+  P_pkg = dE_RAPL / dt
+parameters:
+  sample_hz: 10
+  sources: procfs,cpuidle,cpufreq,powercap,hwmon
+  residency_scale: fraction_0_1
+confidence_justification: >
+  0.85 because userspace sampling at 10 Hz quantizes jiffie, cpuidle,
+  and RAPL counters to 100 ms boundaries and per source reads are not
+  atomic within one tick, so attribution can shift by up to one interval
+  at state transition edges. For runs above 10 s the error averages out
+  below 2 percent of residency share. Turbostat reads kernel counters
+  synchronously and carries 0.90; reaching 0.90 would require perf
+  residency events, which crash turbostat on AMD Zen 2. Not valid for
+  sub second runs.
+references:
+  - title: "The /proc Filesystem"
+    authors: "Linux Kernel Documentation"
+    year: 2024
+    ref_type: manual
+    relevance: "Jiffie accounting fields of /proc/stat used for utilization"
+  - title: "CPU Idle Time Management (cpuidle) sysfs interface"
+    authors: "Linux Kernel Documentation"
+    year: 2024
+    ref_type: manual
+    relevance: "Cumulative per state residency counters in state*/time"
+  - title: "Power Capping Framework (powercap/RAPL)"
+    authors: "Linux Kernel Documentation"
+    year: 2024
+    ref_type: manual
+    relevance: "Package energy_uj counter and max_energy_range_uj wrap"
+  - title: "Kernel driver k10temp"
+    authors: "Linux Kernel Documentation"
+    year: 2024
+    ref_type: manual
+    relevance: "AMD package temperature via hwmon temp1_input (Tctl)"

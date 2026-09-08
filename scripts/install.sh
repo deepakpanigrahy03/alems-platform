@@ -14,38 +14,54 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # ── Step 0: Detect platform ──────────────────────────────────────────
+# Run a fast hardware probe to get platform_class from detect_hardware.py.
+# This is the single source of truth for platform identity across the
+# entire install system. All downstream steps key off platform_class,
+# not OS/ARCH strings, so adding a new platform to detect_hardware.py
+# automatically makes it work here without any install.sh changes.
 OS="$(uname -s)"
 ARCH="$(uname -m)"
 
-case "${OS}_${ARCH}" in
-    Linux_x86_64)
-        # Distinguish Intel from AMD on x86_64
-        if grep -q "AuthenticAMD" /proc/cpuinfo 2>/dev/null; then
-            PLATFORM="amd_x86"
-        else
-            PLATFORM="intel_x86"
-        fi
-        ;;
-    Linux_aarch64)  PLATFORM="linux_arm"   ;;
-    Darwin_arm64)   PLATFORM="apple_m1"    ;;
-    Darwin_x86_64)  PLATFORM="intel_mac"   ;;
-    *)
-        echo "ERROR: Unsupported platform: ${OS} ${ARCH}"
-        echo "Supported: Linux x86_64, Linux aarch64, Darwin arm64"
-        exit 1
-        ;;
-esac
+echo "A-LEMS Installer"
+echo "  OS/Arch:  ${OS} ${ARCH}"
+echo "  Project:  ${PROJECT_ROOT}"
+echo ""
+
+# Pass 0: fast detection to get platform_class before venv/deps are set up.
+# Uses --stdout so no file is written yet; full detection runs in Step 4.
+echo "[0/12] Platform identification..."
+PLATFORM=$(python3 scripts/detect_hardware.py --stdout 2>/dev/null \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('platform_class','unknown'))" \
+    2>/dev/null || echo "unknown")
+
+if [ "$PLATFORM" = "unknown" ]; then
+    # Fallback: derive from OS/ARCH if detect_hardware.py not yet available
+    case "${OS}_${ARCH}" in
+        Linux_x86_64)
+            if grep -q "AuthenticAMD" /proc/cpuinfo 2>/dev/null; then
+                PLATFORM="amd_x86"
+            elif grep -q "GenuineIntel" /proc/cpuinfo 2>/dev/null; then
+                PLATFORM="intel_x86"
+            else
+                PLATFORM="linux_x86_unknown"
+            fi
+            ;;
+        Linux_aarch64)  PLATFORM="linux_arm"     ;;
+        Darwin_arm64)   PLATFORM="apple_silicon"  ;;
+        Darwin_x86_64)  PLATFORM="intel_mac"      ;;
+        *)              PLATFORM="linux_x86_unknown" ;;
+    esac
+    echo "  WARNING: detect_hardware.py unavailable, derived platform: ${PLATFORM}"
+fi
 
 PLATFORM_DIR="${SCRIPT_DIR}/platforms/${PLATFORM}"
 if [ ! -d "$PLATFORM_DIR" ]; then
-    echo "ERROR: No platform directory at ${PLATFORM_DIR}"
-    echo "Create it with provision.sh and verify.sh before running install."
-    exit 1
+    echo "  WARNING: No platform dir for ${PLATFORM}, using linux_x86_unknown fallback"
+    PLATFORM_DIR="${SCRIPT_DIR}/platforms/linux_x86_unknown"
 fi
 
-echo "A-LEMS Installer"
-echo "  Platform: ${PLATFORM} (${OS} ${ARCH})"
-echo "  Project:  ${PROJECT_ROOT}"
+echo "  Platform: ${PLATFORM}"
+echo "  Platform dir: ${PLATFORM_DIR}"
 echo ""
 
 # ── Step 1: Python venv ──────────────────────────────────────────────
@@ -77,39 +93,29 @@ else
     echo "  No platform permissions script, skipping"
 fi
 
-# ── Step 3b: kperf PMU helper (Darwin arm64 only) ───────────────────
-if [ "${OS}" = "Darwin" ] && [ "${ARCH}" = "arm64" ]; then
-    echo "[3b/12] Building and installing kperf PMU helper..."
-    KPERF_SRC="${PROJECT_ROOT}/scripts/helpers/kperf_reader.c"
-    KPERF_BIN="${PROJECT_ROOT}/scripts/helpers/kperf_reader"
-    KPERF_DEST="/usr/local/bin/alems_kperf_reader"
-    if [ ! -f "$KPERF_SRC" ]; then
-        echo "  ERROR: kperf_reader.c not found at $KPERF_SRC"
-        exit 1
-    fi
-    cc -O2 -o "$KPERF_BIN" "$KPERF_SRC"
-    echo "  Compiled: $KPERF_BIN"
-    sudo cp "$KPERF_BIN" "$KPERF_DEST"
-    sudo chown root:wheel "$KPERF_DEST"
-    sudo chmod 755 "$KPERF_DEST"
-    echo "  Installed: $KPERF_DEST"
-    echo "%admin ALL=(root) NOPASSWD: $KPERF_DEST" \
-        | sudo tee /etc/sudoers.d/alems_kperf > /dev/null
-    sudo chmod 0440 /etc/sudoers.d/alems_kperf
-    echo "  Sudoers rule installed"
-    sudo -n "$KPERF_DEST" > /dev/null 2>&1 \
-        && echo "  ✅ kperf_reader verified" \
-        || echo "  ⚠️  kperf_reader verify failed — check sudoers"
-else
-    echo "[3b/12] kperf PMU helper: skipped (Linux only needs perf)"
-fi
+# kperf PMU helper (Darwin arm64) is handled inside fix_permissions.sh Mac branch.
+# Removed from install.sh to avoid duplication.
 
-# ── Step 4: Hardware detection ───────────────────────────────────────
-echo "[4/12] Hardware detection..."
-python3 scripts/detect_hardware.py \
-    --output config/hw_config.json \
-    --merge
-echo "  hw_config.json written"
+# ── Step 4: Hardware detection pass 1 (baseline, pre-permissions) ────
+echo "[4/12] Hardware detection (pass 1)..."
+python3 scripts/detect_hardware.py
+echo "  hw_config.json written (baseline)"
+
+# ── Step 4b: Hardware detection pass 2 (post-permissions, merge) ─────
+# Re-run after fix_permissions.sh so MSR devices, turbostat caps,
+# and setcap rdmsr are in place. Merge preserves custom fields.
+echo "[4b/12] Hardware detection (pass 2, post-permissions)..."
+python3 scripts/detect_hardware.py
+echo "  hw_config.json updated (post-permissions)"
+
+# ── Step 4c: Hardware verification ───────────────────────────────────
+# Confirms every path in hw_config.json is actually readable.
+# Halts install if any required check fails.
+echo "[4c/12] Hardware verification..."
+python3 scripts/verify_hardware.py || {
+    echo "  ❌ Hardware verification failed — fix issues above before continuing"
+    exit 1
+}
 
 # ── Step 5: ~/.alemsrc setup ─────────────────────────────────────────
 echo "[5/12] Data directory setup..."
