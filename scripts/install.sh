@@ -89,7 +89,7 @@ case "$PLATFORM" in
     nvidia_grace)
         check_tool "nvidia-smi" "required" "Install NVIDIA drivers"
         check_tool "perf"       "required" "sudo apt install linux-tools-common"
-        check_tool "dcgmi"      "optional" "Install from https://developer.nvidia.com/dcgm (enables GPU energy)"
+        check_tool "dcgmi"      "required" "sudo apt install datacenter-gpu-manager && sudo systemctl enable nvidia-dcgm && sudo systemctl start nvidia-dcgm"
         ;;
     intel_x86)
         check_tool "perf"       "required" "sudo apt install linux-tools-common"
@@ -115,7 +115,8 @@ esac
 
 if [ "$PREREQ_FAILED" -eq 1 ]; then
     echo ""
-    echo "  ❌ Required tools missing. Install them and re-run install.sh."
+    echo "  ❌ Required tools missing. Fix the above then re-run:"
+    echo "     bash scripts/install.sh"
     exit 1
 fi
 echo "  Prerequisites OK"
