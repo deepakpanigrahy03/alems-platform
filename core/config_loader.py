@@ -125,33 +125,12 @@ class ConfigLoader:
     def get_db_path(self) -> str:
         """
         Resolve the correct SQLite DB path for this machine.
-
-        Priority:
-          1. ALEMS_DATA_ROOT env var + machine_id  (GN100, remote machines)
-          2. app_settings.yaml database.sqlite.path (UBUNTU2505 default)
-
-        ALEMS_DATA_ROOT is set in ~/.alemsrc on machines with non-default
-        storage. Never derived from hw_config database key — that key does
-        not exist in hw_config.json.
+        Delegates to path_loader.get_alems_db_path() which is the single
+        source of truth. Reads .alems-env (project-level) then ~/.alemsrc
+        (machine-level) with full user+project isolation for non-prod envs.
         """
-        import os
-        base = os.environ.get("ALEMS_DATA_ROOT")
-        if base:
-            import socket
-            # hostname is always available — no hw_config dependency
-            machine_id = socket.gethostname().lower()
-            return f"{base}/{machine_id}/experiments.db"
-        # Fallback: read app_settings.yaml — used on UBUNTU2505
-        settings = self.get_settings()
-        db_config = settings.get("database", {}) if isinstance(settings, dict) \
-            else getattr(settings, "database", {})
-        if hasattr(db_config, "__dict__"):
-            db_config = db_config.__dict__
-        sqlite_config = db_config.get("sqlite", {}) if isinstance(db_config, dict) \
-            else getattr(db_config, "sqlite", {})
-        if hasattr(sqlite_config, "__dict__"):
-            sqlite_config = sqlite_config.__dict__
-        return sqlite_config.get("path", "data/experiments.db")
+        from scripts.tools.path_loader import get_alems_db_path
+        return get_alems_db_path()
 
     def get_hardware_config(self) -> Dict[str, Any]:
         """
