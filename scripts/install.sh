@@ -117,44 +117,96 @@ python3 scripts/verify_hardware.py || {
     exit 1
 }
 
-# ── Step 5: ~/.alemsrc setup ─────────────────────────────────────────
+# ── Step 5: Data directory setup ─────────────────────────────────────
+# Ab Initio: .alems-env in project root is single source of truth.
+# If it exists, use it. If not, ask two questions and create it.
+# ~/.alemsrc is written for fleet agent and remote connections only.
 echo "[5/12] Data directory setup..."
+ALEMS_ENV_FILE="${PROJECT_ROOT}/.alems-env"
 ALEMSRC="$HOME/.alemsrc"
 HOSTNAME_LOWER="$(hostname | tr '[:upper:]' '[:lower:]')"
+USER_LOWER="$(whoami)"
+PROJECT_NAME="$(basename "${PROJECT_ROOT}")"
 
-if [ -f "$ALEMSRC" ] && grep -q "ALEMS_DATA_ROOT" "$ALEMSRC"; then
-    echo "  ~/.alemsrc already configured"
-    # shellcheck disable=SC1090
-    source "$ALEMSRC"
+if [ -f "$ALEMS_ENV_FILE" ] && grep -q "ALEMS_ENV" "$ALEMS_ENV_FILE"; then
+    # .alems-env exists — use it, no questions asked
+    ALEMS_ENV=$(grep "^ALEMS_ENV=" "$ALEMS_ENV_FILE" | cut -d= -f2)
+    DATA_ROOT=$(grep "^ALEMS_DATA_ROOT=" "$ALEMS_ENV_FILE" | cut -d= -f2)
+    echo "  Using existing .alems-env"
+    echo "    ALEMS_ENV=${ALEMS_ENV}"
+    echo "    ALEMS_DATA_ROOT=${DATA_ROOT}"
 else
-    # Set platform-appropriate default data root
-    # Darwin: /mnt is read-only — use home directory instead
-    # Linux: /mnt/alems-data is standard (external mount or NFS)
+    # Fresh install — detect git branch and suggest environment
+    GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+    case "$GIT_BRANCH" in
+        main)             SUGGESTED_ENV="prod" ;;
+        integration*)     SUGGESTED_ENV="integration" ;;
+        preprod*)         SUGGESTED_ENV="preprod" ;;
+        dev/*|feature/*)  SUGGESTED_ENV="dev" ;;
+        *)                SUGGESTED_ENV="dev" ;;
+    esac
+
+    echo ""
+    echo "  ┌─────────────────────────────────────────────────┐"
+    echo "  │  A-LEMS First-Time Setup                        │"
+    echo "  └─────────────────────────────────────────────────┘"
+    echo ""
+    echo "  Git branch: ${GIT_BRANCH}"
+    echo ""
+    echo "  Question 1: Environment for this checkout"
+    echo "  prod        = paper-citable runs, primary research machine"
+    echo "  dev         = feature development and testing"
+    echo "  integration = team PR validation"
+    echo "  preprod     = final validation before paper"
+    read -rp "  Environment [${SUGGESTED_ENV}]: " ALEMS_ENV
+    ALEMS_ENV="${ALEMS_ENV:-${SUGGESTED_ENV}}"
+
+    echo ""
+    echo "  Question 2: Where should A-LEMS store experiment data?"
+    echo "  This directory lives OUTSIDE the repo (survives git operations)."
     if [ "${OS}" = "Darwin" ]; then
         DEFAULT_DATA_ROOT="${HOME}/alems-data"
     else
         DEFAULT_DATA_ROOT="/mnt/alems-data"
     fi
-    echo ""
-    echo "  A-LEMS stores experiment data outside the repo."
     echo "  Default: ${DEFAULT_DATA_ROOT}"
-    echo "  (Press Enter to accept, or type a different path)"
-    echo ""
     read -rp "  Data root [${DEFAULT_DATA_ROOT}]: " DATA_ROOT
     DATA_ROOT="${DATA_ROOT:-${DEFAULT_DATA_ROOT}}"
 
-    MACHINE_DIR="${DATA_ROOT}/${HOSTNAME_LOWER}"
-    mkdir -p "$MACHINE_DIR"
-
-    # Write or append to ~/.alemsrc
-    if [ ! -f "$ALEMSRC" ]; then
-        echo "# A-LEMS environment (sourced by path_loader.py)" > "$ALEMSRC"
-    fi
-    echo "export ALEMS_DATA_ROOT=${DATA_ROOT}" >> "$ALEMSRC"
-    export ALEMS_DATA_ROOT="${DATA_ROOT}"
-    echo "  ~/.alemsrc written: ALEMS_DATA_ROOT=${DATA_ROOT}"
-    echo "  Machine data dir:   ${MACHINE_DIR}/"
+    # Write .alems-env — project-level config, gitignored
+    cat > "$ALEMS_ENV_FILE" << EOF
+ALEMS_ENV=${ALEMS_ENV}
+ALEMS_DATA_ROOT=${DATA_ROOT}
+EOF
+    echo ""
+    echo "  .alems-env written (gitignored, project-level config)"
+    echo "    Branch:          ${GIT_BRANCH}"
+    echo "    ALEMS_ENV:       ${ALEMS_ENV}"
+    echo "    ALEMS_DATA_ROOT: ${DATA_ROOT}"
 fi
+
+# Always export for this session
+export ALEMS_DATA_ROOT="${DATA_ROOT}"
+export ALEMS_ENV="${ALEMS_ENV}"
+
+# Write ~/.alemsrc for fleet agent and remote connections
+# Never overrides existing machine-level config
+if [ ! -f "$ALEMSRC" ] || ! grep -q "ALEMS_DATA_ROOT" "$ALEMSRC"; then
+    echo "# A-LEMS machine-level config (fleet agent, remote connections)" > "$ALEMSRC"
+    echo "export ALEMS_DATA_ROOT=${DATA_ROOT}" >> "$ALEMSRC"
+    echo "  ~/.alemsrc written for fleet/remote access"
+fi
+
+# Create all required directories — mkdir -p is safe on existing dirs
+if [ "${ALEMS_ENV}" = "prod" ]; then
+    DB_DIR="${DATA_ROOT}/${HOSTNAME_LOWER}/envs/prod"
+else
+    DB_DIR="${DATA_ROOT}/${HOSTNAME_LOWER}/envs/${USER_LOWER}/${ALEMS_ENV}/${PROJECT_NAME}"
+fi
+mkdir -p "${DB_DIR}"
+mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/baselines"
+mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/db-archive"
+echo "  DB directory ready: ${DB_DIR}"
 
 # Resolve actual DB path via path_loader
 DB_PATH=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())")

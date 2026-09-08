@@ -71,6 +71,20 @@ def get_alems_db_path():
                     elif _k.strip() == "ALEMS_DATA_ROOT":
                         _base_override = _v.strip()
                 elif _line and _env is None:
+                    _env = _line  # legacy single token format
+            if _env is None:
+                _env = "prod"
+            _valid = {"dev", "integration", "preprod", "prod"}
+            _base_override = None
+            for _line in _env_file.read_text().splitlines():
+                _line = _line.strip()
+                if "=" in _line:
+                    _k, _, _v = _line.partition("=")
+                    if _k.strip() == "ALEMS_ENV":
+                        _env = _v.strip()
+                    elif _k.strip() == "ALEMS_DATA_ROOT":
+                        _base_override = _v.strip()
+                elif _line and _env is None:
                     _env = _line  # legacy single token
             if _env is None:
                 _env = "prod"
