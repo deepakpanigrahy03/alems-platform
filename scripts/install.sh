@@ -297,9 +297,12 @@ if [ "${ALEMS_ENV}" = "prod" ]; then
 else
     DB_DIR="${DATA_ROOT}/${HOSTNAME_LOWER}/envs/${USER_LOWER}/${ALEMS_ENV}/${PROJECT_NAME}"
 fi
-mkdir -p "${DB_DIR}"
-mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/baselines"
-mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/db-archive"
+# Create data directories — use sudo if permission denied
+mkdir -p "${DB_DIR}" 2>/dev/null || sudo mkdir -p "${DB_DIR}"
+mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/baselines" 2>/dev/null || sudo mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/baselines"
+mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/db-archive" 2>/dev/null || sudo mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/db-archive"
+# Give current user ownership so no sudo needed for DB writes
+sudo chown -R "${USER_LOWER}:${USER_LOWER}" "${DATA_ROOT}/${HOSTNAME_LOWER}" 2>/dev/null || true
 echo "  DB directory ready: ${DB_DIR}"
 
 # Resolve actual DB path via path_loader
