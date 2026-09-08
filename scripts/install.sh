@@ -122,8 +122,16 @@ fi
 echo "  Prerequisites OK"
 echo ""
 
-# ── Step 1: Python venv ──────────────────────────────────────────────
-echo "[1/12] Python virtual environment..."
+# ── Step 1: System build dependencies (must run before venv) ─────────
+# python3-dev and build-essential are required to compile Python packages
+# like psutil. Install system deps first, then create venv.
+echo "[1/12] System build dependencies..."
+if [ "${OS}" = "Linux" ]; then
+    sudo apt install -y python3-dev python3-venv build-essential 2>/dev/null || true
+fi
+
+# ── Step 1b: Python venv ─────────────────────────────────────────────
+echo "[1b/12] Python virtual environment..."
 if [ ! -d "venv" ]; then
     python3 -m venv venv
     echo "  Created venv/"
@@ -133,8 +141,8 @@ fi
 # shellcheck disable=SC1091
 source venv/bin/activate
 
-# ── Step 2: System deps + Python packages (platform handles both) ────
-echo "[2/12] System and Python dependencies..."
+# ── Step 2: Platform-specific deps + Python packages ─────────────────
+echo "[2/12] Python dependencies..."
 if [ -f "${PLATFORM_DIR}/provision.sh" ]; then
     bash "${PLATFORM_DIR}/provision.sh" deps
 else
