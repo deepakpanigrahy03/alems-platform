@@ -85,6 +85,25 @@ check_tool() {
     fi
 }
 
+# Python version and build dependencies — required on all platforms
+PY_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo "0")
+PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)" 2>/dev/null || echo "0")
+if [ "$PY_MAJOR" -lt 3 ] || [ "$PY_MINOR" -lt 9 ]; then
+    echo "  ❌ python3 >= 3.9 required (found ${PY_MAJOR}.${PY_MINOR}). Install from https://www.python.org"
+    PREREQ_FAILED=1
+elif [ "$PY_MINOR" -gt 12 ]; then
+    echo "  ⚠️  python3.${PY_MINOR} detected — supported range is 3.9-3.12. Some packages may fail."
+else
+    echo "  ✅ python3.${PY_MINOR} (supported)"
+fi
+
+if [ "${OS}" = "Linux" ]; then
+    check_tool "gcc"        "required" "sudo apt install -y build-essential"
+    python3 -c "import sysconfig; sysconfig.get_path('include')" &>/dev/null \
+        && echo "  ✅ python3-dev" \
+        || { echo "  ❌ python3-dev — REQUIRED. sudo apt install -y python3-dev"; PREREQ_FAILED=1; }
+fi
+
 case "$PLATFORM" in
     nvidia_grace)
         check_tool "nvidia-smi" "required" "Install NVIDIA drivers"
