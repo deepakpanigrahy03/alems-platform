@@ -8,7 +8,8 @@ database:
   
   # SQLite settings (used when engine = "sqlite")
   sqlite:
-    path: "data/experiments.db"           # Separate from research.db
+    db_name: "experiments.db"             # DB filename, path resolved by path_loader
+    journal_mode: "WAL"                    # Better concurrency
     journal_mode: "WAL"                    # Better concurrency
     timeout: 30                             # Connection timeout (seconds)
     detect_types: 1                         # Enable type detection

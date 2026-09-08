@@ -71,7 +71,13 @@ def get_alems_db_path():
             _base = os.environ.get("ALEMS_DATA_ROOT")
             if _base:
                 _host = socket.gethostname().lower()
-                return f"{_base}/{_host}/envs/{_env}/experiments.db"
+                _user = os.environ.get("USER", "unknown")
+                _project = _repo_root.name
+                _db_name = os.environ.get("ALEMS_DB_NAME", "experiments.db")
+                # prod env: no user/project suffix for backward compat
+                if _env == "prod":
+                    return f"{_base}/{_host}/envs/{_env}/{_db_name}"
+                return f"{_base}/{_host}/envs/{_user}/{_env}/{_project}/{_db_name}"
     except ValueError:
         raise
     except Exception:
@@ -80,7 +86,8 @@ def get_alems_db_path():
     base = os.environ.get("ALEMS_DATA_ROOT")
     if base:
         machine_id = socket.gethostname().lower()
-        return f"{base}/{machine_id}/experiments.db"
+        _db_name = os.environ.get("ALEMS_DB_NAME", "experiments.db")
+        return f"{base}/{machine_id}/{_db_name}"
     return "data/experiments.db"
 
 def get_models_dir():
