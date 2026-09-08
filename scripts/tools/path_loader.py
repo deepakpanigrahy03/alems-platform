@@ -60,7 +60,20 @@ def get_alems_db_path():
         _repo_root = _pl.Path(__file__).parent.parent.parent
         _env_file = _repo_root / ".alems-env"
         if _env_file.exists():
-            _env = _env_file.read_text().strip()
+            _env = None
+            _base_override = None
+            for _line in _env_file.read_text().splitlines():
+                _line = _line.strip()
+                if "=" in _line:
+                    _k, _, _v = _line.partition("=")
+                    if _k.strip() == "ALEMS_ENV":
+                        _env = _v.strip()
+                    elif _k.strip() == "ALEMS_DATA_ROOT":
+                        _base_override = _v.strip()
+                elif _line and _env is None:
+                    _env = _line  # legacy single token
+            if _env is None:
+                _env = "prod"
             _valid = {"dev", "integration", "preprod", "prod"}
             if _env not in _valid:
                 raise ValueError(
@@ -68,7 +81,7 @@ def get_alems_db_path():
                     f"Valid values: {sorted(_valid)}"
                 )
             _source_alemsrc()
-            _base = os.environ.get("ALEMS_DATA_ROOT")
+            _base = _base_override or os.environ.get("ALEMS_DATA_ROOT")
             if _base:
                 _host = socket.gethostname().lower()
                 _user = os.environ.get("USER", "unknown")
