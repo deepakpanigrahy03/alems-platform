@@ -64,6 +64,63 @@ echo "  Platform: ${PLATFORM}"
 echo "  Platform dir: ${PLATFORM_DIR}"
 echo ""
 
+# ── Step 0.5: Prerequisites check ────────────────────────────────────
+# Checks required and optional tools per platform before any installation.
+# Hard fails on missing required tools so the user knows exactly what to
+# fix before anything is changed on their system.
+echo "[0.5/12] Checking prerequisites for platform: ${PLATFORM}..."
+PREREQ_FAILED=0
+
+check_tool() {
+    local tool="$1"
+    local required="$2"
+    local install_hint="$3"
+    if command -v "$tool" &>/dev/null; then
+        echo "  ✅ ${tool}"
+    elif [ "$required" = "required" ]; then
+        echo "  ❌ ${tool} — REQUIRED. ${install_hint}"
+        PREREQ_FAILED=1
+    else
+        echo "  ⚠️  ${tool} — optional. ${install_hint}"
+    fi
+}
+
+case "$PLATFORM" in
+    nvidia_grace)
+        check_tool "nvidia-smi" "required" "Install NVIDIA drivers"
+        check_tool "perf"       "required" "sudo apt install linux-tools-common"
+        check_tool "dcgmi"      "optional" "Install from https://developer.nvidia.com/dcgm (enables GPU energy)"
+        ;;
+    intel_x86)
+        check_tool "perf"       "required" "sudo apt install linux-tools-common"
+        check_tool "turbostat"  "optional" "sudo apt install linux-tools-$(uname -r)"
+        check_tool "rdmsr"      "optional" "sudo apt install msr-tools (enables MSR/C-state readings)"
+        ;;
+    amd_x86)
+        check_tool "perf"       "required" "sudo apt install linux-tools-common"
+        check_tool "rdmsr"      "optional" "sudo apt install msr-tools"
+        ;;
+    apple_silicon)
+        check_tool "powermetrics" "required" "Included with macOS — check SIP settings"
+        check_tool "brew"         "required" "Install from https://brew.sh"
+        ;;
+    linux_arm)
+        check_tool "perf"       "optional" "sudo apt install linux-tools-common"
+        ;;
+    linux_x86_unknown)
+        check_tool "perf"       "optional" "sudo apt install linux-tools-common"
+        check_tool "rdmsr"      "optional" "sudo apt install msr-tools"
+        ;;
+esac
+
+if [ "$PREREQ_FAILED" -eq 1 ]; then
+    echo ""
+    echo "  ❌ Required tools missing. Install them and re-run install.sh."
+    exit 1
+fi
+echo "  Prerequisites OK"
+echo ""
+
 # ── Step 1: Python venv ──────────────────────────────────────────────
 echo "[1/12] Python virtual environment..."
 if [ ! -d "venv" ]; then

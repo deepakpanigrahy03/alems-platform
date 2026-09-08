@@ -413,9 +413,18 @@ def _detect_x86_vendor() -> str:
 
 
 def _is_nvidia_grace() -> bool:
+    """Detect any NVIDIA Grace-family SoC (GN100, DGX Spark, future variants).
+    Uses hardware signals not product name strings so new Grace products
+    are detected automatically without code changes."""
+    # Signal 1: known product name substrings (fast path)
     product = _read_file("/sys/class/dmi/id/product_name", "")
-    if any(tag in product for tag in ("GN100", "Grace", "Veriton")):
+    if any(tag in product for tag in ("GN100", "Grace", "Veriton", "DGX")):
         return True
+    # Signal 2: GB10 SoC GPU present via nvidia-smi (covers all Grace variants)
+    r = _run(["nvidia-smi", "--query-gpu=gpu_name", "--format=csv,noheader"], timeout=5)
+    if r and r.returncode == 0 and "GB10" in r.stdout:
+        return True
+    # Signal 3: NVIDIA CPU implementer code in /proc/cpuinfo
     content = _read_file("/proc/cpuinfo", "")
     for line in content.splitlines():
         if "CPU implementer" in line and "0x4e" in line:
@@ -1410,8 +1419,8 @@ class NVIDIAGraceDetector(ARMLinuxBase):
         # Grace-specific: update CPU model from DMI if /proc/cpuinfo was generic
         if config["cpu"]["model"] == "Unknown":
             product = _read_file("/sys/class/dmi/id/product_name", "")
-            if "GN100" in product or "Veriton" in product:
-                config["cpu"]["model"] = "NVIDIA Grace (Neoverse V2)"
+            if product:
+                config["cpu"]["model"] = f"NVIDIA Grace ({product})"
                 config["cpu_model"] = config["cpu"]["model"]
 
         # Grace-specific probes
