@@ -202,8 +202,10 @@ echo -e "\n[2/4] Fixing MSR permissions..."
 
 # Create group
 sudo groupadd -f a-lems
-sudo usermod -a -G a-lems $USER
-echo "  ✅ Group 'a-lems' ensured"
+# Use SUDO_USER (the real invoking user) not $USER (which is root when run with sudo)
+REAL_USER="${SUDO_USER:-$USER}"
+sudo usermod -a -G a-lems "$REAL_USER"
+echo "  ✅ Group 'a-lems' ensured for user: $REAL_USER"
 
 # Create udev rule
 echo 'KERNEL=="msr", GROUP="a-lems", MODE="0440"' | sudo tee /etc/udev/rules.d/99-msr-permissions.rules > /dev/null
