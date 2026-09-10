@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.utils.provenance import COLUMN_PROVENANCE, _unit
 from scripts.tools.path_loader import get_alems_db_path
 
+
 BASE    = Path(__file__).parent.parent
 CFG_DIR = BASE / "config"
 SQL_DIR = BASE / "queries"
@@ -730,18 +731,21 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
+    
+    db_path = args.db or get_alems_db_path()
+
     print(f"\n{'='*60}")
     print(f"A-LEMS YAML → DB Migration")
-    print(f"DB:      {args.db}")
+    print(f"DB:      {db_path}")
     print(f"Dry run: {args.dry_run}")
     print(f"{'='*60}\n")
 
-    if not Path(args.db).exists():
-        print(f"ERROR: DB not found: {args.db}")
+    if not Path(db_path).exists():
+        print(f"ERROR: DB not found: {db_path}")
         print(f"Run migrations/010_config_tables.sql first")
         sys.exit(1)
 
-    db = sqlite3.connect(args.db)
+    db = sqlite3.connect(db_path)
     db.row_factory = sqlite3.Row
 
     # Verify tables exist
@@ -752,7 +756,7 @@ def main():
     missing  = required - tables
     if missing:
         print(f"ERROR: Missing tables: {missing}")
-        print(f"Run: sqlite3 {args.db} < migrations/010_config_tables.sql")
+        print(f"Run: sqlite3 {db_path} < migrations/010_config_tables.sql")
         sys.exit(1)
 
     total = 0
@@ -782,9 +786,9 @@ def main():
     print(f"\n{'='*60}")
     print(f"✓ Migration {'(dry run) ' if args.dry_run else ''}complete: {total} records")
     print(f"\nVerify:")
-    print(f"  sqlite3 {args.db} \"SELECT COUNT(*) FROM query_registry;\"")
-    print(f"  sqlite3 {args.db} \"SELECT COUNT(*) FROM metric_display_registry;\"")
-    print(f"  sqlite3 {args.db} \"SELECT id FROM page_configs;\"")
+    print(f"  sqlite3 {db_path} \"SELECT COUNT(*) FROM query_registry;\"")
+    print(f"  sqlite3 {db_path} \"SELECT COUNT(*) FROM metric_display_registry;\"")
+    print(f"  sqlite3 {db_path} \"SELECT id FROM page_configs;\"")
     print(f"{'='*60}\n")
 
 if __name__ == "__main__":
