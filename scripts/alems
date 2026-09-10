@@ -93,8 +93,6 @@ case "$CMD" in
                 # Ensure DB directory exists before running migrations
                 DB_DIR=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; import os; print(os.path.dirname(get_alems_db_path()))")
                 mkdir -p "$DB_DIR"
-                # Create tables first (idempotent) then run migrations
-                python3 scripts/tools/init_db.py
                 python3 scripts/tools/alems_migrate.py
                 python3 scripts/migrate_yaml_to_db.py
                 python3 scripts/seed_methodology.py
