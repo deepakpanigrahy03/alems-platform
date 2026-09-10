@@ -37,12 +37,19 @@ _db() {
 
 _schema_version() {
     DB=$(_db)
-    sqlite3 "$DB" "SELECT MAX(version) FROM migration_history WHERE type='schema' AND status='applied';" \
+    # Exclude adoption marker (v9000) — show real highest schema version
+    sqlite3 "$DB" "SELECT MAX(version) FROM migration_history WHERE type='schema' AND status='applied' AND version < 9000;" \
         2>/dev/null || echo "unknown"
 }
 
 _env() {
-    [ -f .alems-env ] && grep "^ALEMS_ENV=" .alems-env | cut -d= -f2 || echo "unknown"
+    if [ ! -f .alems-env ]; then echo "unknown"; return; fi
+    # Support both key=value format and legacy single-token format
+    val=$(grep "^ALEMS_ENV=" .alems-env | cut -d= -f2)
+    if [ -z "$val" ]; then
+        val=$(cat .alems-env | grep -v "^#" | grep -v "=" | head -1 | tr -d '[:space:]')
+    fi
+    echo "${val:-unknown}"
 }
 
 # ── Top-level command dispatch ────────────────────────────────────────

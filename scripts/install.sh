@@ -394,6 +394,19 @@ sudo ln -sf "${PROJECT_ROOT}/scripts/alems" /usr/local/bin/alems 2>/dev/null || 
     mkdir -p "${HOME}/.local/bin" && \
     ln -sf "${PROJECT_ROOT}/scripts/alems" "${HOME}/.local/bin/alems" 2>/dev/null || true
 echo "  alems CLI ready. Use 'alems dev pull' instead of 'git pull'"
+# Write ALEMS_PROJECT_ROOT to ~/.alemsrc
+if ! grep -q "ALEMS_PROJECT_ROOT" "$ALEMSRC" 2>/dev/null; then
+    echo "export ALEMS_PROJECT_ROOT=${PROJECT_ROOT}" >> "$ALEMSRC"
+fi
+# Add scripts/ to PATH via ~/.bashrc — done once, survives reinstalls
+if ! grep -q "ALEMS_PROJECT_ROOT" "${HOME}/.bashrc" 2>/dev/null; then
+    cat >> "${HOME}/.bashrc" << 'RCEOF'
+# A-LEMS CLI
+[ -f ~/.alemsrc ] && source ~/.alemsrc
+[ -n "$ALEMS_PROJECT_ROOT" ] && export PATH="$ALEMS_PROJECT_ROOT/scripts:$PATH"
+RCEOF
+    echo "  ~/.bashrc updated"
+fi
 
 # ── Verification ─────────────────────────────────────────────────────
 echo ""
