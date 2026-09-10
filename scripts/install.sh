@@ -388,6 +388,13 @@ else
     echo "  No platform model setup, skipping"
 fi
 
+# ── Step 12b: Install alems CLI ───────────────────────────────────────
+echo "[12b/12] Installing alems CLI to PATH..."
+sudo ln -sf "${PROJECT_ROOT}/scripts/alems" /usr/local/bin/alems 2>/dev/null || \
+    mkdir -p "${HOME}/.local/bin" && \
+    ln -sf "${PROJECT_ROOT}/scripts/alems" "${HOME}/.local/bin/alems" 2>/dev/null || true
+echo "  alems CLI ready. Use 'alems dev pull' instead of 'git pull'"
+
 # ── Verification ─────────────────────────────────────────────────────
 echo ""
 echo "Running verification..."

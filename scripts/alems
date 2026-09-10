@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# A-LEMS CLI
+# Single entry point for all A-LEMS operations.
+#
+# Usage:
+#   alems dev pull          — git pull + auto-sync schema and configs
+#   alems dev sync          — sync schema/configs without pulling
+#   alems dev status        — show platform, DB, branch, schema version
+#   alems dev install       — run full install (fresh or re-install)
+#   alems run <task-id>     — run an experiment
+#   alems measure           — run energy measurement baseline
+#   alems report            — generate experiment report
+#
+# Add new top-level commands here as the platform grows.
+# Never add dev-workflow commands outside 'alems dev'.
+set -euo pipefail
+
+# ── Resolve project root and activate venv ───────────────────────────
+ALEMS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+cd "$ALEMS_ROOT"
+export PYTHONPATH="${ALEMS_ROOT}"
+[ -f venv/bin/activate ] && source venv/bin/activate 2>/dev/null || true
+
+# ── Helpers ──────────────────────────────────────────────────────────
+_platform() {
+    python3 -c "
+import json, os
+p = 'config/hw_config.json'
+print(json.load(open(p)).get('platform_class','unknown') if os.path.exists(p) else 'unknown')
+" 2>/dev/null || echo "unknown"
+}
+
+_db() {
+    python3 -c "from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())" \
+        2>/dev/null || echo "unknown"
+}
+
+_schema_version() {
+    DB=$(_db)
+    sqlite3 "$DB" "SELECT MAX(version) FROM migration_history WHERE type='schema' AND status='applied';" \
+        2>/dev/null || echo "unknown"
+}
+
+_env() {
+    [ -f .alems-env ] && grep "^ALEMS_ENV=" .alems-env | cut -d= -f2 || echo "unknown"
+}
+
+# ── Top-level command dispatch ────────────────────────────────────────
+CMD="${1:-help}"
+shift || true
+
+case "$CMD" in
+
+    # ── DEV WORKFLOW COMMANDS ─────────────────────────────────────────
+    dev)
+        SUBCMD="${1:-help}"
+        shift || true
+        case "$SUBCMD" in
+
+            pull)
+                # Smart pull: only syncs what changed
+                echo "  Pulling latest code..."
+                OLD_HEAD=$(git rev-parse HEAD)
+                git pull
+                NEW_HEAD=$(git rev-parse HEAD)
+                if [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
+                    echo "  Already up to date. No sync needed."
+                    exit 0
+                fi
+                # Check what changed between old and new HEAD
+                CHANGED=$(git diff --name-only "$OLD_HEAD" "$NEW_HEAD")
+                NEEDS_MIGRATE=$(echo "$CHANGED" | grep -q "migrations/schema/" && echo "yes" || echo "no")
+                NEEDS_YAML=$(echo "$CHANGED" | grep -qE "config/.*\.yaml|gui/report_engine/goals/" && echo "yes" || echo "no")
+                NEEDS_SEED=$(echo "$CHANGED" | grep -q "migrations/seed/" && echo "yes" || echo "no")
+                echo "  Syncing..."
+                python3 scripts/tools/alems_migrate.py
+                [ "$NEEDS_YAML" = "yes" ] && python3 scripts/migrate_yaml_to_db.py || true
+                [ "$NEEDS_SEED" = "yes" ] && python3 scripts/seed_methodology.py || true
+                python3 scripts/seed_quality_config.py
+                echo "  Sync complete. Schema: v$(_schema_version)"
+                ;;
+
+            sync)
+                # Full sync without pulling
+                echo "  Syncing schema and configs..."
+                python3 scripts/tools/alems_migrate.py
+                python3 scripts/migrate_yaml_to_db.py
+                python3 scripts/seed_methodology.py
+                python3 scripts/seed_quality_config.py
+                echo "  Sync complete. Schema: v$(_schema_version)"
+                ;;
+
+            status)
+                echo ""
+                echo "  ┌─────────────────────────────────────────────────┐"
+                echo "  │  A-LEMS Environment Status                      │"
+                echo "  └─────────────────────────────────────────────────┘"
+                echo "  Platform:  $(_platform)"
+                echo "  Env:       $(_env)"
+                echo "  DB:        $(_db)"
+                echo "  Branch:    $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
+                echo "  Commit:    $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+                echo "  Schema:    v$(_schema_version)"
+                echo "  Python:    $(python3 --version 2>&1)"
+                echo ""
+                ;;
+
+            install)
+                echo "  Running full install..."
+                bash scripts/install.sh
+                ;;
+
+            help|*)
+                echo ""
+                echo "  alems dev pull      — git pull + smart schema sync"
+                echo "  alems dev sync      — sync schema/configs (after manual git pull)"
+                echo "  alems dev status    — show platform, DB, branch, schema version"
+                echo "  alems dev install   — run full install"
+                echo ""
+                ;;
+        esac
+        ;;
+
+    # ── EXPERIMENT COMMANDS ───────────────────────────────────────────
+    run)
+        TASK="${1:-gsm8k_basic}"
+        shift || true
+        echo "  Running experiment: ${TASK}"
+        python3 -m core.execution.tests.test_harness --task-id "$TASK" "$@"
+        ;;
+
+    measure)
+        echo "  Running energy baseline measurement..."
+        python3 scripts/measure_baseline.py "$@" 2>/dev/null || \
+            echo "  measure_baseline.py not yet implemented — coming in next chunk"
+        ;;
+
+    report)
+        echo "  Generating report..."
+        python3 scripts/generate_report.py "$@" 2>/dev/null || \
+            echo "  generate_report.py not yet implemented — coming in next chunk"
+        ;;
+
+    # ── HELP ──────────────────────────────────────────────────────────
+    help|--help|-h|*)
+        echo ""
+        echo "  A-LEMS CLI"
+        echo ""
+        echo "  Experiment commands:"
+        echo "    alems run <task-id> [args]   — run an experiment"
+        echo "    alems measure                — run energy baseline"
+        echo "    alems report                 — generate report"
+        echo ""
+        echo "  Developer commands:"
+        echo "    alems dev pull               — git pull + smart sync"
+        echo "    alems dev sync               — sync schema/configs"
+        echo "    alems dev status             — environment info"
+        echo "    alems dev install            — full install"
+        echo ""
+        ;;
+esac
