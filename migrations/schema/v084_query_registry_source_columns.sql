@@ -4,3 +4,5 @@
 ALTER TABLE query_registry ADD COLUMN source_yaml TEXT;
 ALTER TABLE query_registry ADD COLUMN source_tab  TEXT;
 ALTER TABLE query_registry ADD COLUMN version     TEXT DEFAULT '1.0';
+ALTER TABLE metric_display_registry ADD COLUMN formula_latex      TEXT;
+ALTER TABLE metric_display_registry ADD COLUMN source_description TEXT;

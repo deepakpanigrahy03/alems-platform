@@ -2740,6 +2740,8 @@ CREATE TABLE IF NOT EXISTS metric_display_registry (
     default_visible       INTEGER     DEFAULT 1,
     leaderboard           INTEGER     DEFAULT 0,
     provenance_expected   TEXT        DEFAULT 'MEASURED',
+    formula_latex         TEXT,
+    source_description    TEXT,
     source_yaml           TEXT,
     goal_id               TEXT,
     active                INTEGER     DEFAULT 1,
