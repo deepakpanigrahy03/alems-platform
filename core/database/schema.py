@@ -2767,6 +2767,9 @@ CREATE TABLE IF NOT EXISTS query_registry (
     enrich_metrics        INTEGER     DEFAULT 0,
     cache_ttl_sec         INTEGER     DEFAULT 30,
     active                INTEGER     DEFAULT 1,
+    source_yaml           TEXT,
+    source_tab            TEXT,
+    version               TEXT        DEFAULT '1.0',
     created_at            TEXT        DEFAULT (datetime('now')),
     updated_at            TEXT        DEFAULT (datetime('now'))
 );
