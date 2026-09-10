@@ -234,7 +234,7 @@ else
     # Fresh install — detect git branch and suggest environment
     GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
     case "$GIT_BRANCH" in
-        main)             SUGGESTED_ENV="prod" ;;
+        main)             SUGGESTED_ENV="dev" ;;  # prod requires explicit choice
         integration*)     SUGGESTED_ENV="integration" ;;
         preprod*)         SUGGESTED_ENV="preprod" ;;
         dev/*|feature/*)  SUGGESTED_ENV="dev" ;;
