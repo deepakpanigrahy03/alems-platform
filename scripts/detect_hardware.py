@@ -762,6 +762,25 @@ class LinuxX86Mixin:
                         package_temp = zone_type
         return thermal_paths, package_temp
 
+    def _enhance_msr(self, msr_config: dict) -> dict:
+        """Add MSR hardware constants to msr config section.
+        Safe to call on any x86 platform — uses IF NOT EXISTS guards."""
+        if "cstate_counter_max" not in msr_config:
+            msr_config["cstate_counter_max"] = 2**64 - 1
+        if "cstate_counters" not in msr_config:
+            counters = {}
+            cstate_msrs = {"c2": 0x3F8, "c3": 0x3F9, "c6": 0x3FA, "c7": 0x3FB}
+            for state, addr in cstate_msrs.items():
+                r = _run(["rdmsr", f"0x{addr:X}"], timeout=1)
+                counters[state] = {"address": f"0x{addr:X}",
+                                   "available": r is not None and r.returncode == 0}
+            msr_config["cstate_counters"] = counters
+        if "ring_bus_base_clock_mhz" not in msr_config:
+            msr_config["ring_bus_base_clock_mhz"] = 100.0
+        if "wakeup_idle_ms" not in msr_config:
+            msr_config["wakeup_idle_ms"] = 2
+        return msr_config
+
 
 # ============================================================================
 # INTEL LINUX DETECTOR
@@ -1025,24 +1044,6 @@ class IntelLinuxDetector(PlatformDetector, LinuxX86Mixin):
                     paths[key] = fp
         return paths
 
-    def _enhance_msr(self, msr_config: dict) -> dict:
-        if "cstate_counter_max" not in msr_config:
-            msr_config["cstate_counter_max"] = 2**64 - 1
-        if "cstate_counters" not in msr_config:
-            counters = {}
-            cstate_msrs = {"c2": 0x3F8, "c3": 0x3F9, "c6": 0x3FA, "c7": 0x3FB}
-            for state, addr in cstate_msrs.items():
-                r = _run(["rdmsr", f"0x{addr:X}"], timeout=1)
-                counters[state] = {"address": f"0x{addr:X}",
-                                   "available": r is not None and r.returncode == 0}
-            msr_config["cstate_counters"] = counters
-        if "ring_bus_base_clock_mhz" not in msr_config:
-            msr_config["ring_bus_base_clock_mhz"] = 100.0
-        if "wakeup_idle_ms" not in msr_config:
-            msr_config["wakeup_idle_ms"] = 2
-        return msr_config
-
-
 # ============================================================================
 # AMD LINUX DETECTOR
 # ============================================================================
@@ -1097,7 +1098,7 @@ class AMDLinuxDetector(PlatformDetector, LinuxX86Mixin):
                 "sensors_to_monitor": sensors_to_monitor,
                 "sampling_rate_hz": 1,
             },
-            "msr": {"devices": msr_devices, "count": len(msr_devices)},
+            "msr": self._enhance_msr({"devices": msr_devices, "count": len(msr_devices)}),
             "cpufreq": {"paths": cpufreq},
             # Turbostat disabled: observed SIGABRT on Ryzen 5 3600 (Zen 2).
             # May work on future AMD generations; validate before enabling.
@@ -1214,7 +1215,7 @@ class GenericX86LinuxDetector(PlatformDetector, LinuxX86Mixin):
                 "sensors_to_monitor": sensors_to_monitor,
                 "sampling_rate_hz": 1,
             },
-            "msr": {"devices": msr_devices, "count": len(msr_devices)},
+            "msr": self._enhance_msr({"devices": msr_devices, "count": len(msr_devices)}),
             "cpufreq": {"paths": cpufreq},
             "turbostat": {"available": False, "columns": {},
                           "error": f"turbostat not attempted for unknown vendor: {vendor_raw}"},
