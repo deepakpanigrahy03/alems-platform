@@ -147,18 +147,20 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     tables are the ground truth every later comparison depends on."""
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS migration_history (
-        id              INTEGER PRIMARY KEY AUTOINCREMENT,
-        version         INTEGER NOT NULL,
-        type            TEXT NOT NULL CHECK(type IN ('schema', 'seed')),
-        filename        TEXT NOT NULL,
-        checksum_sha256 TEXT NOT NULL,
-        applied_at      TEXT NOT NULL DEFAULT (datetime('now')),
-        tool_version    TEXT NOT NULL,
-        duration_ms     INTEGER NOT NULL,
-        status          TEXT NOT NULL CHECK(status IN ('pending', 'running', 'applied', 'failed')),
-        hostname        TEXT NOT NULL,
-        machine_id      TEXT,
-        repo_commit     TEXT,
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        version          INTEGER NOT NULL,
+        type             TEXT NOT NULL CHECK(type IN ('schema', 'seed')),
+        filename         TEXT NOT NULL,
+        checksum_sha256  TEXT NOT NULL,
+        applied_at       TEXT NOT NULL DEFAULT (datetime('now')),
+        tool_version     TEXT NOT NULL,
+        duration_ms      INTEGER NOT NULL,
+        status           TEXT NOT NULL CHECK(status IN ('pending', 'running', 'applied', 'failed')),
+        hostname         TEXT NOT NULL,
+        machine_id       TEXT,
+        repo_commit      TEXT,
+        original_checksum TEXT,
+        healed_at        TEXT,
         UNIQUE(version, type)
     );
 
@@ -177,6 +179,14 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
     );
     """)
     conn.commit()
+    # Bootstrap healing columns on existing DBs that predate this feature.
+    # Idempotent — ALTER TABLE ADD COLUMN is a no-op if column exists in SQLite.
+    for col in ("original_checksum", "healed_at"):
+        try:
+            conn.execute(f"ALTER TABLE migration_history ADD COLUMN {col} TEXT")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
 
 
 # ---------------------------------------------------------------------------
@@ -221,12 +231,17 @@ def applied_setup_filenames(conn: sqlite3.Connection):
 # Safety gates, Chunk M2
 # ---------------------------------------------------------------------------
 
-def verify_checksums(conn: sqlite3.Connection, mtype: str, repo_files: dict):
+def verify_checksums(conn: sqlite3.Connection, mtype: str, repo_files: dict,
+                     env_mode: str = "prod"):
     """Recomputes SHA256 for every applied migration's on disk file and
     compares to the stored hash. A mismatch means the file changed after
     being applied somewhere, the exact silent divergence scenario this
-    gate exists to catch. Returns formatted strings, empty list means
-    clean."""
+    gate exists to catch.
+
+    prod mode: returns formatted error strings (caller raises FATAL).
+    dev mode:  heals the checksum in migration_history and warns, never
+               re-executes the migration (schema change already applied).
+    Returns formatted strings, empty list means clean."""
     problems = []
     for version, (filename, stored_hash) in applied_checksums(conn, mtype).items():
         filepath = repo_files.get(version)
@@ -237,11 +252,26 @@ def verify_checksums(conn: sqlite3.Connection, mtype: str, repo_files: dict):
             continue
         current_hash = sha256_file(filepath)
         if current_hash != stored_hash:
-            problems.append(
-                f"Checksum mismatch: {filepath.relative_to(REPO_ROOT)}\n"
-                f"  Applied:  sha256:{stored_hash}\n"
-                f"  Current:  sha256:{current_hash}"
-            )
+            if env_mode == "dev":
+                # Dev mode: heal checksum, warn, do not re-execute
+                print(
+                    f"  WARNING (dev): checksum mismatch on {filename}\n"
+                    f"    Stored: {stored_hash[:16]}... → Current: {current_hash[:16]}...\n"
+                    f"    Healing checksum. Migration will NOT be re-executed."
+                )
+                conn.execute(
+                    "UPDATE migration_history SET "
+                    "checksum_sha256=?, original_checksum=?, healed_at=datetime('now') "
+                    "WHERE version=? AND type=?",
+                    (current_hash, stored_hash, version, mtype)
+                )
+                conn.commit()
+            else:
+                problems.append(
+                    f"Checksum mismatch: {filepath.relative_to(REPO_ROOT)}\n"
+                    f"  Applied:  sha256:{stored_hash}\n"
+                    f"  Current:  sha256:{current_hash}"
+                )
     return problems
 
 
@@ -390,7 +420,7 @@ def generate_manifest(conn, hostname: str) -> None:
 # Shared preflight, spec Section 5.5 steps 3 through 5
 # ---------------------------------------------------------------------------
 
-def preflight(conn, mtype: str, repo_files: dict):
+def preflight(conn, mtype: str, repo_files: dict, env_mode: str = "prod"):
     """Runs the interrupted check, checksum verification, and set
     comparison for one migration type. Raises MigrationError on any
     block condition. Returns the sorted list of pending versions on
@@ -403,7 +433,7 @@ def preflight(conn, mtype: str, repo_files: dict):
             f"Inspect the database manually and resolve before proceeding."
         )
 
-    problems = verify_checksums(conn, mtype, repo_files)
+    problems = verify_checksums(conn, mtype, repo_files, env_mode=env_mode)
     if problems:
         raise MigrationError(
             "FATAL: Migration checksum mismatch.\n\n" + "\n\n".join(problems) +
@@ -436,17 +466,17 @@ def preflight(conn, mtype: str, repo_files: dict):
 # Commands
 # ---------------------------------------------------------------------------
 
-def cmd_migrate(conn, hostname: str, machine_id, commit) -> None:
+def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod") -> None:
     ensure_tables(conn)
     schema_files = discover_repo_files(SCHEMA_DIR, "v")
     seed_files = discover_repo_files(SEED_DIR, "s")
 
-    pending_schema = preflight(conn, "schema", schema_files)
+    pending_schema = preflight(conn, "schema", schema_files, env_mode=env_mode)
     for version in pending_schema:
         apply_one(conn, schema_files[version], version, "schema", hostname, machine_id, commit)
         print(f"Applied schema {schema_files[version].name}")
 
-    pending_seed = preflight(conn, "seed", seed_files)
+    pending_seed = preflight(conn, "seed", seed_files, env_mode=env_mode)
     for version in pending_seed:
         apply_one(conn, seed_files[version], version, "seed", hostname, machine_id, commit)
         print(f"Applied seed {seed_files[version].name}")
@@ -687,7 +717,33 @@ def main() -> int:
         "--yes", action="store_true",
         help="Skip the --adopt confirmation prompt. Scripted use only.",
     )
+    parser.add_argument(
+        "--env-mode", choices=["prod", "dev", "integration", "preprod"],
+        default=None,
+        help="Environment mode. dev: heals checksum mismatches. prod: fatal on mismatch. "
+             "Auto-detected from .alems-env if not specified.",
+    )
     args = parser.parse_args()
+
+    # Resolve env_mode: CLI arg > .alems-env > default prod
+    if args.env_mode:
+        env_mode = args.env_mode
+    else:
+        env_file = REPO_ROOT / ".alems-env"
+        if env_file.exists():
+            raw = env_file.read_text().strip()
+            # Support both key=value and legacy single-token format
+            env_mode = "prod"
+            for line in raw.splitlines():
+                line = line.strip()
+                if line.startswith("ALEMS_ENV="):
+                    env_mode = line.split("=", 1)[1].strip()
+                    break
+                elif line and "=" not in line:
+                    env_mode = line
+                    break
+        else:
+            env_mode = "prod"
 
     hostname = get_hostname()
     machine_id = get_machine_id()
@@ -710,7 +766,7 @@ def main() -> int:
         if args.adopt:
             cmd_adopt(conn, hostname, machine_id, commit, skip_confirmation=args.yes)
             return 0
-        cmd_migrate(conn, hostname, machine_id, commit)
+        cmd_migrate(conn, hostname, machine_id, commit, env_mode=env_mode)
         return 0
     except MigrationError as e:
         print(str(e), file=sys.stderr)
