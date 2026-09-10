@@ -314,6 +314,9 @@ echo "  DB path: ${DB_PATH}"
 
 # ── Step 6: Database init ────────────────────────────────────────────
 echo "[6/12] Database initialization..."
+# Clear pyc cache to ensure latest schema.py is used, not cached version
+find . -name "*.pyc" -delete 2>/dev/null || true
+find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 python3 -c "
 from core.database.sqlite_adapter import SQLiteAdapter
 db = SQLiteAdapter({'path': '${DB_PATH}'})
