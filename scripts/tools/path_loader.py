@@ -111,11 +111,17 @@ def get_alems_db_path():
         pass
 
     base = os.environ.get("ALEMS_DATA_ROOT")
-    if base:
-        machine_id = socket.gethostname().lower()
-        _db_name = os.environ.get("ALEMS_DB_NAME", "experiments.db")
-        return f"{base}/{machine_id}/{_db_name}"
-    return "data/experiments.db"
+    if not base:
+        raise RuntimeError(
+            "ALEMS_DATA_ROOT is not set.\n"
+            "Set it in ~/.alemsrc:\n"
+            "  export ALEMS_DATA_ROOT=/path/to/your/data\n"
+            "Then: source ~/.alemsrc\n"
+            "Or run fresh: bash scripts/install.sh"
+        )
+    machine_id = socket.gethostname().lower()
+    _db_name = os.environ.get("ALEMS_DB_NAME", "experiments.db")
+    return f"{base}/{machine_id}/{_db_name}"
 
 def get_models_dir():
     # type: () -> str

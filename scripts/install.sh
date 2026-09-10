@@ -92,8 +92,8 @@ PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)" 2>/dev/null ||
 if [ "$PY_MAJOR" -lt 3 ] || [ "$PY_MINOR" -lt 9 ]; then
     echo "  ❌ python3 >= 3.9 required (found ${PY_MAJOR}.${PY_MINOR}). Install from https://www.python.org"
     PREREQ_FAILED=1
-elif [ "$PY_MINOR" -gt 12 ]; then
-    echo "  ⚠️  python3.${PY_MINOR} detected — supported range is 3.9-3.12. Some packages may fail."
+elif [ "$PY_MINOR" -gt 13 ]; then
+    echo "  ⚠️  python3.${PY_MINOR} detected — supported range is 3.9-3.13. Some packages may fail."
 else
     echo "  ✅ python3.${PY_MINOR} (supported)"
 fi
