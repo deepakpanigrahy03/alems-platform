@@ -12,6 +12,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
+export PYTHONPATH="${PROJECT_ROOT}"
 
 # ── Step 0: Detect platform ──────────────────────────────────────────
 # Run a fast hardware probe to get platform_class from detect_hardware.py.
@@ -368,15 +369,15 @@ python3 scripts/seed_methodology.py
 echo "  Methodology registry populated"
 
 echo "[11b/12] Quality config seeding..."
-python3 scripts/seed_quality_config.py
+PYTHONPATH="${PROJECT_ROOT}" python3 scripts/seed_quality_config.py
 echo "  task_quality_config seeded"
 
 echo "[11c/12] GPU config detection..."
-python3 scripts/detect_gpu.py
+PYTHONPATH="${PROJECT_ROOT}" python3 scripts/detect_gpu.py
 echo "  gpu_config populated"
 
 echo "[11d/12] YAML config migration to DB..."
-python3 scripts/migrate_yaml_to_db.py
+PYTHONPATH="${PROJECT_ROOT}" python3 scripts/migrate_yaml_to_db.py
 echo "  query_registry, task_categories, eval_criteria populated"
 
 # ── Step 12: Model/API setup ─────────────────────────────────────────
