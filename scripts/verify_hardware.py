@@ -469,21 +469,89 @@ def check_mac_gpu(config):
 # Adding a new platform: add an elif branch here and write check_* functions.
 # ============================================================================
 
+# Check severity by execution context.
+# "hard" = install fails, "soft" = warning, "skip" = not checked.
+# unknown context = conservative (soft for all).
+# vmware_guest and hyperv_guest use kvm_guest severity.
+CHECK_SEVERITY = {
+    "arm_pmu": {
+        "bare_metal": "hard", "kvm_guest": "hard",
+        "container": "soft", "wsl2": "skip", "unknown": "soft",
+    },
+    "cpuidle": {
+        "bare_metal": "hard", "kvm_guest": "skip",
+        "container": "skip", "wsl2": "skip", "unknown": "skip",
+    },
+    "cpufreq": {
+        "bare_metal": "soft", "kvm_guest": "skip",
+        "container": "skip", "wsl2": "skip", "unknown": "skip",
+    },
+    "thermal": {
+        "bare_metal": "soft", "kvm_guest": "soft",
+        "container": "skip", "wsl2": "skip", "unknown": "skip",
+    },
+    "rapl": {
+        "bare_metal": "hard", "kvm_guest": "soft",
+        "container": "soft", "wsl2": "skip", "unknown": "soft",
+    },
+    "msr": {
+        "bare_metal": "hard", "kvm_guest": "soft",
+        "container": "skip", "wsl2": "skip", "unknown": "soft",
+    },
+    "turbostat": {
+        "bare_metal": "soft", "kvm_guest": "skip",
+        "container": "skip", "wsl2": "skip", "unknown": "skip",
+    },
+    "spbm": {
+        "bare_metal": "hard", "kvm_guest": "skip",
+        "container": "skip", "wsl2": "skip", "unknown": "skip",
+    },
+    "dcgm": {
+        "bare_metal": "soft", "kvm_guest": "skip",
+        "container": "skip", "wsl2": "skip", "unknown": "skip",
+    },
+    "iokit": {
+        "bare_metal": "hard", "kvm_guest": "skip",
+        "container": "skip", "wsl2": "skip", "unknown": "skip",
+    },
+}
+
+
+def get_check_severity(check_name: str, execution_context: str) -> str:
+    """Look up severity for a check given execution context.
+    Returns hard, soft, or skip. Defaults to soft when unknown."""
+    if execution_context in ("vmware_guest", "hyperv_guest"):
+        execution_context = "kvm_guest"
+    entry = CHECK_SEVERITY.get(check_name, {})
+    return entry.get(execution_context, entry.get("unknown", "soft"))
+
+
 def run_checks(config):
-    """Dispatch checks based on platform_class. Returns dict of check_name -> bool/None."""
+    """Dispatch checks based on platform_class and execution_context.
+    Returns dict of check_name -> bool/None. Skipped checks are excluded."""
     pclass = config.get("platform_class", "unknown")
+    ec = config.get("execution_context", "unknown")
     results = {}
+
+    def run(check_name, check_fn):
+        """Run check if not skipped. Record as hard/soft based on severity."""
+        severity = get_check_severity(check_name, ec)
+        if severity == "skip":
+            return
+        results[check_name] = check_fn(config)
 
     # thermal and cpufreq use sysfs — skip on Mac (no sysfs on Darwin)
     if pclass != "apple_silicon":
-        results["thermal"] = check_thermal(config)
-        results["cpufreq"] = check_cpufreq(config)
+        run("thermal", check_thermal)
+        run("cpufreq", check_cpufreq)
 
     # RAPL returns None when absent (ARM/Mac); None entries are excluded from
     # the summary pass/fail count rather than counted as failures
-    rapl = check_rapl(config)
-    if rapl is not None:
-        results["rapl"] = rapl
+    severity_rapl = get_check_severity("rapl", ec)
+    if severity_rapl != "skip":
+        rapl = check_rapl(config)
+        if rapl is not None:
+            results["rapl"] = rapl
 
     if pclass in ("intel_x86", "amd_x86", "linux_x86_unknown"):
         # x86 full suite: MSR, ring bus, turbostat, TSC
@@ -497,19 +565,18 @@ def run_checks(config):
         # Grace suite: SPBM replaces RAPL, DCGM replaces turbostat.
         # SPBM requires unsigned kernel module — unavailable when Secure Boot
         # is enabled. DCGM alone provides GPU energy in that case.
-        results["spbm"]    = check_spbm(config)
-        results["dcgm"]    = check_dcgm(config)
-        results["arm_pmu"] = check_arm_pmu(config)
-        results["cpuidle"] = check_cpuidle(config)
-        # If SPBM failed but DCGM succeeded, demote SPBM to warning
-        if not results["spbm"] and results["dcgm"]:
+        run("spbm", check_spbm)
+        run("dcgm", check_dcgm)
+        run("arm_pmu", check_arm_pmu)
+        run("cpuidle", check_cpuidle)
+        if results.get("spbm") is False and results.get("dcgm"):
             print("  ℹ️  SPBM unavailable (Secure Boot may be enabled) — DCGM covers GPU energy")
             results.pop("spbm")
 
     elif pclass == "linux_arm":
-        # Generic ARM: no SPBM/DCGM; just PMU and idle states
-        results["arm_pmu"] = check_arm_pmu(config)
-        results["cpuidle"] = check_cpuidle(config)
+        # Generic ARM: no SPBM/DCGM; PMU and idle states severity-gated
+        run("arm_pmu", check_arm_pmu)
+        run("cpuidle", check_cpuidle)
 
     elif pclass == "apple_silicon":
         # Mac: no sysfs energy paths; verify IOKit and GPU detection only
@@ -548,6 +615,10 @@ def main():
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
+    ec = config.get("execution_context", "unknown")
+    if ec != "bare_metal":
+        print(f"  Execution context: {ec}")
+        print(f"  (Some checks adjusted for virtualized environment)")
 
     # tsc, turbostat, ring_bus: optional because fallbacks exist or platform may
     # not support them. False result shows as warning, not failure, in summary.
