@@ -48,6 +48,19 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import psutil
 
+# Platform generalization: execution context and capability profile
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from detection.execution_context import (
+    detect_execution_context,
+    detect_cloud_provider,
+    get_execution_context_evidence,
+)
+from detection.capability_profile import (
+    build_capability_profile,
+    build_tool_availability,
+    classify_measurement,
+)
+
 # ============================================================================
 # CONSTANTS
 # ============================================================================
@@ -55,7 +68,7 @@ import psutil
 # Single authoritative schema version for hw_config.json.
 # Increment when the output contract changes (new required keys, removed keys,
 # changed types). Consumers check this to detect stale configs.
-HW_CONFIG_SCHEMA_VERSION = 3
+HW_CONFIG_SCHEMA_VERSION = 4
 
 # Legacy field name. Kept at 2 for consumers that check config_version.
 # New code should check hw_config_version instead.
@@ -67,6 +80,7 @@ REQUIRED_TOP_LEVEL_KEYS = [
     "cpu_vendor",
     "platform_class",
     "hw_config_version",
+    "execution_context",
 ]
 
 # cpu_architecture is an extensible normalized architecture identifier.
@@ -486,6 +500,16 @@ class AppleSiliconDetector(PlatformDetector):
             "arm_pmu": {"available": False, "events": []},
             "cpuidle": {"available": False, "states": [], "paths": {}},
         }
+        config["execution_context"] = detect_execution_context()
+        config["execution_context_evidence"] = get_execution_context_evidence()
+        config["cloud_provider"] = detect_cloud_provider()
+        config["capability_profile"] = build_capability_profile()
+        config["tool_availability"] = build_tool_availability()
+        compute, energy = classify_measurement(
+            config["capability_profile"], config["platform_class"]
+        )
+        config["compute_measurement"] = compute
+        config["energy_measurement"] = energy
         config["hardware_hash"] = generate_hardware_hash(config)
         return config
 
@@ -605,6 +629,16 @@ class IntelMacDetector(PlatformDetector):
             "arm_pmu": {"available": False, "events": []},
             "cpuidle": {"available": False, "states": [], "paths": {}},
         }
+        config["execution_context"] = detect_execution_context()
+        config["execution_context_evidence"] = get_execution_context_evidence()
+        config["cloud_provider"] = detect_cloud_provider()
+        config["capability_profile"] = build_capability_profile()
+        config["tool_availability"] = build_tool_availability()
+        compute, energy = classify_measurement(
+            config["capability_profile"], config["platform_class"]
+        )
+        config["compute_measurement"] = compute
+        config["energy_measurement"] = energy
         config["hardware_hash"] = generate_hardware_hash(config)
         return config
 
@@ -871,6 +905,16 @@ class IntelLinuxDetector(PlatformDetector, LinuxX86Mixin):
             "arm_pmu": {"available": False, "events": []},
             "cpuidle": {"available": False, "states": [], "paths": {}},
         }
+        config["execution_context"] = detect_execution_context()
+        config["execution_context_evidence"] = get_execution_context_evidence()
+        config["cloud_provider"] = detect_cloud_provider()
+        config["capability_profile"] = build_capability_profile()
+        config["tool_availability"] = build_tool_availability()
+        compute, energy = classify_measurement(
+            config["capability_profile"], config["platform_class"]
+        )
+        config["compute_measurement"] = compute
+        config["energy_measurement"] = energy
         config["hardware_hash"] = generate_hardware_hash(config)
         return config
 
@@ -1133,6 +1177,16 @@ class AMDLinuxDetector(PlatformDetector, LinuxX86Mixin):
             "arm_pmu": {"available": False, "events": []},
             "cpuidle": {"available": False, "states": [], "paths": {}},
         }
+        config["execution_context"] = detect_execution_context()
+        config["execution_context_evidence"] = get_execution_context_evidence()
+        config["cloud_provider"] = detect_cloud_provider()
+        config["capability_profile"] = build_capability_profile()
+        config["tool_availability"] = build_tool_availability()
+        compute, energy = classify_measurement(
+            config["capability_profile"], config["platform_class"]
+        )
+        config["compute_measurement"] = compute
+        config["energy_measurement"] = energy
         config["hardware_hash"] = generate_hardware_hash(config)
         return config
 
@@ -1248,6 +1302,16 @@ class GenericX86LinuxDetector(PlatformDetector, LinuxX86Mixin):
             "arm_pmu": {"available": False, "events": []},
             "cpuidle": {"available": False, "states": [], "paths": {}},
         }
+        config["execution_context"] = detect_execution_context()
+        config["execution_context_evidence"] = get_execution_context_evidence()
+        config["cloud_provider"] = detect_cloud_provider()
+        config["capability_profile"] = build_capability_profile()
+        config["tool_availability"] = build_tool_availability()
+        compute, energy = classify_measurement(
+            config["capability_profile"], config["platform_class"]
+        )
+        config["compute_measurement"] = compute
+        config["energy_measurement"] = energy
         config["hardware_hash"] = generate_hardware_hash(config)
         return config
 
@@ -1336,19 +1400,54 @@ class ARMLinuxBase(PlatformDetector):
         return thermal_paths, package_temp
 
     def _detect_arm_pmu(self) -> dict:
+        """Detect ARM PMU. sysfs first (ground truth), perf second (enrichment)."""
         result = {"available": False, "events": [],
-                  "has_generic_events": False, "has_armv8_events": False}
-        r = _run(["perf", "stat", "-e", "instructions,cycles", "--", "true"], timeout=5)
-        if r and "instructions" in (r.stderr or ""):
-            result["has_generic_events"] = True
-            result["events"].extend(["instructions", "cycles"])
-        r = _run(["perf", "list", "armv8_pmuv3"], timeout=5)
-        if r and "armv8_pmuv3" in (r.stdout or ""):
-            result["has_armv8_events"] = True
-            for line in r.stdout.splitlines():
-                if "armv8_pmuv3/" in line:
-                    result["events"].append(line.strip().split()[0])
-        result["available"] = result["has_generic_events"] or result["has_armv8_events"]
+                  "has_generic_events": False, "has_armv8_events": False,
+                  "detection_method": "none", "pmu_device_count": 0}
+
+        # Primary: sysfs ground truth (no tool dependency)
+        pmu_devices = sorted(glob.glob(
+            "/sys/bus/event_source/devices/armv8_pmuv3_*"))
+        if pmu_devices:
+            result["pmu_device_count"] = len(pmu_devices)
+            for dev in pmu_devices:
+                type_file = os.path.join(dev, "type")
+                if os.path.isfile(type_file):
+                    try:
+                        with open(type_file) as f:
+                            int(f.read().strip())
+                            result["available"] = True
+                            result["has_armv8_events"] = True
+                            result["detection_method"] = "sysfs"
+                            break
+                    except (ValueError, PermissionError, OSError):
+                        continue
+            if result["available"]:
+                events_dir = os.path.join(pmu_devices[0], "events")
+                if os.path.isdir(events_dir):
+                    for evt in sorted(os.listdir(events_dir)):
+                        result["events"].append(f"armv8_pmuv3/{evt}")
+                    result["has_generic_events"] = True
+                self._log(
+                    f"ARM PMU: {len(pmu_devices)} devices via sysfs, "
+                    f"{len(result['events'])} events")
+
+        # Secondary: perf binary (richer enumeration if installed)
+        if shutil.which("perf"):
+            r = _run(["perf", "stat", "-e", "instructions,cycles",
+                      "--", "true"], timeout=5)
+            if r and "instructions" in (r.stderr or ""):
+                result["has_generic_events"] = True
+                for evt in ("instructions", "cycles"):
+                    if evt not in result["events"]:
+                        result["events"].append(evt)
+                if result["detection_method"] == "none":
+                    result["detection_method"] = "perf"
+                    result["available"] = True
+
+        if not result["available"]:
+            self._log("ARM PMU: not detected via sysfs or perf")
+
         return result
 
     def _detect_arm_cpuidle(self) -> dict:
@@ -1440,6 +1539,16 @@ class NVIDIAGraceDetector(ARMLinuxBase):
         # Grace-specific probes
         config["spbm"] = self._detect_spbm()
         config["dcgm"] = self._detect_dcgm()
+        config["execution_context"] = detect_execution_context()
+        config["execution_context_evidence"] = get_execution_context_evidence()
+        config["cloud_provider"] = detect_cloud_provider()
+        config["capability_profile"] = build_capability_profile()
+        config["tool_availability"] = build_tool_availability()
+        compute, energy = classify_measurement(
+            config["capability_profile"], config["platform_class"]
+        )
+        config["compute_measurement"] = compute
+        config["energy_measurement"] = energy
         config["hardware_hash"] = generate_hardware_hash(config)
         return config
 
@@ -1503,6 +1612,16 @@ class GenericARMLinuxDetector(ARMLinuxBase):
         # Generic ARM: SPBM/DCGM not expected
         config["spbm"] = {"available": False}
         config["dcgm"] = {"available": False}
+        config["execution_context"] = detect_execution_context()
+        config["execution_context_evidence"] = get_execution_context_evidence()
+        config["cloud_provider"] = detect_cloud_provider()
+        config["capability_profile"] = build_capability_profile()
+        config["tool_availability"] = build_tool_availability()
+        compute, energy = classify_measurement(
+            config["capability_profile"], config["platform_class"]
+        )
+        config["compute_measurement"] = compute
+        config["energy_measurement"] = energy
         config["hardware_hash"] = generate_hardware_hash(config)
         return config
 
@@ -1584,6 +1703,16 @@ class RISCVLinuxDetector(PlatformDetector):
             "arm_pmu": {"available": False, "events": []},
             "cpuidle": {"available": False, "states": [], "paths": {}},
         }
+        config["execution_context"] = detect_execution_context()
+        config["execution_context_evidence"] = get_execution_context_evidence()
+        config["cloud_provider"] = detect_cloud_provider()
+        config["capability_profile"] = build_capability_profile()
+        config["tool_availability"] = build_tool_availability()
+        compute, energy = classify_measurement(
+            config["capability_profile"], config["platform_class"]
+        )
+        config["compute_measurement"] = compute
+        config["energy_measurement"] = energy
         config["hardware_hash"] = generate_hardware_hash(config)
         return config
 
@@ -1642,10 +1771,21 @@ def merge_configs(existing: dict, new_config: dict) -> dict:
         "gpu_model", "cpu_vendor_raw", "microcode_version",
         "system_manufacturer", "system_product", "system_type",
         "virtualization_type",
+        "execution_context", "cloud_provider",
+        "compute_measurement", "energy_measurement",
     ]
     for key in flat_keys:
         if key in new_config:
             merged[key] = new_config[key]
+
+    # Version 3 → 4 upgrade: add defaults for new fields if missing
+    merged.setdefault("execution_context", "unknown")
+    merged.setdefault("cloud_provider", None)
+    merged.setdefault("capability_profile", {})
+    merged.setdefault("tool_availability", {})
+    merged.setdefault("compute_measurement", "unavailable")
+    merged.setdefault("energy_measurement", "unavailable")
+    merged.setdefault("execution_context_evidence", {"method": "none", "raw_output": None})
 
     # CPU section: merge (preserve custom, update detected)
     new_cpu = new_config.get("cpu", {})
@@ -1719,6 +1859,13 @@ def validate_config(config: dict) -> List[str]:
     ram = config.get("ram_gb", 0)
     if isinstance(ram, (int, float)) and ram <= 0:
         errors.append(f"ram_gb={ram} (must be > 0)")
+
+    # execution_context known values
+    known_contexts = {"bare_metal", "kvm_guest", "vmware_guest",
+                      "hyperv_guest", "container", "wsl2", "unknown"}
+    ec = config.get("execution_context")
+    if ec and ec not in known_contexts:
+        errors.append(f"execution_context={ec} not in known values")
 
     return errors
 
