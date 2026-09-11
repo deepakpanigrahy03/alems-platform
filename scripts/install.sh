@@ -170,10 +170,10 @@ case "$PLATFORM" in
         check_tool "brew"         "required" "Install from https://brew.sh"
         ;;
     linux_arm)
-        check_tool "perf"       "optional" "${PKG_INSTALL} ${PKG_PERF}"
+        check_tool "perf"       "required" "${PKG_INSTALL} ${PKG_PERF}"
         ;;
     linux_x86_unknown)
-        check_tool "perf"       "optional" "${PKG_INSTALL} ${PKG_PERF}"
+        check_tool "perf"       "required" "${PKG_INSTALL} ${PKG_PERF}"
         check_tool "rdmsr"      "optional" "${PKG_INSTALL} ${PKG_MSR}"
         ;;
 esac
