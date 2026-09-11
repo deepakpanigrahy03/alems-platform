@@ -541,7 +541,7 @@ def run_checks(config):
         results[check_name] = check_fn(config)
 
     # thermal and cpufreq use sysfs — skip on Mac (no sysfs on Darwin)
-    if pclass != "apple_silicon":
+    if pclass not in ("apple_silicon", "intel_mac"):
         run("thermal", check_thermal)
         run("cpufreq", check_cpufreq)
 
@@ -582,6 +582,10 @@ def run_checks(config):
         # Mac: no sysfs energy paths; verify IOKit and GPU detection only
         results["iokit"]   = check_iokit(config)
         results["mac_gpu"] = check_mac_gpu(config)
+
+    elif pclass == "intel_mac":
+        # Intel Mac: observation-only, no sysfs, no IOKit energy plane
+        pass
 
     return results
 
