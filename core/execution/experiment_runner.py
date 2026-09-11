@@ -290,7 +290,19 @@ class ExperimentRunner:
     # Baseline measurement (from test_harness, add to run_experiment)
     # ========================================================================
     def ensure_baseline(self, harness) -> Optional[BaselineMeasurement]:
-        """Get baseline (measure if needed) and insert to DB once."""
+        """Get baseline (measure if needed) and insert to DB once.
+
+        Returns None immediately on platforms where energy_measurement != direct.
+        Modeled and unavailable energy tiers have no idle power to subtract.
+        """
+        energy_tier = harness.energy_engine.config.get("energy_measurement", "unavailable")
+        if energy_tier != "direct":
+            logger.info(
+                f"ensure_baseline: skipped — energy_measurement={energy_tier}"
+            )
+            harness.baseline = None
+            return None
+
         baseline_config = self.settings.get("experiment", {}).get("baseline", {})
         force_remeasure = baseline_config.get("force_remeasure", False)
         # Resolve cache path via machine-aware 3-layer logic (BDC-4)
