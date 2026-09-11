@@ -326,7 +326,8 @@ class ExperimentRunner:
                 )
                 
                 # Insert to DB (only once, when measured)
-                harness.baseline_mgr.save(harness.baseline)
+                if harness.baseline is not None:
+                    harness.baseline_mgr.save(harness.baseline)
 
                 print(f"\n   ✅ Baseline measured and saved!")
                 print(f"      Baseline ID: {harness.baseline.baseline_id}")
