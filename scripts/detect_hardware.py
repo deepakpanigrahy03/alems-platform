@@ -519,14 +519,21 @@ class AppleSiliconDetector(PlatformDetector):
         return gpu
 
     def _check_iokit(self) -> bool:
-        """Check IOKit accessibility. Node name varies by Apple Silicon generation."""
-        for node in ["AppleARMIODevice", "AppleT600xCPU", "AppleT8103", "IORTC"]:
-            r = _run(["ioreg", "-l", "-n", node], timeout=3)
-            if r and r.returncode == 0 and len(r.stdout.strip()) > 0:
-                return True
-        # Fallback: just check ioreg runs at all
-        r = _run(["ioreg", "-l"], timeout=3)
-        return r is not None and r.returncode == 0
+        """Check IOKit accessibility. Node name varies by Apple Silicon generation.
+        Uses binary mode to handle non-UTF-8 bytes in ioreg output."""
+        try:
+            # Try specific nodes first (faster)
+            for node in ["AppleARMIODevice", "AppleT600xCPU", "AppleT8103", "IORTC"]:
+                r = subprocess.run(["ioreg", "-l", "-n", node],
+                                   capture_output=True, timeout=3)
+                if r.returncode == 0 and len(r.stdout) > 100:
+                    return True
+            # Fallback: just verify ioreg runs
+            r = subprocess.run(["ioreg", "-d", "1"],
+                               capture_output=True, timeout=3)
+            return r.returncode == 0
+        except Exception:
+            return False
 
     def _sysctl(self, key: str) -> Optional[str]:
         r = _run(["sysctl", "-n", key], timeout=3)
