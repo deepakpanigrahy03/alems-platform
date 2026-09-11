@@ -474,9 +474,10 @@ def run_checks(config):
     pclass = config.get("platform_class", "unknown")
     results = {}
 
-    # thermal and cpufreq are universal; every platform has these sysfs paths
-    results["thermal"] = check_thermal(config)
-    results["cpufreq"] = check_cpufreq(config)
+    # thermal and cpufreq use sysfs — skip on Mac (no sysfs on Darwin)
+    if pclass != "apple_silicon":
+        results["thermal"] = check_thermal(config)
+        results["cpufreq"] = check_cpufreq(config)
 
     # RAPL returns None when absent (ARM/Mac); None entries are excluded from
     # the summary pass/fail count rather than counted as failures
