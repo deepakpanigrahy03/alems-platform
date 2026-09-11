@@ -23,6 +23,7 @@ Author: A-LEMS Chunk 7
 """
 
 import logging
+import os
 from typing import Any, Dict, Optional, Union
 
 from core.execution.adapters.base import TextGenABC, MediaABC
@@ -94,7 +95,9 @@ class ModelFactory:
                 f"Available: {list(data['providers'].keys())}"
             )
 
-        meta = provider_block["provider_meta"]
+        meta = provider_block["provider_meta"].copy()
+        if "base_url" in meta:
+            meta["base_url"] = os.path.expandvars(meta["base_url"])
         access_method = meta.get("access_method", "api_http")
         provider_id   = meta.get("provider_id", provider)
 
