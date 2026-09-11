@@ -418,7 +418,7 @@ class EnergyEngine:
         Modeled and unavailable energy tiers have no idle power to subtract.
         baseline_id will be None in the runs table for these platforms.
         """
-        energy_tier = self._config.get("energy_measurement", "unavailable")
+        energy_tier = self.config.get("energy_measurement", "unavailable")
         if energy_tier != "direct":
             logger.info(
                 f"Baseline measurement skipped — energy_measurement={energy_tier}. "
