@@ -122,6 +122,10 @@ class EnergyEstimator(EnergyReaderABC):
 
         # Return zero for every synthetic domain
         return {domain: 0 for domain in self.STUB_DOMAINS}
+
+    def read_energy(self) -> Dict[str, int]:
+        """Alias for read_energy_uj(). Supports callers using legacy method name."""
+        return self.read_energy_uj()
     
     def read_normalized(self) -> "NormalizedEnergyReading":
         """Return estimated reading for INFERRED quality reader.
