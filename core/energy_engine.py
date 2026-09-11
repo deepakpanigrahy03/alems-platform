@@ -413,7 +413,19 @@ class EnergyEngine:
     ) -> BaselineMeasurement:
         """
         Measure system idle energy baseline.
+
+        Returns None immediately on platforms where energy_measurement != direct.
+        Modeled and unavailable energy tiers have no idle power to subtract.
+        baseline_id will be None in the runs table for these platforms.
         """
+        energy_tier = self._config.get("energy_measurement", "unavailable")
+        if energy_tier != "direct":
+            logger.info(
+                f"Baseline measurement skipped — energy_measurement={energy_tier}. "
+                f"No direct energy counter available on this platform."
+            )
+            return None
+
         # Measure baseline using utility (returns BaselineMeasurement object)
         dprint(f"🔍 DEBUG - force_remeasure value: {force_remeasure}")
         baseline = measure_baseline(
