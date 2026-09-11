@@ -15,12 +15,12 @@ case "$SUBCOMMAND" in
             python3-dev build-essential sqlite3 2>/dev/null || true
 
         echo "  Installing Python dependencies..."
-        pip install --upgrade pip --quiet
-        pip install -r requirements.txt --quiet
+        pip install --upgrade pip
+        pip install -r requirements.txt
 
         # Intel-specific requirements file if it exists
         if [ -f "${PROJECT_ROOT}/requirements-intel.txt" ]; then
-            pip install -r "${PROJECT_ROOT}/requirements-intel.txt" --quiet
+            pip install -r "${PROJECT_ROOT}/requirements-intel.txt"
             echo "  Intel-specific requirements installed"
         fi
         ;;

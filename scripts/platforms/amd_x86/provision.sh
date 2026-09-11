@@ -15,17 +15,17 @@ case "$SUBCOMMAND" in
             python3-dev build-essential sqlite3 2>/dev/null || true
 
         echo "  Installing Python dependencies..."
-        pip install --upgrade pip --quiet
-        pip install -r "${PROJECT_ROOT}/requirements.txt" --quiet
+        pip install --upgrade pip
+        pip install -r "${PROJECT_ROOT}/requirements.txt"
 
         echo "  Installing NVML Python bindings..."
-        pip install pynvml --quiet
+        pip install pynvml
         python3 -c "import pynvml; pynvml.nvmlInit(); print('  pynvml OK')" || \
             echo "  WARNING: pynvml install failed, GPU energy will be unavailable"
 
         # AMD-specific requirements if present
         if [ -f "${PROJECT_ROOT}/requirements-amd.txt" ]; then
-            pip install -r "${PROJECT_ROOT}/requirements-amd.txt" --quiet
+            pip install -r "${PROJECT_ROOT}/requirements-amd.txt"
             echo "  AMD-specific requirements installed"
         fi
         ;;

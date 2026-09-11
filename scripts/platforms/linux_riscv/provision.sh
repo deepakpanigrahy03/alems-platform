@@ -13,8 +13,8 @@ case "$SUBCOMMAND" in
     deps)
         echo "  RISC-V Linux: installing system build dependencies..."
         sudo apt install -y python3-dev build-essential sqlite3 2>/dev/null || true
-        pip install --upgrade pip --quiet
-        pip install -r "${PROJECT_ROOT}/requirements.txt" --quiet
+        pip install --upgrade pip
+        pip install -r "${PROJECT_ROOT}/requirements.txt"
         ;;
 
     permissions)

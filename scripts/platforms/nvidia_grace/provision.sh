@@ -15,8 +15,8 @@ case "$SUBCOMMAND" in
             python3-dev build-essential sqlite3 2>/dev/null || true
 
         echo "  Installing Python dependencies..."
-        pip install --upgrade pip --quiet
-        pip install -r "${PROJECT_ROOT}/requirements.txt" --quiet
+        pip install --upgrade pip
+        pip install -r "${PROJECT_ROOT}/requirements.txt"
 
         echo "  GN100 ARM: checking CUDA/vLLM dependencies..."
         # vllm_local is the primary local provider on GN100
@@ -28,7 +28,7 @@ case "$SUBCOMMAND" in
         fi
         # GN100-specific requirements file if it exists
         if [ -f "${PROJECT_ROOT}/requirements-gn100.txt" ]; then
-            pip install -r "${PROJECT_ROOT}/requirements-gn100.txt" --quiet
+            pip install -r "${PROJECT_ROOT}/requirements-gn100.txt"
             echo "  GN100-specific requirements installed"
         fi
         ;;

@@ -20,8 +20,8 @@ case "$SUBCOMMAND" in
         fi
 
         echo "  Installing Python dependencies..."
-        pip install --upgrade pip --quiet
-        pip install -r "${PROJECT_ROOT}/requirements.txt" --quiet
+        pip install --upgrade pip
+        pip install -r "${PROJECT_ROOT}/requirements.txt"
         ;;
 
     permissions)

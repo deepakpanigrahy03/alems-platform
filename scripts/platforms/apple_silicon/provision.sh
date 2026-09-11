@@ -19,8 +19,8 @@ case "$SUBCOMMAND" in
         fi
 
         echo "  Installing Python dependencies..."
-        pip install --upgrade pip --quiet
-        pip install -r "${PROJECT_ROOT}/requirements.txt" --quiet
+        pip install --upgrade pip
+        pip install -r "${PROJECT_ROOT}/requirements.txt"
 
         echo "  Installing llama-cpp-python with Metal backend..."
         CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python \
