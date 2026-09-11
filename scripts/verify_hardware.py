@@ -487,7 +487,7 @@ CHECK_SEVERITY = {
         "container": "skip", "wsl2": "skip", "unknown": "skip",
     },
     "thermal": {
-        "bare_metal": "soft", "kvm_guest": "soft",
+        "bare_metal": "soft", "kvm_guest": "skip",
         "container": "skip", "wsl2": "skip", "unknown": "skip",
     },
     "rapl": {
