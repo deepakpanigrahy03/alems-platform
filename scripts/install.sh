@@ -458,6 +458,42 @@ if [ -f "${PLATFORM_DIR}/verify.sh" ]; then
     bash "${PLATFORM_DIR}/verify.sh" "$DB_PATH"
 fi
 
+# ── Step 12: Idle baseline measurement ───────────────────────────────
+# Measure once during install so first experiment run never hits
+# foreign key constraint from missing baseline_id in idle_baselines.
+# Skipped on platforms where energy_measurement != direct.
+echo "[12/12] Idle baseline measurement..."
+python3 -c "
+import sys, os
+sys.path.insert(0, '.')
+sys.path.insert(0, 'scripts/tools')
+os.environ.setdefault('ALEMS_DATA_ROOT', '${DATA_ROOT}')
+os.environ.setdefault('ALEMS_ENV', '${ALEMS_ENV}')
+from core.utils.baseline_manager import BaselineManager
+import json
+hw = json.load(open('config/hw_config.json'))
+energy_tier = hw.get('energy_measurement', 'unavailable')
+if energy_tier != 'direct':
+    print(f'  Baseline skipped — energy_measurement={energy_tier}')
+else:
+    mgr = BaselineManager()
+    existing = mgr.get_latest()
+    if existing:
+        print(f'  Existing baseline found: {existing.baseline_id}')
+    else:
+        print('  Measuring idle baseline (30s)...')
+        from core.energy_engine import EnergyEngine
+        from core.config_loader import ConfigLoader
+        cl = ConfigLoader()
+        engine = EnergyEngine(cl.get_hardware_config())
+        baseline = engine.measure_idle_baseline(duration_seconds=10, num_samples=1, pre_wait_seconds=5)
+        if baseline:
+            mgr.save(baseline)
+            print(f'  Baseline saved: {baseline.baseline_id}')
+        else:
+            print('  Baseline measurement returned None')
+" 2>/dev/null || echo "  Baseline measurement skipped (non-fatal)"
+
 echo ""
 echo "A-LEMS installation complete."
 echo "  Platform: ${PLATFORM}"
