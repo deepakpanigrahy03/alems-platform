@@ -23,16 +23,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import yaml
-import re
-
-
-def _expand_url(url: str) -> str:
-    """Expand ${VAR:-default} and $VAR patterns in URL strings."""
-    def _replace(match):
-        var, default = match.group(1), match.group(2)
-        return os.environ.get(var, default or "")
-    url = re.sub(r'\$\{(\w+):-([^}]*)\}', _replace, url)
-    return os.path.expandvars(url)
 import os
 
 logger = logging.getLogger(__name__)
@@ -106,7 +96,7 @@ def get_model(provider_id: str, model_id: str) -> Optional[Dict]:
         "transport":                meta.get("transport"),
         "remote_energy_available":  meta.get("remote_energy_available", False),        
         "openai_compat":       meta.get("openai_compat", False),
-        "base_url":            _expand_url(meta.get("base_url", "")),
+        "base_url":            os.path.expandvars(meta.get("base_url", "")),
         "api_key_env":         meta.get("api_key_env"),
         "env_path":            meta.get("env_path", ""),
         "cost_class":          meta.get("cost_class", "free"),
@@ -272,7 +262,7 @@ def _build_endpoint(meta: Dict, provider_id: str) -> str:
     Returns:
         str endpoint URL
     """
-    base = _expand_url(meta.get("base_url", "")).rstrip("/")
+    base = os.path.expandvars(meta.get("base_url", "")).rstrip("/")
     if not base:
         return ""
     # ollama providers use /api/chat endpoint
