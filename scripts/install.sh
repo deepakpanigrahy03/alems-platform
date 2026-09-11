@@ -72,6 +72,41 @@ echo ""
 echo "[0.5/12] Checking prerequisites for platform: ${PLATFORM}..."
 PREREQ_FAILED=0
 
+# Detect package manager once for all hint messages below.
+if command -v apt-get &>/dev/null; then
+    PKG_INSTALL="sudo apt install -y"
+    PKG_DEV="python3-dev"
+    PKG_BUILD="build-essential"
+    PKG_SQLITE="sqlite3"
+    PKG_VENV="python3-venv"
+    PKG_PERF="linux-tools-common"
+    PKG_MSR="msr-tools"
+elif command -v dnf &>/dev/null; then
+    PKG_INSTALL="sudo dnf install -y"
+    PKG_DEV="python3-devel"
+    PKG_BUILD="gcc gcc-c++"
+    PKG_SQLITE="sqlite"
+    PKG_VENV="python3"
+    PKG_PERF="perf"
+    PKG_MSR="msr-tools"
+elif command -v pacman &>/dev/null; then
+    PKG_INSTALL="sudo pacman -S --noconfirm"
+    PKG_DEV="python"
+    PKG_BUILD="base-devel"
+    PKG_SQLITE="sqlite"
+    PKG_VENV="python"
+    PKG_PERF="perf"
+    PKG_MSR="msr-tools"
+else
+    PKG_INSTALL="<your-package-manager> install"
+    PKG_DEV="python3-dev"
+    PKG_BUILD="build-essential"
+    PKG_SQLITE="sqlite3"
+    PKG_VENV="python3-venv"
+    PKG_PERF="linux-tools-common"
+    PKG_MSR="msr-tools"
+fi
+
 check_tool() {
     local tool="$1"
     local required="$2"
@@ -99,17 +134,18 @@ else
 fi
 
 if [ "${OS}" = "Linux" ]; then
-    check_tool "gcc"        "required" "sudo apt install -y build-essential"
+    check_tool "gcc"        "required" "${PKG_INSTALL} ${PKG_BUILD}"
+    check_tool "sqlite3"    "required" "${PKG_INSTALL} ${PKG_SQLITE}"
     python3 -c "import sysconfig; sysconfig.get_path('include')" &>/dev/null \
         && echo "  ✅ python3-dev" \
-        || { echo "  ❌ python3-dev — REQUIRED. sudo apt install -y python3-dev"; PREREQ_FAILED=1; }
+        || { echo "  ❌ python3-dev — REQUIRED. ${PKG_INSTALL} ${PKG_DEV}"; PREREQ_FAILED=1; }
 fi
 
 case "$PLATFORM" in
     nvidia_grace)
         check_tool "nvidia-smi" "required" "Install NVIDIA drivers"
-        check_tool "perf"       "required" "sudo apt install linux-tools-common"
-        check_tool "dcgmi"      "required" "sudo apt install datacenter-gpu-manager && sudo systemctl enable nvidia-dcgm && sudo systemctl start nvidia-dcgm"
+        check_tool "perf"       "required" "${PKG_INSTALL} ${PKG_PERF}"
+        check_tool "dcgmi"      "required" "${PKG_INSTALL} datacenter-gpu-manager && sudo systemctl enable nvidia-dcgm && sudo systemctl start nvidia-dcgm"
         # SPBM hwmon requires Secure Boot disabled to load unsigned kernel module
         SB_STATE=$(mokutil --sb-state 2>/dev/null || echo "unknown")
         if echo "$SB_STATE" | grep -q "enabled"; then
@@ -121,24 +157,24 @@ case "$PLATFORM" in
         fi
         ;;
     intel_x86)
-        check_tool "perf"       "required" "sudo apt install linux-tools-common"
-        check_tool "turbostat"  "optional" "sudo apt install linux-tools-$(uname -r)"
-        check_tool "rdmsr"      "optional" "sudo apt install msr-tools (enables MSR/C-state readings)"
+        check_tool "perf"       "required" "${PKG_INSTALL} ${PKG_PERF}"
+        check_tool "turbostat"  "optional" "${PKG_INSTALL} linux-tools-$(uname -r)"
+        check_tool "rdmsr"      "optional" "${PKG_INSTALL} ${PKG_MSR} (enables MSR/C-state readings)"
         ;;
     amd_x86)
-        check_tool "perf"       "required" "sudo apt install linux-tools-common"
-        check_tool "rdmsr"      "optional" "sudo apt install msr-tools"
+        check_tool "perf"       "required" "${PKG_INSTALL} ${PKG_PERF}"
+        check_tool "rdmsr"      "optional" "${PKG_INSTALL} ${PKG_MSR}"
         ;;
     apple_silicon)
         check_tool "powermetrics" "required" "Included with macOS — check SIP settings"
         check_tool "brew"         "required" "Install from https://brew.sh"
         ;;
     linux_arm)
-        check_tool "perf"       "optional" "sudo apt install linux-tools-common"
+        check_tool "perf"       "optional" "${PKG_INSTALL} ${PKG_PERF}"
         ;;
     linux_x86_unknown)
-        check_tool "perf"       "optional" "sudo apt install linux-tools-common"
-        check_tool "rdmsr"      "optional" "sudo apt install msr-tools"
+        check_tool "perf"       "optional" "${PKG_INSTALL} ${PKG_PERF}"
+        check_tool "rdmsr"      "optional" "${PKG_INSTALL} ${PKG_MSR}"
         ;;
 esac
 
@@ -156,7 +192,7 @@ echo ""
 # like psutil. Install system deps first, then create venv.
 echo "[1/12] System build dependencies..."
 if [ "${OS}" = "Linux" ]; then
-    sudo apt install -y python3-dev python3-venv build-essential 2>/dev/null || true
+    ${PKG_INSTALL} ${PKG_DEV} ${PKG_VENV} ${PKG_BUILD} 2>/dev/null || true
 fi
 
 # ── Step 1b: Python venv ─────────────────────────────────────────────
@@ -176,8 +212,8 @@ if [ -f "${PLATFORM_DIR}/provision.sh" ]; then
     bash "${PLATFORM_DIR}/provision.sh" deps
 else
     echo "  No platform deps script, installing base requirements..."
-    pip install --upgrade pip --quiet
-    pip install -r requirements.txt --quiet
+    pip install --upgrade pip
+    pip install -r requirements.txt
 fi
 
 # ── Step 3: Permissions ──────────────────────────────────────────────
