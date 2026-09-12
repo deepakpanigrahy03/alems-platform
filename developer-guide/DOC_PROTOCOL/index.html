@@ -2852,15 +2852,29 @@ form: "NVIDIA Grace GB10 (GN100, aarch64)" not informal shorthand.</p>
 <hr />
 <h2 id="build-verification">Build Verification<a class="headerlink" href="#build-verification" title="Permanent link">&para;</a></h2>
 <p>Run these before closing any documentation work:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Validate all methodology references</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># Step 1: Validate all methodology references</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python3<span class="w"> </span>scripts/tools/validate_methodology_refs.py
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Full docs build</span>
-<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>docs-src/mkdocs<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdocs<span class="w"> </span>build<span class="w"> </span>--strict<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-20
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># Step 2: Full docs build — must show 0 warnings</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="nb">cd</span><span class="w"> </span>docs-src/mkdocs<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdocs<span class="w"> </span>build<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;WARNING&quot;</span>
 <a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># If diagrams changed</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="c1"># Step 3: If diagrams changed, regenerate</span>
 <a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>python3<span class="w"> </span>scripts/tools/generate_diagrams.py
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="c1"># Step 4: Commit all changes</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>git<span class="w"> </span>add<span class="w"> </span>-A
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;docs: &lt;brief description of what changed&gt;&quot;</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="c1"># Step 5: Deploy to GitHub Pages</span>
+<a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="nb">cd</span><span class="w"> </span>docs-src/mkdocs<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>mkdocs<span class="w"> </span>gh-deploy<span class="w"> </span>--force
 </code></pre></div>
+<p>Step 5 is mandatory after every documentation session. The public site
+at <code>https://deepakpanigrahy03.github.io/alems-platform/</code> must always
+reflect the current state of the repository. A committed doc that is
+not deployed is invisible to researchers and developers using the platform.</p>
+<p><code>mkdocs gh-deploy</code> builds the site and pushes to the <code>gh-pages</code> branch.
+It takes approximately 2-3 minutes for GitHub to make the update live.</p>
 <hr />
 <h2 id="methodology-document-template">Methodology Document Template<a class="headerlink" href="#methodology-document-template" title="Permanent link">&para;</a></h2>
 <p>Every new research methodology document follows this structure:</p>
