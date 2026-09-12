@@ -195,15 +195,31 @@ form: "NVIDIA Grace GB10 (GN100, aarch64)" not informal shorthand.
 Run these before closing any documentation work:
 
 ```bash
-# Validate all methodology references
+# Step 1: Validate all methodology references
 python3 scripts/tools/validate_methodology_refs.py
 
-# Full docs build
-cd docs-src/mkdocs && mkdocs build --strict 2>&1 | tail -20
+# Step 2: Full docs build — must show 0 warnings
+cd docs-src/mkdocs && mkdocs build 2>&1 | grep -c "WARNING"
 
-# If diagrams changed
+# Step 3: If diagrams changed, regenerate
 python3 scripts/tools/generate_diagrams.py
+
+# Step 4: Commit all changes
+cd ~/mydrive/alems-platform
+git add -A
+git commit -m "docs: <brief description of what changed>"
+
+# Step 5: Deploy to GitHub Pages
+cd docs-src/mkdocs && mkdocs gh-deploy --force
 ```
+
+Step 5 is mandatory after every documentation session. The public site
+at `https://deepakpanigrahy03.github.io/alems-platform/` must always
+reflect the current state of the repository. A committed doc that is
+not deployed is invisible to researchers and developers using the platform.
+
+`mkdocs gh-deploy` builds the site and pushes to the `gh-pages` branch.
+It takes approximately 2-3 minutes for GitHub to make the update live.
 
 ---
 
