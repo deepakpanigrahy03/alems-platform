@@ -3621,17 +3621,17 @@
 <tr>
 <td><a href="#audit_log"><code>audit_log</code></a></td>
 <td>0</td>
-<td></td>
+<td>Run-level audit events — tracks metric updates and data quality changes</td>
 </tr>
 <tr>
 <td><a href="#component_registry"><code>component_registry</code></a></td>
 <td>0</td>
-<td></td>
+<td>Registered system components with schema and data shape definitions</td>
 </tr>
 <tr>
 <td><a href="#cooling_devices"><code>cooling_devices</code></a></td>
 <td>27</td>
-<td></td>
+<td>Cooling device inventory per platform (fans, liquid coolers)</td>
 </tr>
 <tr>
 <td><a href="#cooling_samples"><code>cooling_samples</code></a></td>
@@ -3641,7 +3641,7 @@
 <tr>
 <td><a href="#cpu_idle_states"><code>cpu_idle_states</code></a></td>
 <td>5,968</td>
-<td></td>
+<td>CPU C-state residency data per platform</td>
 </tr>
 <tr>
 <td><a href="#cpu_samples"><code>cpu_samples</code></a></td>
@@ -3651,17 +3651,17 @@
 <tr>
 <td><a href="#device_telemetry"><code>device_telemetry</code></a></td>
 <td>501</td>
-<td></td>
+<td>Generic device telemetry samples for non-standard hardware</td>
 </tr>
 <tr>
 <td><a href="#energy_attribution"><code>energy_attribution</code></a></td>
 <td>1,546</td>
-<td></td>
+<td>Phase-attributed energy values per run (planning, tool, synthesis)</td>
 </tr>
 <tr>
 <td><a href="#energy_derived_metrics"><code>energy_derived_metrics</code></a></td>
 <td>8,320</td>
-<td></td>
+<td>Computed energy metrics derived from raw samples via ETL</td>
 </tr>
 <tr>
 <td><a href="#energy_domains"><code>energy_domains</code></a></td>
@@ -3671,7 +3671,7 @@
 <tr>
 <td><a href="#energy_sample_domains"><code>energy_sample_domains</code></a></td>
 <td>3,206,530</td>
-<td></td>
+<td>Domain assignments for energy samples (pkg, core, uncore, dram, gpu)</td>
 </tr>
 <tr>
 <td><a href="#energy_samples"><code>energy_samples</code></a></td>
@@ -3681,7 +3681,7 @@
 <tr>
 <td><a href="#energy_samples_v2"><code>energy_samples_v2</code></a></td>
 <td>336,217</td>
-<td></td>
+<td>Energy samples schema v2 with domain registry integration</td>
 </tr>
 <tr>
 <td><a href="#energy_sources"><code>energy_sources</code></a></td>
@@ -3691,7 +3691,7 @@
 <tr>
 <td><a href="#environment_config"><code>environment_config</code></a></td>
 <td>67</td>
-<td></td>
+<td>Software environment fingerprint — git commit, package versions</td>
 </tr>
 <tr>
 <td><a href="#etl_queue"><code>etl_queue</code></a></td>
@@ -3701,7 +3701,7 @@
 <tr>
 <td><a href="#eval_criteria"><code>eval_criteria</code></a></td>
 <td>0</td>
-<td></td>
+<td>Evaluation criteria definitions for task quality assessment</td>
 </tr>
 <tr>
 <td><a href="#experiments"><code>experiments</code></a></td>
@@ -3711,17 +3711,17 @@
 <tr>
 <td><a href="#goal_attempt"><code>goal_attempt</code></a></td>
 <td>1,836</td>
-<td></td>
+<td>Individual goal attempt records within goal execution sessions</td>
 </tr>
 <tr>
 <td><a href="#goal_execution"><code>goal_execution</code></a></td>
 <td>1,553</td>
-<td></td>
+<td>Goal execution session records — multi-step agentic task tracking</td>
 </tr>
 <tr>
 <td><a href="#gpu_config"><code>gpu_config</code></a></td>
 <td>0</td>
-<td></td>
+<td>GPU configuration snapshot captured at experiment time</td>
 </tr>
 <tr>
 <td><a href="#gpu_samples"><code>gpu_samples</code></a></td>
@@ -3731,7 +3731,7 @@
 <tr>
 <td><a href="#hallucination_events"><code>hallucination_events</code></a></td>
 <td>0</td>
-<td></td>
+<td>Detected hallucination events with classification and energy cost</td>
 </tr>
 <tr>
 <td><a href="#hardware_config"><code>hardware_config</code></a></td>
@@ -3741,7 +3741,7 @@
 <tr>
 <td><a href="#idle_baseline_domains"><code>idle_baseline_domains</code></a></td>
 <td>53</td>
-<td></td>
+<td>Per-domain idle baseline power values (pkg, core, uncore, dram, gpu)</td>
 </tr>
 <tr>
 <td><a href="#idle_baselines"><code>idle_baselines</code></a></td>
@@ -3766,7 +3766,7 @@
 <tr>
 <td><a href="#machine_setup_history"><code>machine_setup_history</code></a></td>
 <td>0</td>
-<td></td>
+<td>Machine provisioning and configuration change history</td>
 </tr>
 <tr>
 <td><a href="#measurement_method_registry"><code>measurement_method_registry</code></a></td>
@@ -3776,7 +3776,7 @@
 <tr>
 <td><a href="#measurement_methodology"><code>measurement_methodology</code></a></td>
 <td>109,438</td>
-<td></td>
+<td>Per-run methodology audit trail — links runs to method_registry entries</td>
 </tr>
 <tr>
 <td><a href="#method_references"><code>method_references</code></a></td>
@@ -3786,7 +3786,7 @@
 <tr>
 <td><a href="#metric_analysis_domains"><code>metric_analysis_domains</code></a></td>
 <td>132</td>
-<td></td>
+<td>Analysis domain assignments for metrics in the view system</td>
 </tr>
 <tr>
 <td><a href="#metric_display_registry"><code>metric_display_registry</code></a></td>
@@ -3801,7 +3801,7 @@
 <tr>
 <td><a href="#network_energy_attribution"><code>network_energy_attribution</code></a></td>
 <td>1,489</td>
-<td></td>
+<td>Network wait energy attribution per run and phase</td>
 </tr>
 <tr>
 <td><a href="#nic_samples"><code>nic_samples</code></a></td>
@@ -3821,7 +3821,7 @@
 <tr>
 <td><a href="#orchestration_tax_summary"><code>orchestration_tax_summary</code></a></td>
 <td>173</td>
-<td></td>
+<td>Pre-computed orchestration tax summary per experiment</td>
 </tr>
 <tr>
 <td><a href="#outlier_detection_config"><code>outlier_detection_config</code></a></td>
@@ -3831,42 +3831,42 @@
 <tr>
 <td><a href="#output_quality"><code>output_quality</code></a></td>
 <td>0</td>
-<td></td>
+<td>LLM output quality scores per run</td>
 </tr>
 <tr>
 <td><a href="#output_quality_judges"><code>output_quality_judges</code></a></td>
 <td>0</td>
-<td></td>
+<td>Judge model configurations for LLM-as-judge quality evaluation</td>
 </tr>
 <tr>
 <td><a href="#page_configs"><code>page_configs</code></a></td>
 <td>0</td>
-<td></td>
+<td>GUI page layout configurations</td>
 </tr>
 <tr>
 <td><a href="#page_metric_configs"><code>page_metric_configs</code></a></td>
 <td>0</td>
-<td></td>
+<td>Metric display configurations per GUI page</td>
 </tr>
 <tr>
 <td><a href="#page_sections"><code>page_sections</code></a></td>
 <td>0</td>
-<td></td>
+<td>GUI page section definitions</td>
 </tr>
 <tr>
 <td><a href="#page_templates"><code>page_templates</code></a></td>
 <td>0</td>
-<td></td>
+<td>GUI page template definitions</td>
 </tr>
 <tr>
 <td><a href="#platform_domain_relationships"><code>platform_domain_relationships</code></a></td>
 <td>0</td>
-<td></td>
+<td>Platform-to-energy-domain mapping for cross-platform queries</td>
 </tr>
 <tr>
 <td><a href="#power_limit_events"><code>power_limit_events</code></a></td>
 <td>0</td>
-<td></td>
+<td>Thermal throttle and power limit events during runs</td>
 </tr>
 <tr>
 <td><a href="#power_limits"><code>power_limits</code></a></td>
@@ -3896,17 +3896,17 @@
 <tr>
 <td><a href="#run_outliers"><code>run_outliers</code></a></td>
 <td>22</td>
-<td></td>
+<td>Outlier detection results per run with classification and severity</td>
 </tr>
 <tr>
 <td><a href="#run_power_limits"><code>run_power_limits</code></a></td>
 <td>984</td>
-<td></td>
+<td>Power limit state snapshots captured during runs</td>
 </tr>
 <tr>
 <td><a href="#run_quality"><code>run_quality</code></a></td>
 <td>1,554</td>
-<td></td>
+<td>Composite run quality scores across multiple quality dimensions</td>
 </tr>
 <tr>
 <td><a href="#runs"><code>runs</code></a></td>
@@ -3916,17 +3916,17 @@
 <tr>
 <td><a href="#schema_version"><code>schema_version</code></a></td>
 <td>23</td>
-<td></td>
+<td>Current schema version tracking</td>
 </tr>
 <tr>
 <td><a href="#sqlite_sequence"><code>sqlite_sequence</code></a></td>
 <td>33</td>
-<td></td>
+<td>SQLite internal auto-increment sequence tracking</td>
 </tr>
 <tr>
 <td><a href="#standardization_registry"><code>standardization_registry</code></a></td>
 <td>0</td>
-<td></td>
+<td>Metric standardization parameters for cross-platform normalization</td>
 </tr>
 <tr>
 <td><a href="#task_categories"><code>task_categories</code></a></td>
@@ -3941,7 +3941,7 @@
 <tr>
 <td><a href="#task_retry_override"><code>task_retry_override</code></a></td>
 <td>0</td>
-<td></td>
+<td>Per-task retry policy overrides</td>
 </tr>
 <tr>
 <td><a href="#thermal_samples"><code>thermal_samples</code></a></td>
@@ -3951,17 +3951,17 @@
 <tr>
 <td><a href="#thermal_samples_v2"><code>thermal_samples_v2</code></a></td>
 <td>29,778</td>
-<td></td>
+<td>Thermal samples schema v2 with zone registry integration</td>
 </tr>
 <tr>
 <td><a href="#thermal_zones"><code>thermal_zones</code></a></td>
 <td>7</td>
-<td></td>
+<td>Thermal zone inventory and configuration per platform</td>
 </tr>
 <tr>
 <td><a href="#tool_failure_events"><code>tool_failure_events</code></a></td>
 <td>287</td>
-<td></td>
+<td>Tool execution failure events with classification and recovery data</td>
 </tr>
 </tbody>
 </table>
@@ -4187,7 +4187,7 @@
 </tbody>
 </table>
 <h3 id="audit_log"><code>audit_log</code><a class="headerlink" href="#audit_log" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Run-level audit events — tracks metric updates and data quality changes</p>
 <table>
 <thead>
 <tr>
@@ -4265,7 +4265,7 @@
 </tbody>
 </table>
 <h3 id="component_registry"><code>component_registry</code><a class="headerlink" href="#component_registry" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Registered system components with schema and data shape definitions</p>
 <table>
 <thead>
 <tr>
@@ -4357,7 +4357,7 @@
 </tbody>
 </table>
 <h3 id="cooling_devices"><code>cooling_devices</code><a class="headerlink" href="#cooling_devices" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 27</p>
+<p><strong>Rows:</strong> 27 — Cooling device inventory per platform (fans, liquid coolers)</p>
 <table>
 <thead>
 <tr>
@@ -4527,7 +4527,7 @@
 </tbody>
 </table>
 <h3 id="cpu_idle_states"><code>cpu_idle_states</code><a class="headerlink" href="#cpu_idle_states" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 5,968</p>
+<p><strong>Rows:</strong> 5,968 — CPU C-state residency data per platform</p>
 <table>
 <thead>
 <tr>
@@ -4816,7 +4816,7 @@
 </tbody>
 </table>
 <h3 id="device_telemetry"><code>device_telemetry</code><a class="headerlink" href="#device_telemetry" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 501</p>
+<p><strong>Rows:</strong> 501 — Generic device telemetry samples for non-standard hardware</p>
 <table>
 <thead>
 <tr>
@@ -4929,7 +4929,7 @@
 </tbody>
 </table>
 <h3 id="energy_attribution"><code>energy_attribution</code><a class="headerlink" href="#energy_attribution" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 1,546</p>
+<p><strong>Rows:</strong> 1,546 — Phase-attributed energy values per run (planning, tool, synthesis)</p>
 <table>
 <thead>
 <tr>
@@ -5273,7 +5273,7 @@
 </tbody>
 </table>
 <h3 id="energy_derived_metrics"><code>energy_derived_metrics</code><a class="headerlink" href="#energy_derived_metrics" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 8,320</p>
+<p><strong>Rows:</strong> 8,320 — Computed energy metrics derived from raw samples via ETL</p>
 <table>
 <thead>
 <tr>
@@ -5422,7 +5422,7 @@
 </tbody>
 </table>
 <h3 id="energy_sample_domains"><code>energy_sample_domains</code><a class="headerlink" href="#energy_sample_domains" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 3,206,530</p>
+<p><strong>Rows:</strong> 3,206,530 — Domain assignments for energy samples (pkg, core, uncore, dram, gpu)</p>
 <table>
 <thead>
 <tr>
@@ -5648,7 +5648,7 @@
 </tbody>
 </table>
 <h3 id="energy_samples_v2"><code>energy_samples_v2</code><a class="headerlink" href="#energy_samples_v2" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 336,217</p>
+<p><strong>Rows:</strong> 336,217 — Energy samples schema v2 with domain registry integration</p>
 <table>
 <thead>
 <tr>
@@ -5762,7 +5762,7 @@
 </tbody>
 </table>
 <h3 id="environment_config"><code>environment_config</code><a class="headerlink" href="#environment_config" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 67</p>
+<p><strong>Rows:</strong> 67 — Software environment fingerprint — git commit, package versions</p>
 <table>
 <thead>
 <tr>
@@ -5981,7 +5981,7 @@
 </tbody>
 </table>
 <h3 id="eval_criteria"><code>eval_criteria</code><a class="headerlink" href="#eval_criteria" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Evaluation criteria definitions for task quality assessment</p>
 <table>
 <thead>
 <tr>
@@ -6291,7 +6291,7 @@
 </tbody>
 </table>
 <h3 id="goal_attempt"><code>goal_attempt</code><a class="headerlink" href="#goal_attempt" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 1,836</p>
+<p><strong>Rows:</strong> 1,836 — Individual goal attempt records within goal execution sessions</p>
 <table>
 <thead>
 <tr>
@@ -6453,7 +6453,7 @@
 </tbody>
 </table>
 <h3 id="goal_execution"><code>goal_execution</code><a class="headerlink" href="#goal_execution" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 1,553</p>
+<p><strong>Rows:</strong> 1,553 — Goal execution session records — multi-step agentic task tracking</p>
 <table>
 <thead>
 <tr>
@@ -6636,7 +6636,7 @@
 </tbody>
 </table>
 <h3 id="gpu_config"><code>gpu_config</code><a class="headerlink" href="#gpu_config" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — GPU configuration snapshot captured at experiment time</p>
 <table>
 <thead>
 <tr>
@@ -6883,7 +6883,7 @@
 </tbody>
 </table>
 <h3 id="hallucination_events"><code>hallucination_events</code><a class="headerlink" href="#hallucination_events" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Detected hallucination events with classification and energy cost</p>
 <table>
 <thead>
 <tr>
@@ -7263,7 +7263,7 @@
 </tbody>
 </table>
 <h3 id="idle_baseline_domains"><code>idle_baseline_domains</code><a class="headerlink" href="#idle_baseline_domains" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 53</p>
+<p><strong>Rows:</strong> 53 — Per-domain idle baseline power values (pkg, core, uncore, dram, gpu)</p>
 <table>
 <thead>
 <tr>
@@ -7968,7 +7968,7 @@
 </tbody>
 </table>
 <h3 id="machine_setup_history"><code>machine_setup_history</code><a class="headerlink" href="#machine_setup_history" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Machine provisioning and configuration change history</p>
 <table>
 <thead>
 <tr>
@@ -8250,7 +8250,7 @@
 </tbody>
 </table>
 <h3 id="measurement_methodology"><code>measurement_methodology</code><a class="headerlink" href="#measurement_methodology" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 109,438</p>
+<p><strong>Rows:</strong> 109,438 — Per-run methodology audit trail — links runs to method_registry entries</p>
 <table>
 <thead>
 <tr>
@@ -8476,7 +8476,7 @@
 </tbody>
 </table>
 <h3 id="metric_analysis_domains"><code>metric_analysis_domains</code><a class="headerlink" href="#metric_analysis_domains" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 132</p>
+<p><strong>Rows:</strong> 132 — Analysis domain assignments for metrics in the view system</p>
 <table>
 <thead>
 <tr>
@@ -8850,7 +8850,7 @@
 </tbody>
 </table>
 <h3 id="network_energy_attribution"><code>network_energy_attribution</code><a class="headerlink" href="#network_energy_attribution" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 1,489</p>
+<p><strong>Rows:</strong> 1,489 — Network wait energy attribution per run and phase</p>
 <table>
 <thead>
 <tr>
@@ -9498,7 +9498,7 @@
 </tbody>
 </table>
 <h3 id="orchestration_tax_summary"><code>orchestration_tax_summary</code><a class="headerlink" href="#orchestration_tax_summary" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 173</p>
+<p><strong>Rows:</strong> 173 — Pre-computed orchestration tax summary per experiment</p>
 <table>
 <thead>
 <tr>
@@ -9675,7 +9675,7 @@
 </tbody>
 </table>
 <h3 id="output_quality"><code>output_quality</code><a class="headerlink" href="#output_quality" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — LLM output quality scores per run</p>
 <table>
 <thead>
 <tr>
@@ -9809,7 +9809,7 @@
 </tbody>
 </table>
 <h3 id="output_quality_judges"><code>output_quality_judges</code><a class="headerlink" href="#output_quality_judges" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Judge model configurations for LLM-as-judge quality evaluation</p>
 <table>
 <thead>
 <tr>
@@ -9915,7 +9915,7 @@
 </tbody>
 </table>
 <h3 id="page_configs"><code>page_configs</code><a class="headerlink" href="#page_configs" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — GUI page layout configurations</p>
 <table>
 <thead>
 <tr>
@@ -10000,7 +10000,7 @@
 </tbody>
 </table>
 <h3 id="page_metric_configs"><code>page_metric_configs</code><a class="headerlink" href="#page_metric_configs" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Metric display configurations per GUI page</p>
 <table>
 <thead>
 <tr>
@@ -10085,7 +10085,7 @@
 </tbody>
 </table>
 <h3 id="page_sections"><code>page_sections</code><a class="headerlink" href="#page_sections" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — GUI page section definitions</p>
 <table>
 <thead>
 <tr>
@@ -10170,7 +10170,7 @@
 </tbody>
 </table>
 <h3 id="page_templates"><code>page_templates</code><a class="headerlink" href="#page_templates" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — GUI page template definitions</p>
 <table>
 <thead>
 <tr>
@@ -10227,7 +10227,7 @@
 </tbody>
 </table>
 <h3 id="platform_domain_relationships"><code>platform_domain_relationships</code><a class="headerlink" href="#platform_domain_relationships" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Platform-to-energy-domain mapping for cross-platform queries</p>
 <table>
 <thead>
 <tr>
@@ -10284,7 +10284,7 @@
 </tbody>
 </table>
 <h3 id="power_limit_events"><code>power_limit_events</code><a class="headerlink" href="#power_limit_events" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Thermal throttle and power limit events during runs</p>
 <table>
 <thead>
 <tr>
@@ -10752,7 +10752,7 @@
 </tbody>
 </table>
 <h3 id="run_outliers"><code>run_outliers</code><a class="headerlink" href="#run_outliers" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 22</p>
+<p><strong>Rows:</strong> 22 — Outlier detection results per run with classification and severity</p>
 <table>
 <thead>
 <tr>
@@ -10928,7 +10928,7 @@
 </tbody>
 </table>
 <h3 id="run_power_limits"><code>run_power_limits</code><a class="headerlink" href="#run_power_limits" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 984</p>
+<p><strong>Rows:</strong> 984 — Power limit state snapshots captured during runs</p>
 <table>
 <thead>
 <tr>
@@ -10964,7 +10964,7 @@
 </tbody>
 </table>
 <h3 id="run_quality"><code>run_quality</code><a class="headerlink" href="#run_quality" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 1,554</p>
+<p><strong>Rows:</strong> 1,554 — Composite run quality scores across multiple quality dimensions</p>
 <table>
 <thead>
 <tr>
@@ -12121,7 +12121,7 @@
 </tbody>
 </table>
 <h3 id="schema_version"><code>schema_version</code><a class="headerlink" href="#schema_version" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 23</p>
+<p><strong>Rows:</strong> 23 — Current schema version tracking</p>
 <table>
 <thead>
 <tr>
@@ -12157,7 +12157,7 @@
 </tbody>
 </table>
 <h3 id="sqlite_sequence"><code>sqlite_sequence</code><a class="headerlink" href="#sqlite_sequence" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 33</p>
+<p><strong>Rows:</strong> 33 — SQLite internal auto-increment sequence tracking</p>
 <table>
 <thead>
 <tr>
@@ -12186,7 +12186,7 @@
 </tbody>
 </table>
 <h3 id="standardization_registry"><code>standardization_registry</code><a class="headerlink" href="#standardization_registry" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Metric standardization parameters for cross-platform normalization</p>
 <table>
 <thead>
 <tr>
@@ -12378,7 +12378,7 @@
 </tbody>
 </table>
 <h3 id="task_retry_override"><code>task_retry_override</code><a class="headerlink" href="#task_retry_override" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 0</p>
+<p><strong>Rows:</strong> 0 — Per-task retry policy overrides</p>
 <table>
 <thead>
 <tr>
@@ -12541,7 +12541,7 @@
 </tbody>
 </table>
 <h3 id="thermal_samples_v2"><code>thermal_samples_v2</code><a class="headerlink" href="#thermal_samples_v2" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 29,778</p>
+<p><strong>Rows:</strong> 29,778 — Thermal samples schema v2 with zone registry integration</p>
 <table>
 <thead>
 <tr>
@@ -12612,7 +12612,7 @@
 </tbody>
 </table>
 <h3 id="thermal_zones"><code>thermal_zones</code><a class="headerlink" href="#thermal_zones" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 7</p>
+<p><strong>Rows:</strong> 7 — Thermal zone inventory and configuration per platform</p>
 <table>
 <thead>
 <tr>
@@ -12704,7 +12704,7 @@
 </tbody>
 </table>
 <h3 id="tool_failure_events"><code>tool_failure_events</code><a class="headerlink" href="#tool_failure_events" title="Permanent link">&para;</a></h3>
-<p><strong>Rows:</strong> 287</p>
+<p><strong>Rows:</strong> 287 — Tool execution failure events with classification and recovery data</p>
 <table>
 <thead>
 <tr>
@@ -12810,7 +12810,7 @@
 </tbody>
 </table>
 <hr />
-<p><em>Generated 2026-09-12 18:03 from schema version recorded in <code>migration_history</code>.</em></p>
+<p><em>Generated 2026-09-12 18:09 from schema version recorded in <code>migration_history</code>.</em></p>
 
 
 
