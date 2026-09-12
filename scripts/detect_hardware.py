@@ -1773,6 +1773,8 @@ def merge_configs(existing: dict, new_config: dict) -> dict:
         "virtualization_type",
         "execution_context", "cloud_provider",
         "compute_measurement", "energy_measurement",
+        "capability_profile", "tool_availability",
+        "execution_context_evidence",
     ]
     for key in flat_keys:
         if key in new_config:
