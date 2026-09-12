@@ -1,0 +1,5348 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agentic LLM Energy Measurement System">
+      
+      
+        <meta name="author" content="A-LEMS Research">
+      
+      
+        <link rel="canonical" href="https://deepakpanigrahy03.github.io/alems-platform/research/energy-readers/">
+      
+      
+        <link rel="prev" href="../phase-attribution/">
+      
+      
+        <link rel="next" href="../system-measurement/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Energy Readers - A-LEMS Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#energy-reader-methodology" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="A-LEMS Documentation" class="md-header__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            A-LEMS Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Energy Readers
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/platform-detection/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/architecture/" class="md-tabs__link">
+          
+  
+  
+  Developer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../measurement-methodology/" class="md-tabs__link">
+          
+  
+  
+  Research
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/platform-matrix/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/researcher-journey/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/adding-documentation/" class="md-tabs__link">
+          
+  
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="A-LEMS Documentation" class="md-nav__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    A-LEMS Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/api-keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/new-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    New Machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/platform-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/measurement-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/energy-tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Tiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/config-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/database-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/schema-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/energy-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-platform/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/model-factory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Factory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/config-hierarchy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration Hierarchy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/kperf-pmu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    kperf PMU
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/retry-study/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Study Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/engineering-standards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engineering Standards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/developer-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../measurement-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../orchestration-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mathematical-derivations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mathematical Derivations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../energy-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../phase-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Readers
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Readers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#rapl-energy-measurement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RAPL Energy Measurement
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RAPL Energy Measurement">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#hardware-interface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware Interface
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#energy-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Energy Calculation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sampling-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sampling Architecture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#domains" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domains
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-availability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Availability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iokit-power-reader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IOKit Power Reader
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IOKit Power Reader">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#iokit-thermal-reader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IOKit Thermal Reader
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IOKit Thermal Reader">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-coverage_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method-provenance_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-reference_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-availability_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Availability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#references_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ioreport-cpu-frequency-ioreport_cpufreq_v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IOReport CPU Frequency (ioreport_cpufreq_v1)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IOReport CPU Frequency (ioreport_cpufreq_v1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-coverage_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method-provenance_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-reference_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#estimator-ml-based-energy-estimation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Estimator (ML-Based Energy Estimation)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Estimator (ML-Based Energy Estimation)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#feature-vector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Feature Vector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#current-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Current Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-availability_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Availability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#references_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dummy-energy-reader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dummy Energy Reader
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dummy Energy Reader">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#purpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Purpose
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-availability_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Availability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reader-selection-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reader Selection Logic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gpu-pp1-energy-measurement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPU PP1 Energy Measurement
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="GPU PP1 Energy Measurement">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#method-id-gpu_rapl_pp1_v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method ID: gpu_rapl_pp1_v1
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Method ID: gpu_rapl_pp1_v1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#background" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Background
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#read-mechanism" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Read Mechanism
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-availability_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Availability
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method-id-gpu_dynamic_baseline_v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method ID: gpu_dynamic_baseline_v1
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Method ID: gpu_dynamic_baseline_v1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method-id-gpu_dynamic_run_local_v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method ID: gpu_dynamic_run_local_v1
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Method ID: gpu_dynamic_run_local_v1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formula_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validated-against" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validated against
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#baseline-measurement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline Measurement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#columns-populated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Columns Populated
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#paper-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Paper Finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#device-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Device Telemetry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Device Telemetry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-device-telemetry-captures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Device Telemetry Captures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#device-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Device Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#energy_uj-nullability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        energy_uj Nullability
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dc_input_mw-gn100-soc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        dc_input_mw (GN100 SOC)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sampling-rate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sampling Rate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method_id" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        method_id
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arm-pmu-reader-arm_pmu_v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ARM PMU Reader (arm_pmu_v1)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ARM PMU Reader (arm_pmu_v1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-it-measures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What It Measures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#column-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column Mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#confidence-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Confidence Note
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#x86-equivalent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        x86 Equivalent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#arm-cpufreq-reader-arm_cpufreq_v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ARM cpufreq Reader (arm_cpufreq_v1)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ARM cpufreq Reader (arm_cpufreq_v1)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-it-measures_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What It Measures
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#column-mapping_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Column Mapping
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#null-is-correct-for-c-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NULL is Correct for C-states
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#confidence-note_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Confidence Note
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#x86-equivalent_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        x86 Equivalent
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-measurement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Measurement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../derived-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Derived Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../normalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Normalization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../measurement-boundary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiment-classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../goal-execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Goal Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../output-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-failure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Failure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-instrumentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Instrumentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../retry-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Network Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gpu-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-rail-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power Rail Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unified-energy-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unified Energy Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cpu-idle-states/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU Idle States
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cooling-subsystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cooling Subsystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../arm-pmu-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM PMU Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../outlier-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outlier Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../publications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/platform-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/db-path-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DB Path Resolution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data-dictionary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Dictionary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/orchestration-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/researcher-journey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Researcher Journey
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/administrator-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrator Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/contributor-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributor Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/adding-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="energy-reader-methodology">Energy Reader Methodology<a class="headerlink" href="#energy-reader-methodology" title="Permanent link">&para;</a></h1>
+<p>This document describes the measurement methodology for all energy reader
+implementations in A-LEMS. Each reader implements <code>EnergyReaderABC</code> and
+is selected automatically by <code>ReaderFactory</code> based on platform capabilities
+detected at startup.</p>
+<hr />
+<h2 id="rapl-energy-measurement">RAPL Energy Measurement<a class="headerlink" href="#rapl-energy-measurement" title="Permanent link">&para;</a></h2>
+<h3 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h3>
+<p>Intel RAPL (Running Average Power Limit) is a hardware interface that exposes
+cumulative energy consumption counters via Model Specific Registers (MSRs)
+and the Linux sysfs powercap interface. A-LEMS reads these counters at
+100Hz to produce high-resolution energy time series.</p>
+<h3 id="hardware-interface">Hardware Interface<a class="headerlink" href="#hardware-interface" title="Permanent link">&para;</a></h3>
+<p>RAPL exposes energy counters through the Linux kernel's powercap subsystem:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>/sys/class/powercap/intel-rapl/
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    intel-rapl:0/           ← Package 0
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>        energy_uj           ← Cumulative package energy in µJ
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>        intel-rapl:0:0/     ← Core power plane (PP0)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>            energy_uj
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>        intel-rapl:0:1/     ← Uncore power plane (PP1)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>            energy_uj
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    intel-rapl:1/           ← Package 1 (dual-socket systems)
+</code></pre></div>
+<p>The primary register is <code>MSR_PKG_ENERGY_STATUS</code> (MSR address <code>0x611</code>),
+which accumulates energy consumed by the entire CPU package including
+cores, cache, memory controller, and integrated GPU.</p>
+<h3 id="energy-calculation">Energy Calculation<a class="headerlink" href="#energy-calculation" title="Permanent link">&para;</a></h3>
+<p>Energy is computed as a delta between two counter readings:</p>
+<div class="arithmatex">\[E_{pkg} = R_{end} - R_{start}\]</div>
+<p>Where:
+- <span class="arithmatex">\(E_{pkg}\)</span> = Package energy consumed in µJ
+- <span class="arithmatex">\(R_{end}\)</span> = RAPL counter value at measurement end
+- <span class="arithmatex">\(R_{start}\)</span> = RAPL counter value at measurement start</p>
+<p><strong>Counter wrap-around handling:</strong></p>
+<p>RAPL counters are 32-bit and wrap at approximately <span class="arithmatex">\(2^{32}\)</span> µJ (≈70 minutes
+at 1000W TDP). A-LEMS detects and corrects wrap-around:</p>
+<div class="arithmatex">\[E_{pkg} = \begin{cases} R_{end} - R_{start} &amp; \text{if } R_{end} \geq R_{start} \\ (2^{32}-1 - R_{start}) + R_{end} &amp; \text{wrap-around} \end{cases}\]</div>
+<h3 id="sampling-architecture">Sampling Architecture<a class="headerlink" href="#sampling-architecture" title="Permanent link">&para;</a></h3>
+<p>A-LEMS samples RAPL at 100Hz using a dedicated high-frequency sampling thread:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>EnergyEngine._sampling_loop()
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    ├── t=0ms:   read start counter
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    ├── t=10ms:  read end counter → compute delta → enqueue
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    ├── t=10ms:  read start counter
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    ├── t=20ms:  read end counter → compute delta → enqueue
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    └── ...
+</code></pre></div>
+<p>Each sample records:
+- <code>sample_start_ns</code> — nanosecond timestamp at counter read start
+- <code>sample_end_ns</code> — nanosecond timestamp at counter read end
+- <code>pkg_start_uj</code>, <code>pkg_end_uj</code> — raw counter values
+- <code>interval_ns</code> — actual elapsed time between reads</p>
+<h3 id="domains">Domains<a class="headerlink" href="#domains" title="Permanent link">&para;</a></h3>
+<p>A-LEMS captures four energy domains when available:</p>
+<table>
+<thead>
+<tr>
+<th>Domain</th>
+<th>MSR</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>package-0</code></td>
+<td><code>0x611</code></td>
+<td>Entire CPU package (primary metric)</td>
+</tr>
+<tr>
+<td><code>core</code></td>
+<td><code>0x639</code></td>
+<td>CPU cores only (excludes uncore)</td>
+</tr>
+<tr>
+<td><code>uncore</code></td>
+<td><code>0x641</code></td>
+<td>Cache, memory controller, ring bus</td>
+</tr>
+<tr>
+<td><code>dram</code></td>
+<td><code>0x61B</code></td>
+<td>DRAM controller (server CPUs only)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="platform-availability">Platform Availability<a class="headerlink" href="#platform-availability" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Available</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux x86_64 bare metal</td>
+<td>✅ Yes</td>
+<td>1.0</td>
+</tr>
+<tr>
+<td>Linux x86_64 VM (RAPL passthrough)</td>
+<td>✅ Yes</td>
+<td>1.0</td>
+</tr>
+<tr>
+<td>Linux aarch64 (ARM VM)</td>
+<td>❌ No</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td>macOS</td>
+<td>❌ No</td>
+<td>0.0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="provenance">Provenance<a class="headerlink" href="#provenance" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>MEASURED</code></li>
+<li><strong>Method ID</strong>: <code>rapl_msr_pkg_energy</code></li>
+<li><strong>Confidence</strong>: <code>1.0</code></li>
+<li><strong>Fallback</strong>: <code>ml_energy_estimator</code></li>
+</ul>
+<h3 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Intel Corporation. <em>Intel 64 and IA-32 Architectures Software Developer
+  Manual</em>, Volume 3B, Section 14.9. 2023.</li>
+<li>Sangha, A. et al. <em>A-LEMS: Agent vs Linear Energy Measurement Platform</em>.
+  arXiv:2509.09991, 2025.</li>
+</ul>
+<hr />
+<hr />
+<p><strong>Method ID:</strong> iokit_power_reader
+<strong>Schema version:</strong> runs (152 columns, confirmed identical across NVIDIA Grace GB10, Intel i7-1165G7, and Apple M1 Pro platforms)
+<strong>Platforms verified:</strong> Apple M1 Pro (arm64)
+<strong>Status:</strong> PRODUCTION
+<strong>Last updated:</strong> 2026-07-06</p>
+<hr />
+<h2 id="iokit-power-reader">IOKit Power Reader<a class="headerlink" href="#iokit-power-reader" title="Permanent link">&para;</a></h2>
+<h3 id="overview_1">Overview<a class="headerlink" href="#overview_1" title="Permanent link">&para;</a></h3>
+<p>On macOS, hardware power sensors are accessible via Apple's IOKit framework.
+A-LEMS reads instantaneous power (watts) from IOKit HID services through
+the powermetrics utility and integrates over time to produce cumulative
+energy values:</p>
+<div class="arithmatex">\[E_{pkg} = \sum_{i} P_i \cdot \Delta t_i \times 10^6\]</div>
+<p>Where:
+- <span class="arithmatex">\(P_i\)</span> = Instantaneous power in watts from IOKit sensor
+- <span class="arithmatex">\(\Delta t_i\)</span> = Elapsed seconds since last read
+- Result in µJ (multiply by <span class="arithmatex">\(10^6\)</span>)</p>
+<h3 id="platform-coverage">Platform Coverage<a class="headerlink" href="#platform-coverage" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Architecture</th>
+<th>Source</th>
+<th>Canonical Role</th>
+<th>Confidence</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Apple M1 Pro</td>
+<td>arm64</td>
+<td>powermetrics cpu_power/gpu_power/ane_power samplers</td>
+<td>CPU_APPLE / GPU_APPLE</td>
+<td>0.85</td>
+<td>VERIFIED</td>
+</tr>
+<tr>
+<td>Intel Mac</td>
+<td>x86_64</td>
+<td>SMC via IOKit HID (same mechanism, untested)</td>
+<td>CPU_APPLE / GPU_APPLE</td>
+<td>TBD</td>
+<td>PLANNED</td>
+</tr>
+</tbody>
+</table>
+<h3 id="schema">Schema<a class="headerlink" href="#schema" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Table</th>
+<th>Type</th>
+<th>Semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>core_energy_uj</td>
+<td>runs</td>
+<td>INTEGER</td>
+<td>Cumulative CPU energy, µJ, per run</td>
+</tr>
+<tr>
+<td>gpu_total_energy_uj</td>
+<td>runs</td>
+<td>INTEGER</td>
+<td>Cumulative GPU energy, µJ, secondary channel on this platform (primary is IOKit GPU backend, 15-B)</td>
+</tr>
+<tr>
+<td>pkg_energy_uj</td>
+<td>runs</td>
+<td>INTEGER</td>
+<td>Always NULL on this platform, no separate package rail on Apple's unified memory architecture</td>
+</tr>
+<tr>
+<td>dram_energy_uj</td>
+<td>runs</td>
+<td>INTEGER</td>
+<td>Always NULL on this platform, same reason</td>
+</tr>
+</tbody>
+</table>
+<h3 id="method-provenance">Method Provenance<a class="headerlink" href="#method-provenance" title="Permanent link">&para;</a></h3>
+<p>method_id: <code>iokit_power_reader</code>
+provenance: MEASURED
+layer: silicon
+confidence: 0.85</p>
+<p><strong>Confidence 0.85</strong>: powermetrics reports instantaneous power at a fixed
+sampling interval (500ms in the current implementation), not a cumulative
+hardware energy counter. Energy is derived via trapezoidal integration
+between successive samples. This introduces sensitivity to power
+transients shorter than the sampling window, most relevant for sub-second
+inference calls. To reach 1.0 would require a true cumulative hardware
+energy counter, which IOKit does not expose on this platform. Under
+sustained inference runs (multiple seconds or longer), integration error
+is expected to be small; this has not yet been quantified against a
+higher-frequency reference measurement.</p>
+<h3 id="query-reference">Query Reference<a class="headerlink" href="#query-reference" title="Permanent link">&para;</a></h3>
+<p><strong>Real energy for a specific run on Apple Silicon</strong> — answers: how much
+CPU and GPU energy did this run consume?
+Applies to: Apple M1 Pro (arm64) only.
+Expected output: one row, core_energy_uj and gpu_total_energy_uj in
+microjoules, pkg_energy_uj and dram_energy_uj NULL (architectural, not
+a gap).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">run_id</span><span class="p">,</span><span class="w"> </span><span class="n">core_energy_uj</span><span class="p">,</span><span class="w"> </span><span class="n">gpu_total_energy_uj</span><span class="p">,</span><span class="w"> </span><span class="n">pkg_energy_uj</span><span class="p">,</span><span class="w"> </span><span class="n">dram_energy_uj</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&lt;</span><span class="n">your</span><span class="o">-</span><span class="n">run</span><span class="o">-</span><span class="n">id</span><span class="o">&gt;</span><span class="p">;</span>
+</code></pre></div>
+<p>Note: this query has not yet been re-verified against the current schema
+per PDS-4 following the 2026-07-06 schema changes (14 columns added to
+runs). Re-run and confirm before treating this section as fully compliant.</p>
+<h3 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Confirm the reader dispatches correctly</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="s2">from core.readers.factory import ReaderFactory</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="s2">from core.utils.platform import get_platform_capabilities</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="s2">caps = get_platform_capabilities()</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="s2">reader = ReaderFactory.get_energy_reader({}, caps)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="s2">print(type(reader).__name__)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="s2">&quot;</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># Expected: IOKitPowerReader</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># Confirm real energy accumulates under load</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="s2">from core.readers.darwin.iokit_power_reader import IOKitPowerReader</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="s2">import time</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="s2">r = IOKitPowerReader({})</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="s2">time.sleep(3)</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="s2">print(r.read_energy_uj())</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="s2">&quot;</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="c1"># Expected: {&#39;cpu&#39;: &lt;positive integer&gt;, &#39;gpu&#39;: &lt;non-negative integer&gt;}</span>
+</code></pre></div>
+<h3 id="known-limitations">Known Limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>No package-level energy</strong>: Apple's unified memory architecture has
+  no equivalent to a package rail. <code>pkg_energy_uj</code> is NULL.
+  Workaround: None — accept NULL.</li>
+<li><strong>No DRAM energy</strong>: same architectural reason. <code>dram_energy_uj</code> is NULL.
+  Workaround: None — accept NULL.</li>
+<li><strong>500ms sampling window</strong>: sub-second LLM calls may have their true
+  power profile smoothed by the integration window.
+  Workaround: None at the powermetrics layer; a shorter sampling interval
+  reduces but does not eliminate this, at the cost of higher overhead.
+  Not yet attempted.</li>
+<li><strong>Confidence not independently validated against a reference meter</strong>:
+  0.85 reflects the known integration methodology limitation, not a
+  measured error bound against ground truth.
+  Workaround: None currently; would require an external power meter.</li>
+</ul>
+<hr />
+<p><strong>Method ID:</strong> iokit_thermal_reader
+<strong>Schema version:</strong> runs (152 columns, same cross-platform baseline as above)
+<strong>Platforms verified:</strong> Apple M1 Pro (arm64)
+<strong>Status:</strong> PRODUCTION
+<strong>Last updated:</strong> 2026-07-06</p>
+<hr />
+<h2 id="iokit-thermal-reader">IOKit Thermal Reader<a class="headerlink" href="#iokit-thermal-reader" title="Permanent link">&para;</a></h2>
+<h3 id="overview_2">Overview<a class="headerlink" href="#overview_2" title="Permanent link">&para;</a></h3>
+<p>Apple Silicon thermal data draws from three independent sources: die
+temperature, battery temperature, and a categorical thermal pressure
+level. Package temperature is computed as the maximum across all
+available die probes:</p>
+<div class="arithmatex">\[T_{package} = \max(T_{die,0}, T_{die,1}, \ldots, T_{die,N})\]</div>
+<h3 id="platform-coverage_1">Platform Coverage<a class="headerlink" href="#platform-coverage_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Architecture</th>
+<th>Source</th>
+<th>Canonical Role</th>
+<th>Confidence</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Apple M1 Pro</td>
+<td>arm64</td>
+<td>Vendored sensors.m via IOHIDEventSystemClient</td>
+<td>CPU_APPLE (package proxy)</td>
+<td>0.75</td>
+<td>VERIFIED</td>
+</tr>
+</tbody>
+</table>
+<h3 id="schema_1">Schema<a class="headerlink" href="#schema_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Table</th>
+<th>Type</th>
+<th>Semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>package_temp_celsius</td>
+<td>runs</td>
+<td>REAL</td>
+<td>Max of all live die probe readings for the run</td>
+</tr>
+</tbody>
+</table>
+<p>Battery temperature and categorical pressure level are captured at
+measurement time but are not currently persisted as separate <code>runs</code>
+columns; they are available via <code>get_pressure_level()</code> for logging and
+provenance cross-reference only, not stored per-run in the schema today.
+This is a real, current gap, not a design decision to hide the data;
+adding dedicated columns for these is unimplemented future work.</p>
+<h3 id="method-provenance_1">Method Provenance<a class="headerlink" href="#method-provenance_1" title="Permanent link">&para;</a></h3>
+<p>method_id: <code>iokit_thermal_reader</code>
+provenance: MEASURED
+layer: silicon
+confidence: 0.75</p>
+<p><strong>Hardware interface, real mechanism, not the Python wrapper alone</strong>: die
+temperature is NOT read directly by A-LEMS's own Python code. A vendored,
+compiled Objective-C helper (<code>sensors.m</code>, author Koan-Sin Tan, BSD
+3-Clause license, source at github.com/freedomtan/sensors_cmdline,
+vendored at <code>core/readers/darwin/vendor/sensors.m</code>) performs the actual
+sensor enumeration via Apple's public IOHIDEventSystemClient framework,
+using constants published in Apple's own open source IOHIDFamily headers
+(AppleHIDUsageTables.h, IOHIDEventTypes.h). The Python reader invokes
+this binary as a subprocess and parses its text output. The registry's
+<code>code_snapshot</code> column reflects only the Python wrapper file; the
+vendored source at the path above is the actual measurement
+implementation and is not embedded in <code>code_snapshot</code>.</p>
+<p>Two sensor entries returned by the underlying enumeration are excluded
+from aggregation, confirmed not to be live readings: one entry is fixed
+at an identical value across every observed sample regardless of thermal
+load (a calibration constant, not a temperature), and one entry has no
+corresponding physical sensor and is fixed at zero.</p>
+<p><strong>Confidence 0.75</strong>: die temperature is real and responds to load (rose
+monotonically under sustained multi-core saturation in testing), but the
+exact physical mapping of each individual probe to a specific core
+cluster or silicon region is not independently confirmed, only that the
+aggregate maximum is a live, physically plausible signal. Battery
+temperature and categorical pressure level are independent, real, lower
+weight cross-reference signals, not the primary basis for this score.</p>
+<h3 id="query-reference_1">Query Reference<a class="headerlink" href="#query-reference_1" title="Permanent link">&para;</a></h3>
+<p><strong>Package temperature for a specific run</strong> — answers: what was the peak
+die temperature during this run?
+Applies to: Apple M1 Pro (arm64) only.
+Expected output: one row, package_temp_celsius as a real number, typically
+in the 25-45°C range at light to moderate load based on observed testing.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">run_id</span><span class="p">,</span><span class="w"> </span><span class="n">package_temp_celsius</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&lt;</span><span class="n">your</span><span class="o">-</span><span class="n">run</span><span class="o">-</span><span class="n">id</span><span class="o">&gt;</span><span class="p">;</span>
+</code></pre></div>
+<p>Note: not yet re-verified against the current schema per PDS-4 following
+the 2026-07-06 schema changes. Re-run and confirm before treating this
+section as fully compliant.</p>
+<h3 id="verification_1">Verification<a class="headerlink" href="#verification_1" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="s2">from core.readers.darwin.iokit_thermal_reader import IOKitThermalReader</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="s2">r = IOKitThermalReader({})</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="s2">print(r.read_all_thermal())</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="s2">print(&#39;pressure level:&#39;, r.get_pressure_level())</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="s2">&quot;</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Expected: {&#39;package_temp_celsius&#39;: &lt;real float&gt;, &#39;battery_celsius&#39;: &lt;real float&gt;}</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="c1"># pressure level: one of Nominal/Fair/Serious/Critical</span>
+</code></pre></div>
+<h3 id="known-limitations_1">Known Limitations<a class="headerlink" href="#known-limitations_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>No numeric CPU temperature via powermetrics itself</strong>: the thermal
+  pressure sampler only reports a four-level categorical value, not
+  degrees. Die temperature comes from the separate vendored sensor path,
+  not powermetrics.
+  Workaround: use the vendored sensors.m die temperature reading as the
+  primary numeric signal; treat pressure level as cross-reference only.</li>
+<li><strong>Per-probe physical mapping not independently confirmed</strong>: it is not
+  established which specific silicon region each <code>tdie</code> probe
+  corresponds to.
+  Workaround: None currently; aggregate maximum used as a conservative
+  proxy for package temperature.</li>
+<li><strong>Battery and pressure signals not persisted per-run</strong>: currently
+  available only via method calls at measurement time, not stored as
+  dedicated <code>runs</code> columns.
+  Workaround: None currently; would require a schema addition, not yet
+  implemented.</li>
+<li><strong>Third-party vendored code dependency</strong>: die temperature measurement
+  depends on a third-party compiled binary, not audited beyond the
+  cross-validation described above.
+  Workaround: None currently; BSD 3-Clause license and public framework
+  usage reduce but do not eliminate this dependency risk.</li>
+</ul>
+<h3 id="platform-availability_1">Platform Availability<a class="headerlink" href="#platform-availability_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Available</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>macOS Intel</td>
+<td>✅ Real hardware</td>
+<td>0.5 (stub) → 1.0 (Chunk 1.1)</td>
+</tr>
+<tr>
+<td>macOS Apple Silicon</td>
+<td>✅ Real hardware</td>
+<td>0.5 (stub) → 1.0 (Chunk 1.1)</td>
+</tr>
+<tr>
+<td>Linux</td>
+<td>❌ No</td>
+<td>0.0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="provenance_1">Provenance<a class="headerlink" href="#provenance_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>MEASURED</code></li>
+<li><strong>Method ID</strong>: <code>iokit_power_reader</code></li>
+<li><strong>Confidence</strong>: <code>0.5</code> (stub) → <code>1.0</code> (post Chunk 1.1)</li>
+<li><strong>Fallback</strong>: <code>ml_energy_estimator</code></li>
+</ul>
+<h3 id="references_1">References<a class="headerlink" href="#references_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Apple Inc. <em>IOKit Power Management Programming Guide</em>. 2022.
+  https://developer.apple.com/documentation/iokit</li>
+</ul>
+<hr />
+<h2 id="ioreport-cpu-frequency-ioreport_cpufreq_v1">IOReport CPU Frequency (ioreport_cpufreq_v1)<a class="headerlink" href="#ioreport-cpu-frequency-ioreport_cpufreq_v1" title="Permanent link">&para;</a></h2>
+<hr />
+<p><strong>Method ID:</strong> ioreport_cpufreq_v1
+<strong>Schema version:</strong> No schema change (frequency_mhz column exists)
+<strong>Platforms verified:</strong> Apple M1 Pro (arm64)
+<strong>Status:</strong> PRODUCTION
+<strong>Last updated:</strong> 2026-07</p>
+<hr />
+<h3 id="overview_3">Overview<a class="headerlink" href="#overview_3" title="Permanent link">&para;</a></h3>
+<p>Reads per-core DVFS residency counters from Apple's <code>libIOReport.dylib</code>
+— the same library that <code>powermetrics</code> links against internally (confirmed
+via <code>otool -L /usr/bin/powermetrics</code>). Computes the true wall-clock-weighted
+average P-cluster frequency over any measurement window.</p>
+<p><code>powermetrics</code> reports HW-active-weighted frequency: averaged only over
+active cycles, ignoring idle time. Under any real workload this always
+reads near maximum (3036 MHz on M1 Pro) even when the CPU is mostly idle.
+IOReport DVFS residency counters include idle time, giving the true
+effective frequency that correlates correctly with measured energy.</p>
+<p>No sudo required. No subprocess spawned. No compilation. Pure Python ctypes.</p>
+<h3 id="platform-coverage_2">Platform Coverage<a class="headerlink" href="#platform-coverage_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Architecture</th>
+<th>Source</th>
+<th>Confidence</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Apple M1 Pro</td>
+<td>arm64/Darwin</td>
+<td>IOReport DVFS residency (libIOReport.dylib)</td>
+<td>0.95</td>
+<td>VERIFIED</td>
+</tr>
+<tr>
+<td>Intel i7-1165G7</td>
+<td>x86_64/Linux</td>
+<td>turbostat (not applicable)</td>
+<td>0.92</td>
+<td>VERIFIED</td>
+</tr>
+<tr>
+<td>NVIDIA Grace GB10</td>
+<td>aarch64/Linux</td>
+<td>DummyTurbostatReader</td>
+<td>N/A</td>
+<td>NOT_SUPPORTED</td>
+</tr>
+</tbody>
+</table>
+<h3 id="schema_2">Schema<a class="headerlink" href="#schema_2" title="Permanent link">&para;</a></h3>
+<p>No new columns. The existing <code>runs.frequency_mhz</code> column is populated by
+this reader on Darwin. All other platforms continue to use their existing
+readers unchanged.</p>
+<h3 id="method-provenance_2">Method Provenance<a class="headerlink" href="#method-provenance_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>method_id</td>
+<td>ioreport_cpufreq_v1</td>
+</tr>
+<tr>
+<td>provenance</td>
+<td>MEASURED</td>
+</tr>
+<tr>
+<td>layer</td>
+<td>silicon</td>
+</tr>
+<tr>
+<td>confidence</td>
+<td>0.95</td>
+</tr>
+<tr>
+<td>formula</td>
+<td>f_weighted = sum(f_i * r_{i+1}) / sum(r_j for j=0..N)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Confidence Rationale (0.95):</strong> IOReport DVFS residency counters are exact
+hardware-level state accounting. The 0.05 deduction reflects that IOReport
+is a private undocumented Apple API. Stable from macOS 11 (2020) through
+macOS 16 (2026) but no formal API stability guarantee.</p>
+<h3 id="query-reference_2">Query Reference<a class="headerlink" href="#query-reference_2" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">run_id</span><span class="p">,</span><span class="w"> </span><span class="n">frequency_mhz</span><span class="p">,</span><span class="w"> </span><span class="n">total_energy_uj</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1</span><span class="n">e6</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_j</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">frequency_mhz</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">frequency_mhz</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="verification_2">Verification<a class="headerlink" href="#verification_2" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python3<span class="w"> </span>scripts/tests/test_ioreport_standalone.py
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>python<span class="w"> </span>-m<span class="w"> </span>core.execution.tests.test_harness<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span>--task-id<span class="w"> </span>gsm8k_basic<span class="w"> </span>--repetitions<span class="w"> </span><span class="m">1</span><span class="w"> </span>--provider<span class="w"> </span>llama_cpp<span class="w"> </span>--save-db
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="nv">DB</span><span class="o">=</span><span class="k">$(</span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from scripts.tools.path_loader import get_alems_db_path; \</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="s2">                 print(get_alems_db_path())&quot;</span><span class="k">)</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>sqlite3<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$DB</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;SELECT run_id, frequency_mhz FROM runs ORDER BY run_id DESC LIMIT 2;&quot;</span>
+</code></pre></div>
+<h3 id="known-limitations_2">Known Limitations<a class="headerlink" href="#known-limitations_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Private API</strong>: IOReport is undocumented. Three-tier fallback ensures
+  A-LEMS never crashes if the API changes.</li>
+<li><strong>No per-sample time series</strong>: IOReport provides interval aggregates only.
+  <code>num_samples</code> is always 1.</li>
+<li><strong>Future chip compatibility</strong>: Key <code>voltage-states5-sram</code> confirmed on M1
+  through M4. Heuristic scan handles unknown chips automatically.</li>
+</ul>
+<hr />
+<h2 id="estimator-ml-based-energy-estimation">Estimator (ML-Based Energy Estimation)<a class="headerlink" href="#estimator-ml-based-energy-estimation" title="Permanent link">&para;</a></h2>
+<h3 id="overview_4">Overview<a class="headerlink" href="#overview_4" title="Permanent link">&para;</a></h3>
+<p>On ARM VMs and platforms without RAPL access, A-LEMS uses a trained
+XGBoost model to estimate package energy from observable system metrics:</p>
+<div class="arithmatex">\[\hat{E}_{pkg} = f_{\theta}(\text{cpu\_util}, \text{freq\_mhz}, \text{instructions}, \text{task\_type})\]</div>
+<p>Where <span class="arithmatex">\(f_{\theta}\)</span> is a trained regression model with parameters <span class="arithmatex">\(\theta\)</span>.</p>
+<h3 id="feature-vector">Feature Vector<a class="headerlink" href="#feature-vector" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Source</th>
+<th>Unit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cpu_util_pct</code></td>
+<td><code>/proc/stat</code></td>
+<td>%</td>
+</tr>
+<tr>
+<td><code>freq_mhz</code></td>
+<td>turbostat</td>
+<td>MHz</td>
+</tr>
+<tr>
+<td><code>instructions</code></td>
+<td>perf counters</td>
+<td>count</td>
+</tr>
+<tr>
+<td><code>task_type</code></td>
+<td>experiment config</td>
+<td>categorical</td>
+</tr>
+</tbody>
+</table>
+<h3 id="current-status">Current Status<a class="headerlink" href="#current-status" title="Permanent link">&para;</a></h3>
+<p><strong>Stub implementation</strong> — returns zeros pending model training
+(planned for Chunk 7 when training data is available from UBUNTU2505
+bare metal runs).</p>
+<h3 id="platform-availability_2">Platform Availability<a class="headerlink" href="#platform-availability_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Available</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux aarch64 (ARM VM)</td>
+<td>Model pending</td>
+<td>0.0 (stub) → TBD (Chunk 7)</td>
+</tr>
+<tr>
+<td>Any platform without RAPL</td>
+<td>Model pending</td>
+<td>0.0 (stub)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="provenance_2">Provenance<a class="headerlink" href="#provenance_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>INFERRED</code></li>
+<li><strong>Method ID</strong>: <code>ml_energy_estimator</code></li>
+<li><strong>Confidence</strong>: <code>0.0</code> (stub) → validated score (Chunk 7)</li>
+<li><strong>Fallback</strong>: None (last resort)</li>
+</ul>
+<h3 id="references_2">References<a class="headerlink" href="#references_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Sangha, A. et al. <em>Data-Driven Energy Estimation for Virtual Servers</em>.
+  arXiv:2509.09991, Section 4. 2025.</li>
+</ul>
+<hr />
+<h2 id="dummy-energy-reader">Dummy Energy Reader<a class="headerlink" href="#dummy-energy-reader" title="Permanent link">&para;</a></h2>
+<h3 id="overview_5">Overview<a class="headerlink" href="#overview_5" title="Permanent link">&para;</a></h3>
+<p>Safe fallback for completely unsupported platforms (Windows, WSL, unknown OS).
+Returns zero for all energy domains. Never raises exceptions — system
+stability is guaranteed on any platform.</p>
+<div class="arithmatex">\[E_{pkg} = 0 \quad \text{(platform not supported)}\]</div>
+<h3 id="purpose">Purpose<a class="headerlink" href="#purpose" title="Permanent link">&para;</a></h3>
+<p>The dummy reader ensures A-LEMS never crashes due to missing hardware support.
+All results from dummy reader runs are marked <code>LIMITED</code> with <code>confidence=0.0</code>
+and should be excluded from any energy analysis.</p>
+<h3 id="platform-availability_3">Platform Availability<a class="headerlink" href="#platform-availability_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Available</th>
+<th>Confidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Windows</td>
+<td>✅ (returns zeros)</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td>WSL</td>
+<td>✅ (returns zeros)</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td>Unknown OS</td>
+<td>✅ (returns zeros)</td>
+<td>0.0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="provenance_3">Provenance<a class="headerlink" href="#provenance_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>LIMITED</code></li>
+<li><strong>Method ID</strong>: <code>dummy_energy_reader</code></li>
+<li><strong>Confidence</strong>: <code>0.0</code></li>
+<li><strong>Fallback</strong>: None</li>
+</ul>
+<hr />
+<h2 id="reader-selection-logic">Reader Selection Logic<a class="headerlink" href="#reader-selection-logic" title="Permanent link">&para;</a></h2>
+<p><code>ReaderFactory</code> selects the appropriate reader automatically:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>PlatformDetector detects:
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    OS + architecture + hardware capabilities
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>        ↓
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>ReaderFactory dispatches:
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    MEASURED + Linux   → RAPLReader
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    MEASURED + macOS   → IOKitPowerReader
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    INFERRED           → EnergyEstimator
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    LIMITED            → DummyEnergyReader
+</code></pre></div>
+<p>The selected reader's <code>METHOD_PROVENANCE</code> is stored in every run's
+<code>measurement_methodology</code> rows via <code>reader_mode</code> parameter, ensuring
+full audit trail of which reader was active for each experiment.</p>
+<h2 id="gpu-pp1-energy-measurement">GPU PP1 Energy Measurement<a class="headerlink" href="#gpu-pp1-energy-measurement" title="Permanent link">&para;</a></h2>
+<h3 id="method-id-gpu_rapl_pp1_v1">Method ID: <code>gpu_rapl_pp1_v1</code><a class="headerlink" href="#method-id-gpu_rapl_pp1_v1" title="Permanent link">&para;</a></h3>
+<p><strong>Platform:</strong> UBUNTU2505 (Intel i7-1165G7, Tiger Lake, Iris Xe 96EU)<br />
+<strong>Provenance:</strong> MEASURED<br />
+<strong>Confidence:</strong> 0.95<br />
+<strong>Layer:</strong> silicon</p>
+<h4 id="background">Background<a class="headerlink" href="#background" title="Permanent link">&para;</a></h4>
+<p>Intel Tiger Lake exposes GPU energy via MSR_PP1_ENERGY_STATUS (MSR 0x641). This is a
+package-level cumulative counter — no per-process GPU split is possible. Attribution
+uses baseline subtraction, identical to the CPU dynamic energy methodology.</p>
+<p><strong>Important:</strong> The sysfs powercap path <code>intel-rapl:0/intel-rapl:0:1</code> is named <code>uncore</code>
+on Tiger Lake and measures the uncore domain (L3 cache, memory controller, ring bus),
+NOT the GPU. GPU energy is only accessible via MSR 0x641 directly.</p>
+<h4 id="read-mechanism">Read Mechanism<a class="headerlink" href="#read-mechanism" title="Permanent link">&para;</a></h4>
+<p>GPU energy is read via the <code>msr_read</code> C binary (<code>core/msr_helper/msr_read.c</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>./msr_read 0 0x641   → raw 64-bit counter value
+</code></pre></div>
+<p>Energy unit from MSR 0x606 bits[12:8] = 14:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>E_unit = 0.5^14 J = 61.0352 µJ per LSB
+</code></pre></div>
+<p>Formula:</p>
+<div class="arithmatex">\[E_{gpu} = (R_{end} - R_{start}) \times 61.0352\,\mu J\]</div>
+<h4 id="cross-validation">Cross-Validation<a class="headerlink" href="#cross-validation" title="Permanent link">&para;</a></h4>
+<p>MSR 0x641 readings were cross-validated against the Linux perf PMU event
+<code>power/energy-gpu/</code> over 5-second windows. Agreement within 7% confirms
+the MSR read is correct.</p>
+<h4 id="platform-availability_4">Platform Availability<a class="headerlink" href="#platform-availability_4" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Available</th>
+<th>Method</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>UBUNTU2505 (Tiger Lake)</td>
+<td>Yes</td>
+<td>MSR 0x641 via msr_read</td>
+</tr>
+<tr>
+<td>GN100 (ARM GB10)</td>
+<td>No</td>
+<td>No MSR interface</td>
+</tr>
+<tr>
+<td>macOS</td>
+<td>No</td>
+<td>No /dev/cpu/N/msr</td>
+</tr>
+<tr>
+<td>Other Linux x86</td>
+<td>Conditional</td>
+<td>Detection via <code>_detect_gpu_pp1()</code></td>
+</tr>
+</tbody>
+</table>
+<p>On unavailable platforms, all GPU columns store NULL. ETL skips GPU computation
+when <code>gpu_total_energy_uj IS NULL</code>.</p>
+<hr />
+<h3 id="method-id-gpu_dynamic_baseline_v1">Method ID: <code>gpu_dynamic_baseline_v1</code><a class="headerlink" href="#method-id-gpu_dynamic_baseline_v1" title="Permanent link">&para;</a></h3>
+<p><strong>Provenance:</strong> CALCULATED<br />
+<strong>Confidence:</strong> 0.90<br />
+<strong>Layer:</strong> silicon<br />
+<strong>Status:</strong> Secondary method as of 2026-06-21. Used only as fallback when a
+run has zero idle-classified GPU samples for <code>gpu_dynamic_run_local_v1</code>
+(below) to build a local reference from.</p>
+<h4 id="formula">Formula<a class="headerlink" href="#formula" title="Permanent link">&para;</a></h4>
+<div class="arithmatex">\[E_{gpu,dyn} = E_{gpu,total} - \dot{E}_{gpu,base} \cdot t\]</div>
+<h3 id="method-id-gpu_dynamic_run_local_v1">Method ID: <code>gpu_dynamic_run_local_v1</code><a class="headerlink" href="#method-id-gpu_dynamic_run_local_v1" title="Permanent link">&para;</a></h3>
+<p><strong>Provenance:</strong> CALCULATED<br />
+<strong>Confidence:</strong> 0.90<br />
+<strong>Layer:</strong> silicon<br />
+<strong>Status:</strong> Primary method as of 2026-06-21.</p>
+<h4 id="formula_1">Formula<a class="headerlink" href="#formula_1" title="Permanent link">&para;</a></h4>
+<div class="arithmatex">\[P_{idle} = \operatorname{median}(P_i \mid \text{sample classified idle in this run})\]</div>
+<div class="arithmatex">\[E_{gpu,dyn} = \sum_i \max(P_i - P_{idle}, 0)\,\Delta t_i\]</div>
+<h4 id="description">Description<a class="headerlink" href="#description" title="Permanent link">&para;</a></h4>
+<p>Idle power is estimated from the run's own idle-classified GPU samples,
+not a separately-measured external calibration baseline. This removes
+thermal drift, clock drift, and background load differences between
+calibration time and run time. Median is used instead of mean because
+idle samples occasionally contain scheduler noise or telemetry jitter;
+median gives a robust estimator of steady-state idle power. Dynamic
+energy is the sum of the positive residual above that local idle
+reference, integrated across every sample in the run.</p>
+<p>A sample is classified idle using whatever GPU activity signal is
+actually available on the current platform, not a hardcoded universal
+rule. On GN100 today, DCGM exposes only <code>util_gpu_pct</code>, so idle is
+<code>util_gpu_pct == 0</code>. A future platform or backend reporting additional
+signals gets its own classification rule without changing this formula.</p>
+<p>Falls back to <code>gpu_dynamic_baseline_v1</code> only when a run has zero
+idle-classified samples, GPU active the entire run, no local idle
+reference available. Every run records which method was actually used
+(<code>runs.gpu_dynamic_method</code>) and the literal idle power value applied
+(<code>runs.gpu_idle_power_w_used</code>), so the split between the two methods
+across any set of runs is a direct query, not an estimate.</p>
+<h4 id="validated-against">Validated against<a class="headerlink" href="#validated-against" title="Permanent link">&para;</a></h4>
+<p>Confirmed on GN100 in two real same-experiment runs: external
+calibration, measured once and separately, produced baseline-exceeds-
+total in opposite directions depending on run duration and idle-time
+fraction within the run, the wrong run looked correct and the right run
+looked like zero. Run-local estimation resolved both by referencing
+each run's own conditions instead of one fixed external number.</p>
+<p>Where:
+- <span class="arithmatex">\(E_{gpu,total}\)</span> = SUM of gpu_energy_uj across all energy_samples for the run
+- <span class="arithmatex">\(\dot{E}_{gpu,base}\)</span> = <code>idle_baselines.gpu_power_watts</code> (mean - 2*std, 2nd percentile)
+- <span class="arithmatex">\(t\)</span> = run duration in seconds</p>
+<h4 id="baseline-measurement">Baseline Measurement<a class="headerlink" href="#baseline-measurement" title="Permanent link">&para;</a></h4>
+<p>GPU baseline is measured during <code>measure_idle_baseline()</code> when <code>measure_gpu: true</code>
+in <code>app_settings.yaml</code>. Each idle sample reads MSR 0x641 at start and end of the
+sample window, computing GPU power in Watts. Mean and std are stored in
+<code>idle_baselines.gpu_power_watts</code> and <code>idle_baselines.gpu_std</code>.</p>
+<h4 id="columns-populated">Columns Populated<a class="headerlink" href="#columns-populated" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Table</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gpu_total_energy_uj</code></td>
+<td><code>runs</code></td>
+<td>SUM(gpu_energy_uj) over all energy_samples</td>
+</tr>
+<tr>
+<td><code>gpu_baseline_energy_uj</code></td>
+<td><code>runs</code></td>
+<td>idle GPU rate * run_duration_ns</td>
+</tr>
+<tr>
+<td><code>gpu_dynamic_energy_uj</code></td>
+<td><code>runs</code></td>
+<td>gpu_total - gpu_baseline</td>
+</tr>
+<tr>
+<td><code>gpu_pct_of_pkg</code></td>
+<td><code>runs</code></td>
+<td>gpu_dynamic / dynamic_energy_uj * 100</td>
+</tr>
+<tr>
+<td><code>gpu_energy_uj</code></td>
+<td><code>goal_attempt</code></td>
+<td>gpu_dynamic_energy_uj for this attempt</td>
+</tr>
+<tr>
+<td><code>gpu_total_energy_uj</code></td>
+<td><code>goal_execution</code></td>
+<td>SUM across attempts</td>
+</tr>
+<tr>
+<td><code>gpu_pct_of_pkg</code></td>
+<td><code>goal_execution</code></td>
+<td>GPU share of goal energy</td>
+</tr>
+</tbody>
+</table>
+<h4 id="paper-finding">Paper Finding<a class="headerlink" href="#paper-finding" title="Permanent link">&para;</a></h4>
+<p>Integrated GPU energy (Intel Iris Xe, MSR PP1) accounts for a higher percentage
+of dynamic package energy during agentic workflows than linear workflows. This
+increase is driven by orchestration overhead — not ML compute, since no CUDA or
+local GPU inference is used in any experiment.</p>
+<hr />
+<h2 id="device-telemetry">Device Telemetry<a class="headerlink" href="#device-telemetry" title="Permanent link">&para;</a></h2>
+<p>Device telemetry captures instantaneous device state at 10 Hz alongside energy
+sampling. It is distinct from energy measurement: power is instantaneous (mW),
+energy is cumulative (µJ). They have different conservation properties and
+different consumers.</p>
+<h3 id="what-device-telemetry-captures">What Device Telemetry Captures<a class="headerlink" href="#what-device-telemetry-captures" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Unit</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>power_mw</td>
+<td>mW</td>
+<td>Instantaneous device power draw</td>
+</tr>
+<tr>
+<td>energy_uj</td>
+<td>µJ</td>
+<td>Cumulative energy delta (nullable)</td>
+</tr>
+<tr>
+<td>util_pct</td>
+<td>%</td>
+<td>Device utilization 0 to 100</td>
+</tr>
+<tr>
+<td>temp_c</td>
+<td>°C</td>
+<td>Device temperature</td>
+</tr>
+<tr>
+<td>clock_mhz</td>
+<td>MHz</td>
+<td>Device clock frequency</td>
+</tr>
+<tr>
+<td>dc_input_mw</td>
+<td>mW</td>
+<td>Wall input power (SPBM dc_input, SOC only)</td>
+</tr>
+<tr>
+<td>mem_util_pct</td>
+<td>%</td>
+<td>Memory utilization (GPU only)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="device-types">Device Types<a class="headerlink" href="#device-types" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>GPU      discrete or integrated GPU (NVML, DCGM, IOKit)
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>SOC      full SoC telemetry (SPBM dc_input channel, GN100)
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>CPU      CPU frequency and C-state telemetry (future)
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>NETWORK  network device telemetry (future RDMA)
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>STORAGE  storage device telemetry (future NVMe)
+</code></pre></div>
+<h3 id="energy_uj-nullability">energy_uj Nullability<a class="headerlink" href="#energy_uj-nullability" title="Permanent link">&para;</a></h3>
+<p><code>energy_uj</code> is present when the backend provides a cumulative counter:</p>
+<ul>
+<li>NVML: <code>nvmlDeviceGetTotalEnergyConsumption()</code> returns cumulative mJ</li>
+<li>DCGM: field 156 returns cumulative mJ</li>
+<li>IOKit: integrated power sensor</li>
+</ul>
+<p><code>energy_uj</code> is NULL for <code>SMI_INTEG</code> (nvidia-smi power integration). In that
+case power_mw is recorded and ETL integrates W x dt at run completion.</p>
+<h3 id="dc_input_mw-gn100-soc">dc_input_mw (GN100 SOC)<a class="headerlink" href="#dc_input_mw-gn100-soc" title="Permanent link">&para;</a></h3>
+<p>SPBM exposes a <code>dc_input</code> power channel giving wall input power to the SoC.
+This is stored in <code>device_telemetry</code> with <code>device_type='SOC'</code>. It is the
+closest equivalent to a wall power meter on the GN100 platform and is used
+for total system energy accounting in the NVLink-C2C paper.</p>
+<h3 id="sampling-rate">Sampling Rate<a class="headerlink" href="#sampling-rate" title="Permanent link">&para;</a></h3>
+<p>Device telemetry is sampled at 10 Hz, aligned with <code>energy_samples_v2</code> timestamps.
+This allows per-sample correlation between energy domain values and device state.</p>
+<h3 id="method_id">method_id<a class="headerlink" href="#method_id" title="Permanent link">&para;</a></h3>
+<p><code>device_telemetry_v1</code> — confidence 1.0 (MEASURED: direct hardware interface reads)</p>
+<hr />
+<h2 id="arm-pmu-reader-arm_pmu_v1">ARM PMU Reader (arm_pmu_v1)<a class="headerlink" href="#arm-pmu-reader-arm_pmu_v1" title="Permanent link">&para;</a></h2>
+<p><strong>Platform:</strong> GN100 (NVIDIA Grace, Neoverse V2, aarch64)
+<strong>method_id:</strong> <code>arm_pmu_v1</code>
+<strong>Confidence:</strong> 0.95
+<strong>Provenance:</strong> MEASURED
+<strong>Layer:</strong> silicon</p>
+<h3 id="what-it-measures">What It Measures<a class="headerlink" href="#what-it-measures" title="Permanent link">&para;</a></h3>
+<p>ARM Neoverse V2 performance counters via Linux <code>perf stat</code>. Attaches to the
+target process PID during the measurement window. Uses generic event names
+(<code>instructions</code>, <code>cycles</code>) for core IPC metrics and <code>armv8_pmuv3/</code> prefixed
+events for cache hierarchy where no generic alias exists on ARM Linux.</p>
+<h3 id="column-mapping">Column Mapping<a class="headerlink" href="#column-mapping" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>runs column</th>
+<th>ARM PMU event</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>instructions</td>
+<td><code>instructions</code></td>
+<td>retired instruction count</td>
+</tr>
+<tr>
+<td>cycles</td>
+<td><code>cycles</code></td>
+<td>CPU cycle count</td>
+</tr>
+<tr>
+<td>ipc</td>
+<td>derived</td>
+<td>instructions / cycles</td>
+</tr>
+<tr>
+<td>cache_misses</td>
+<td><code>armv8_pmuv3/l1d_cache_refill/</code></td>
+<td>L1D refill count</td>
+</tr>
+<tr>
+<td>cache_references</td>
+<td><code>armv8_pmuv3/l1d_cache/</code></td>
+<td>L1D access count</td>
+</tr>
+<tr>
+<td>l1d_cache_misses_total</td>
+<td><code>armv8_pmuv3/l1d_cache_refill/</code></td>
+<td>same as cache_misses</td>
+</tr>
+<tr>
+<td>l2_cache_misses_total</td>
+<td><code>armv8_pmuv3/l2d_cache_refill/</code></td>
+<td>L2D refill count</td>
+</tr>
+<tr>
+<td>l3_cache_hits_total</td>
+<td><code>armv8_pmuv3/l3d_cache/</code></td>
+<td>L3D hit count</td>
+</tr>
+<tr>
+<td>l3_cache_misses_total</td>
+<td><code>armv8_pmuv3/l3d_cache_refill/</code></td>
+<td>L3D refill count</td>
+</tr>
+</tbody>
+</table>
+<h3 id="confidence-note">Confidence Note<a class="headerlink" href="#confidence-note" title="Permanent link">&para;</a></h3>
+<p>0.95 not 1.0: ARM PMU event multiplexing may cause minor undercounting when
+more events are requested than hardware PMU registers available on the core.
+Neoverse V2 has 6 programmable counters. Seven events are requested — one
+counter slot is time-multiplexed, introducing small statistical error.</p>
+<h3 id="x86-equivalent">x86 Equivalent<a class="headerlink" href="#x86-equivalent" title="Permanent link">&para;</a></h3>
+<p><code>PerfReader</code> on UBUNTU2505 and Alex AMD machine. Factory dispatches
+<code>ARMPMUReader</code> only when <code>caps.arch == 'aarch64'</code> and <code>caps.has_arm_pmu</code>.</p>
+<hr />
+<h2 id="arm-cpufreq-reader-arm_cpufreq_v1">ARM cpufreq Reader (arm_cpufreq_v1)<a class="headerlink" href="#arm-cpufreq-reader-arm_cpufreq_v1" title="Permanent link">&para;</a></h2>
+<p><strong>Platform:</strong> GN100 (NVIDIA Grace, Neoverse V2, aarch64)
+<strong>method_id:</strong> <code>arm_cpufreq_v1</code>
+<strong>Confidence:</strong> 0.90
+<strong>Provenance:</strong> MEASURED
+<strong>Layer:</strong> os</p>
+<h3 id="what-it-measures_1">What It Measures<a class="headerlink" href="#what-it-measures_1" title="Permanent link">&para;</a></h3>
+<p>CPU operating frequency via Linux cpufreq sysfs at 10 Hz during the
+measurement window. Reads <code>/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq</code>
+(kHz, converted to MHz) for all online CPUs and returns the time-averaged
+frequency across all cores and all sample points.</p>
+<h3 id="column-mapping_1">Column Mapping<a class="headerlink" href="#column-mapping_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>runs column</th>
+<th>Source</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>frequency_mhz</td>
+<td>cpufreq sysfs avg</td>
+<td>mean across all CPUs and window</td>
+</tr>
+<tr>
+<td>cpu_avg_mhz</td>
+<td>cpufreq sysfs avg</td>
+<td>same value</td>
+</tr>
+<tr>
+<td>c2_time</td>
+<td>NULL</td>
+<td>ARM WFI/WFE not equivalent to x86 c-states</td>
+</tr>
+<tr>
+<td>c3_time</td>
+<td>NULL</td>
+<td>ARM WFI/WFE not equivalent to x86 c-states</td>
+</tr>
+<tr>
+<td>c6_time</td>
+<td>NULL</td>
+<td>ARM WFI/WFE not equivalent to x86 c-states</td>
+</tr>
+<tr>
+<td>c7_time</td>
+<td>NULL</td>
+<td>ARM WFI/WFE not equivalent to x86 c-states</td>
+</tr>
+<tr>
+<td>ring_bus_freq_mhz</td>
+<td>NULL</td>
+<td>no turbostat on ARM</td>
+</tr>
+<tr>
+<td>voltage_vcore_avg</td>
+<td>NULL</td>
+<td>no MSR on ARM</td>
+</tr>
+</tbody>
+</table>
+<h3 id="null-is-correct-for-c-states">NULL is Correct for C-states<a class="headerlink" href="#null-is-correct-for-c-states" title="Permanent link">&para;</a></h3>
+<p>ARM uses WFI (Wait For Interrupt) and WFE (Wait For Event) idle states.
+These are not equivalent to x86 C2/C3/C6/C7 residency states. Storing NULL
+per MIC-1 is scientifically correct — do not estimate or map to zero.</p>
+<h3 id="confidence-note_1">Confidence Note<a class="headerlink" href="#confidence-note_1" title="Permanent link">&para;</a></h3>
+<p>0.90 not 1.0: sysfs polling at 10 Hz has ~100ms granularity. TurbostatReader
+on x86 uses MSR timestamps at ~10ms resolution. Frequency transitions faster
+than 100ms are averaged out. On Grace under LLM inference load, frequency is
+typically stable at or near maximum, so the practical impact is small.</p>
+<h3 id="x86-equivalent_1">x86 Equivalent<a class="headerlink" href="#x86-equivalent_1" title="Permanent link">&para;</a></h3>
+<p><code>TurbostatReader</code> on UBUNTU2505 and Alex AMD machine. Factory dispatches
+<code>ARMCPUFreqReader</code> only when <code>caps.os == 'Linux'</code> and <code>caps.arch == 'aarch64'</code>.</p>
+<h1 id="_1">============================================================<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<h1 id="docs-srcmkdocssourceresearch07-energy-readers-methodologymd">docs-src/mkdocs/source/research/07-energy-readers-methodology.md<a class="headerlink" href="#docs-srcmkdocssourceresearch07-energy-readers-methodologymd" title="Permanent link">&para;</a></h1>
+<h1 id="append-this-block-at-the-end-of-the-file-after-line-501">APPEND this block at the end of the file (after line 501)<a class="headerlink" href="#append-this-block-at-the-end-of-the-file-after-line-501" title="Permanent link">&para;</a></h1>
+<h1 id="_2">============================================================<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h1>
+<hr />
+<h2 id="arm-thermal-reader-arm_thermal_sysfs_v1">ARM Thermal Reader (arm_thermal_sysfs_v1)<a class="headerlink" href="#arm-thermal-reader-arm_thermal_sysfs_v1" title="Permanent link">&para;</a></h2>
+<h3 id="overview_6">Overview<a class="headerlink" href="#overview_6" title="Permanent link">&para;</a></h3>
+<p><strong>method_id:</strong> <code>arm_thermal_sysfs_v1</code>
+<strong>confidence:</strong> 0.90
+<strong>platform:</strong> GN100 (aarch64, NVIDIA Grace)
+<strong>reader class:</strong> <code>ARMThermalReader</code></p>
+<p>Reads thermal zone temperatures via <code>/sys/class/thermal/thermal_zone*/temp</code> on ARM
+Linux. Used on GN100 where <code>SensorReader</code> returns empty results because it requires
+x86-specific hwmon paths from <code>hw_config["thermal"]["paths"]</code> that are absent on Grace.</p>
+<h3 id="gn100-thermal-zones-verified-2026-06-18">GN100 Thermal Zones (Verified 2026-06-18)<a class="headerlink" href="#gn100-thermal-zones-verified-2026-06-18" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Zone</th>
+<th>Type</th>
+<th>Idle Temp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>thermal_zone0</td>
+<td>acpitz</td>
+<td>44.8°C</td>
+</tr>
+<tr>
+<td>thermal_zone1</td>
+<td>acpitz</td>
+<td>43.8°C</td>
+</tr>
+<tr>
+<td>thermal_zone2</td>
+<td>acpitz</td>
+<td>43.7°C</td>
+</tr>
+<tr>
+<td>thermal_zone3</td>
+<td>acpitz</td>
+<td>43.8°C</td>
+</tr>
+<tr>
+<td>thermal_zone4</td>
+<td>acpitz</td>
+<td>43.7°C</td>
+</tr>
+<tr>
+<td>thermal_zone5</td>
+<td>acpitz</td>
+<td>43.8°C</td>
+</tr>
+<tr>
+<td>thermal_zone6</td>
+<td>acpitz</td>
+<td>44.8°C</td>
+</tr>
+</tbody>
+</table>
+<p>All 7 zones report <code>type=acpitz</code> (ACPI thermal zone). No MSR or hwmon thermal
+interface is available on the Grace SoC.</p>
+<h3 id="column-mapping_2">Column Mapping<a class="headerlink" href="#column-mapping_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>runs column</th>
+<th>Source</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>package_temp_celsius</td>
+<td>avg(all 7 acpitz zones)</td>
+<td>averaged for stability</td>
+</tr>
+<tr>
+<td>start_temp_c</td>
+<td>first sample in run</td>
+<td>from thermal_samples ETL</td>
+</tr>
+<tr>
+<td>max_temp_c</td>
+<td>max across run</td>
+<td>from thermal_samples ETL</td>
+</tr>
+<tr>
+<td>min_temp_c</td>
+<td>min across run</td>
+<td>from thermal_samples ETL</td>
+</tr>
+<tr>
+<td>thermal_delta_c</td>
+<td>max_temp_c - start_temp_c</td>
+<td>derived</td>
+</tr>
+</tbody>
+</table>
+<h3 id="why-average-7-zones">Why Average 7 Zones<a class="headerlink" href="#why-average-7-zones" title="Permanent link">&para;</a></h3>
+<p>All zones report ACPI package-level temperature derived from the same SoC thermal
+diode network. Averaging gives a stable value robust to per-zone ACPI polling jitter.</p>
+<h3 id="confidence-note_2">Confidence Note<a class="headerlink" href="#confidence-note_2" title="Permanent link">&para;</a></h3>
+<p>0.90 not 1.0: ACPI thermal zones have a polling interval of 100-200ms, introducing
+lag relative to true silicon temperature. Under sustained LLM inference this averages
+out. Peak temperature excursions shorter than 200ms may be missed.</p>
+<h3 id="null-is-correct-for-gpu-temperature">NULL is Correct for GPU Temperature<a class="headerlink" href="#null-is-correct-for-gpu-temperature" title="Permanent link">&para;</a></h3>
+<p>GPU temperature on GN100 is available via <code>nvidia-smi</code> and DCGM. <code>ARMThermalReader</code>
+does not populate <code>gpu_celsius</code> — it returns 0.0 per the ABC contract. GPU temperature
+attribution is handled separately by the DCGM backend.</p>
+<h3 id="x86-equivalent_2">x86 Equivalent<a class="headerlink" href="#x86-equivalent_2" title="Permanent link">&para;</a></h3>
+<p><code>SensorReader</code> on UBUNTU2505 and Alex AMD machine. Factory dispatches
+<code>ARMThermalReader</code> only when <code>caps.os == 'Linux'</code> and <code>caps.arch == 'aarch64'</code>
+and <code>caps.has_thermal</code>.</p>
+<h2 id="apple-silicon-pmu-counters-kperf_pmu_v1">Apple Silicon PMU Counters (kperf_pmu_v1)<a class="headerlink" href="#apple-silicon-pmu-counters-kperf_pmu_v1" title="Permanent link">&para;</a></h2>
+<hr />
+<p><strong>Method ID:</strong> kperf_pmu_v1
+<strong>Schema version:</strong> No new columns (all columns pre-exist in runs table)
+<strong>Platforms verified:</strong> Apple M1 Pro (arm64)
+<strong>Status:</strong> DRAFT
+<strong>Last updated:</strong> 2026-08-13</p>
+<hr />
+<h3 id="overview_7">Overview<a class="headerlink" href="#overview_7" title="Permanent link">&para;</a></h3>
+<p>Reads CPU performance counters (instructions retired, CPU cycles, L1D
+cache misses) on Apple Silicon via Apple's private kperf.framework and
+kperfdata.framework. A compiled C helper binary performs the actual PMU
+read and prints JSON to stdout. The Python reader (<code>KPerfPMUReader</code>) calls
+the helper at measurement start and stop, then computes deltas.</p>
+<p>This method fills the same <code>runs</code> table columns as <code>PerfReader</code> on Linux:
+<code>instructions</code>, <code>cycles</code>, <code>ipc</code>, <code>cache_misses</code>, <code>cache_references</code>,
+<code>cache_miss_rate</code>, <code>l1d_cache_misses_total</code>, <code>energy_per_instruction</code>,
+<code>energy_per_cycle</code>. L2 and L3 cache columns remain NULL on M1 Pro — this
+is a hardware PMU event limitation of the a14 core architecture, not a
+software gap.</p>
+<h3 id="platform-coverage_3">Platform Coverage<a class="headerlink" href="#platform-coverage_3" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Architecture</th>
+<th>Source</th>
+<th>Canonical Role</th>
+<th>Confidence</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Apple M1 Pro</td>
+<td>arm64</td>
+<td>kperf/kperfdata PMU</td>
+<td>CPU_COUNTERS</td>
+<td>0.85</td>
+<td>DRAFT</td>
+</tr>
+<tr>
+<td>Apple M2 (expected)</td>
+<td>arm64</td>
+<td>kperf/kperfdata PMU</td>
+<td>CPU_COUNTERS</td>
+<td>TBD</td>
+<td>PLANNED</td>
+</tr>
+<tr>
+<td>NVIDIA Grace GB10</td>
+<td>aarch64</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>NOT_SUPPORTED</td>
+</tr>
+<tr>
+<td>Intel i7-1165G7</td>
+<td>x86_64</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>NOT_SUPPORTED</td>
+</tr>
+<tr>
+<td>AMD Ryzen</td>
+<td>x86_64</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>NOT_SUPPORTED</td>
+</tr>
+</tbody>
+</table>
+<h3 id="schema_3">Schema<a class="headerlink" href="#schema_3" title="Permanent link">&para;</a></h3>
+<p>No new columns. All target columns already exist in the <code>runs</code> table:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Apple Silicon Source</th>
+<th>Linux Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>instructions</td>
+<td>REAL</td>
+<td>FIXED_INSTRUCTIONS delta</td>
+<td>perf instructions</td>
+</tr>
+<tr>
+<td>cycles</td>
+<td>REAL</td>
+<td>FIXED_CYCLES delta</td>
+<td>perf cycles</td>
+</tr>
+<tr>
+<td>ipc</td>
+<td>REAL</td>
+<td>instructions / cycles</td>
+<td>perf derived</td>
+</tr>
+<tr>
+<td>cache_misses</td>
+<td>REAL</td>
+<td>L1D_MISS_LD + L1D_MISS_ST</td>
+<td>perf cache-misses</td>
+</tr>
+<tr>
+<td>cache_references</td>
+<td>REAL</td>
+<td>L1D_TLB_ACCESS (proxy)</td>
+<td>perf cache-references</td>
+</tr>
+<tr>
+<td>cache_miss_rate</td>
+<td>REAL</td>
+<td>cache_misses / cache_references</td>
+<td>perf derived</td>
+</tr>
+<tr>
+<td>l1d_cache_misses_total</td>
+<td>INTEGER</td>
+<td>L1D_CACHE_MISS_LD_NONSPEC</td>
+<td>perf L1-dcache-load-misses</td>
+</tr>
+<tr>
+<td>l2_cache_misses_total</td>
+<td>INTEGER</td>
+<td>NULL (no M1 event)</td>
+<td>perf l2_rqsts.miss</td>
+</tr>
+<tr>
+<td>l3_cache_hits_total</td>
+<td>INTEGER</td>
+<td>NULL (no M1 event)</td>
+<td>perf LLC-loads</td>
+</tr>
+<tr>
+<td>l3_cache_misses_total</td>
+<td>INTEGER</td>
+<td>NULL (no M1 event)</td>
+<td>perf LLC-load-misses</td>
+</tr>
+<tr>
+<td>energy_per_instruction</td>
+<td>REAL</td>
+<td>pkg_energy_uj / instructions</td>
+<td>same</td>
+</tr>
+<tr>
+<td>energy_per_cycle</td>
+<td>REAL</td>
+<td>pkg_energy_uj / cycles</td>
+<td>same</td>
+</tr>
+</tbody>
+</table>
+<h3 id="method-provenance_3">Method Provenance<a class="headerlink" href="#method-provenance_3" title="Permanent link">&para;</a></h3>
+<p><strong>method_id:</strong> kperf_pmu_v1
+<strong>confidence:</strong> 0.85
+<strong>layer:</strong> silicon
+<strong>provenance:</strong> MEASURED</p>
+<p><strong>Formula:</strong></p>
+<div class="codehilite"><pre><span></span><code>delta_instr = C_stop^instr - C_start^instr
+</code></pre></div>
+
+<p>where C is the system-wide PMU counter value read by the C helper at
+measurement start and stop boundaries.</p>
+<p><strong>Confidence justification (PDS-6):</strong></p>
+<p>(a) Why not 1.0: Three sources of uncertainty. First, kperf and kperfdata
+are private Apple frameworks — stable since macOS 12 through macOS 15+
+but with no public API guarantee. Second, <code>kpc_set_config()</code> requires
+root, adding a sudoers installation step and ~50ms subprocess overhead
+per call. Third, counters are system-wide across all CPUs and processes,
+not scoped to the inference workload.</p>
+<p>(b) To reach 1.0: Apple would need to publish kperf as a public stable
+API, remove the root requirement, and provide per-process PMU sampling.</p>
+<p>(c) Quantitative impact: During llama_cpp inference on a quiescent M1 Pro,
+the inference process accounts for ~92–98% of CPU utilization (verified
+via top). System-wide overcounting of instructions/cycles is estimated at
+2–8%. For runs exceeding 5 seconds this is within acceptable research
+bounds.</p>
+<h3 id="query-reference_3">Query Reference<a class="headerlink" href="#query-reference_3" title="Permanent link">&para;</a></h3>
+<p><strong>Verify PMU counters populated on Apple Silicon:</strong></p>
+<p>Answers: Are instructions and cycles non-zero after a Mac run?
+Applies to: Apple M1 Pro (arm64). Replace <code>&lt;your-hostname&gt;</code> with output
+of <code>python3 -c "import socket; print(socket.gethostname())"</code>.
+Expected: instructions 10^8 to 10^11 per run, IPC 1.0 to 4.0.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">run_id</span><span class="p">,</span><span class="w"> </span><span class="n">created_at</span><span class="p">,</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">       </span><span class="n">instructions</span><span class="p">,</span><span class="w"> </span><span class="n">cycles</span><span class="p">,</span><span class="w"> </span><span class="n">ipc</span><span class="p">,</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">       </span><span class="n">cache_misses</span><span class="p">,</span><span class="w"> </span><span class="n">cache_miss_rate</span><span class="p">,</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">       </span><span class="n">l1d_cache_misses_total</span><span class="p">,</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">       </span><span class="n">energy_per_instruction</span><span class="p">,</span><span class="w"> </span><span class="n">energy_per_cycle</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">machine_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;&lt;your-hostname&gt;&#39;</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">instructions</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="k">DESC</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+</code></pre></div>
+<p><strong>Cross-platform IPC comparison:</strong></p>
+<p>Answers: How does IPC differ across measurement platforms?
+Applies to: All platforms with PMU counters populated.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">machine_id</span><span class="p">,</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">       </span><span class="k">AVG</span><span class="p">(</span><span class="n">ipc</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ipc</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">       </span><span class="k">MIN</span><span class="p">(</span><span class="n">ipc</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">min_ipc</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">       </span><span class="k">MAX</span><span class="p">(</span><span class="n">ipc</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">max_ipc</span><span class="p">,</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">       </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">num_runs</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">ipc</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">machine_id</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="verification_3">Verification<a class="headerlink" href="#verification_3" title="Permanent link">&para;</a></h3>
+<p>Run these commands on the Apple M1 Pro platform after implementation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># 1. Compile and install the C helper</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>cc<span class="w"> </span>-O2<span class="w"> </span>-o<span class="w"> </span>scripts/helpers/kperf_reader<span class="w"> </span>scripts/helpers/kperf_reader.c
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>sudo<span class="w"> </span>cp<span class="w"> </span>scripts/helpers/kperf_reader<span class="w"> </span>/usr/local/bin/alems_kperf_reader
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>sudo<span class="w"> </span>chown<span class="w"> </span>root:wheel<span class="w"> </span>/usr/local/bin/alems_kperf_reader
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>sudo<span class="w"> </span>chmod<span class="w"> </span><span class="m">755</span><span class="w"> </span>/usr/local/bin/alems_kperf_reader
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="c1"># 2. Install sudoers rule (or run scripts/fix_permissions.sh)</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;%admin ALL=(root) NOPASSWD: /usr/local/bin/alems_kperf_reader&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">    </span><span class="p">|</span><span class="w"> </span>sudo<span class="w"> </span>tee<span class="w"> </span>/etc/sudoers.d/alems_kperf<span class="w"> </span>&gt;<span class="w"> </span>/dev/null
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a>sudo<span class="w"> </span>chmod<span class="w"> </span><span class="m">0440</span><span class="w"> </span>/etc/sudoers.d/alems_kperf
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="c1"># 3. Verify helper produces JSON without password prompt</span>
+<a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a>sudo<span class="w"> </span>-n<span class="w"> </span>/usr/local/bin/alems_kperf_reader
+<a id="__codelineno-14-14" name="__codelineno-14-14" href="#__codelineno-14-14"></a><span class="c1"># Expected: {&quot;instructions&quot;:NNNN,&quot;cycles&quot;:NNNN,&quot;l1d_miss_ld&quot;:NN,...}</span>
+<a id="__codelineno-14-15" name="__codelineno-14-15" href="#__codelineno-14-15"></a>
+<a id="__codelineno-14-16" name="__codelineno-14-16" href="#__codelineno-14-16"></a><span class="c1"># 4. Run standalone verification test</span>
+<a id="__codelineno-14-17" name="__codelineno-14-17" href="#__codelineno-14-17"></a>python3<span class="w"> </span>scripts/tests/test_kperf_standalone.py
+<a id="__codelineno-14-18" name="__codelineno-14-18" href="#__codelineno-14-18"></a><span class="c1"># Expected: all PASS, 0 FAIL</span>
+<a id="__codelineno-14-19" name="__codelineno-14-19" href="#__codelineno-14-19"></a>
+<a id="__codelineno-14-20" name="__codelineno-14-20" href="#__codelineno-14-20"></a><span class="c1"># 5. Verify factory returns KPerfPMUReader on Darwin arm64</span>
+<a id="__codelineno-14-21" name="__codelineno-14-21" href="#__codelineno-14-21"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-14-22" name="__codelineno-14-22" href="#__codelineno-14-22"></a><span class="s2">from core.readers.factory import ReaderFactory</span>
+<a id="__codelineno-14-23" name="__codelineno-14-23" href="#__codelineno-14-23"></a><span class="s2">r = ReaderFactory.get_cpu_reader()</span>
+<a id="__codelineno-14-24" name="__codelineno-14-24" href="#__codelineno-14-24"></a><span class="s2">print(type(r).__name__)</span>
+<a id="__codelineno-14-25" name="__codelineno-14-25" href="#__codelineno-14-25"></a><span class="s2">&quot;</span>
+<a id="__codelineno-14-26" name="__codelineno-14-26" href="#__codelineno-14-26"></a><span class="c1"># Expected: KPerfPMUReader</span>
+<a id="__codelineno-14-27" name="__codelineno-14-27" href="#__codelineno-14-27"></a>
+<a id="__codelineno-14-28" name="__codelineno-14-28" href="#__codelineno-14-28"></a><span class="c1"># 6. Run experiment and verify DB columns</span>
+<a id="__codelineno-14-29" name="__codelineno-14-29" href="#__codelineno-14-29"></a><span class="nv">DB</span><span class="o">=</span><span class="k">$(</span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())&quot;</span><span class="k">)</span>
+<a id="__codelineno-14-30" name="__codelineno-14-30" href="#__codelineno-14-30"></a>sqlite3<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$DB</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-14-31" name="__codelineno-14-31" href="#__codelineno-14-31"></a><span class="s2">SELECT run_id, instructions, cycles, ipc,</span>
+<a id="__codelineno-14-32" name="__codelineno-14-32" href="#__codelineno-14-32"></a><span class="s2">       cache_misses, l1d_cache_misses_total,</span>
+<a id="__codelineno-14-33" name="__codelineno-14-33" href="#__codelineno-14-33"></a><span class="s2">       energy_per_instruction</span>
+<a id="__codelineno-14-34" name="__codelineno-14-34" href="#__codelineno-14-34"></a><span class="s2">FROM runs ORDER BY run_id DESC LIMIT 1;</span>
+<a id="__codelineno-14-35" name="__codelineno-14-35" href="#__codelineno-14-35"></a><span class="s2">&quot;</span>
+<a id="__codelineno-14-36" name="__codelineno-14-36" href="#__codelineno-14-36"></a><span class="c1"># Expected: instructions &gt; 0, cycles &gt; 0, 0.5 &lt; ipc &lt; 5.0</span>
+<a id="__codelineno-14-37" name="__codelineno-14-37" href="#__codelineno-14-37"></a><span class="c1"># l2/l3 cache columns NULL — correct, hardware limitation</span>
+</code></pre></div>
+<h3 id="known-limitations_3">Known Limitations<a class="headerlink" href="#known-limitations_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li>
+<p><strong>L2 and L3 cache events unavailable on M1:</strong> The a14.plist (M1 core
+  architecture) does not include L2 cache miss, L3 cache miss, or L3
+  cache hit events. <code>l2_cache_misses_total</code>, <code>l3_cache_hits_total</code>, and
+  <code>l3_cache_misses_total</code> remain NULL on M1 Pro. Hardware limitation,
+  not a software gap. Workaround: None. Accept NULL.</p>
+</li>
+<li>
+<p><strong>System-wide counters, not per-process:</strong> Counters capture all CPU
+  activity across all cores and processes. Overcounting estimated at 2–8%
+  during dedicated inference. Workaround: Ensure Mac is quiescent.</p>
+</li>
+<li>
+<p><strong>Sudo required:</strong> Without the sudoers rule, reader falls back to
+  DummyCPUReader (all counters zero/NULL). Workaround: Run
+  <code>scripts/fix_permissions.sh</code>.</p>
+</li>
+<li>
+<p><strong>VM environments:</strong> kperf unavailable in virtualized macOS. Reader
+  returns False from <code>is_available()</code> and falls back gracefully.
+  Workaround: None — PMU counters require bare metal macOS.</p>
+</li>
+<li>
+<p><strong>Private API stability:</strong> Stable macOS 12 through 15+ but no formal
+  guarantee. <code>is_available()</code> catches load failures. Workaround: Monitor
+  macOS release notes.</p>
+</li>
+<li>
+<p><strong>Subprocess overhead:</strong> ~50ms per call, ~100ms per measurement. Under
+  2% overhead for runs &gt;5 seconds. Significant for sub-second runs.</p>
+</li>
+<li>
+<p><strong>cache_references proxy:</strong> <code>L1D_TLB_ACCESS</code> used as proxy for total
+  cache accesses. Cross-platform <code>cache_miss_rate</code> comparisons should
+  account for this semantic difference vs Linux perf LLC-accesses.</p>
+</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "toc.integrate", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

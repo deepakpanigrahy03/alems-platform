@@ -1,0 +1,3382 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agentic LLM Energy Measurement System">
+      
+      
+        <meta name="author" content="A-LEMS Research">
+      
+      
+        <link rel="canonical" href="https://deepakpanigrahy03.github.io/alems-platform/research/llm-measurement/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>LLM Measurement Methodology - A-LEMS Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#llm-measurement-methodology" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="A-LEMS Documentation" class="md-header__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            A-LEMS Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              LLM Measurement Methodology
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/platform-detection/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/architecture/" class="md-tabs__link">
+          
+  
+  
+  Developer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../measurement-methodology/" class="md-tabs__link">
+          
+  
+  
+  Research
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/platform-matrix/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/researcher-journey/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/adding-documentation/" class="md-tabs__link">
+          
+  
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="A-LEMS Documentation" class="md-nav__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    A-LEMS Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/api-keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/new-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    New Machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/platform-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/measurement-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/energy-tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Tiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/config-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/database-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/schema-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/energy-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-platform/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/model-factory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Factory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/config-hierarchy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration Hierarchy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/kperf-pmu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    kperf PMU
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/retry-study/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Study Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/engineering-standards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engineering Standards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/developer-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../measurement-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../orchestration-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mathematical-derivations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mathematical Derivations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../energy-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../phase-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../energy-readers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Readers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-measurement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Measurement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../derived-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Derived Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../normalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Normalization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../measurement-boundary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiment-classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../goal-execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Goal Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../output-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-failure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Failure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-instrumentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Instrumentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../retry-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Network Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gpu-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-rail-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power Rail Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unified-energy-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unified Energy Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cpu-idle-states/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU Idle States
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cooling-subsystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cooling Subsystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../arm-pmu-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM PMU Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../outlier-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outlier Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../publications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/platform-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/db-path-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DB Path Resolution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data-dictionary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Dictionary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/orchestration-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/researcher-journey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Researcher Journey
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/administrator-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrator Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/contributor-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributor Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/adding-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="llm-measurement-methodology">LLM Measurement Methodology<a class="headerlink" href="#llm-measurement-methodology" title="Permanent link">&para;</a></h1>
+<p>This document describes the measurement methodology for LLM interactions, including phase separation, metrics calculation, and aggregation strategies.</p>
+<hr />
+<h2 id="measurement-model">📐 Measurement Model<a class="headerlink" href="#measurement-model" title="Permanent link">&para;</a></h2>
+<p>A-LEMS decomposes total execution time into three components:</p>
+<div class="arithmatex">\[T_{total} = T_{wait} + T_{compute} + T_{orchestration}\]</div>
+<p>Where:
+- <span class="arithmatex">\(T_{wait}\)</span>: Network latency + remote inference (idle time)
+- <span class="arithmatex">\(T_{compute}\)</span>: Local model inference (active computation)
+- <span class="arithmatex">\(T_{orchestration}\)</span>: Planning, parsing, control logic, coordination (active CPU)</p>
+<p><strong>Note:</strong> Orchestration overhead exists for ALL workflows, but is significantly higher for agentic workflows.</p>
+<hr />
+<h2 id="phase-separation">📊 Phase Separation<a class="headerlink" href="#phase-separation" title="Permanent link">&para;</a></h2>
+<p>Each LLM call is measured across four phases:</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Metric</th>
+<th>Description</th>
+<th>CPU State</th>
+<th>Component</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>preprocess_ms</code></td>
+<td>Prompt serialization, JSON building</td>
+<td>Active</td>
+<td><span class="arithmatex">\(T_{orchestration}\)</span></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>non_local_ms</code></td>
+<td>Network + remote inference</td>
+<td>Idle</td>
+<td><span class="arithmatex">\(T_{wait}\)</span></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>local_compute_ms</code></td>
+<td>Local model inference</td>
+<td>Active</td>
+<td><span class="arithmatex">\(T_{compute}\)</span></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>postprocess_ms</code></td>
+<td>Response parsing, token extraction</td>
+<td>Active</td>
+<td><span class="arithmatex">\(T_{orchestration}\)</span></td>
+</tr>
+</tbody>
+</table>
+<h3 id="timing-boundaries">Timing Boundaries<a class="headerlink" href="#timing-boundaries" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[t_0 \xrightarrow{\text{preprocess}} t_1 \xrightarrow{\text{wait}} t_2 \xrightarrow{\text{compute}} t_3 \xrightarrow{\text{postprocess}} t_4\]</div>
+<p>Where:
+- <span class="arithmatex">\(t_0\)</span>: Start of LLM call
+- <span class="arithmatex">\(t_1\)</span>: After prompt serialization
+- <span class="arithmatex">\(t_2\)</span>: After receiving response
+- <span class="arithmatex">\(t_3\)</span>: After local model inference (local only)
+- <span class="arithmatex">\(t_4\)</span>: After response parsing</p>
+<h3 id="phase-calculations">Phase Calculations<a class="headerlink" href="#phase-calculations" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[t_{\text{pre}} = (t_1 - t_0) \times 1000\]</div>
+<div class="arithmatex">\[t_{\text{wait}} = (t_2 - t_1) \times 1000\]</div>
+<div class="arithmatex">\[t_{\text{compute}} = (t_3 - t_2) \times 1000\]</div>
+<div class="arithmatex">\[t_{\text{post}} = (t_4 - t_3) \times 1000\]</div>
+<div class="arithmatex">\[t_{\text{total}} = t_{\text{pre}} + t_{\text{wait}} + t_{\text{compute}} + t_{\text{post}}\]</div>
+<hr />
+<h2 id="token-metrics">📊 Token Metrics<a class="headerlink" href="#token-metrics" title="Permanent link">&para;</a></h2>
+<h3 id="from-api-response">From API Response<a class="headerlink" href="#from-api-response" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\text{prompt\_tokens} = \text{usage.prompt\_tokens}\]</div>
+<div class="arithmatex">\[\text{completion\_tokens} = \text{usage.completion\_tokens}\]</div>
+<div class="arithmatex">\[\text{total\_tokens} = \text{prompt\_tokens} + \text{completion\_tokens}\]</div>
+<h3 id="fallback-estimation-when-api-doesnt-return-tokens">Fallback Estimation (when API doesn't return tokens)<a class="headerlink" href="#fallback-estimation-when-api-doesnt-return-tokens" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[prompt\_tokens \approx \lceil \frac{\text{len(prompt)}}{4} \rceil\]</div>
+<div class="arithmatex">\[completion\_tokens \approx \lceil \frac{\text{len(response)}}{4} \rceil\]</div>
+<hr />
+<h2 id="throughput-calculation">🌐 Throughput Calculation<a class="headerlink" href="#throughput-calculation" title="Permanent link">&para;</a></h2>
+<h3 id="application-level-throughput">Application-Level Throughput<a class="headerlink" href="#application-level-throughput" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\text{total\_bytes} = \text{len(prompt)} + \text{len(response)}\]</div>
+<p>$$\text{app_throughput_kbps} = \begin{cases}</p>
+<p>\frac{\text{total_bytes} \times 8}{t_{\text{wait}} / 1000} / 1000 &amp; \text{if } t_{\text{wait}} &gt; 0 \
+0 &amp; \text{otherwise}
+\end{cases}$$</p>
+<hr />
+<h2 id="network-metrics">📡 Network Metrics<a class="headerlink" href="#network-metrics" title="Permanent link">&para;</a></h2>
+<p>Captured before and after API call:</p>
+<div class="arithmatex">\[\text{bytes\_sent} = \text{net}_{\text{after}}[\text{"bytes\_sent"}] - \text{net}_{\text{before}}[\text{"bytes\_sent"}]\]</div>
+<div class="arithmatex">\[\text{bytes\_recv} = \text{net}_{\text{after}}[\text{"bytes\_recv"}] - \text{net}_{\text{before}}[\text{"bytes\_recv"}]\]</div>
+<div class="arithmatex">\[\text{tcp\_retransmits} = \text{net}_{\text{after}}[\text{"tcp\_retransmits"}] - \text{net}_{\text{before}}[\text{"tcp\_retransmits"}]\]</div>
+<p><strong>Note:</strong> For local runs (<span class="arithmatex">\(provider \in \{\text{local}, \text{ollama}\}\)</span>), these are set to 0.</p>
+<hr />
+<h2 id="cpu-during-wait">💻 CPU During Wait<a class="headerlink" href="#cpu-during-wait" title="Permanent link">&para;</a></h2>
+<div class="arithmatex">\[\text{cpu\_percent\_during\_wait} = \begin{cases}
+\text{psutil.cpu\_percent}(interval = t_{\text{wait}} / 1000) &amp; \text{if } t_{\text{wait}} &gt; 0 \\
+0 &amp; \text{otherwise}
+\end{cases}\]</div>
+<hr />
+<h2 id="workflow-aggregation-agentic">🔄 Workflow Aggregation (Agentic)<a class="headerlink" href="#workflow-aggregation-agentic" title="Permanent link">&para;</a></h2>
+<p>For workflows with multiple LLM calls:</p>
+<div class="arithmatex">\[t_{\text{pre,total}} = \sum_{i} t_{\text{pre},i}\]</div>
+<div class="arithmatex">\[t_{\text{wait,total}} = \sum_{i} t_{\text{wait},i}\]</div>
+<div class="arithmatex">\[t_{\text{post,total}} = \sum_{i} t_{\text{post},i}\]</div>
+<div class="arithmatex">\[t_{\text{compute,total}} = \sum_{i} t_{\text{compute},i}\]</div>
+<div class="arithmatex">\[\text{bytes\_sent,total} = \sum_{i} \text{bytes\_sent\_approx}_i\]</div>
+<div class="arithmatex">\[\text{bytes\_recv,total} = \sum_{i} \text{bytes\_recv\_approx}_i\]</div>
+<h3 id="orchestration-cpu">Orchestration CPU<a class="headerlink" href="#orchestration-cpu" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[T_{\text{orchestration}} = T_{\text{workflow}} - t_{\text{compute,total}} - t_{\text{wait,total}}\]</div>
+<div class="arithmatex">\[\text{compute\_time\_ms} = t_{\text{pre,total}} + t_{\text{post,total}} + T_{\text{orchestration}}\]</div>
+<p>Where <span class="arithmatex">\(T_{workflow}\)</span> is the total workflow execution time from start to end.</p>
+<p><strong>Assumption:</strong> <code>preprocess_ms</code> and <code>postprocess_ms</code> are part of orchestration overhead, not model computation.</p>
+<h3 id="workflow-compute-time">Workflow Compute Time<a class="headerlink" href="#workflow-compute-time" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[T_{\text{compute\_total}} = t_{\text{pre,total}} + t_{\text{post,total}} + T_{\text{orchestration}}\]</div>
+<h3 id="effective-throughput">Effective Throughput<a class="headerlink" href="#effective-throughput" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\text{effective\_throughput\_kbps} = \begin{cases}
+\frac{(\text{bytes\_sent,total} + \text{bytes\_recv,total}) \times 8}{t_{\text{wait,total}} / 1000} / 1000 &amp; \text{if } t_{\text{wait,total}} &gt; 0 \\
+0 &amp; \text{otherwise}
+\end{cases}\]</div>
+<hr />
+<h2 id="orchestration-overhead-index-ooi">📈 Orchestration Overhead Index (OOI)<a class="headerlink" href="#orchestration-overhead-index-ooi" title="Permanent link">&para;</a></h2>
+<h3 id="time-based-ooi">Time-Based OOI<a class="headerlink" href="#time-based-ooi" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[OOI_{\text{time}} = \frac{T_{\text{orchestration}}}{T_{\text{total}}}\]</div>
+<h3 id="cpu-based-ooi">CPU-Based OOI<a class="headerlink" href="#cpu-based-ooi" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[OOI_{\text{cpu}} = \frac{T_{\text{orchestration}}}{\text{compute\_time\_ms}}\]</div>
+<p><strong>Interpretation:</strong></p>
+<table>
+<thead>
+<tr>
+<th>OOI Value</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>~0</td>
+<td>Minimal orchestration (linear-like)</td>
+</tr>
+<tr>
+<td>0.1–0.3</td>
+<td>Moderate orchestration</td>
+</tr>
+<tr>
+<td>0.3–0.6</td>
+<td>Heavy agent coordination</td>
+</tr>
+<tr>
+<td>&gt;0.6</td>
+<td>Orchestration-dominated system</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="useful-compute-ratio-ucr">📊 Useful Compute Ratio (UCR)<a class="headerlink" href="#useful-compute-ratio-ucr" title="Permanent link">&para;</a></h2>
+<div class="arithmatex">\[UCR = \frac{t_{\text{compute,total}}}{T_{\text{total}}}\]</div>
+<p><strong>Interpretation:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th>UCR</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cloud</td>
+<td>~0</td>
+<td>No local computation</td>
+</tr>
+<tr>
+<td>Local</td>
+<td>&gt;0</td>
+<td>Local model inference dominates</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="provider-specific-behavior">🏭 Provider-Specific Behavior<a class="headerlink" href="#provider-specific-behavior" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Provider</th>
+<th><span class="arithmatex">\(T_{wait}\)</span></th>
+<th><span class="arithmatex">\(T_{compute}\)</span></th>
+<th><span class="arithmatex">\(T_{orchestration}\)</span></th>
+<th>Network Metrics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cloud (Groq/OpenRouter)</td>
+<td><span class="arithmatex">\(&gt;0\)</span></td>
+<td><span class="arithmatex">\(0\)</span></td>
+<td><span class="arithmatex">\(&gt;0\)</span></td>
+<td>Captured</td>
+</tr>
+<tr>
+<td>Local (llama-cpp)</td>
+<td><span class="arithmatex">\(0\)</span></td>
+<td><span class="arithmatex">\(&gt;0\)</span></td>
+<td><span class="arithmatex">\(&gt;0\)</span></td>
+<td><span class="arithmatex">\(0\)</span></td>
+</tr>
+<tr>
+<td>Ollama</td>
+<td><span class="arithmatex">\(0\)</span></td>
+<td><span class="arithmatex">\(&gt;0\)</span></td>
+<td><span class="arithmatex">\(&gt;0\)</span></td>
+<td><span class="arithmatex">\(0\)</span></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="legacy-compatibility">🔗 Legacy Compatibility<a class="headerlink" href="#legacy-compatibility" title="Permanent link">&para;</a></h2>
+<p>For backward compatibility with existing analyses:</p>
+<div class="arithmatex">\[\text{api\_latency\_ms} = t_{\text{wait,total}}\]</div>
+<div class="arithmatex">\[\text{compute\_time\_ms} = T_{\text{compute\_total}}\]</div>
+<hr />
+<h2 id="validation-checks">🧪 Validation Checks<a class="headerlink" href="#validation-checks" title="Permanent link">&para;</a></h2>
+<h3 id="time-consistency">Time Consistency<a class="headerlink" href="#time-consistency" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[T_{total} \stackrel{?}{=} T_{wait} + T_{compute} + T_{orchestration}\]</div>
+<h3 id="workflow-consistency">Workflow Consistency<a class="headerlink" href="#workflow-consistency" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[T_{workflow} \geq total\_wait + total\_compute\]</div>
+<h3 id="network-consistency-cloud">Network Consistency (Cloud)<a class="headerlink" href="#network-consistency-cloud" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[bytes\_sent \stackrel{?}{&gt;} 0\]</div>
+<div class="arithmatex">\[bytes\_recv \stackrel{?}{&gt;} 0\]</div>
+<h3 id="network-consistency-local">Network Consistency (Local)<a class="headerlink" href="#network-consistency-local" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[bytes\_sent \stackrel{?}{=} 0\]</div>
+<div class="arithmatex">\[bytes\_recv \stackrel{?}{=} 0\]</div>
+<h3 id="compute-consistency-cloud">Compute Consistency (Cloud)<a class="headerlink" href="#compute-consistency-cloud" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[local\_compute\_ms \stackrel{?}{=} 0\]</div>
+<h3 id="compute-consistency-local">Compute Consistency (Local)<a class="headerlink" href="#compute-consistency-local" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[local\_compute\_ms \stackrel{?}{&gt;} 0\]</div>
+<hr />
+<h2 id="implementation-mapping">🔧 Implementation Mapping<a class="headerlink" href="#implementation-mapping" title="Permanent link">&para;</a></h2>
+<p>This section maps mathematical notation to actual code variables in A-LEMS.</p>
+<h3 id="phase-variables">Phase Variables<a class="headerlink" href="#phase-variables" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Mathematical Notation</th>
+<th>Code Variable</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(t_{\text{pre}}\)</span></td>
+<td><code>preprocess_ms</code></td>
+<td><code>_call_llm()</code> in <code>agentic.py</code>, <code>linear.py</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_{\text{wait}}\)</span></td>
+<td><code>non_local_ms</code></td>
+<td><code>_call_llm()</code> in <code>agentic.py</code>, <code>linear.py</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_{\text{compute}}\)</span></td>
+<td><code>local_compute_ms</code></td>
+<td><code>_call_llm()</code> in <code>agentic.py</code>, <code>linear.py</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_{\text{post}}\)</span></td>
+<td><code>postprocess_ms</code></td>
+<td><code>_call_llm()</code> in <code>agentic.py</code>, <code>linear.py</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_{\text{total}}\)</span></td>
+<td><code>total_time_ms</code></td>
+<td><code>_call_llm()</code> return value</td>
+</tr>
+</tbody>
+</table>
+<h3 id="workflow-aggregation">Workflow Aggregation<a class="headerlink" href="#workflow-aggregation" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Mathematical Notation</th>
+<th>Code Variable</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(t_{\text{pre,total}}\)</span></td>
+<td><code>total_pre_ms</code></td>
+<td><code>agentic.py</code> aggregation loop</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_{\text{wait,total}}\)</span></td>
+<td><code>total_workflow_non_local_ms</code></td>
+<td><code>agentic.py</code> aggregation loop</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_{\text{post,total}}\)</span></td>
+<td><code>total_post_ms</code></td>
+<td><code>agentic.py</code> aggregation loop</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_{\text{compute,total}}\)</span></td>
+<td><code>total_llm_compute_ms</code></td>
+<td><code>agentic.py</code> aggregation loop</td>
+</tr>
+</tbody>
+</table>
+<h3 id="workflow-level-metrics">Workflow-Level Metrics<a class="headerlink" href="#workflow-level-metrics" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Mathematical Notation</th>
+<th>Code Variable</th>
+<th>Table</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(T_{\text{workflow}}\)</span></td>
+<td><code>total_time_ms</code> (workflow)</td>
+<td><code>runs</code> table</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(T_{\text{orchestration}}\)</span></td>
+<td><code>orchestration_cpu_ms</code></td>
+<td><code>runs</code> table</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(T_{\text{compute\_total}}\)</span></td>
+<td><code>compute_time_ms</code></td>
+<td><code>runs</code> table</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(t_{\text{wait,total}}\)</span></td>
+<td><code>total_workflow_non_local_ms</code></td>
+<td><code>runs</code> table</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\text{bytes\_sent,total}\)</span></td>
+<td><code>total_bytes_sent</code> → <code>bytes_sent</code></td>
+<td><code>runs</code> table</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\text{bytes\_recv,total}\)</span></td>
+<td><code>total_bytes_recv</code> → <code>bytes_recv</code></td>
+<td><code>runs</code> table</td>
+</tr>
+</tbody>
+</table>
+<h3 id="database-storage">Database Storage<a class="headerlink" href="#database-storage" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Table</th>
+<th>Column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Per-call phases</td>
+<td><code>llm_interactions</code></td>
+<td><code>preprocess_ms</code>, <code>non_local_ms</code>, <code>local_compute_ms</code>, <code>postprocess_ms</code></td>
+</tr>
+<tr>
+<td>Workflow aggregation</td>
+<td><code>runs</code></td>
+<td><code>orchestration_cpu_ms</code>, <code>compute_time_ms</code>, <code>bytes_sent</code>, <code>bytes_recv</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="derived-metrics-computed-in-analysis">Derived Metrics (Computed in Analysis)<a class="headerlink" href="#derived-metrics-computed-in-analysis" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Mathematical Notation</th>
+<th>Formula</th>
+<th>Calculation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(OOI_{\text{time}}\)</span></td>
+<td><span class="arithmatex">\(\frac{T_{\text{orchestration}}}{T_{\text{total}}}\)</span></td>
+<td><code>orchestration_cpu_ms / total_time_ms</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(OOI_{\text{cpu}}\)</span></td>
+<td><span class="arithmatex">\(\frac{T_{\text{orchestration}}}{T_{\text{compute\_total}}}\)</span></td>
+<td><code>orchestration_cpu_ms / compute_time_ms</code></td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(UCR\)</span></td>
+<td><span class="arithmatex">\(\frac{t_{\text{compute,total}}}{T_{\text{total}}}\)</span></td>
+<td><code>total_llm_compute_ms / total_time_ms</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="failure-handling">⚠️ Failure Handling<a class="headerlink" href="#failure-handling" title="Permanent link">&para;</a></h2>
+<p>Failed LLM calls are still recorded:</p>
+<div class="arithmatex">\[status = \text{"failed"}\]</div>
+<div class="arithmatex">\[error\_message = \text{str}(e)\]</div>
+<div class="arithmatex">\[T_{total} = (t_{error} - t_0) \times 1000\]</div>
+<div class="arithmatex">\[preprocess\_ms = (t_1 - t_0) \times 1000 \text{ (if available)}\]</div>
+<hr />
+<h2 id="empirical-results-preliminary">📊 Empirical Results (Preliminary)<a class="headerlink" href="#empirical-results-preliminary" title="Permanent link">&para;</a></h2>
+<p>The methodology described above has been validated with initial experiments. The following results are from a small sample (25-30 runs per configuration) and demonstrate the types of insights A-LEMS can provide.</p>
+<p><strong>Note:</strong> These are illustrative results from a limited dataset. Full-scale experiments with statistical significance will be conducted for publication.</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Provider</th>
+<th>OOI_time</th>
+<th>OOI_cpu</th>
+<th>UCR</th>
+<th>Network Ratio</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Agentic</strong></td>
+<td>cloud</td>
+<td>0.065</td>
+<td>0.92</td>
+<td>0.0</td>
+<td>0.41</td>
+</tr>
+<tr>
+<td><strong>Agentic</strong></td>
+<td>local</td>
+<td>0.008</td>
+<td>1.00</td>
+<td>0.49</td>
+<td>0.0</td>
+</tr>
+<tr>
+<td><strong>Linear</strong></td>
+<td>cloud</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>0.33</td>
+</tr>
+<tr>
+<td><strong>Linear</strong></td>
+<td>local</td>
+<td>0.0</td>
+<td>0.0</td>
+<td>0.47</td>
+<td>0.0</td>
+</tr>
+</tbody>
+</table>
+<h3 id="preliminary-interpretation">Preliminary Interpretation<a class="headerlink" href="#preliminary-interpretation" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Agentic workflows appear to consume nearly all local CPU resources for orchestration</strong> (OOI_cpu ≈ 0.92-1.00)</li>
+<li>This overhead accounts for <strong>1-7% of total execution time</strong> (OOI_time)</li>
+<li><strong>Cloud workloads show significant network waiting time</strong> (33-41% of total time)</li>
+</ul>
+<h3 id="next-steps">Next Steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h3>
+<p>Full-scale experiments will:
+- Increase statistical power with 100+ runs per configuration
+- Vary task complexity (simple, multi-step, reasoning)
+- Compare across different model sizes and providers
+- Analyze scaling behavior with increasing steps/tools</p>
+<p>See <a href="../publications/">Publication Roadmap</a> for detailed plan.</p>
+<h2 id="references">📚 References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ol>
+<li>A-LEMS Technical Documentation: <a href="../../developer-guide/01-architecture/">System Architecture</a></li>
+<li>A-LEMS Database Schema: <a href="../../developer-guide/03-database-schema/">Database Design</a></li>
+<li>Orchestration Tax Analysis: <a href="../mathematical-derivations/">Mathematical Derivations</a>   # APPEND TO: docs-src/mkdocs/source/research/05-llm-measurement-methodology.md</li>
+</ol>
+<h1 id="chunk-4-add-ttfttpot-section">Chunk 4: Add TTFT/TPOT section<a class="headerlink" href="#chunk-4-add-ttfttpot-section" title="Permanent link">&para;</a></h1>
+<h1 id="required-by-mpc-4-new-derived-metrics-need-a-doc-section">Required by MPC-4 — new derived metrics need a doc section.<a class="headerlink" href="#required-by-mpc-4-new-derived-metrics-need-a-doc-section" title="Permanent link">&para;</a></h1>
+<h1 id="_1"><a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<h1 id="cp-this-file-then-cat-patch_5_doc_sectionmd-docs-srcmkdocssourceresearch05-llm-measurement-methodologymd">cp this file then: cat PATCH_5_doc_section.md &gt;&gt; docs-src/mkdocs/source/research/05-llm-measurement-methodology.md<a class="headerlink" href="#cp-this-file-then-cat-patch_5_doc_sectionmd-docs-srcmkdocssourceresearch05-llm-measurement-methodologymd" title="Permanent link">&para;</a></h1>
+<hr />
+<h2 id="streaming-metrics-ttft-and-tpot">⏱️ Streaming Metrics: TTFT and TPOT<a class="headerlink" href="#streaming-metrics-ttft-and-tpot" title="Permanent link">&para;</a></h2>
+<h3 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h3>
+<p>A-LEMS captures two streaming latency metrics for all LLM calls via the
+OpenAI-compatible streaming API and llama-cpp-python <code>stream=True</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Column</th>
+<th>Provenance</th>
+<th>Method ID</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Time to First Token</td>
+<td><code>ttft_ms</code></td>
+<td>MEASURED</td>
+<td><code>ttft_measurement_v1</code></td>
+</tr>
+<tr>
+<td>Time Per Output Token</td>
+<td><code>tpot_ms</code></td>
+<td>MEASURED</td>
+<td><code>tpot_measurement_v1</code></td>
+</tr>
+<tr>
+<td>Token Throughput</td>
+<td><code>token_throughput</code></td>
+<td>CALCULATED</td>
+<td><code>tpot_measurement_v1</code></td>
+</tr>
+<tr>
+<td>Streaming Enabled Flag</td>
+<td><code>streaming_enabled</code></td>
+<td>SYSTEM</td>
+<td>—</td>
+</tr>
+<tr>
+<td>First Token Epoch ns</td>
+<td><code>first_token_time_ns</code></td>
+<td>MEASURED</td>
+<td><code>ttft_measurement_v1</code></td>
+</tr>
+<tr>
+<td>Last Token Epoch ns</td>
+<td><code>last_token_time_ns</code></td>
+<td>MEASURED</td>
+<td><code>ttft_measurement_v1</code></td>
+</tr>
+<tr>
+<td>Prefill Energy</td>
+<td><code>prefill_energy_uj</code></td>
+<td>CALCULATED</td>
+<td><code>energy_attribution_v1</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="measurement-definitions">Measurement Definitions<a class="headerlink" href="#measurement-definitions" title="Permanent link">&para;</a></h3>
+<p><strong>Time to First Token (TTFT)</strong></p>
+<div class="arithmatex">\[TTFT = t_{first\_token} - t_{request\_start}\]</div>
+<p>Where <span class="arithmatex">\(t_{request\_start}\)</span> is <code>time.time_ns()</code> captured immediately before
+<code>requests.post(..., stream=True)</code> is called, and <span class="arithmatex">\(t_{first\_token}\)</span> is
+<code>time.time_ns()</code> captured on receipt of the first non-empty SSE delta chunk.</p>
+<p>TTFT measures the combined latency of: network round-trip + remote model
+prefill (KV cache population for the full prompt). It is the dominant
+perceived latency for interactive use.</p>
+<p><strong>Time Per Output Token (TPOT)</strong></p>
+<div class="arithmatex">\[TPOT = \frac{t_{last\_token} - t_{first\_token}}{\max(1,\ N_{tokens} - 1)}\]</div>
+<p>Where <span class="arithmatex">\(N_{tokens}\)</span> is taken from the API <code>usage.completion_tokens</code> field when
+available (authoritative), falling back to SSE chunk count. The denominator
+is <span class="arithmatex">\(N - 1\)</span> because the first token is already accounted for in TTFT.</p>
+<p>TPOT measures decode throughput — how smoothly the model generates after
+prefill. Lower TPOT = faster generation per token.</p>
+<p><strong>Token Throughput</strong></p>
+<div class="arithmatex">\[\text{throughput} = \frac{N_{tokens}}{(t_{last\_token} - t_{first\_token})\ /\ 10^9}\ \ \text{tokens/sec}\]</div>
+<p>Decode-phase tokens per second. Excludes TTFT (prefill) from denominator.</p>
+<hr />
+<h3 id="phase-relationship">Phase Relationship<a class="headerlink" href="#phase-relationship" title="Permanent link">&para;</a></h3>
+<p>TTFT and TPOT map to the existing four-phase model as follows:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>t_request_start
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    │
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>    ├── preprocess_ms   (prompt serialisation — before HTTP call)
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    │
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    ├── [HTTP call starts — this is t0 for TTFT]
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    │       │
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    │       ├── network RTT + remote prefill
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    │       │
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>    │       ├── first token arrives → TTFT measured here
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    │       │
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>    │       ├── decode tokens stream in → TPOT measured per-token
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>    │       │
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>    │       └── last token / [DONE] received
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>    │
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>    ├── postprocess_ms  (response assembly, parsing)
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>    │
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>    └── t_end
+</code></pre></div>
+<p>For <strong>cloud providers</strong> (Groq, OpenAI): TTFT ≈ <code>non_local_ms</code> to first token.
+For <strong>local providers</strong> (Ollama, llama.cpp): TTFT ≈ <code>local_compute_ms</code> to first token.</p>
+<hr />
+<h3 id="non-streaming-fallback">Non-Streaming Fallback<a class="headerlink" href="#non-streaming-fallback" title="Permanent link">&para;</a></h3>
+<p>Adapters that do not support streaming (Anthropic, Gemini) set:
+- <code>streaming_enabled = 0</code>
+- <code>ttft_ms = NULL</code>
+- <code>tpot_ms = NULL</code></p>
+<p>These are excluded from TTFT/TPOT analysis queries. Filter with:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">streaming_enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">AND</span><span class="w"> </span><span class="n">ttft_ms</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+</code></pre></div></p>
+<hr />
+<h3 id="groq-vs-nvidia-comparison">Groq vs NVIDIA Comparison<a class="headerlink" href="#groq-vs-nvidia-comparison" title="Permanent link">&para;</a></h3>
+<p>TTFT and TPOT are the primary metrics for the Groq vs NVIDIA inference
+comparison. Groq's LPU architecture is optimised for low TPOT (high decode
+throughput). NVIDIA GPU inference typically has lower TTFT on large prompts
+due to parallel prefill. The metrics are stored per-interaction in
+<code>llm_interactions</code> enabling per-model, per-prompt-length analysis.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "toc.integrate", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

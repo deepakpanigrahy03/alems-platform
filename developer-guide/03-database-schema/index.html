@@ -1,0 +1,3731 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agentic LLM Energy Measurement System">
+      
+      
+        <meta name="author" content="A-LEMS Research">
+      
+      
+        <link rel="canonical" href="https://deepakpanigrahy03.github.io/alems-platform/developer-guide/03-database-schema/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Database Schema - A-LEMS Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#database-schema" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="A-LEMS Documentation" class="md-header__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            A-LEMS Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Database Schema
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/platform-detection/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/architecture/" class="md-tabs__link">
+          
+  
+  
+  Developer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../research/measurement-methodology/" class="md-tabs__link">
+          
+  
+  
+  Research
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/platform-matrix/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/researcher-journey/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/adding-documentation/" class="md-tabs__link">
+          
+  
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="A-LEMS Documentation" class="md-nav__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    A-LEMS Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/api-keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/new-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    New Machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/platform-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/measurement-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/energy-tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Tiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/config-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/database-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/schema-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/energy-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-platform/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/model-factory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Factory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/config-hierarchy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration Hierarchy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/kperf-pmu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    kperf PMU
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/retry-study/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Study Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/engineering-standards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engineering Standards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/developer-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/measurement-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/orchestration-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/mathematical-derivations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mathematical Derivations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/energy-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/phase-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/energy-readers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Readers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/system-measurement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Measurement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/derived-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Derived Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/normalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Normalization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/measurement-boundary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/run-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/experiment-classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/goal-execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Goal Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/output-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/tool-failure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Failure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/tool-instrumentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Instrumentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/retry-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/network-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Network Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/gpu-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/power-rail-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power Rail Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/unified-energy-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unified Energy Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/cpu-idle-states/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU Idle States
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/cooling-subsystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cooling Subsystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/arm-pmu-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM PMU Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/outlier-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outlier Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/llm-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/publications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/platform-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/db-path-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DB Path Resolution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data-dictionary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Dictionary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/orchestration-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/researcher-journey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Researcher Journey
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/administrator-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrator Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/contributor-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributor Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/adding-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="database-schema">Database Schema<a class="headerlink" href="#database-schema" title="Permanent link">&para;</a></h1>
+<p>This document describes the core database schema of A-LEMS, focusing on the main tables every developer should understand.</p>
+<hr />
+<h2 id="schema-overview">📊 Schema Overview<a class="headerlink" href="#schema-overview" title="Permanent link">&para;</a></h2>
+<p>A-LEMS uses a <strong>relational database</strong> with 10+ tables to store complete data lineage. The schema is designed for:</p>
+<ul>
+<li><strong>Research reproducibility</strong> - Complete provenance of all measurements</li>
+<li><strong>ML readiness</strong> - Flattened views for model training</li>
+<li><strong>Performance</strong> - Indexed for fast queries</li>
+<li><strong>Extensibility</strong> - Easy to add new metrics</li>
+</ul>
+<p><img alt="Database Schema Diagram" src="../../assets/diagrams/schema.svg" /></p>
+<p><em>Auto-generated from live database. Always up-to-date.</em></p>
+<hr />
+<h2 id="core-tables">🗄️ Core Tables<a class="headerlink" href="#core-tables" title="Permanent link">&para;</a></h2>
+<h3 id="1-experiments">1. <code>experiments</code><a class="headerlink" href="#1-experiments" title="Permanent link">&para;</a></h3>
+<p>Stores metadata for each experiment session.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>exp_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>TEXT</td>
+<td>Experiment name</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>TEXT</td>
+<td>Experiment description</td>
+</tr>
+<tr>
+<td><code>workflow_type</code></td>
+<td>TEXT</td>
+<td>'linear', 'agentic', or 'comparison'</td>
+</tr>
+<tr>
+<td><code>model_name</code></td>
+<td>TEXT</td>
+<td>LLM model used</td>
+</tr>
+<tr>
+<td><code>provider</code></td>
+<td>TEXT</td>
+<td>'cloud' or 'local'</td>
+</tr>
+<tr>
+<td><code>task_name</code></td>
+<td>TEXT</td>
+<td>Task identifier</td>
+</tr>
+<tr>
+<td><code>country_code</code></td>
+<td>TEXT</td>
+<td>Grid carbon intensity region</td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>When experiment started</td>
+</tr>
+<tr>
+<td><code>group_id</code></td>
+<td>TEXT</td>
+<td>Session identifier</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>TEXT</td>
+<td>'pending', 'running', 'completed', 'failed'</td>
+</tr>
+<tr>
+<td><code>started_at</code></td>
+<td>TIMESTAMP</td>
+<td>Actual start time</td>
+</tr>
+<tr>
+<td><code>completed_at</code></td>
+<td>TIMESTAMP</td>
+<td>Actual end time</td>
+</tr>
+<tr>
+<td><code>error_message</code></td>
+<td>TEXT</td>
+<td>Error if failed</td>
+</tr>
+<tr>
+<td><code>runs_completed</code></td>
+<td>INTEGER</td>
+<td>Number of successful runs</td>
+</tr>
+<tr>
+<td><code>runs_total</code></td>
+<td>INTEGER</td>
+<td>Total planned runs</td>
+</tr>
+<tr>
+<td><code>optimization_enabled</code></td>
+<td>INTEGER</td>
+<td>0/1 flag</td>
+</tr>
+<tr>
+<td><code>hw_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to hardware_config</td>
+</tr>
+<tr>
+<td><code>env_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to environment_config</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Foreign Keys:</strong>
+- <code>hw_id</code> → <code>hardware_config.hw_id</code>
+- <code>env_id</code> → <code>environment_config.env_id</code></p>
+<hr />
+<h3 id="2-hardware_config">2. <code>hardware_config</code><a class="headerlink" href="#2-hardware_config" title="Permanent link">&para;</a></h3>
+<p>Stores hardware fingerprints for reproducibility across different machines.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hw_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>hardware_hash</code></td>
+<td>TEXT</td>
+<td>Unique hardware fingerprint</td>
+</tr>
+<tr>
+<td><code>hostname</code></td>
+<td>TEXT</td>
+<td>Machine hostname</td>
+</tr>
+<tr>
+<td><code>cpu_model</code></td>
+<td>TEXT</td>
+<td>CPU model name</td>
+</tr>
+<tr>
+<td><code>cpu_cores</code></td>
+<td>INTEGER</td>
+<td>Physical cores</td>
+</tr>
+<tr>
+<td><code>cpu_threads</code></td>
+<td>INTEGER</td>
+<td>Logical threads</td>
+</tr>
+<tr>
+<td><code>ram_gb</code></td>
+<td>REAL</td>
+<td>Total RAM in GB</td>
+</tr>
+<tr>
+<td><code>kernel_version</code></td>
+<td>TEXT</td>
+<td>Linux kernel version</td>
+</tr>
+<tr>
+<td><code>microcode_version</code></td>
+<td>TEXT</td>
+<td>CPU microcode</td>
+</tr>
+<tr>
+<td><code>rapl_domains</code></td>
+<td>TEXT</td>
+<td>JSON array of available RAPL domains</td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>Record creation time</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Additional Hardware Details (if available):</strong>
+- <code>cpu_architecture</code> - x86_64, arm64, etc.
+- <code>cpu_vendor</code> - GenuineIntel, AMD, etc.
+- <code>cpu_family</code> - CPU family ID
+- <code>cpu_model_id</code> - CPU model ID
+- <code>cpu_stepping</code> - CPU stepping
+- <code>has_avx2</code>, <code>has_avx512</code>, <code>has_vmx</code> - CPU feature flags
+- <code>gpu_model</code>, <code>gpu_driver</code>, <code>gpu_count</code> - GPU information
+- <code>gpu_power_available</code> - GPU power monitoring support
+- <code>rapl_has_dram</code>, <code>rapl_has_uncore</code> - RAPL capabilities
+- <code>system_manufacturer</code>, <code>system_product</code>, <code>system_type</code> - System info
+- <code>virtualization_type</code> - VM detection</p>
+<hr />
+<h3 id="3-environment_config">3. <code>environment_config</code><a class="headerlink" href="#3-environment_config" title="Permanent link">&para;</a></h3>
+<p>Stores software environment for reproducibility.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>env_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>env_hash</code></td>
+<td>TEXT</td>
+<td>Unique environment fingerprint</td>
+</tr>
+<tr>
+<td><code>python_version</code></td>
+<td>TEXT</td>
+<td>Python version</td>
+</tr>
+<tr>
+<td><code>python_implementation</code></td>
+<td>TEXT</td>
+<td>CPython, PyPy, etc.</td>
+</tr>
+<tr>
+<td><code>os_name</code></td>
+<td>TEXT</td>
+<td>Linux, Darwin, Windows</td>
+</tr>
+<tr>
+<td><code>os_version</code></td>
+<td>TEXT</td>
+<td>OS version string</td>
+</tr>
+<tr>
+<td><code>kernel_version</code></td>
+<td>TEXT</td>
+<td>Kernel release</td>
+</tr>
+<tr>
+<td><code>git_commit</code></td>
+<td>TEXT</td>
+<td>Git commit hash</td>
+</tr>
+<tr>
+<td><code>git_branch</code></td>
+<td>TEXT</td>
+<td>Git branch name</td>
+</tr>
+<tr>
+<td><code>git_dirty</code></td>
+<td>BOOLEAN</td>
+<td>Uncommitted changes present</td>
+</tr>
+<tr>
+<td><code>numpy_version</code></td>
+<td>TEXT</td>
+<td>NumPy version if installed</td>
+</tr>
+<tr>
+<td><code>torch_version</code></td>
+<td>TEXT</td>
+<td>PyTorch version if installed</td>
+</tr>
+<tr>
+<td><code>transformers_version</code></td>
+<td>TEXT</td>
+<td>Transformers version if installed</td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>TIMESTAMP</td>
+<td>Record creation time</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="4-runs">4. <code>runs</code><a class="headerlink" href="#4-runs" title="Permanent link">&para;</a></h3>
+<p>Core table storing all experiment run data (80+ columns). This is the main fact table.</p>
+<table>
+<thead>
+<tr>
+<th>Column Group</th>
+<th>Description</th>
+<th>Example Columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Identifiers</strong></td>
+<td>Foreign keys and run info</td>
+<td><code>run_id</code>, <code>exp_id</code>, <code>hw_id</code>, <code>baseline_id</code>, <code>run_number</code>, <code>workflow_type</code></td>
+</tr>
+<tr>
+<td><strong>Timing</strong></td>
+<td>Nanosecond precision timestamps</td>
+<td><code>start_time_ns</code>, <code>end_time_ns</code>, <code>duration_ns</code></td>
+</tr>
+<tr>
+<td><strong>Energy</strong></td>
+<td>Energy in microjoules</td>
+<td><code>total_energy_uj</code>, <code>dynamic_energy_uj</code>, <code>pkg_energy_uj</code>, <code>core_energy_uj</code></td>
+</tr>
+<tr>
+<td><strong>Performance</strong></td>
+<td>CPU performance counters</td>
+<td><code>instructions</code>, <code>cycles</code>, <code>ipc</code>, <code>cache_misses</code></td>
+</tr>
+<tr>
+<td><strong>Scheduler</strong></td>
+<td>OS scheduling metrics</td>
+<td><code>context_switches</code>, <code>thread_migrations</code>, <code>run_queue_length</code></td>
+</tr>
+<tr>
+<td><strong>Thermal</strong></td>
+<td>Temperature readings</td>
+<td><code>package_temp_celsius</code>, <code>start_temp_c</code>, <code>max_temp_c</code></td>
+</tr>
+<tr>
+<td><strong>C-States</strong></td>
+<td>CPU idle states</td>
+<td><code>c2_time_seconds</code>, <code>c3_time_seconds</code>, <code>c6_time_seconds</code></td>
+</tr>
+<tr>
+<td><strong>Memory</strong></td>
+<td>Memory usage</td>
+<td><code>rss_memory_mb</code>, <code>vms_memory_mb</code></td>
+</tr>
+<tr>
+<td><strong>Tokens</strong></td>
+<td>LLM token counts</td>
+<td><code>total_tokens</code>, <code>prompt_tokens</code>, <code>completion_tokens</code></td>
+</tr>
+<tr>
+<td><strong>Agentic</strong></td>
+<td>Agent-specific metrics</td>
+<td><code>planning_time_ms</code>, <code>execution_time_ms</code>, <code>llm_calls</code>, <code>tool_calls</code></td>
+</tr>
+<tr>
+<td><strong>Sustainability</strong></td>
+<td>Environmental impact</td>
+<td><code>carbon_g</code>, <code>water_ml</code>, <code>methane_mg</code></td>
+</tr>
+<tr>
+<td><strong>Efficiency</strong></td>
+<td>Derived metrics</td>
+<td><code>energy_per_instruction</code>, <code>energy_per_token</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Foreign Keys:</strong>
+- <code>exp_id</code> → <code>experiments.exp_id</code>
+- <code>hw_id</code> → <code>hardware_config.hw_id</code>
+- <code>baseline_id</code> → <code>idle_baselines.baseline_id</code></p>
+<hr />
+<h3 id="5-idle_baselines">5. <code>idle_baselines</code><a class="headerlink" href="#5-idle_baselines" title="Permanent link">&para;</a></h3>
+<p>Stores idle power measurements used for baseline subtraction.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>baseline_id</code></td>
+<td>TEXT</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>REAL</td>
+<td>Measurement timestamp</td>
+</tr>
+<tr>
+<td><code>package_power_watts</code></td>
+<td>REAL</td>
+<td>Package idle power</td>
+</tr>
+<tr>
+<td><code>core_power_watts</code></td>
+<td>REAL</td>
+<td>Core idle power</td>
+</tr>
+<tr>
+<td><code>uncore_power_watts</code></td>
+<td>REAL</td>
+<td>Uncore idle power</td>
+</tr>
+<tr>
+<td><code>dram_power_watts</code></td>
+<td>REAL</td>
+<td>DRAM idle power</td>
+</tr>
+<tr>
+<td><code>duration_seconds</code></td>
+<td>INTEGER</td>
+<td>Measurement duration</td>
+</tr>
+<tr>
+<td><code>sample_count</code></td>
+<td>INTEGER</td>
+<td>Number of samples</td>
+</tr>
+<tr>
+<td><code>package_std</code></td>
+<td>REAL</td>
+<td>Standard deviation</td>
+</tr>
+<tr>
+<td><code>core_std</code></td>
+<td>REAL</td>
+<td>Standard deviation</td>
+</tr>
+<tr>
+<td><code>uncore_std</code></td>
+<td>REAL</td>
+<td>Standard deviation</td>
+</tr>
+<tr>
+<td><code>dram_std</code></td>
+<td>REAL</td>
+<td>Standard deviation</td>
+</tr>
+<tr>
+<td><code>governor</code></td>
+<td>TEXT</td>
+<td>CPU governor during measurement</td>
+</tr>
+<tr>
+<td><code>turbo</code></td>
+<td>TEXT</td>
+<td>Turbo boost status</td>
+</tr>
+<tr>
+<td><code>background_cpu</code></td>
+<td>REAL</td>
+<td>Background CPU usage</td>
+</tr>
+<tr>
+<td><code>process_count</code></td>
+<td>INTEGER</td>
+<td>Running processes</td>
+</tr>
+<tr>
+<td><code>method</code></td>
+<td>TEXT</td>
+<td>Measurement method</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="sample-tables">📈 Sample Tables<a class="headerlink" href="#sample-tables" title="Permanent link">&para;</a></h2>
+<h3 id="6-energy_samples">6. <code>energy_samples</code><a class="headerlink" href="#6-energy_samples" title="Permanent link">&para;</a></h3>
+<p>High-frequency (100Hz) RAPL samples.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sample_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to runs</td>
+</tr>
+<tr>
+<td><code>timestamp_ns</code></td>
+<td>INTEGER</td>
+<td>Nanosecond timestamp</td>
+</tr>
+<tr>
+<td><code>pkg_energy_uj</code></td>
+<td>INTEGER</td>
+<td>Package energy (µJ)</td>
+</tr>
+<tr>
+<td><code>core_energy_uj</code></td>
+<td>INTEGER</td>
+<td>Core energy (µJ)</td>
+</tr>
+<tr>
+<td><code>uncore_energy_uj</code></td>
+<td>INTEGER</td>
+<td>Uncore energy (µJ)</td>
+</tr>
+<tr>
+<td><code>dram_energy_uj</code></td>
+<td>INTEGER</td>
+<td>DRAM energy (µJ)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Index:</strong> <code>idx_energy_run_time</code> on <code>(run_id, timestamp_ns)</code></p>
+<hr />
+<h3 id="7-cpu_samples">7. <code>cpu_samples</code><a class="headerlink" href="#7-cpu_samples" title="Permanent link">&para;</a></h3>
+<p>10Hz CPU telemetry from turbostat.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sample_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to runs</td>
+</tr>
+<tr>
+<td><code>timestamp_ns</code></td>
+<td>INTEGER</td>
+<td>Nanosecond timestamp</td>
+</tr>
+<tr>
+<td><code>cpu_util_percent</code></td>
+<td>REAL</td>
+<td>CPU utilization</td>
+</tr>
+<tr>
+<td><code>cpu_busy_mhz</code></td>
+<td>REAL</td>
+<td>Busy frequency</td>
+</tr>
+<tr>
+<td><code>cpu_avg_mhz</code></td>
+<td>REAL</td>
+<td>Average frequency</td>
+</tr>
+<tr>
+<td><code>c1_residency</code> to <code>c10_residency</code></td>
+<td>REAL</td>
+<td>C-state residency percentages</td>
+</tr>
+<tr>
+<td><code>package_power</code></td>
+<td>REAL</td>
+<td>Package power (W)</td>
+</tr>
+<tr>
+<td><code>dram_power</code></td>
+<td>REAL</td>
+<td>DRAM power (W)</td>
+</tr>
+<tr>
+<td><code>gpu_rc6</code></td>
+<td>REAL</td>
+<td>GPU RC6 residency</td>
+</tr>
+<tr>
+<td><code>package_temp</code></td>
+<td>REAL</td>
+<td>Package temperature (°C)</td>
+</tr>
+<tr>
+<td><code>ipc</code></td>
+<td>REAL</td>
+<td>Instructions per cycle</td>
+</tr>
+<tr>
+<td><code>extra_metrics_json</code></td>
+<td>TEXT</td>
+<td>JSON blob for additional metrics</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="8-interrupt_samples">8. <code>interrupt_samples</code><a class="headerlink" href="#8-interrupt_samples" title="Permanent link">&para;</a></h3>
+<p>10Hz interrupt rate samples.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sample_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to runs</td>
+</tr>
+<tr>
+<td><code>timestamp_ns</code></td>
+<td>INTEGER</td>
+<td>Nanosecond timestamp</td>
+</tr>
+<tr>
+<td><code>interrupts_per_sec</code></td>
+<td>REAL</td>
+<td>Interrupt rate</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="9-thermal_samples">9. <code>thermal_samples</code><a class="headerlink" href="#9-thermal_samples" title="Permanent link">&para;</a></h3>
+<p>1Hz temperature samples from all thermal zones.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sample_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to runs</td>
+</tr>
+<tr>
+<td><code>timestamp_ns</code></td>
+<td>INTEGER</td>
+<td>Nanosecond timestamp</td>
+</tr>
+<tr>
+<td><code>sample_time_s</code></td>
+<td>REAL</td>
+<td>Seconds since run start</td>
+</tr>
+<tr>
+<td><code>cpu_temp</code></td>
+<td>REAL</td>
+<td>CPU temperature (°C)</td>
+</tr>
+<tr>
+<td><code>system_temp</code></td>
+<td>REAL</td>
+<td>System temperature (°C)</td>
+</tr>
+<tr>
+<td><code>wifi_temp</code></td>
+<td>REAL</td>
+<td>WiFi temperature (°C)</td>
+</tr>
+<tr>
+<td><code>throttle_event</code></td>
+<td>INTEGER</td>
+<td>Throttling detected (0/1)</td>
+</tr>
+<tr>
+<td><code>all_zones_json</code></td>
+<td>TEXT</td>
+<td>JSON of all thermal zones</td>
+</tr>
+<tr>
+<td><code>sensor_count</code></td>
+<td>INTEGER</td>
+<td>Number of sensors</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="event-tables">🧩 Event Tables<a class="headerlink" href="#event-tables" title="Permanent link">&para;</a></h2>
+<h3 id="10-orchestration_events">10. <code>orchestration_events</code><a class="headerlink" href="#10-orchestration_events" title="Permanent link">&para;</a></h3>
+<p>Tracks agentic workflow steps for tax calculation.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>event_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>run_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to runs</td>
+</tr>
+<tr>
+<td><code>step_index</code></td>
+<td>INTEGER</td>
+<td>Step number</td>
+</tr>
+<tr>
+<td><code>phase</code></td>
+<td>TEXT</td>
+<td>'planning', 'execution', 'synthesis'</td>
+</tr>
+<tr>
+<td><code>event_type</code></td>
+<td>TEXT</td>
+<td>'llm_call', 'tool_call', 'waiting'</td>
+</tr>
+<tr>
+<td><code>start_time_ns</code></td>
+<td>INTEGER</td>
+<td>Event start</td>
+</tr>
+<tr>
+<td><code>end_time_ns</code></td>
+<td>INTEGER</td>
+<td>Event end</td>
+</tr>
+<tr>
+<td><code>duration_ns</code></td>
+<td>INTEGER</td>
+<td>Event duration</td>
+</tr>
+<tr>
+<td><code>power_watts</code></td>
+<td>REAL</td>
+<td>Power during event</td>
+</tr>
+<tr>
+<td><code>cpu_util_percent</code></td>
+<td>REAL</td>
+<td>CPU utilization</td>
+</tr>
+<tr>
+<td><code>interrupt_rate</code></td>
+<td>REAL</td>
+<td>Interrupt rate</td>
+</tr>
+<tr>
+<td><code>event_energy_uj</code></td>
+<td>INTEGER</td>
+<td>Energy consumed</td>
+</tr>
+<tr>
+<td><code>tax_contribution_uj</code></td>
+<td>INTEGER</td>
+<td>Tax contribution</td>
+</tr>
+<tr>
+<td><code>tax_percent</code></td>
+<td>REAL</td>
+<td>Tax percentage</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="11-orchestration_tax_summary">11. <code>orchestration_tax_summary</code><a class="headerlink" href="#11-orchestration_tax_summary" title="Permanent link">&para;</a></h3>
+<p>Pre-computed tax metrics per pair of runs.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>comparison_id</code></td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>linear_run_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to runs</td>
+</tr>
+<tr>
+<td><code>agentic_run_id</code></td>
+<td>INTEGER</td>
+<td>Foreign key to runs</td>
+</tr>
+<tr>
+<td><code>linear_dynamic_uj</code></td>
+<td>INTEGER</td>
+<td>Linear energy</td>
+</tr>
+<tr>
+<td><code>agentic_dynamic_uj</code></td>
+<td>INTEGER</td>
+<td>Agentic energy</td>
+</tr>
+<tr>
+<td><code>orchestration_tax_uj</code></td>
+<td>INTEGER</td>
+<td>Absolute tax (agentic - linear)</td>
+</tr>
+<tr>
+<td><code>tax_percent</code></td>
+<td>REAL</td>
+<td>Tax percentage</td>
+</tr>
+<tr>
+<td><code>linear_orchestration_uj</code></td>
+<td>INTEGER</td>
+<td>Linear orchestration</td>
+</tr>
+<tr>
+<td><code>agentic_orchestration_uj</code></td>
+<td>INTEGER</td>
+<td>Agentic orchestration</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="views">👁️ Views<a class="headerlink" href="#views" title="Permanent link">&para;</a></h2>
+<h3 id="12-ml_features">12. <code>ml_features</code><a class="headerlink" href="#12-ml_features" title="Permanent link">&para;</a></h3>
+<p>Flattened view for ML training with 80+ features.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">CREATE</span><span class="w"> </span><span class="k">VIEW</span><span class="w"> </span><span class="n">ml_features</span><span class="w"> </span><span class="k">AS</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="k">SELECT</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span><span class="p">,</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="n">e</span><span class="p">.</span><span class="n">workflow_type</span><span class="p">,</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="n">e</span><span class="p">.</span><span class="n">provider</span><span class="p">,</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="n">r</span><span class="p">.</span><span class="n">duration_ns</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1</span><span class="n">e6</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">duration_ms</span><span class="p">,</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="n">r</span><span class="p">.</span><span class="n">dynamic_energy_uj</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1</span><span class="n">e6</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">energy_j</span><span class="p">,</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="n">r</span><span class="p">.</span><span class="n">ipc</span><span class="p">,</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="n">r</span><span class="p">.</span><span class="n">cache_miss_rate</span><span class="p">,</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="n">r</span><span class="p">.</span><span class="n">instructions</span><span class="p">,</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="n">r</span><span class="p">.</span><span class="n">cycles</span><span class="p">,</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="c1">-- ... 70+ more columns</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="n">r</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">experiments</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">exp_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">exp_id</span><span class="p">;</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="err">🔗</span><span class="w"> </span><span class="n">Relationships</span><span class="w"> </span><span class="n">Diagram</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="nb">text</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="n">markdown</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="o">###</span><span class="w"> </span><span class="k">Database</span><span class="w"> </span><span class="n">Relationships</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="n">The</span><span class="w"> </span><span class="k">database</span><span class="w"> </span><span class="k">schema</span><span class="w"> </span><span class="n">follows</span><span class="w"> </span><span class="n">these</span><span class="w"> </span><span class="k">key</span><span class="w"> </span><span class="n">relationships</span><span class="p">:</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="nb">text</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="o">####</span><span class="w"> </span><span class="k">Foreign</span><span class="w"> </span><span class="k">Key</span><span class="w"> </span><span class="n">Dependencies</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="o">|</span><span class="w"> </span><span class="k">Source</span><span class="w"> </span><span class="k">Table</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="k">Foreign</span><span class="w"> </span><span class="k">Key</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Target</span><span class="w"> </span><span class="k">Table</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Relationship</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="o">|</span><span class="c1">--------------|-------------|--------------|--------------|</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">exp_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">experiments</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Many</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="n">belong</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">one</span><span class="w"> </span><span class="n">experiment</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">hw_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">hardware_config</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Many</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="k">share</span><span class="w"> </span><span class="n">same</span><span class="w"> </span><span class="n">hardware</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">env_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">environment_config</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Many</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="k">share</span><span class="w"> </span><span class="n">same</span><span class="w"> </span><span class="n">environment</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">energy_samples</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">run_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">has</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">samples</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">cpu_samples</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">run_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">has</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">CPU</span><span class="w"> </span><span class="n">samples</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">interrupt_samples</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">run_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">has</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">interrupt</span><span class="w"> </span><span class="n">samples</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">thermal_samples</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">run_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">has</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">thermal</span><span class="w"> </span><span class="n">samples</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">orchestration_events</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">run_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">has</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">llm_interactions</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">run_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">has</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">LLM</span><span class="w"> </span><span class="n">interactions</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">orchestration_tax_summary</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">linear_run_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Links</span><span class="w"> </span><span class="n">linear</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">tax</span><span class="w"> </span><span class="n">summary</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">orchestration_tax_summary</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">agentic_run_id</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="o">`</span><span class="n">runs</span><span class="o">`</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Links</span><span class="w"> </span><span class="n">agentic</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="k">to</span><span class="w"> </span><span class="n">tax</span><span class="w"> </span><span class="n">summary</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="o">####</span><span class="w"> </span><span class="k">Cardinality</span><span class="w"> </span><span class="n">Summary</span>
+<a id="__codelineno-0-42" name="__codelineno-0-42" href="#__codelineno-0-42"></a>
+<a id="__codelineno-0-43" name="__codelineno-0-43" href="#__codelineno-0-43"></a><span class="o">|</span><span class="w"> </span><span class="n">Relationship</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="k">Type</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Description</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-44" name="__codelineno-0-44" href="#__codelineno-0-44"></a><span class="o">|</span><span class="c1">--------------|------|-------------|</span>
+<a id="__codelineno-0-45" name="__codelineno-0-45" href="#__codelineno-0-45"></a><span class="o">|</span><span class="w"> </span><span class="n">experiments</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="o">-</span><span class="k">to</span><span class="o">-</span><span class="n">Many</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">experiment</span><span class="w"> </span><span class="n">can</span><span class="w"> </span><span class="n">have</span><span class="w"> </span><span class="n">multiple</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-46" name="__codelineno-0-46" href="#__codelineno-0-46"></a><span class="o">|</span><span class="w"> </span><span class="n">hardware_config</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="o">-</span><span class="k">to</span><span class="o">-</span><span class="n">Many</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Same</span><span class="w"> </span><span class="n">hardware</span><span class="w"> </span><span class="n">used</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-47" name="__codelineno-0-47" href="#__codelineno-0-47"></a><span class="o">|</span><span class="w"> </span><span class="n">environment_config</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="o">-</span><span class="k">to</span><span class="o">-</span><span class="n">Many</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">Same</span><span class="w"> </span><span class="n">environment</span><span class="w"> </span><span class="n">used</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-48" name="__codelineno-0-48" href="#__codelineno-0-48"></a><span class="o">|</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">sample</span><span class="w"> </span><span class="n">tables</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="o">-</span><span class="k">to</span><span class="o">-</span><span class="n">Many</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">generates</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">samples</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-49" name="__codelineno-0-49" href="#__codelineno-0-49"></a><span class="o">|</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">orchestration_events</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="o">-</span><span class="k">to</span><span class="o">-</span><span class="n">Many</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">run</span><span class="w"> </span><span class="n">generates</span><span class="w"> </span><span class="n">many</span><span class="w"> </span><span class="n">events</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-50" name="__codelineno-0-50" href="#__codelineno-0-50"></a><span class="o">|</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="err">→</span><span class="w"> </span><span class="n">orchestration_tax_summary</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="o">-</span><span class="k">to</span><span class="o">-</span><span class="n">One</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="n">One</span><span class="w"> </span><span class="n">pair</span><span class="w"> </span><span class="n">generates</span><span class="w"> </span><span class="n">one</span><span class="w"> </span><span class="n">tax</span><span class="w"> </span><span class="n">summary</span><span class="w"> </span><span class="o">|</span>
+<a id="__codelineno-0-51" name="__codelineno-0-51" href="#__codelineno-0-51"></a>
+<a id="__codelineno-0-52" name="__codelineno-0-52" href="#__codelineno-0-52"></a>
+<a id="__codelineno-0-53" name="__codelineno-0-53" href="#__codelineno-0-53"></a><span class="o">##</span><span class="w"> </span><span class="err">📊</span><span class="w"> </span><span class="n">Sample</span><span class="w"> </span><span class="n">Queries</span>
+<a id="__codelineno-0-54" name="__codelineno-0-54" href="#__codelineno-0-54"></a>
+<a id="__codelineno-0-55" name="__codelineno-0-55" href="#__codelineno-0-55"></a><span class="o">###</span><span class="w"> </span><span class="k">Get</span><span class="w"> </span><span class="n">Latest</span><span class="w"> </span><span class="n">Experiment</span><span class="w"> </span><span class="k">with</span><span class="w"> </span><span class="n">Hardware</span>
+<a id="__codelineno-0-56" name="__codelineno-0-56" href="#__codelineno-0-56"></a>
+<a id="__codelineno-0-57" name="__codelineno-0-57" href="#__codelineno-0-57"></a><span class="o">```</span><span class="k">sql</span>
+<a id="__codelineno-0-58" name="__codelineno-0-58" href="#__codelineno-0-58"></a><span class="k">SELECT</span><span class="w"> </span>
+<a id="__codelineno-0-59" name="__codelineno-0-59" href="#__codelineno-0-59"></a><span class="w">    </span><span class="n">e</span><span class="p">.</span><span class="n">exp_id</span><span class="p">,</span>
+<a id="__codelineno-0-60" name="__codelineno-0-60" href="#__codelineno-0-60"></a><span class="w">    </span><span class="n">e</span><span class="p">.</span><span class="n">task_name</span><span class="p">,</span>
+<a id="__codelineno-0-61" name="__codelineno-0-61" href="#__codelineno-0-61"></a><span class="w">    </span><span class="n">e</span><span class="p">.</span><span class="n">provider</span><span class="p">,</span>
+<a id="__codelineno-0-62" name="__codelineno-0-62" href="#__codelineno-0-62"></a><span class="w">    </span><span class="n">h</span><span class="p">.</span><span class="n">cpu_model</span><span class="p">,</span>
+<a id="__codelineno-0-63" name="__codelineno-0-63" href="#__codelineno-0-63"></a><span class="w">    </span><span class="n">env</span><span class="p">.</span><span class="n">python_version</span><span class="p">,</span>
+<a id="__codelineno-0-64" name="__codelineno-0-64" href="#__codelineno-0-64"></a><span class="w">    </span><span class="n">env</span><span class="p">.</span><span class="n">git_commit</span>
+<a id="__codelineno-0-65" name="__codelineno-0-65" href="#__codelineno-0-65"></a><span class="k">FROM</span><span class="w"> </span><span class="n">experiments</span><span class="w"> </span><span class="n">e</span>
+<a id="__codelineno-0-66" name="__codelineno-0-66" href="#__codelineno-0-66"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">hardware_config</span><span class="w"> </span><span class="n">h</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">hw_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">hw_id</span>
+<a id="__codelineno-0-67" name="__codelineno-0-67" href="#__codelineno-0-67"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">environment_config</span><span class="w"> </span><span class="n">env</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">env_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">env</span><span class="p">.</span><span class="n">env_id</span>
+<a id="__codelineno-0-68" name="__codelineno-0-68" href="#__codelineno-0-68"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">exp_id</span><span class="w"> </span><span class="k">DESC</span>
+<a id="__codelineno-0-69" name="__codelineno-0-69" href="#__codelineno-0-69"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="calculate-average-tax-by-provider">Calculate Average Tax by Provider<a class="headerlink" href="#calculate-average-tax-by-provider" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">SELECT</span><span class="w"> </span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="n">e</span><span class="p">.</span><span class="n">provider</span><span class="p">,</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="k">AVG</span><span class="p">(</span><span class="n">ots</span><span class="p">.</span><span class="n">tax_percent</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">avg_tax</span><span class="p">,</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">samples</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">orchestration_tax_summary</span><span class="w"> </span><span class="n">ots</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="n">r</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">ots</span><span class="p">.</span><span class="n">linear_run_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">experiments</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">exp_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">exp_id</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">provider</span><span class="p">;</span>
+</code></pre></div>
+<h3 id="get-energy-samples-for-a-run">Get Energy Samples for a Run<a class="headerlink" href="#get-energy-samples-for-a-run" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">SELECT</span><span class="w"> </span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="n">timestamp_ns</span><span class="p">,</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="n">pkg_energy_uj</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1</span><span class="n">e6</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">energy_j</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">energy_samples</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">977</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">timestamp_ns</span><span class="p">;</span>
+</code></pre></div>
+<hr />
+<h2 id="maintenance">🔧 Maintenance<a class="headerlink" href="#maintenance" title="Permanent link">&para;</a></h2>
+<h3 id="run-migrations">Run Migrations<a class="headerlink" href="#run-migrations" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>scripts/migrate_db.py
+</code></pre></div>
+<h3 id="create-fresh-database">Create Fresh Database<a class="headerlink" href="#create-fresh-database" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>scripts/setup_fresh_db.py
+</code></pre></div>
+<h3 id="backup-database">Backup Database<a class="headerlink" href="#backup-database" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>cp<span class="w"> </span>data/experiments.db<span class="w"> </span>data/experiments.db.backup_<span class="k">$(</span>date<span class="w"> </span>+%Y%m%d<span class="k">)</span>
+</code></pre></div>
+<hr />
+<p><em>This schema document corresponds to the diagram at <code>../assets/diagrams/database-schema-auto.svg</code>.</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "toc.integrate", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,4187 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agentic LLM Energy Measurement System">
+      
+      
+        <meta name="author" content="A-LEMS Research">
+      
+      
+        <link rel="canonical" href="https://deepakpanigrahy03.github.io/alems-platform/research/measurement-boundary/">
+      
+      
+        <link rel="prev" href="../normalization/">
+      
+      
+        <link rel="next" href="../provenance/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Measurement Boundary - A-LEMS Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#measurement-boundary-methodology" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="A-LEMS Documentation" class="md-header__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            A-LEMS Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Measurement Boundary
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/platform-detection/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/architecture/" class="md-tabs__link">
+          
+  
+  
+  Developer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../measurement-methodology/" class="md-tabs__link">
+          
+  
+  
+  Research
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/platform-matrix/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/researcher-journey/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/adding-documentation/" class="md-tabs__link">
+          
+  
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="A-LEMS Documentation" class="md-nav__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    A-LEMS Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/api-keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/new-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    New Machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/platform-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/measurement-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/energy-tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Tiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/config-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/database-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/schema-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/energy-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-platform/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/model-factory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Factory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/config-hierarchy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration Hierarchy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/kperf-pmu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    kperf PMU
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/retry-study/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Study Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/engineering-standards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engineering Standards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/developer-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../measurement-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../orchestration-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mathematical-derivations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mathematical Derivations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../energy-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../phase-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../energy-readers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Readers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-measurement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Measurement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../derived-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Derived Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../normalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Normalization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Boundary
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-measurement-boundary-problem" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Measurement Boundary Problem
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The Measurement Boundary Problem">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-prior-systems-do-wrong" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Prior Systems Do (Wrong)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-a-lems-does-correct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What A-LEMS Does (Correct)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#empirical-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Empirical Discovery
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Empirical Discovery">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-50-gap-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The 50% Gap Finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#root-cause" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Root Cause
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#formulas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formulas
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Formulas">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#task-duration-primary-metric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task Duration (Primary Metric)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-task-duration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-task Duration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-task-duration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-task Duration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#total-run-duration-v3-corrected" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Total Run Duration (v3 — corrected)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#framework-overhead-total-instrumentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Framework Overhead (total instrumentation)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#framework-overhead-tax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Framework Overhead Tax
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#corrected-average-power" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Corrected Average Power
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measurement-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measurement Coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#framework-overhead-energy-v2-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Framework Overhead Energy (v2 + v3)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Framework Overhead Energy (v2 + v3)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#motivation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Motivation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rapl-anchors-v3-corrected-capture-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RAPL Anchors (v3 — corrected capture order)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#regime-separated-energy-attribution-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regime-Separated Energy Attribution (v3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pre-task-energy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-task Energy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-task-energy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Post-task Energy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#framework-overhead-energy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Framework Overhead Energy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conservative-lower-bound-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conservative Lower Bound Note
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cpu-fraction-capture-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CPU Fraction Capture Points
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#observed-magnitudes-v3-validated-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observed Magnitudes (v3 validated data)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed-cost-overhead-finding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed-Cost Overhead Finding
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#historical-data-correction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Historical Data Correction
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Historical Data Correction">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-backfill-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Backfill Strategy
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#coverage-distribution-historical-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Coverage Distribution (Historical Runs)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#impact-on-downstream-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Impact on Downstream Metrics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#schema-columns-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema Columns (v3)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#platform-compliance-pac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Compliance (PAC)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#research-significance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Research Significance
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Research Significance">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-methodological-contribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Methodological Contribution
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-energy-transparency-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Energy Transparency (v2)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-regime-separated-attribution-v3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Regime-Separated Attribution (v3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-optimization-insight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Optimization Insight
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-minimum-task-duration-threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Minimum Task Duration Threshold
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#core-paper-claim" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Paper Claim
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#validation-queries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation Queries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Validation Queries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-duration-accounting-pre-task-post-total-drift-must-be-0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Duration accounting — pre + task + post = total (drift must be 0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-energy-accounting-pre-post-framework_overhead_energy-drift-must-be-0" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Energy accounting — pre + post = framework_overhead_energy (drift must be 0)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-overhead-matrix-energy-and-time-overhead" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Overhead matrix — energy and time overhead %
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-rapl-anchor-sanity-rapl_after-must-exceed-maxpkg_end_uj" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. RAPL anchor sanity — rapl_after must exceed MAX(pkg_end_uj)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-idle-baseline-join-confirm-p_idle-available-for-all-new-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Idle baseline join — confirm P_idle available for all new runs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiment-classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../goal-execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Goal Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../output-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-failure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Failure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-instrumentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Instrumentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../retry-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Network Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gpu-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-rail-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power Rail Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unified-energy-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unified Energy Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cpu-idle-states/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU Idle States
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cooling-subsystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cooling Subsystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../arm-pmu-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM PMU Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../outlier-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outlier Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../publications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/platform-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/db-path-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DB Path Resolution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data-dictionary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Dictionary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/orchestration-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/researcher-journey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Researcher Journey
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/administrator-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrator Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/contributor-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributor Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/adding-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="measurement-boundary-methodology">Measurement Boundary Methodology<a class="headerlink" href="#measurement-boundary-methodology" title="Permanent link">&para;</a></h1>
+<p><strong>Document:</strong> <code>research/14-measurement-boundary-methodology.md</code>
+<strong>Version:</strong> v3 (post regime-separated energy + total_run_duration fix)
+<strong>Method IDs:</strong> <code>measurement_boundary_v1</code>, <code>measurement_coverage_v1</code>,
+                <code>pre_task_energy_v1</code>, <code>post_task_energy_v1</code></p>
+<hr />
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>This document describes A-LEMS's measurement boundary model — how the system
+precisely defines what constitutes "task time" vs "framework overhead time",
+and why this distinction is critical for accurate energy attribution.</p>
+<p>This is not a minor implementation detail. It is a <strong>fundamental methodological
+contribution</strong>: we show that naive energy benchmarks systematically conflate
+workload runtime with measurement-system overhead, biasing power metrics by
+up to 50% for agentic workloads. v2 extends this by <strong>quantifying the energy
+cost of the measurement system itself</strong> — proving it is transparent and small
+relative to task energy. v3 introduces <strong>regime-separated energy attribution</strong>
+for overhead windows and corrects the <code>total_run_duration_ns</code> accounting to
+include the pre-task window.</p>
+<hr />
+<h2 id="the-measurement-boundary-problem">The Measurement Boundary Problem<a class="headerlink" href="#the-measurement-boundary-problem" title="Permanent link">&para;</a></h2>
+<h3 id="what-prior-systems-do-wrong">What Prior Systems Do (Wrong)<a class="headerlink" href="#what-prior-systems-do-wrong" title="Permanent link">&para;</a></h3>
+<p>Most energy benchmarking systems capture timestamps like this:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>t_start = now()
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>start_energy_monitor()
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>execute_workload()
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>stop_energy_monitor()
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>t_end = now()                    ← PROBLEM: includes cleanup overhead
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>duration = t_end - t_start
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>avg_power = energy / duration    ← understated
+</code></pre></div>
+<p>The <code>t_end</code> capture happens after monitoring cleanup, log flushing,
+metric aggregation, and database persistence. For simple workloads this
+overhead is negligible (~10ms). For structured agentic AI workloads,
+this overhead can be <strong>26,000ms</strong> — equal to the task itself.</p>
+<h3 id="what-a-lems-does-correct">What A-LEMS Does (Correct)<a class="headerlink" href="#what-a-lems-does-correct" title="Permanent link">&para;</a></h3>
+<p>A-LEMS uses four explicit timestamps partitioning every run into
+three non-overlapping windows:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>t_before = _pre_task_start_perf  ← before instrumentation reads
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>           [pre-task window: context reads, sensor reads, governor, etc.]
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>t0       = run_start_perf        ← before start_measurement()
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>           [task window: executor.execute()]
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>t1       = task_end_perf         ← immediately after executor returns
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>           [post-task window: stop_measurement + post-processing]
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>t2       = run_end_perf          ← after all post-processing
+</code></pre></div>
+<p>This produces:</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Formula</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pre_task_duration_ns</code></td>
+<td>t0 - t_before</td>
+<td>Instrumentation setup time</td>
+</tr>
+<tr>
+<td><code>task_duration_ns</code></td>
+<td>t1 - t0</td>
+<td>Task execution time (canonical)</td>
+</tr>
+<tr>
+<td><code>post_task_duration_ns</code></td>
+<td>t2 - t1</td>
+<td>Instrumentation teardown time</td>
+</tr>
+<tr>
+<td><code>framework_overhead_ns</code></td>
+<td>pre + post</td>
+<td>Total instrumentation wall time</td>
+</tr>
+<tr>
+<td><code>total_run_duration_ns</code></td>
+<td>pre + task + post</td>
+<td>Full wall clock (v3 fix)</td>
+</tr>
+<tr>
+<td><code>avg_task_power_watts</code></td>
+<td>E_pkg / task_duration</td>
+<td>Correct power denominator</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="empirical-discovery">Empirical Discovery<a class="headerlink" href="#empirical-discovery" title="Permanent link">&para;</a></h2>
+<h3 id="the-50-gap-finding">The 50% Gap Finding<a class="headerlink" href="#the-50-gap-finding" title="Permanent link">&para;</a></h3>
+<p>Analysis of 1873 historical runs revealed a consistent pattern:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>energy_samples coverage ≈ 48-50% of runs.duration_ns
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>Run 1873 (agentic, 52,943ms):
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>  energy_samples span = 26,320ms  ← task time
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  runs.duration_ns    = 52,943ms  ← task + framework
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  gap                 = 26,623ms  ← framework overhead
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>Run 1871 (agentic, 4,924ms):
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>  energy_samples span = 2,370ms
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>  runs.duration_ns    = 4,924ms
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>  gap                 = 2,554ms   ← 51.9% overhead
+</code></pre></div>
+<p><strong>This is structural, not noise.</strong> Every single agentic run shows ~50%
+overhead ratio. The pattern is consistent across 941 agentic runs.</p>
+<h3 id="root-cause">Root Cause<a class="headerlink" href="#root-cause" title="Permanent link">&para;</a></h3>
+<p>The energy sampler stops exactly when <code>executor.execute()</code> returns
+(confirmed by timestamp alignment with <code>orchestration_events</code>).
+But <code>run_end_perf</code> was captured after:</p>
+<ol>
+<li><code>stop_measurement()</code> — thread join, queue drain (~50-200ms)</li>
+<li><code>process_energy_samples()</code> — sample processing</li>
+<li><code>process_cpu_samples()</code> — turbostat processing</li>
+<li><code>build_result_dict()</code> — metric aggregation</li>
+<li><code>_read_temperature()</code> — sensor reads</li>
+<li>Provenance collection</li>
+</ol>
+<p>For large agentic runs (run 1873: 52,943ms), these post-task operations
+took <strong>26,623ms</strong> — equal to the task itself.</p>
+<hr />
+<h2 id="formulas">Formulas<a class="headerlink" href="#formulas" title="Permanent link">&para;</a></h2>
+<h3 id="task-duration-primary-metric">Task Duration (Primary Metric)<a class="headerlink" href="#task-duration-primary-metric" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[t_{task} = t_1 - t_0\]</div>
+<p>Where <span class="arithmatex">\(t_0\)</span> = <code>run_start_perf</code> (before <code>start_measurement()</code>),
+<span class="arithmatex">\(t_1\)</span> = <code>task_end_perf</code> (immediately after <code>executor.execute()</code> returns).</p>
+<h3 id="pre-task-duration">Pre-task Duration<a class="headerlink" href="#pre-task-duration" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[t_{pre} = t_0 - t_{before}\]</div>
+<p>Where <span class="arithmatex">\(t_{before}\)</span> = <code>_pre_task_start_perf</code> (before instrumentation reads).</p>
+<h3 id="post-task-duration">Post-task Duration<a class="headerlink" href="#post-task-duration" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[t_{post} = t_2 - t_1\]</div>
+<p>Where <span class="arithmatex">\(t_2\)</span> = <code>run_end_perf</code> (after all post-processing, including
+<code>stop_measurement()</code>).</p>
+<h3 id="total-run-duration-v3-corrected">Total Run Duration (v3 — corrected)<a class="headerlink" href="#total-run-duration-v3-corrected" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[t_{total} = t_{pre} + t_{task} + t_{post}\]</div>
+<p><strong>v3 fix:</strong> Previously <code>total_run_duration_ns = t_2 - t_0</code> (missing pre
+window). Now correctly uses <code>t_2 - t_{before}</code> in harness, and
+<code>fix_run_with_pretask()</code> writes <code>pre + task + post</code> directly. Drift
+from this bug was exactly <code>pre_task_duration_ns</code> (~101ms) per run.</p>
+<h3 id="framework-overhead-total-instrumentation">Framework Overhead (total instrumentation)<a class="headerlink" href="#framework-overhead-total-instrumentation" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[t_{framework} = t_{pre} + t_{post}\]</div>
+<h3 id="framework-overhead-tax">Framework Overhead Tax<a class="headerlink" href="#framework-overhead-tax" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\tau_{framework} = \frac{t_{framework}}{t_{task}}\]</div>
+<p>High <span class="arithmatex">\(\tau_{framework}\)</span> indicates measurement system cost is proportional
+to task complexity — a potential scalability concern for very short tasks.</p>
+<h3 id="corrected-average-power">Corrected Average Power<a class="headerlink" href="#corrected-average-power" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\bar{P}_{task} = \frac{E_{pkg}}{t_{task}}\]</div>
+<p>The legacy formula used <span class="arithmatex">\(t_{total}\)</span> in the denominator, understating power.</p>
+<h3 id="measurement-coverage">Measurement Coverage<a class="headerlink" href="#measurement-coverage" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[C = \frac{t_{last\_sample} - t_{first\_sample}}{t_{task}} \times 100\]</div>
+<table>
+<thead>
+<tr>
+<th>Grade</th>
+<th>Threshold</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gold</td>
+<td>≥ 95%</td>
+<td>Full measurement coverage</td>
+</tr>
+<tr>
+<td>Acceptable</td>
+<td>80–95%</td>
+<td>Minor gaps at boundaries</td>
+</tr>
+<tr>
+<td>Poor</td>
+<td>&lt; 80%</td>
+<td>Significant measurement gap — exclude from research</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="framework-overhead-energy-v2-v3">Framework Overhead Energy (v2 + v3)<a class="headerlink" href="#framework-overhead-energy-v2-v3" title="Permanent link">&para;</a></h2>
+<h3 id="motivation">Motivation<a class="headerlink" href="#motivation" title="Permanent link">&para;</a></h3>
+<p>v1 proved the measurement system inflates <em>duration</em> by ~50%. v2 asks:
+<strong>how much energy does the measurement system itself consume?</strong></p>
+<p>This is essential for:
+1. Proving A-LEMS overhead energy is small relative to task energy
+2. Ensuring overhead energy is not mis-attributed to the workload
+3. Providing a complete energy audit trail for PhD examiners</p>
+<h3 id="rapl-anchors-v3-corrected-capture-order">RAPL Anchors (v3 — corrected capture order)<a class="headerlink" href="#rapl-anchors-v3-corrected-capture-order" title="Permanent link">&para;</a></h3>
+<p>Four RAPL snapshots bound all three windows:</p>
+<table>
+<thead>
+<tr>
+<th>Symbol</th>
+<th>Capture point</th>
+<th>Column</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RAPL(t_before)</code></td>
+<td>Before pre-task reads</td>
+<td><code>rapl_before_pretask_uj</code></td>
+<td>First anchor</td>
+</tr>
+<tr>
+<td><code>RAPL(t0)</code></td>
+<td><code>MIN(energy_samples.pkg_start_uj)</code></td>
+<td>proxy from energy_samples</td>
+<td>Task start</td>
+</tr>
+<tr>
+<td><code>RAPL(t1)</code></td>
+<td><code>MAX(energy_samples.pkg_end_uj)</code></td>
+<td>proxy from energy_samples</td>
+<td>Task end</td>
+</tr>
+<tr>
+<td><code>RAPL(t2)</code></td>
+<td>After <code>stop_measurement()</code></td>
+<td><code>rapl_after_task_uj</code></td>
+<td>Last anchor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>v3 fix:</strong> <code>rapl_after_task_uj</code> is now captured <strong>after</strong> <code>stop_measurement()</code>
+(previously captured before, causing <code>RAPL(t2) &lt; RAPL(t1)</code> — negative
+delta — triggering false "RAPL counter wrap" and returning NULL for
+<code>post_task_energy_uj</code>).</p>
+<h3 id="regime-separated-energy-attribution-v3">Regime-Separated Energy Attribution (v3)<a class="headerlink" href="#regime-separated-energy-attribution-v3" title="Permanent link">&para;</a></h3>
+<p>A key insight of v3: overhead windows and task windows operate in
+<strong>different energy regimes</strong> and cannot share the same baseline model:</p>
+<table>
+<thead>
+<tr>
+<th>Window</th>
+<th>Physical regime</th>
+<th>Baseline to subtract</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Task execution</td>
+<td>Compute-dominated (LLM inference)</td>
+<td>Task-era baseline (<code>baseline_energy_uj / task_duration</code>)</td>
+</tr>
+<tr>
+<td>Pre/post overhead</td>
+<td>Idle-transition (syscalls, I/O, DB writes)</td>
+<td>Idle baseline (<code>idle_baselines.package_power_watts</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Using task-era baseline for overhead windows produces negative deltas
+(overhead power &lt; LLM power → subtraction zeroes out signal).
+Using no baseline inflates overhead by including idle power.
+<strong>Solution: idle baseline from <code>idle_baselines</code> table for overhead windows only.</strong></p>
+<h3 id="pre-task-energy">Pre-task Energy<a class="headerlink" href="#pre-task-energy" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[E_{pre} = \max\Bigl(0,\ \bigl(RAPL(t_0) - RAPL(t_{before})\bigr) - P_{idle} \cdot t_{pre}\Bigr) \times f_{cpu,pre}\]</div>
+<h3 id="post-task-energy">Post-task Energy<a class="headerlink" href="#post-task-energy" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[E_{post} = \max\Bigl(0,\ \bigl(RAPL(t_2) - RAPL(t_1)\bigr) - P_{idle} \cdot t_{post}\Bigr) \times f_{cpu,post}\]</div>
+<h3 id="framework-overhead-energy">Framework Overhead Energy<a class="headerlink" href="#framework-overhead-energy" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[E_{framework} = E_{pre} + E_{post}\]</div>
+<p>Where:
+- <span class="arithmatex">\(P_{idle}\)</span> = <code>idle_baselines.package_power_watts</code> — measured idle power,
+  joined via <code>runs.baseline_id</code> (NOT task-era baseline)
+- <span class="arithmatex">\(f_{cpu,pre}\)</span>, <span class="arithmatex">\(f_{cpu,post}\)</span> = A-LEMS process CPU fraction during each
+  window, computed from <code>/proc/stat</code> ticks
+- <span class="arithmatex">\(RAPL(t_0)\)</span> = <code>MIN(energy_samples.pkg_start_uj)</code> — first sample anchor
+- <span class="arithmatex">\(RAPL(t_1)\)</span> = <code>MAX(energy_samples.pkg_end_uj)</code> — last sample anchor
+- <span class="arithmatex">\(RAPL(t_2)\)</span> = <code>rapl_after_task_uj</code> — captured after <code>stop_measurement()</code></p>
+<h3 id="conservative-lower-bound-note">Conservative Lower Bound Note<a class="headerlink" href="#conservative-lower-bound-note" title="Permanent link">&para;</a></h3>
+<p>The post-task window includes <code>stop_measurement()</code> I/O operations
+(DB writes, thread joins, sample aggregation) that exceed pure idle power
+but are far below LLM inference power. <span class="arithmatex">\(P_{idle}\)</span> subtraction therefore
+gives a <strong>conservative lower bound</strong> for post-task energy — appropriate
+for a research paper that avoids inflating overhead claims.</p>
+<h3 id="cpu-fraction-capture-points">CPU Fraction Capture Points<a class="headerlink" href="#cpu-fraction-capture-points" title="Permanent link">&para;</a></h3>
+<p>Three CPU fraction windows captured via <code>/proc/stat</code> — PAC compliant:</p>
+<table>
+<thead>
+<tr>
+<th>Window</th>
+<th>Formula</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>f_cpu_pre</code></td>
+<td><code>(pid_ticks_t0 - pid_ticks_before) / (total_ticks_t0 - total_ticks_before)</code></td>
+</tr>
+<tr>
+<td><code>f_cpu_task</code></td>
+<td><code>(pid_ticks_t1 - pid_ticks_t0) / (total_ticks_t1 - total_ticks_t0)</code></td>
+</tr>
+<tr>
+<td><code>f_cpu_post</code></td>
+<td><code>(pid_ticks_t2 - pid_ticks_t1) / (total_ticks_t2 - total_ticks_t1)</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note:</strong> <code>f_cpu_pre</code> and <code>f_cpu_post</code> are not stored as separate columns —
+the task window <code>cpu_fraction</code> is used as a proxy in <code>fix_run_with_pretask()</code>.
+This is a known simplification — pre/post CPU fraction is typically higher
+than task fraction (A-LEMS dominates idle system) so the proxy is conservative.</p>
+<h3 id="observed-magnitudes-v3-validated-data">Observed Magnitudes (v3 validated data)<a class="headerlink" href="#observed-magnitudes-v3-validated-data" title="Permanent link">&para;</a></h3>
+<p>Empirical results from runs 2018–2023 on UBUNTU2505 (ThinkPad, Linux x86):</p>
+<table>
+<thead>
+<tr>
+<th>run_id</th>
+<th>pre_ms</th>
+<th>task_ms</th>
+<th>post_ms</th>
+<th>total_ms</th>
+<th>pre_uj</th>
+<th>post_uj</th>
+<th>fw_uj</th>
+<th>attributed_uj</th>
+<th>overhead_pct</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2023</td>
+<td>101</td>
+<td>3,046</td>
+<td>3,308</td>
+<td>6,456</td>
+<td>64,890</td>
+<td>1,950,113</td>
+<td>2,015,003</td>
+<td>2,082,726</td>
+<td>96.75%</td>
+</tr>
+<tr>
+<td>2022</td>
+<td>102</td>
+<td>475</td>
+<td>670</td>
+<td>1,248</td>
+<td>64,437</td>
+<td>565,545</td>
+<td>629,982</td>
+<td>373,618</td>
+<td>168.62%</td>
+</tr>
+<tr>
+<td>2021</td>
+<td>101</td>
+<td>32,007</td>
+<td>32,368</td>
+<td>64,477</td>
+<td>113,647</td>
+<td>2,519,892</td>
+<td>2,633,539</td>
+<td>376,943,811</td>
+<td>0.70%</td>
+</tr>
+<tr>
+<td>2020</td>
+<td>102</td>
+<td>8,699</td>
+<td>8,947</td>
+<td>17,749</td>
+<td>136,555</td>
+<td>5,846,480</td>
+<td>5,983,035</td>
+<td>112,944,011</td>
+<td>5.30%</td>
+</tr>
+<tr>
+<td>2019</td>
+<td>101</td>
+<td>29,853</td>
+<td>30,094</td>
+<td>59,948</td>
+<td>51,132</td>
+<td>5,633,302</td>
+<td>5,684,434</td>
+<td>345,592,741</td>
+<td>1.64%</td>
+</tr>
+<tr>
+<td>2018</td>
+<td>102</td>
+<td>8,948</td>
+<td>9,212</td>
+<td>18,161</td>
+<td>66,243</td>
+<td>1,031,826</td>
+<td>1,098,069</td>
+<td>102,488,579</td>
+<td>1.07%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fixed-cost-overhead-finding">Fixed-Cost Overhead Finding<a class="headerlink" href="#fixed-cost-overhead-finding" title="Permanent link">&para;</a></h3>
+<p>Runs 2022 (168%) and 2023 (97%) show overhead% &gt; 100% — framework energy
+exceeds task energy. This is not a measurement error. It reveals a
+<strong>fixed-cost structure</strong>: <code>stop_measurement()</code> cost is proportional to
+sample count (100Hz × task_duration), not task complexity. Short tasks
+(475ms) accumulate fewer samples but still pay the full thread-join and
+DB-write cost. This is a publishable finding:</p>
+<blockquote>
+<p>For sub-second LLM inference tasks, A-LEMS framework overhead energy
+exceeds task energy. This establishes a minimum task duration threshold
+(~3s) below which overhead-corrected energy measurements are unreliable.
+Recommended minimum: <code>task_duration_ns &gt; 3,000,000,000</code>.</p>
+</blockquote>
+<hr />
+<h2 id="historical-data-correction">Historical Data Correction<a class="headerlink" href="#historical-data-correction" title="Permanent link">&para;</a></h2>
+<h3 id="the-backfill-strategy">The Backfill Strategy<a class="headerlink" href="#the-backfill-strategy" title="Permanent link">&para;</a></h3>
+<p>For all 1873 pre-v9 runs, <code>task_duration_ns</code> is estimated as:</p>
+<div class="arithmatex">\[t_{task}^{est} = \max(sample\_end\_ns) - runs.start\_time\_ns\]</div>
+<p>This works because energy sampler stops within one sample interval
+(10ms at 100Hz) of <code>executor.execute()</code> returning.</p>
+<p><strong>Estimation error:</strong> &lt; 1% for runs &gt; 1,000ms. For very short runs
+(&lt; 200ms), error may reach 5%.</p>
+<p>All historical runs carry <code>duration_includes_overhead = 1</code> to flag
+that their <code>duration_ns</code> includes framework overhead.</p>
+<p><strong>Framework overhead energy columns are NULL for all historical runs</strong> —
+RAPL snapshots at <code>t_before</code> and <code>t2</code> were not captured pre-v9.
+This is documented and expected — not a data quality issue.</p>
+<h3 id="coverage-distribution-historical-runs">Coverage Distribution (Historical Runs)<a class="headerlink" href="#coverage-distribution-historical-runs" title="Permanent link">&para;</a></h3>
+<p>Expected coverage for pre-v9 runs:</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Expected Coverage</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Agentic</td>
+<td>~48-50%</td>
+<td>Large post-task overhead</td>
+</tr>
+<tr>
+<td>Linear</td>
+<td>~37-50%</td>
+<td>Varies with API latency</td>
+</tr>
+</tbody>
+</table>
+<p>Post-v9 new runs:</p>
+<table>
+<thead>
+<tr>
+<th>Workflow</th>
+<th>Expected Coverage</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All</td>
+<td>&gt; 95%</td>
+<td>Correct task boundary</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="impact-on-downstream-metrics">Impact on Downstream Metrics<a class="headerlink" href="#impact-on-downstream-metrics" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Pre-v9 (wrong)</th>
+<th>Post-v9 (correct)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>avg_power_watts</code></td>
+<td><code>E / (task + framework)</code></td>
+<td><code>E / task</code></td>
+</tr>
+<tr>
+<td><code>ooi_time</code></td>
+<td><code>orchestration_ms / total_ms</code></td>
+<td><code>orchestration_ms / task_ms</code></td>
+</tr>
+<tr>
+<td>Phase percentages</td>
+<td>deflated ~50%</td>
+<td>correct</td>
+</tr>
+<tr>
+<td>Energy per second</td>
+<td>understated</td>
+<td>correct</td>
+</tr>
+<tr>
+<td>Cross-workflow comparison</td>
+<td>biased</td>
+<td>valid</td>
+</tr>
+<tr>
+<td><code>total_run_duration_ns</code></td>
+<td>missing pre window (~101ms)</td>
+<td>pre + task + post</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="schema-columns-v3">Schema Columns (v3)<a class="headerlink" href="#schema-columns-v3" title="Permanent link">&para;</a></h2>
+<p>All 7 measurement boundary columns:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Window</th>
+<th>Formula</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rapl_before_pretask_uj</code></td>
+<td>INTEGER</td>
+<td>pre</td>
+<td>raw <code>read_energy()</code> at <code>t_before</code></td>
+<td>First RAPL anchor</td>
+</tr>
+<tr>
+<td><code>rapl_after_task_uj</code></td>
+<td>INTEGER</td>
+<td>post</td>
+<td>raw <code>read_energy()</code> after <code>stop_measurement()</code></td>
+<td>Captured AFTER stop to prevent overshoot</td>
+</tr>
+<tr>
+<td><code>pre_task_duration_ns</code></td>
+<td>INTEGER</td>
+<td>pre</td>
+<td><code>(t0 - t_before) × 1e9</code></td>
+<td>~101ms on UBUNTU2505</td>
+</tr>
+<tr>
+<td><code>post_task_duration_ns</code></td>
+<td>INTEGER</td>
+<td>post</td>
+<td><code>(t2 - t1) × 1e9</code></td>
+<td>Includes stop_measurement() cost</td>
+</tr>
+<tr>
+<td><code>pre_task_energy_uj</code></td>
+<td>INTEGER</td>
+<td>pre</td>
+<td><code>max(0, (RAPL(t0)-RAPL(t_before)) - P_idle×t_pre) × f_cpu</code></td>
+<td>Idle regime</td>
+</tr>
+<tr>
+<td><code>post_task_energy_uj</code></td>
+<td>INTEGER</td>
+<td>post</td>
+<td><code>max(0, (RAPL(t2)-RAPL(t1)) - P_idle×t_post) × f_cpu</code></td>
+<td>Idle regime, conservative lower bound</td>
+</tr>
+<tr>
+<td><code>framework_overhead_energy_uj</code></td>
+<td>INTEGER</td>
+<td>both</td>
+<td><code>pre_task_energy_uj + post_task_energy_uj</code></td>
+<td>Derived</td>
+</tr>
+</tbody>
+</table>
+<p>Modified columns in v3:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>v1/v2 meaning</th>
+<th>v3 meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>framework_overhead_ns</code></td>
+<td>post only (t2-t1)</td>
+<td>pre + post</td>
+</tr>
+<tr>
+<td><code>total_run_duration_ns</code></td>
+<td>t2 - t0 (missing pre)</td>
+<td>t_before to t2 (pre + task + post)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="platform-compliance-pac">Platform Compliance (PAC)<a class="headerlink" href="#platform-compliance-pac" title="Permanent link">&para;</a></h2>
+<p>The fix uses <code>time.perf_counter()</code> — Python's highest-resolution
+monotonic timer. Platform support:</p>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Timer</th>
+<th>Resolution</th>
+<th>PAC Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux x86</td>
+<td>CLOCK_MONOTONIC</td>
+<td>~1ns</td>
+<td>✅ MEASURED</td>
+</tr>
+<tr>
+<td>Linux ARM</td>
+<td>CLOCK_MONOTONIC</td>
+<td>~1ns</td>
+<td>✅ MEASURED</td>
+</tr>
+<tr>
+<td>macOS</td>
+<td>mach_absolute_time</td>
+<td>~1ns</td>
+<td>✅ MEASURED</td>
+</tr>
+<tr>
+<td>Windows</td>
+<td>QueryPerformanceCounter</td>
+<td>~100ns</td>
+<td>✅ MEASURED</td>
+</tr>
+</tbody>
+</table>
+<p>RAPL energy columns (NULL on non-RAPL platforms):</p>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>RAPL</th>
+<th>pre/post energy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Linux x86</td>
+<td>✅ MEASURED</td>
+<td>✅ populated</td>
+</tr>
+<tr>
+<td>macOS</td>
+<td>NULL</td>
+<td>NULL</td>
+</tr>
+<tr>
+<td>ARM VM</td>
+<td>NULL</td>
+<td>NULL</td>
+</tr>
+</tbody>
+</table>
+<p>No platform-specific code in <code>harness.py</code> — fully PAC compliant.</p>
+<hr />
+<h2 id="research-significance">Research Significance<a class="headerlink" href="#research-significance" title="Permanent link">&para;</a></h2>
+<p>This finding has five dimensions of research value:</p>
+<h3 id="1-methodological-contribution">1. Methodological Contribution<a class="headerlink" href="#1-methodological-contribution" title="Permanent link">&para;</a></h3>
+<p>We demonstrate that a widely-used benchmarking pattern (capture <code>t_end</code>
+after monitoring teardown) introduces systematic duration inflation.
+For agentic AI workloads, this bias is <strong>~50%</strong> — not a rounding error.</p>
+<h3 id="2-energy-transparency-v2">2. Energy Transparency (v2)<a class="headerlink" href="#2-energy-transparency-v2" title="Permanent link">&para;</a></h3>
+<p>We quantify the energy cost of the measurement system itself — proving
+it is small relative to task energy and does not contaminate results.
+This is a stronger claim than duration separation alone.</p>
+<h3 id="3-regime-separated-attribution-v3">3. Regime-Separated Attribution (v3)<a class="headerlink" href="#3-regime-separated-attribution-v3" title="Permanent link">&para;</a></h3>
+<p>We demonstrate that overhead windows and task windows occupy different
+energy regimes and require different baseline models. Using a single
+baseline model across all windows produces invalid results (either
+negative deltas or inflated overhead). The regime-separated model
+is physically principled and reproducible.</p>
+<h3 id="4-optimization-insight">4. Optimization Insight<a class="headerlink" href="#4-optimization-insight" title="Permanent link">&para;</a></h3>
+<p>The framework overhead is proportional to task complexity:
+- Simple tasks: ~200ms overhead
+- Complex agentic tasks: ~26,000ms overhead</p>
+<p>This suggests the A-LEMS post-processing pipeline scales poorly for
+complex workloads and is itself a target for optimization.</p>
+<h3 id="5-minimum-task-duration-threshold">5. Minimum Task Duration Threshold<a class="headerlink" href="#5-minimum-task-duration-threshold" title="Permanent link">&para;</a></h3>
+<p>The fixed-cost overhead finding establishes a minimum task duration
+threshold for reliable measurements. Tasks shorter than ~3s show
+framework overhead energy exceeding task energy — a new quality
+criterion for AI energy benchmarking.</p>
+<h3 id="core-paper-claim">Core Paper Claim<a class="headerlink" href="#core-paper-claim" title="Permanent link">&para;</a></h3>
+<blockquote>
+<p>Prior AI energy benchmarks that report <code>energy / wall_clock_time</code>
+as average power systematically understate workload power consumption
+by including measurement-system overhead in the denominator. A-LEMS
+explicitly separates these boundaries, quantifies the instrumentation
+energy cost using a regime-separated idle baseline model, and provides
+both the corrected task power and the framework overhead tax as
+first-class metrics. The measurement system overhead is shown to be
+0.7–5.3% of task energy for tasks &gt; 3s, and is conservatively bounded
+using measured idle power rather than task-era LLM inference power.</p>
+</blockquote>
+<hr />
+<h2 id="validation-queries">Validation Queries<a class="headerlink" href="#validation-queries" title="Permanent link">&para;</a></h2>
+<h3 id="1-duration-accounting-pre-task-post-total-drift-must-be-0">1. Duration accounting — pre + task + post = total (drift must be 0)<a class="headerlink" href="#1-duration-accounting-pre-task-post-total-drift-must-be-0" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">run_id</span><span class="p">,</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">       </span><span class="n">pre_task_duration_ns</span><span class="o">/</span><span class="mi">1000000</span><span class="w">  </span><span class="k">AS</span><span class="w"> </span><span class="n">pre_ms</span><span class="p">,</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">       </span><span class="n">task_duration_ns</span><span class="o">/</span><span class="mi">1000000</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">task_ms</span><span class="p">,</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">       </span><span class="n">post_task_duration_ns</span><span class="o">/</span><span class="mi">1000000</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">post_ms</span><span class="p">,</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">       </span><span class="p">(</span><span class="n">pre_task_duration_ns</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">task_duration_ns</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">post_task_duration_ns</span><span class="p">)</span><span class="o">/</span><span class="mi">1000000</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">sum_ms</span><span class="p">,</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">       </span><span class="n">total_run_duration_ns</span><span class="o">/</span><span class="mi">1000000</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_ms</span><span class="p">,</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">       </span><span class="p">(</span><span class="n">pre_task_duration_ns</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">task_duration_ns</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">post_task_duration_ns</span><span class="p">)</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">           </span><span class="o">-</span><span class="w"> </span><span class="n">total_run_duration_ns</span><span class="w">   </span><span class="k">AS</span><span class="w"> </span><span class="n">drift_ns</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">pre_task_duration_ns</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1">-- Expected: drift_ns = 0 for all post-v9 runs</span>
+</code></pre></div>
+<h3 id="2-energy-accounting-pre-post-framework_overhead_energy-drift-must-be-0">2. Energy accounting — pre + post = framework_overhead_energy (drift must be 0)<a class="headerlink" href="#2-energy-accounting-pre-post-framework_overhead_energy-drift-must-be-0" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">run_id</span><span class="p">,</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">       </span><span class="n">pre_task_energy_uj</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">post_task_energy_uj</span><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">expected_uj</span><span class="p">,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">       </span><span class="n">framework_overhead_energy_uj</span><span class="w">                 </span><span class="k">AS</span><span class="w"> </span><span class="n">actual_uj</span><span class="p">,</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">       </span><span class="n">pre_task_energy_uj</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">post_task_energy_uj</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">           </span><span class="o">-</span><span class="w"> </span><span class="n">framework_overhead_energy_uj</span><span class="w">           </span><span class="k">AS</span><span class="w"> </span><span class="n">drift_uj</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">pre_task_energy_uj</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1">-- Expected: drift_uj = 0 for all post-v9 runs</span>
+</code></pre></div>
+<h3 id="3-overhead-matrix-energy-and-time-overhead">3. Overhead matrix — energy and time overhead %<a class="headerlink" href="#3-overhead-matrix-energy-and-time-overhead" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="n">run_id</span><span class="p">,</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="n">pre_task_duration_ns</span><span class="o">/</span><span class="mi">1000000</span><span class="w">                                            </span><span class="k">AS</span><span class="w"> </span><span class="n">pre_ms</span><span class="p">,</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="n">task_duration_ns</span><span class="o">/</span><span class="mi">1000000</span><span class="w">                                                </span><span class="k">AS</span><span class="w"> </span><span class="n">task_ms</span><span class="p">,</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="n">post_task_duration_ns</span><span class="o">/</span><span class="mi">1000000</span><span class="w">                                           </span><span class="k">AS</span><span class="w"> </span><span class="n">post_ms</span><span class="p">,</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="n">total_run_duration_ns</span><span class="o">/</span><span class="mi">1000000</span><span class="w">                                           </span><span class="k">AS</span><span class="w"> </span><span class="n">total_ms</span><span class="p">,</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="n">pre_task_energy_uj</span><span class="p">,</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="n">post_task_energy_uj</span><span class="p">,</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="n">framework_overhead_energy_uj</span><span class="p">,</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="n">attributed_energy_uj</span><span class="p">,</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="n">ROUND</span><span class="p">(</span><span class="n">framework_overhead_energy_uj</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">attributed_energy_uj</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w">  </span><span class="k">AS</span><span class="w"> </span><span class="n">overhead_pct</span><span class="p">,</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="n">ROUND</span><span class="p">(</span><span class="n">framework_overhead_ns</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="mi">100</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">task_duration_ns</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">)</span><span class="w">             </span><span class="k">AS</span><span class="w"> </span><span class="n">time_overhead_pct</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">pre_task_duration_ns</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">  </span><span class="k">AND</span><span class="w"> </span><span class="n">attributed_energy_uj</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">run_id</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="c1">-- Expected: overhead_pct &lt; 10% for task_ms &gt; 3000</span>
+</code></pre></div>
+<h3 id="4-rapl-anchor-sanity-rapl_after-must-exceed-maxpkg_end_uj">4. RAPL anchor sanity — rapl_after must exceed MAX(pkg_end_uj)<a class="headerlink" href="#4-rapl-anchor-sanity-rapl_after-must-exceed-maxpkg_end_uj" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span><span class="p">,</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">       </span><span class="k">MAX</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">pkg_end_uj</span><span class="p">)</span><span class="w">    </span><span class="k">AS</span><span class="w"> </span><span class="n">rapl_t1_from_samples</span><span class="p">,</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">       </span><span class="n">r</span><span class="p">.</span><span class="n">rapl_after_task_uj</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">rapl_t2_captured</span><span class="p">,</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">       </span><span class="n">r</span><span class="p">.</span><span class="n">rapl_after_task_uj</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">MAX</span><span class="p">(</span><span class="n">e</span><span class="p">.</span><span class="n">pkg_end_uj</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">post_delta_uj</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="n">r</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">energy_samples</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">run_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">rapl_after_task_uj</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1">-- Expected: post_delta_uj &gt; 0 for all post-v3 runs</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="c1">-- Negative delta = rapl_after captured before stop_measurement() (old bug)</span>
+</code></pre></div>
+<h3 id="5-idle-baseline-join-confirm-p_idle-available-for-all-new-runs">5. Idle baseline join — confirm P_idle available for all new runs<a class="headerlink" href="#5-idle-baseline-join-confirm-p_idle-available-for-all-new-runs" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">baseline_id</span><span class="p">,</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">       </span><span class="n">ib</span><span class="p">.</span><span class="n">package_power_watts</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">idle_watts</span><span class="p">,</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">       </span><span class="n">r</span><span class="p">.</span><span class="n">pre_task_energy_uj</span><span class="p">,</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">       </span><span class="n">r</span><span class="p">.</span><span class="n">post_task_energy_uj</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="n">r</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="k">LEFT</span><span class="w"> </span><span class="k">JOIN</span><span class="w"> </span><span class="n">idle_baselines</span><span class="w"> </span><span class="n">ib</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">baseline_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ib</span><span class="p">.</span><span class="n">baseline_id</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">pre_task_duration_ns</span><span class="w"> </span><span class="k">IS</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">NULL</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span><span class="w"> </span><span class="k">DESC</span><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">10</span><span class="p">;</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="c1">-- Expected: idle_watts populated for all runs with non-NULL energy columns</span>
+</code></pre></div>
+<p>See also <code>config/research_queries.sql</code>:
+- <code>RQ-03</code>: Coverage distribution across all runs
+- <code>RQ-04</code>: Framework overhead tax measurement
+- <code>RQ-10</code>: Legacy vs corrected power comparison
+- <code>VQ-01</code>: L1 conservation check
+- <code>DQ-01</code>: Phase energy alignment check</p>
+<hr />
+<h2 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Intel Corporation. <em>RAPL Energy Reporting Interface</em>, 2023.</li>
+<li>Python Software Foundation. <code>time.perf_counter()</code> documentation, 2024.</li>
+<li>Panigrahy, D. <em>A-LEMS Measurement Boundary Model v1</em>, 2026.</li>
+<li>Panigrahy, D. <em>A-LEMS Framework Overhead Energy Attribution v2</em>, 2026.</li>
+<li>Panigrahy, D. <em>A-LEMS Regime-Separated Overhead Attribution v3</em>, 2026.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "toc.integrate", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

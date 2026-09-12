@@ -1,0 +1,4594 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Agentic LLM Energy Measurement System">
+      
+      
+        <meta name="author" content="A-LEMS Research">
+      
+      
+        <link rel="canonical" href="https://deepakpanigrahy03.github.io/alems-platform/research/derived-metrics/">
+      
+      
+        <link rel="prev" href="../system-measurement/">
+      
+      
+        <link rel="next" href="../normalization/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Derived Metrics - A-LEMS Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#derived-metrics-methodology" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="A-LEMS Documentation" class="md-header__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            A-LEMS Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Derived Metrics
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../getting-started/installation/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../concepts/platform-detection/" class="md-tabs__link">
+          
+  
+  
+  Concepts
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../developer/architecture/" class="md-tabs__link">
+          
+  
+  
+  Developer
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../measurement-methodology/" class="md-tabs__link">
+          
+  
+  
+  Research
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/platform-matrix/" class="md-tabs__link">
+          
+  
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/researcher-journey/" class="md-tabs__link">
+          
+  
+  
+  Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../contributing/adding-documentation/" class="md-tabs__link">
+          
+  
+  
+  Contributing
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="A-LEMS Documentation" class="md-nav__button md-logo" aria-label="A-LEMS Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    A-LEMS Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/deepakpanigrahy03/alems-platform" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/api-keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/quick-start/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Start
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/new-machine/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    New Machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/platform-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/measurement-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/energy-tiers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Tiers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/config-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../concepts/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/database-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Database Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/schema-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Schema Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/energy-chain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Chain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-platform/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Platform
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/adding-a-task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/model-factory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Factory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/config-hierarchy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration Hierarchy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/kperf-pmu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    kperf PMU
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/retry-study/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Study Design
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/engineering-standards/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Engineering Standards
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/developer-tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../measurement-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../orchestration-tax/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration Tax
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../mathematical-derivations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mathematical Derivations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../energy-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../phase-attribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phase Attribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../energy-readers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Energy Readers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../system-measurement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    System Measurement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Derived Metrics
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Derived Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#dynamic-energy-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic Energy Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dynamic Energy Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#baseline-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline Method
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#derived-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Derived Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ipc-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IPC Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="IPC Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formula_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interpretation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cache-miss-rate-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cache Miss Rate Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Cache Miss Rate Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formula_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interpretation_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#energy-efficiency-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Energy Efficiency Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Energy Efficiency Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formulas" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formulas
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interpretation_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interpretation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#orchestration-tax-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Orchestration Tax Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Orchestration Tax Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formula_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-decomposition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase Decomposition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orchestration-cpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Orchestration CPU
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#orchestration-complexity-score" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Orchestration Complexity Score
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Orchestration Complexity Score">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formula_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weights" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weights
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complexity-levels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complexity Levels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#carbon-emission-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Carbon Emission Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Carbon Emission Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formula_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#carbon-intensity-source" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Carbon Intensity Source
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-inferred" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why INFERRED
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#references_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#water-consumption-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Water Consumption Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Water Consumption Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formula_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#methane-emission-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Methane Emission Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Methane Emission Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formula_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#llm-timing-measurement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LLM Timing Measurement
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="LLM Timing Measurement">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formula_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metrics-captured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics Captured
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ttft-vs-tpot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TTFT vs TPOT
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#provenance_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cpu-fraction-attribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CPU Fraction Attribution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CPU Fraction Attribution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formula_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-this-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why This Method
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Sources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#references_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-energy-attribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase Energy Attribution
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase Energy Attribution">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#formula_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-normalization" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Normalization
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-sources_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Sources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fallback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#references_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#phase-energy-attribution-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase Energy Attribution v2
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Phase Energy Attribution v2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-v2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why v2
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#formula_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-sources_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Sources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output Columns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fallback_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fallback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#references_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hardware-telemetry-metrics-chunk-12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware Telemetry Metrics (Chunk 12)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hardware Telemetry Metrics (Chunk 12)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#l1d-l2-l3-cache-counters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        L1d / L2 / L3 Cache Counters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disk-io-metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk I/O Metrics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#voltage-fan-sensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Voltage &amp; Fan Sensors
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../normalization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Normalization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../measurement-boundary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measurement Boundary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../provenance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provenance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../experiment-classification/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Classification
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../goal-execution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Goal Execution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../output-quality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Quality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-failure/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Failure
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tool-instrumentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tool Instrumentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../retry-methodology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Network Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gpu-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../power-rail-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Power Rail Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../unified-energy-schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Unified Energy Schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cpu-idle-states/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU Idle States
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cooling-subsystem/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cooling Subsystem
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../arm-pmu-metrics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ARM PMU Metrics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../outlier-detection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outlier Detection
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../llm-wait-energy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    LLM Wait Energy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../publications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/platform-matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Platform Matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/task-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/cli-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/db-path-resolution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DB Path Resolution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/provider-debugging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider Debugging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/data-dictionary/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Dictionary
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/orchestration-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Orchestration API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/researcher-journey/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Researcher Journey
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/administrator-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrator Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/contributor-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributor Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/adding-documentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding Documentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="derived-metrics-methodology">Derived Metrics Methodology<a class="headerlink" href="#derived-metrics-methodology" title="Permanent link">&para;</a></h1>
+<p>This document describes the methodology for all metrics computed from
+raw measurements in A-LEMS — energy derivations, performance ratios,
+sustainability calculations, LLM timing, and orchestration complexity.</p>
+<hr />
+<h2 id="dynamic-energy-calculation">Dynamic Energy Calculation<a class="headerlink" href="#dynamic-energy-calculation" title="Permanent link">&para;</a></h2>
+<h3 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h3>
+<p>Dynamic energy isolates the energy attributable to the workload by
+subtracting the idle baseline from total package energy.</p>
+<h3 id="formula">Formula<a class="headerlink" href="#formula" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[E_{dyn} = \max(0, E_{pkg} - E_{idle})\]</div>
+<p>Where:
+- <span class="arithmatex">\(E_{pkg}\)</span> = Raw package energy from RAPL (µJ)
+- <span class="arithmatex">\(E_{idle}\)</span> = Idle baseline energy for the same duration (µJ)
+- <span class="arithmatex">\(\max(0, \cdot)\)</span> = Ensures non-negative result</p>
+<h3 id="baseline-method">Baseline Method<a class="headerlink" href="#baseline-method" title="Permanent link">&para;</a></h3>
+<p>A-LEMS uses the <strong>2nd percentile minimum baseline</strong> (not mean) to
+account for natural variance in idle power consumption:</p>
+<div class="arithmatex">\[E_{idle} = P_{baseline} \times t_{duration}\]</div>
+<p>Where <span class="arithmatex">\(P_{baseline} = \max(0, \bar{P} - 2\sigma)\)</span> from 30-second idle
+measurement with CPU pinned to dedicated cores.</p>
+<h3 id="derived-metrics">Derived Metrics<a class="headerlink" href="#derived-metrics" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Formula</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dynamic_energy_uj</code></td>
+<td><span class="arithmatex">\(\max(0, E_{pkg} - E_{idle})\)</span></td>
+<td>Workload energy µJ</td>
+</tr>
+<tr>
+<td><code>total_energy_uj</code></td>
+<td><span class="arithmatex">\(E_{pkg}\)</span></td>
+<td>Total package energy µJ</td>
+</tr>
+<tr>
+<td><code>baseline_energy_uj</code></td>
+<td><span class="arithmatex">\(E_{idle}\)</span></td>
+<td>Idle baseline energy µJ</td>
+</tr>
+<tr>
+<td><code>avg_power_watts</code></td>
+<td><span class="arithmatex">\(E_{dyn} / t \times 10^{-6}\)</span></td>
+<td>Average dynamic power W</td>
+</tr>
+</tbody>
+</table>
+<h3 id="provenance">Provenance<a class="headerlink" href="#provenance" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>CALCULATED</code></li>
+<li><strong>Method ID</strong>: <code>dynamic_energy_calculation</code></li>
+<li><strong>Confidence</strong>: <code>1.0</code></li>
+</ul>
+<hr />
+<h2 id="ipc-calculation">IPC Calculation<a class="headerlink" href="#ipc-calculation" title="Permanent link">&para;</a></h2>
+<h3 id="overview_1">Overview<a class="headerlink" href="#overview_1" title="Permanent link">&para;</a></h3>
+<p>Instructions Per Cycle (IPC) measures CPU execution efficiency — how many
+instructions the processor retires per clock cycle on average.</p>
+<h3 id="formula_1">Formula<a class="headerlink" href="#formula_1" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[IPC = \frac{N_{instructions}}{N_{cycles}}\]</div>
+<p>Where both values come from hardware performance counters
+(see Performance Counter Methodology).</p>
+<h3 id="interpretation">Interpretation<a class="headerlink" href="#interpretation" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>IPC Range</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>&lt; 1.0</td>
+<td>Memory-bound workload, cache misses limiting execution</td>
+</tr>
+<tr>
+<td>1.0 – 2.0</td>
+<td>Balanced workload</td>
+</tr>
+<tr>
+<td>&gt; 2.0</td>
+<td>Compute-bound, efficient execution</td>
+</tr>
+</tbody>
+</table>
+<h3 id="provenance_1">Provenance<a class="headerlink" href="#provenance_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>CALCULATED</code></li>
+<li><strong>Method ID</strong>: <code>ipc_calculation</code></li>
+<li><strong>Confidence</strong>: <code>1.0</code></li>
+</ul>
+<hr />
+<h2 id="cache-miss-rate-calculation">Cache Miss Rate Calculation<a class="headerlink" href="#cache-miss-rate-calculation" title="Permanent link">&para;</a></h2>
+<h3 id="overview_2">Overview<a class="headerlink" href="#overview_2" title="Permanent link">&para;</a></h3>
+<p>Last Level Cache (LLC) miss rate measures the fraction of LLC memory
+accesses that result in a cache miss (requiring DRAM access).</p>
+<h3 id="formula_2">Formula<a class="headerlink" href="#formula_2" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\%_{miss} = \frac{N_{LLC\_miss}}{N_{LLC\_ref}} \times 100\]</div>
+<h3 id="interpretation_1">Interpretation<a class="headerlink" href="#interpretation_1" title="Permanent link">&para;</a></h3>
+<p>High cache miss rates (&gt;30%) indicate:
+- Working set exceeds LLC capacity
+- Poor memory access locality
+- Potential energy waste from DRAM accesses</p>
+<h3 id="provenance_2">Provenance<a class="headerlink" href="#provenance_2" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>CALCULATED</code></li>
+<li><strong>Method ID</strong>: <code>cache_miss_calculation</code></li>
+<li><strong>Confidence</strong>: <code>1.0</code></li>
+</ul>
+<hr />
+<h2 id="energy-efficiency-metrics">Energy Efficiency Metrics<a class="headerlink" href="#energy-efficiency-metrics" title="Permanent link">&para;</a></h2>
+<h3 id="overview_3">Overview<a class="headerlink" href="#overview_3" title="Permanent link">&para;</a></h3>
+<p>A-LEMS computes normalised energy efficiency ratios to enable fair
+comparison across workloads of different sizes.</p>
+<h3 id="formulas">Formulas<a class="headerlink" href="#formulas" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Formula</th>
+<th>Unit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>energy_per_token</code></td>
+<td><span class="arithmatex">\(E_{pkg} / N_{tokens}\)</span></td>
+<td>µJ/token</td>
+</tr>
+<tr>
+<td><code>energy_per_instruction</code></td>
+<td><span class="arithmatex">\(E_{pkg} / N_{instructions}\)</span></td>
+<td>µJ/instruction</td>
+</tr>
+<tr>
+<td><code>energy_per_cycle</code></td>
+<td><span class="arithmatex">\(E_{pkg} / N_{cycles}\)</span></td>
+<td>µJ/cycle</td>
+</tr>
+<tr>
+<td><code>instructions_per_token</code></td>
+<td><span class="arithmatex">\(N_{instructions} / N_{tokens}\)</span></td>
+<td>inst/token</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interpretation_2">Interpretation<a class="headerlink" href="#interpretation_2" title="Permanent link">&para;</a></h3>
+<p><code>energy_per_token</code> is the primary thesis metric — it enables comparison
+of energy efficiency across different LLM providers, model sizes, and
+inference strategies independent of prompt length.</p>
+<h3 id="provenance_3">Provenance<a class="headerlink" href="#provenance_3" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>CALCULATED</code></li>
+<li><strong>Method ID</strong>: <code>efficiency_metrics_calculation</code></li>
+<li><strong>Confidence</strong>: <code>1.0</code></li>
+</ul>
+<hr />
+<h2 id="orchestration-tax-calculation">Orchestration Tax Calculation<a class="headerlink" href="#orchestration-tax-calculation" title="Permanent link">&para;</a></h2>
+<h3 id="overview_4">Overview<a class="headerlink" href="#overview_4" title="Permanent link">&para;</a></h3>
+<p>Orchestration tax quantifies the energy overhead introduced by agentic
+workflow coordination compared to direct linear execution.</p>
+<h3 id="formula_3">Formula<a class="headerlink" href="#formula_3" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[\tau = E_{agentic} - E_{linear}\]</div>
+<div class="arithmatex">\[\tau_{\%} = \frac{E_{agentic} - E_{linear}}{E_{linear}} \times 100\]</div>
+<div class="arithmatex">\[\tau_{multiplier} = \frac{E_{agentic}}{E_{linear}}\]</div>
+<h3 id="phase-decomposition">Phase Decomposition<a class="headerlink" href="#phase-decomposition" title="Permanent link">&para;</a></h3>
+<p>Agentic workflows decompose into three phases:</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Metric</th>
+<th>Formula</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Planning</td>
+<td><code>planning_time_ms</code></td>
+<td>Wall clock for plan generation</td>
+</tr>
+<tr>
+<td>Execution</td>
+<td><code>execution_time_ms</code></td>
+<td>Wall clock for tool calls + LLM</td>
+</tr>
+<tr>
+<td>Synthesis</td>
+<td><code>synthesis_time_ms</code></td>
+<td>Wall clock for response synthesis</td>
+</tr>
+</tbody>
+</table>
+<p>Phase ratios:</p>
+<div class="arithmatex">\[r_{planning} = \frac{t_{planning}}{t_{total}}$$
+$$r_{execution} = \frac{t_{execution}}{t_{total}}$$
+$$r_{synthesis} = \frac{t_{synthesis}}{t_{total}}\]</div>
+<h3 id="orchestration-cpu">Orchestration CPU<a class="headerlink" href="#orchestration-cpu" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[t_{orch} = t_{planning} + t_{synthesis}\]</div>
+<p>This captures the CPU time spent on agent coordination (not LLM inference).</p>
+<h3 id="provenance_4">Provenance<a class="headerlink" href="#provenance_4" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>CALCULATED</code></li>
+<li><strong>Method ID</strong>: <code>orchestration_tax_calculation</code></li>
+<li><strong>Confidence</strong>: <code>1.0</code></li>
+</ul>
+<hr />
+<h2 id="orchestration-complexity-score">Orchestration Complexity Score<a class="headerlink" href="#orchestration-complexity-score" title="Permanent link">&para;</a></h2>
+<h3 id="overview_5">Overview<a class="headerlink" href="#overview_5" title="Permanent link">&para;</a></h3>
+<p>A composite metric quantifying the coordination complexity of an agentic
+workflow based on three observable factors.</p>
+<h3 id="formula_4">Formula<a class="headerlink" href="#formula_4" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[S = \alpha \cdot \hat{L} + \beta \cdot \hat{T} + \gamma \cdot \hat{N}\]</div>
+<p>Where each component is normalised to [0, 1]:</p>
+<div class="arithmatex">\[\hat{L} = \min\left(\frac{N_{LLM\_calls}}{L_{max}}, 1\right), \quad L_{max} = 10$$
+$$\hat{T} = \min\left(\frac{N_{tool\_calls}}{T_{max}}, 1\right), \quad T_{max} = 10$$
+$$\hat{N} = \min\left(\frac{N_{tokens}}{N_{max}}, 1\right), \quad N_{max} = 1000\]</div>
+<h3 id="weights">Weights<a class="headerlink" href="#weights" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Weight</th>
+<th>Value</th>
+<th>Justification</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><span class="arithmatex">\(\alpha\)</span> (LLM calls)</td>
+<td>0.4</td>
+<td>Model invocations dominate energy</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\beta\)</span> (Tool calls)</td>
+<td>0.3</td>
+<td>Tool execution adds CPU + I/O cost</td>
+</tr>
+<tr>
+<td><span class="arithmatex">\(\gamma\)</span> (Tokens)</td>
+<td>0.3</td>
+<td>Inference scales with token volume</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Weight basis</strong>: Heuristic coefficients informed by Schwartz et al. (2020)
+and Patterson et al. (2021). These are a novel contribution of A-LEMS —
+not directly from literature.</p>
+<h3 id="complexity-levels">Complexity Levels<a class="headerlink" href="#complexity-levels" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Score</th>
+<th>Level</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0 – 0.33</td>
+<td>1</td>
+<td>Simple: 0-1 tools, direct response</td>
+</tr>
+<tr>
+<td>0.33 – 0.67</td>
+<td>2</td>
+<td>Moderate: 2-3 tools, some planning</td>
+</tr>
+<tr>
+<td>0.67 – 1.0</td>
+<td>3</td>
+<td>Complex: 4+ tools, multi-step</td>
+</tr>
+</tbody>
+</table>
+<h3 id="provenance_5">Provenance<a class="headerlink" href="#provenance_5" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>CALCULATED</code></li>
+<li><strong>Method ID</strong>: <code>complexity_score_calculation</code></li>
+<li><strong>Confidence</strong>: <code>0.8</code> (heuristic weights)</li>
+</ul>
+<h3 id="references">References<a class="headerlink" href="#references" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Schwartz, R. et al. <em>Green AI</em>. Communications of the ACM, 2020.</li>
+<li>Patterson, D. et al. <em>Carbon Emissions and Large Neural Network Training</em>.
+  arXiv:2104.10350, 2021.</li>
+<li>Kaplan, J. et al. <em>Scaling Laws for Neural Language Models</em>.
+  arXiv:2001.08361, 2020.</li>
+</ul>
+<hr />
+<h2 id="carbon-emission-calculation">Carbon Emission Calculation<a class="headerlink" href="#carbon-emission-calculation" title="Permanent link">&para;</a></h2>
+<h3 id="overview_6">Overview<a class="headerlink" href="#overview_6" title="Permanent link">&para;</a></h3>
+<p>Carbon emissions are estimated by multiplying energy consumption by
+the grid carbon intensity factor for the experiment's geographic location.</p>
+<h3 id="formula_5">Formula<a class="headerlink" href="#formula_5" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[C = E_{pkg} \cdot I_{carbon} \cdot 10^3\]</div>
+<p>Where:
+- <span class="arithmatex">\(E_{pkg}\)</span> = Package energy in kWh (<span class="arithmatex">\(E_{pkg\_uj} \div 3.6 \times 10^9\)</span>)
+- <span class="arithmatex">\(I_{carbon}\)</span> = Grid carbon intensity in g CO₂/kWh
+- Result in grams CO₂</p>
+<h3 id="carbon-intensity-source">Carbon Intensity Source<a class="headerlink" href="#carbon-intensity-source" title="Permanent link">&para;</a></h3>
+<p><strong>Default source</strong>: Ember Global Electricity Review 2026
+<strong>Default value</strong>: Country-specific (US ≈ 386 g CO₂/kWh, UK ≈ 148 g CO₂/kWh)</p>
+<p>The actual intensity used is stored in <code>measurement_methodology.parameters_used</code>
+for each run, ensuring reproducibility even as grid intensity changes.</p>
+<h3 id="why-inferred">Why INFERRED<a class="headerlink" href="#why-inferred" title="Permanent link">&para;</a></h3>
+<p>Carbon calculation uses an <strong>external constant</strong> (grid intensity) that:
+- Varies by country, region, and time of day
+- Is not measured by A-LEMS hardware
+- May change between experiments</p>
+<p>This makes it <code>INFERRED</code> rather than <code>CALCULATED</code> — the formula is
+deterministic but the inputs include external estimates.</p>
+<h3 id="provenance_6">Provenance<a class="headerlink" href="#provenance_6" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>INFERRED</code></li>
+<li><strong>Method ID</strong>: <code>carbon_calculation</code></li>
+<li><strong>Confidence</strong>: <code>0.7</code></li>
+</ul>
+<h3 id="references_1">References<a class="headerlink" href="#references_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Ember. <em>Global Electricity Review 2026</em>.
+  https://ember-climate.org/insights/research/global-electricity-review-2026/</li>
+</ul>
+<hr />
+<h2 id="water-consumption-calculation">Water Consumption Calculation<a class="headerlink" href="#water-consumption-calculation" title="Permanent link">&para;</a></h2>
+<h3 id="formula_6">Formula<a class="headerlink" href="#formula_6" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[W = E_{pkg} \cdot WUE \cdot 10^3\]</div>
+<p>Where <span class="arithmatex">\(WUE\)</span> = Water Usage Effectiveness in L/kWh.</p>
+<p><strong>Source</strong>: UN-Water 2025 global average data centre WUE.</p>
+<h3 id="provenance_7">Provenance<a class="headerlink" href="#provenance_7" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>INFERRED</code></li>
+<li><strong>Method ID</strong>: <code>water_calculation</code></li>
+<li><strong>Confidence</strong>: <code>0.7</code></li>
+</ul>
+<hr />
+<h2 id="methane-emission-calculation">Methane Emission Calculation<a class="headerlink" href="#methane-emission-calculation" title="Permanent link">&para;</a></h2>
+<h3 id="formula_7">Formula<a class="headerlink" href="#formula_7" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[CH_4 = E_{pkg} \cdot I_{methane} \cdot 10^3\]</div>
+<p>CO₂-equivalent via Global Warming Potential:
+- GWP-20: 86 (methane 86× more potent than CO₂ over 20 years)
+- GWP-100: 34</p>
+<p><strong>Source</strong>: IEA World Energy Outlook 2026.</p>
+<h3 id="provenance_8">Provenance<a class="headerlink" href="#provenance_8" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>INFERRED</code></li>
+<li><strong>Method ID</strong>: <code>methane_calculation</code></li>
+<li><strong>Confidence</strong>: <code>0.7</code></li>
+</ul>
+<hr />
+<h2 id="llm-timing-measurement">LLM Timing Measurement<a class="headerlink" href="#llm-timing-measurement" title="Permanent link">&para;</a></h2>
+<h3 id="overview_7">Overview<a class="headerlink" href="#overview_7" title="Permanent link">&para;</a></h3>
+<p>LLM API call timing is measured via wall clock at the application layer,
+capturing the full round-trip time from request dispatch to response receipt.</p>
+<h3 id="formula_8">Formula<a class="headerlink" href="#formula_8" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[T_{api} = t_{response} - t_{request}\]</div>
+<p>Using <code>time.perf_counter()</code> for sub-millisecond precision.</p>
+<h3 id="metrics-captured">Metrics Captured<a class="headerlink" href="#metrics-captured" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Description</th>
+<th>Provenance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api_latency_ms</code></td>
+<td>Full API round-trip</td>
+<td>MEASURED</td>
+</tr>
+<tr>
+<td><code>total_tokens</code></td>
+<td>Total tokens in response</td>
+<td>MEASURED</td>
+</tr>
+<tr>
+<td><code>prompt_tokens</code></td>
+<td>Input tokens</td>
+<td>MEASURED</td>
+</tr>
+<tr>
+<td><code>completion_tokens</code></td>
+<td>Output tokens</td>
+<td>MEASURED</td>
+</tr>
+<tr>
+<td><code>compute_time_ms</code></td>
+<td>LLM inference time (no network)</td>
+<td>CALCULATED</td>
+</tr>
+<tr>
+<td><code>dns_latency_ms</code></td>
+<td>DNS resolution overhead</td>
+<td>MEASURED</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ttft-vs-tpot">TTFT vs TPOT<a class="headerlink" href="#ttft-vs-tpot" title="Permanent link">&para;</a></h3>
+<p>For streaming responses:
+- <strong>TTFT</strong> (Time To First Token): <span class="arithmatex">\(t_{first\_token} - t_{request}\)</span>
+- <strong>TPOT</strong> (Time Per Output Token): <span class="arithmatex">\(t_{total} / N_{tokens}\)</span></p>
+<h3 id="provenance_9">Provenance<a class="headerlink" href="#provenance_9" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Provenance</strong>: <code>MEASURED</code> (timing) / <code>CALCULATED</code> (derived ratios)</li>
+<li><strong>Method ID</strong>: <code>ttft_tpot_wall_clock</code></li>
+<li><strong>Confidence</strong>: <code>1.0</code></li>
+</ul>
+<h2 id="cpu-fraction-attribution">CPU Fraction Attribution<a class="headerlink" href="#cpu-fraction-attribution" title="Permanent link">&para;</a></h2>
+<p><strong>Method ID:</strong> <code>cpu_fraction_attribution</code>
+<strong>Layer:</strong> OS
+<strong>Provenance:</strong> CALCULATED
+<strong>Confidence:</strong> 0.95</p>
+<h3 id="formula_9">Formula<a class="headerlink" href="#formula_9" title="Permanent link">&para;</a></h3>
+<div class="arithmatex">\[E_{attr} = \frac{\Delta ticks_{pid}}{\Delta ticks_{total}} \times E_{dyn}\]</div>
+<p>Where:
+- <span class="arithmatex">\(\Delta ticks_{pid}\)</span> = <code>utime + stime</code> delta from <code>/proc/[pid]/stat</code> (fields 14–15)
+- <span class="arithmatex">\(\Delta ticks_{total}\)</span> = <code>user + nice + system</code> delta from <code>/proc/stat</code> (fields 1–3)
+- <span class="arithmatex">\(E_{dyn}\)</span> = <code>dynamic_energy_uj</code> (pkg energy minus idle baseline)</p>
+<h3 id="why-this-method">Why This Method<a class="headerlink" href="#why-this-method" title="Permanent link">&para;</a></h3>
+<p>Without process isolation, energy attribution includes all background
+processes running during the experiment (cron, sshd, systemd timers,
+journald, etc.). On a lightly loaded server this background load
+typically consumes 5–30% of CPU ticks. CPU fraction attribution
+removes this bias deterministically using kernel tick counters.</p>
+<h3 id="data-sources">Data Sources<a class="headerlink" href="#data-sources" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Source</th>
+<th>Fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pid_ticks</code></td>
+<td><code>/proc/[pid]/stat</code></td>
+<td>utime (col 14) + stime (col 15)</td>
+</tr>
+<tr>
+<td><code>total_ticks</code></td>
+<td><code>/proc/stat</code></td>
+<td>user + nice + system (cols 1–3)</td>
+</tr>
+<tr>
+<td><code>dynamic_energy_uj</code></td>
+<td>RAPL pkg delta minus idle baseline</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Idle time, iowait, irq, and softirq are <strong>excluded</strong> from the total
+denominator. This ensures the fraction reflects active CPU competition,
+not wall-clock time.</p>
+<h3 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Tick resolution is USER_HZ (100 ticks/s on most Linux systems).
+  For sub-10ms experiments, quantisation error can be significant.</li>
+<li>Multi-process workloads (spawned subprocesses) are not captured —
+  only the top-level PID is tracked.</li>
+<li>On INFERRED mode (ARM VM), <code>dynamic_energy_uj</code> is zero, so
+  <code>attributed_energy_uj</code> will also be zero until Chunk 1.2.</li>
+</ul>
+<h3 id="references_2">References<a class="headerlink" href="#references_2" title="Permanent link">&para;</a></h3>
+<p>See <code>config/methodology_refs/cpu_fraction_attribution.yaml</code>.</p>
+<h2 id="phase-energy-attribution">Phase Energy Attribution<a class="headerlink" href="#phase-energy-attribution" title="Permanent link">&para;</a></h2>
+<p><strong>Method ID:</strong> <code>phase_attribution_cpu_v1</code>
+<strong>Layer:</strong> orchestration
+<strong>Provenance:</strong> CALCULATED
+<strong>Confidence:</strong> 0.95</p>
+<h3 id="formula_10">Formula<a class="headerlink" href="#formula_10" title="Permanent link">&para;</a></h3>
+<p><strong>Step 1 — Raw phase energy:</strong>
+$<span class="arithmatex">\(E_{raw,i} = \max(0,\ \max(pkg_{end}) - \min(pkg_{start}))\)</span>$</p>
+<p><strong>Step 2 — Phase CPU fraction:</strong>
+$<span class="arithmatex">\(f_i = \frac{\max(proc_{ticks,end}) - \min(proc_{ticks,start})}{\max(total_{ticks,end}) - \min(total_{ticks,start})}\)</span>$</p>
+<p><strong>Step 3 — Signal score:</strong>
+$<span class="arithmatex">\(S_i = f_i \times E_{raw,i}\)</span>$</p>
+<p><strong>Step 4 — Normalized allocation:</strong>
+$<span class="arithmatex">\(w_i = \frac{S_i}{\sum_j S_j}, \qquad E_{phase,i} = w_i \times E_{attributed}\)</span>$</p>
+<p><strong>Guarantee:</strong> <span class="arithmatex">\(\sum_i E_{phase,i} = E_{attributed}\)</span></p>
+<h3 id="why-normalization">Why Normalization<a class="headerlink" href="#why-normalization" title="Permanent link">&para;</a></h3>
+<p>Direct attribution (<code>cpu_fraction x raw_energy</code>) does not sum to run total
+because raw phase energy and attributed energy use different baselines.
+Normalization uses phase scores as relative weights only — the absolute
+value comes from the already-correct run-level <code>attributed_energy_uj</code>.</p>
+<h3 id="data-sources_1">Data Sources<a class="headerlink" href="#data-sources_1" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Table</th>
+<th>Column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pkg_start_uj</code>, <code>pkg_end_uj</code></td>
+<td><code>energy_samples</code></td>
+<td>RAPL cumulative counters</td>
+</tr>
+<tr>
+<td><code>proc_ticks_start/end</code></td>
+<td><code>interrupt_samples</code></td>
+<td><code>/proc/[pid]/stat</code> utime+stime</td>
+</tr>
+<tr>
+<td><code>total_ticks_start/end</code></td>
+<td><code>interrupt_samples</code></td>
+<td><code>/proc/stat</code> sum(all fields)</td>
+</tr>
+<tr>
+<td>Phase window</td>
+<td><code>orchestration_events</code></td>
+<td><code>start_time_ns</code>, <code>end_time_ns</code></td>
+</tr>
+<tr>
+<td>Run total</td>
+<td><code>runs</code></td>
+<td><code>attributed_energy_uj</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="fallback">Fallback<a class="headerlink" href="#fallback" title="Permanent link">&para;</a></h3>
+<p>When phase-level proc ticks unavailable, <code>attribution_method = fallback_run_level</code>
+and <code>cpu_fraction_per_phase = runs.cpu_fraction</code>. Normalization still applies.</p>
+<h3 id="known-limitations">Known Limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>synthesis_energy = 0</code> for local provider runs (synthesis &lt; 2ms, no samples)</li>
+<li>Old runs (pre-Chunk 5) have <code>phase_sum = 0</code> — no proc_ticks captured</li>
+<li>Only top-level PID tracked — spawned subprocesses excluded</li>
+</ul>
+<h3 id="references_3">References<a class="headerlink" href="#references_3" title="Permanent link">&para;</a></h3>
+<p>See <code>config/methodology_refs/phase_attribution.yaml</code>.</p>
+<h2 id="phase-energy-attribution-v2">Phase Energy Attribution v2<a class="headerlink" href="#phase-energy-attribution-v2" title="Permanent link">&para;</a></h2>
+<p><strong>Method ID:</strong> <code>phase_attribution_sample_v2</code>
+<strong>Layer:</strong> orchestration
+<strong>Provenance:</strong> MEASURED
+<strong>Confidence:</strong> 0.98
+<strong>Supersedes:</strong> <code>phase_attribution_cpu_v1</code></p>
+<h3 id="why-v2">Why v2<a class="headerlink" href="#why-v2" title="Permanent link">&para;</a></h3>
+<p>v1 normalized phase energies to sum exactly to <code>attributed_energy_uj</code> by
+weighted allocation. This forced <code>inter_phase_energy_uj = 0</code> by construction —
+hiding real energy consumed between phase boundaries (Python interpreter,
+tool dispatch, framework calls). Reviewers would correctly challenge this as
+circular: "your phase sums equal attributed because you made them equal."</p>
+<p>v2 measures each phase independently from RAPL samples. The residual is
+honest and non-zero.</p>
+<h3 id="formula_11">Formula<a class="headerlink" href="#formula_11" title="Permanent link">&para;</a></h3>
+<p><strong>Step 1 — Direct phase energy from RAPL samples:</strong>
+$<span class="arithmatex">\(E_{phase,i} = \sum_{s \in W_i} (pkg\_end_s - pkg\_start_s) \times f_{cpu,i}\)</span>$</p>
+<p>where <span class="arithmatex">\(W_i\)</span> = samples where <code>sample_start_ns &gt;= phase.start_time_ns</code>
+AND <code>sample_end_ns &lt;= phase.end_time_ns</code>.</p>
+<p><strong>Step 2 — Phase CPU fraction (unchanged from v1):</strong>
+$<span class="arithmatex">\(f_{cpu,i} = \frac{\max(proc\_ticks\_end) - \min(proc\_ticks\_start)}{\max(total\_ticks\_end) - \min(total\_ticks\_start)}\)</span>$</p>
+<p><strong>Step 3 — Inter-phase residual (new in v2):</strong>
+$<span class="arithmatex">\(E_{inter\_phase} = E_{attributed} - \sum_i E_{phase,i}\)</span>$</p>
+<p><span class="arithmatex">\(E_{inter\_phase}\)</span> represents energy between phase boundaries:
+Python interpreter overhead, tool dispatch latency, retry coordination,
+framework calls not inside any named phase window.</p>
+<p><strong>Conservation invariant (D2):</strong>
+$<span class="arithmatex">\(E_{orchestration} = E_{planning} + E_{execution} + E_{synthesis} + E_{inter\_phase}\)</span>$</p>
+<p>This must sum to 100%. Validated by <code>scripts/validate_energy_chain.py</code>.</p>
+<h3 id="data-sources_2">Data Sources<a class="headerlink" href="#data-sources_2" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Table</th>
+<th>Column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pkg_start_uj</code>, <code>pkg_end_uj</code></td>
+<td><code>energy_samples</code></td>
+<td>RAPL interval deltas</td>
+</tr>
+<tr>
+<td><code>sample_start_ns</code>, <code>sample_end_ns</code></td>
+<td><code>energy_samples</code></td>
+<td>Measurement window</td>
+</tr>
+<tr>
+<td><code>proc_ticks_start/end</code></td>
+<td><code>interrupt_samples</code></td>
+<td><code>/proc/[pid]/stat</code></td>
+</tr>
+<tr>
+<td><code>total_ticks_start/end</code></td>
+<td><code>interrupt_samples</code></td>
+<td><code>/proc/stat</code></td>
+</tr>
+<tr>
+<td>Phase window</td>
+<td><code>orchestration_events</code></td>
+<td><code>start_time_ns</code>, <code>end_time_ns</code></td>
+</tr>
+<tr>
+<td>Run total</td>
+<td><code>runs</code></td>
+<td><code>attributed_energy_uj</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="output-columns">Output Columns<a class="headerlink" href="#output-columns" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Table</th>
+<th>Type</th>
+<th>Formula</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>planning_energy_uj</code></td>
+<td><code>runs</code></td>
+<td>MEASURED</td>
+<td>samples in planning window × f_cpu</td>
+</tr>
+<tr>
+<td><code>execution_energy_uj</code></td>
+<td><code>runs</code></td>
+<td>MEASURED</td>
+<td>samples in execution window × f_cpu</td>
+</tr>
+<tr>
+<td><code>synthesis_energy_uj</code></td>
+<td><code>runs</code></td>
+<td>MEASURED</td>
+<td>samples in synthesis window × f_cpu</td>
+</tr>
+<tr>
+<td><code>inter_phase_energy_uj</code></td>
+<td><code>runs</code></td>
+<td>CALCULATED</td>
+<td>E_attr - plan - exec - synth</td>
+</tr>
+<tr>
+<td><code>phase_sample_coverage_pct</code></td>
+<td><code>runs</code></td>
+<td>CALCULATED</td>
+<td>samples_in_phases / total_samples × 100</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fallback_1">Fallback<a class="headerlink" href="#fallback_1" title="Permanent link">&para;</a></h3>
+<p>When phase-level proc ticks unavailable:
+<code>attribution_method = fallback_run_level_v2</code>
+<code>cpu_fraction_per_phase = runs.cpu_fraction</code>
+Provenance degrades to INFERRED, confidence = 0.70.</p>
+<h3 id="known-limitations_1">Known Limitations<a class="headerlink" href="#known-limitations_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>synthesis_energy = 0</code> for runs where synthesis &lt; 10ms (below 100Hz resolution)</li>
+<li><code>phase_sample_coverage_pct &lt; 100%</code> means some phase energy falls outside sample windows</li>
+<li>Only top-level PID tracked — spawned subprocesses excluded</li>
+<li><code>inter_phase_energy_uj</code> may be negative if sample windows overlap phase boundaries — clamped to 0 and logged as warning</li>
+</ul>
+<h3 id="references_4">References<a class="headerlink" href="#references_4" title="Permanent link">&para;</a></h3>
+<p>See <code>config/methodology_refs/phase_attribution_sample_v2.yaml</code>.</p>
+<h2 id="hardware-telemetry-metrics-chunk-12">Hardware Telemetry Metrics (Chunk 12)<a class="headerlink" href="#hardware-telemetry-metrics-chunk-12" title="Permanent link">&para;</a></h2>
+<h3 id="l1d-l2-l3-cache-counters">L1d / L2 / L3 Cache Counters<a class="headerlink" href="#l1d-l2-l3-cache-counters" title="Permanent link">&para;</a></h3>
+<p><strong>Method ID:</strong> <code>perf_cache_counters</code>
+<strong>Layer:</strong> silicon
+<strong>Provenance:</strong> MEASURED
+<strong>Confidence:</strong> 1.0</p>
+<p>Cache miss counters read via Linux <code>perf stat</code> using hardware PMU events.
+Collected once per run (not per sample) and distributed evenly across <code>cpu_samples</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>perf Event</th>
+<th>Availability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>l1d_cache_misses</code></td>
+<td><code>L1-dcache-load-misses</code></td>
+<td>Intel (model-specific)</td>
+</tr>
+<tr>
+<td><code>l2_cache_misses</code></td>
+<td><code>l2_rqsts.miss</code></td>
+<td>Intel ✅</td>
+</tr>
+<tr>
+<td><code>l3_cache_hits</code></td>
+<td><code>cache-references</code> (LLC)</td>
+<td>Intel ✅</td>
+</tr>
+<tr>
+<td><code>l3_cache_misses</code></td>
+<td><code>cache-misses</code> (LLC)</td>
+<td>Intel ✅</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note:</strong> <code>l1d_cache_misses = 0</code> on ThinkPad Intel — PMU event not exposed on this CPU model. Correct graceful degradation behavior.</p>
+<p><strong>Run-level aggregates</strong> (in <code>runs</code> table):
+- <code>l1d_cache_misses_total</code> = SUM from cpu_samples
+- <code>l2_cache_misses_total</code> = SUM from cpu_samples
+- <code>l3_cache_hits_total</code> = SUM from cpu_samples
+- <code>l3_cache_misses_total</code> = SUM from cpu_samples</p>
+<p><strong>References:</strong> See <code>config/methodology_refs/perf_cache_counters.yaml</code></p>
+<hr />
+<h3 id="disk-io-metrics">Disk I/O Metrics<a class="headerlink" href="#disk-io-metrics" title="Permanent link">&para;</a></h3>
+<p><strong>Method ID:</strong> <code>disk_io_stats</code>
+<strong>Layer:</strong> os
+<strong>Provenance:</strong> MEASURED
+<strong>Confidence:</strong> 1.0</p>
+<p><strong>Formula:</strong>
+$<span class="arithmatex">\(\Delta bytes_{read} = (\text{read\_sectors}_{end} - \text{read\_sectors}_{start}) \times 512\)</span>$</p>
+<p>Source: <code>/proc/diskstats</code> — delta between consecutive snapshots at 10Hz.
+Device auto-detected: prefers <code>nvme*</code>, <code>sd*</code>, <code>vd*</code> — skips <code>loop*</code>, <code>zram*</code>, <code>ram*</code>.</p>
+<p><strong>Note:</strong> <code>disk_read_bytes = 0</code> is expected when Linux page cache absorbs I/O.
+Force real disk activity: <code>sudo sh -c "echo 3 &gt; /proc/sys/vm/drop_caches"</code></p>
+<p><strong>Run-level aggregates:</strong>
+- <code>disk_read_bytes_total</code> = SUM from io_samples
+- <code>disk_write_bytes_total</code> = SUM from io_samples</p>
+<p><strong>References:</strong> See <code>config/methodology_refs/disk_io_stats.yaml</code></p>
+<hr />
+<h3 id="voltage-fan-sensors">Voltage &amp; Fan Sensors<a class="headerlink" href="#voltage-fan-sensors" title="Permanent link">&para;</a></h3>
+<p><strong>Method ID:</strong> <code>sensors_voltage</code>
+<strong>Layer:</strong> silicon
+<strong>Provenance:</strong> MEASURED
+<strong>Confidence:</strong> 1.0</p>
+<p><strong>Formula:</strong>
+$<span class="arithmatex">\(V_{core} = \frac{\text{in}i\text{\_input}}{1000}\ \text{(V)}\)</span>$</p>
+<p>Source: <code>/sys/class/hwmon/hwmon*/in*_input</code> — millivolt values from hwmon sysfs.
+Fan RPM from <code>/sys/class/hwmon/hwmon*/fan*_input</code>.</p>
+<p><strong>Platform availability:</strong>
+- ThinkPad Intel: <code>voltage_vcore = NULL</code> (not exposed via hwmon on laptops)
+- Desktop Intel/AMD: <code>voltage_vcore &gt; 0</code> (motherboard hwmon exposes Vcore)
+- <code>fan_rpm &gt; 0</code> on ThinkPad via <code>thinkpad</code> hwmon driver ✅</p>
+<p><strong>Run-level aggregate:</strong>
+- <code>voltage_vcore_avg</code> = AVG from thermal_samples</p>
+<p><strong>References:</strong> See <code>config/methodology_refs/sensors_voltage.yaml</code></p>
+<h1 id="streaming-latency-metrics-ttft-and-tpot">Streaming Latency Metrics — TTFT and TPOT<a class="headerlink" href="#streaming-latency-metrics-ttft-and-tpot" title="Permanent link">&para;</a></h1>
+<h2 id="overview_8">Overview<a class="headerlink" href="#overview_8" title="Permanent link">&para;</a></h2>
+<p>Two new streaming latency metrics were provisioned in Chunk 7 and will be
+populated by Chunk 4 streaming adapter implementation.</p>
+<p>Both columns are NULL for all non-streaming calls.</p>
+<hr />
+<h2 id="time-to-first-token-ttft">Time to First Token (TTFT)<a class="headerlink" href="#time-to-first-token-ttft" title="Permanent link">&para;</a></h2>
+<p><strong>Method ID:</strong> <code>ttft_measurement_v1</code>
+<strong>Provenance:</strong> MEASURED
+<strong>Layer:</strong> application
+<strong>Confidence:</strong> 1.0</p>
+<p><strong>Formula:</strong></p>
+<div class="arithmatex">\[TTFT = t_{first\_token} - t_{request\_sent}\]</div>
+<p><strong>Description:</strong>
+Wall-clock time from when the HTTP request is sent to when the first token
+is received from the model. Measured using <code>time.perf_counter()</code> — monotonic,
+high resolution, platform-independent.</p>
+<p><strong>Why it matters:</strong>
+TTFT determines perceived responsiveness. For interactive applications,
+TTFT dominates user experience. For batch workloads, TPOT dominates.
+LLM workloads show distinct TTFT profiles:
+- Local Ollama: low TTFT (no network), high compute
+- Cloud APIs: high TTFT (network + queue), variable compute</p>
+<p><strong>Column:</strong> <code>runs.ttft_ms REAL DEFAULT NULL</code></p>
+<p><strong>Populated by:</strong> Chunk 4 streaming adapter
+<strong>NULL when:</strong> non-streaming call (current default)</p>
+<hr />
+<h2 id="time-per-output-token-tpot">Time Per Output Token (TPOT)<a class="headerlink" href="#time-per-output-token-tpot" title="Permanent link">&para;</a></h2>
+<p><strong>Method ID:</strong> <code>tpot_measurement_v1</code>
+<strong>Provenance:</strong> MEASURED
+<strong>Layer:</strong> application
+<strong>Confidence:</strong> 0.95</p>
+<p><strong>Formula:</strong></p>
+<div class="arithmatex">\[TPOT = \frac{T_{total} - TTFT}{N_{completion\_tokens} - 1}\]</div>
+<p><strong>Description:</strong>
+Mean inter-token latency after the first token. Measures throughput of the
+decoding phase. Confidence 0.95 (not 1.0) because completion token count
+is estimated from word-split for some providers that don't return exact counts.</p>
+<p><strong>Why it matters:</strong>
+TPOT × completion_tokens ≈ generation time. Used to compare inference
+efficiency across providers and models at same task. Combined with
+<code>llm_wait_energy_uj</code> (Chunk 6.1), enables energy-per-token-per-second analysis.</p>
+<p><strong>Column:</strong> <code>runs.tpot_ms REAL DEFAULT NULL</code></p>
+<p><strong>Populated by:</strong> Chunk 4 streaming adapter
+<strong>NULL when:</strong> non-streaming call (current default)</p>
+<hr />
+<h2 id="relationship-to-llm-wait-energy-chunk-61-finding">Relationship to LLM Wait Energy (Chunk 6.1 finding)<a class="headerlink" href="#relationship-to-llm-wait-energy-chunk-61-finding" title="Permanent link">&para;</a></h2>
+<p>LLM workloads spend 48-96% of attributed energy in API wait state at ~12.9W.
+TTFT and TPOT decompose this wait into:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>total_wait = TTFT + (TPOT × completion_tokens)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>llm_wait_energy_uj = pkg_power_during_wait × total_wait
+</code></pre></div>
+<p>This enables attribution of wait energy to network vs inference components —
+a novel contribution of this research platform.</p>
+<hr />
+<h2 id="references_5">References<a class="headerlink" href="#references_5" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Kwon et al. (2023) — "Efficient Large Language Model Serving" — defines TTFT/TPOT</li>
+<li>A-LEMS Chunk 6.1 — LLM Wait Energy Finding (docs-src/research/15-llm-wait-energy-finding.md)</li>
+<li>A-LEMS Chunk 7 — Adapter Infrastructure (docs-src/research/16-model-factory-architecture.md)</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "toc.integrate", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
