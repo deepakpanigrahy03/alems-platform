@@ -198,28 +198,21 @@ Run these before closing any documentation work:
 # Step 1: Validate all methodology references
 python3 scripts/tools/validate_methodology_refs.py
 
-# Step 2: Full docs build — must show 0 warnings
-cd docs-src/mkdocs && mkdocs build 2>&1 | grep -c "WARNING"
+# Step 2: Full build — validates, generates diagrams, builds site
+bash scripts/build-docs.sh
 
-# Step 3: If diagrams changed, regenerate
-python3 scripts/tools/generate_diagrams.py
-
-# Step 4: Commit all changes
+# Step 3: Commit all changes
 cd ~/mydrive/alems-platform
 git add -A
 git commit -m "docs: <brief description of what changed>"
 
-# Step 5: Deploy to GitHub Pages
-cd docs-src/mkdocs && mkdocs gh-deploy --force
+# Step 4: Push source and deploy docs in one command
+bash scripts/build-docs.sh --deploy
 ```
 
-Step 5 is mandatory after every documentation session. The public site
-at `https://deepakpanigrahy03.github.io/alems-platform/` must always
-reflect the current state of the repository. A committed doc that is
-not deployed is invisible to researchers and developers using the platform.
-
-`mkdocs gh-deploy` builds the site and pushes to the `gh-pages` branch.
-It takes approximately 2-3 minutes for GitHub to make the update live.
+`--deploy` pushes source to `main` branch then deploys to GitHub Pages.
+Both happen together. Never deploy docs without pushing source first —
+the two must always be in sync.
 
 ---
 
