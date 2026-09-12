@@ -2572,6 +2572,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Administrator Guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -2588,6 +2606,113 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#environment-strategy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Strategy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-new-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a New Machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#database-backup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Database Backup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keeping-machines-in-sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keeping Machines in Sync
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#production-migration-protocol" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production Migration Protocol
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hardware-config-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware Config Refresh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#shared-data-root" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Shared Data Root
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-deployment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation Deployment
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -2737,7 +2862,179 @@
 
 
 <h1 id="administrator-guide">Administrator Guide<a class="headerlink" href="#administrator-guide" title="Permanent link">&para;</a></h1>
-<p>Coming soon.</p>
+<p>This guide covers managing a multi-machine A-LEMS deployment: setting
+up production and development environments, backing up databases,
+keeping machines in sync, and adding new machines to the fleet.</p>
+<hr />
+<h2 id="environment-strategy">Environment Strategy<a class="headerlink" href="#environment-strategy" title="Permanent link">&para;</a></h2>
+<p>A-LEMS uses two environments for each machine:</p>
+<p><strong><code>prod</code></strong> — the production measurement environment. One shared database
+per machine. All paper-quality experiments go here. Schema migrations
+in prod fail fatally on checksum mismatch — no silent schema drift.
+Database path: <code>$ALEMS_DATA_ROOT/&lt;hostname&gt;/envs/prod/experiments.db</code></p>
+<p><strong><code>dev</code></strong> — isolated per developer and per project. Database path:
+<code>$ALEMS_DATA_ROOT/&lt;hostname&gt;/envs/&lt;user&gt;/dev/&lt;project&gt;/experiments.db</code>
+Multiple developers can work simultaneously without interfering.
+Schema drift in dev is healed with a warning, not a fatal error.</p>
+<p>Set the environment in <code>.alems-env</code> in the project root:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>ALEMS_ENV=prod
+</code></pre></div>
+<p>Never run exploratory or debug experiments in prod. Use dev for
+development work, pilots, and debugging. Use prod only for experiments
+that generate paper-quality data.</p>
+<hr />
+<h2 id="adding-a-new-machine">Adding a New Machine<a class="headerlink" href="#adding-a-new-machine" title="Permanent link">&para;</a></h2>
+<p><strong>Step 1: Clone the repository</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/deepakpanigrahy03/alems-platform.git
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>alems-platform
+</code></pre></div>
+<p><strong>Step 2: Run the installer</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>bash<span class="w"> </span>scripts/install.sh
+</code></pre></div>
+<p>The installer detects the platform, installs dependencies, sets
+hardware counter permissions, initializes the database, and measures
+the idle baseline. It asks two questions: environment (use <code>prod</code> for
+measurement machines) and data root path.</p>
+<p><strong>Step 3: Verify</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">source</span><span class="w"> </span>~/.bashrc
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>bash<span class="w"> </span>scripts/alems<span class="w"> </span>dev<span class="w"> </span>status
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>python3<span class="w"> </span>scripts/tools/validate_methodology_refs.py
+</code></pre></div>
+<p><strong>Step 4: Add to fleet documentation</strong></p>
+<p>Update <code>reference/platform-matrix.md</code> with the new machine's
+<code>platform_class</code>, hardware, and energy stack. This keeps the public
+documentation current with the actual fleet.</p>
+<hr />
+<h2 id="database-backup">Database Backup<a class="headerlink" href="#database-backup" title="Permanent link">&para;</a></h2>
+<p>Back up the production database regularly. A-LEMS has no built-in
+backup scheduler — use cron or a backup script.</p>
+<p><strong>Manual backup:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">DB</span><span class="o">=</span><span class="k">$(</span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s2">import sys; sys.path.insert(0, &#39;.&#39;)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s2">from scripts.tools.path_loader import get_alems_db_path</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">print(get_alems_db_path())</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">&quot;</span><span class="k">)</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="nv">BACKUP_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$ALEMS_DATA_ROOT</span><span class="s2">/</span><span class="k">$(</span>hostname<span class="k">)</span><span class="s2">/backups&quot;</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BACKUP_DIR</span><span class="s2">&quot;</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>sqlite3<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$DB</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;.backup </span><span class="nv">$BACKUP_DIR</span><span class="s2">/experiments_</span><span class="k">$(</span>date<span class="w"> </span>+%Y%m%d_%H%M%S<span class="k">)</span><span class="s2">.db&quot;</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Backup complete: </span><span class="nv">$BACKUP_DIR</span><span class="s2">&quot;</span>
+</code></pre></div>
+<p><strong>Cron backup (daily at 2am):</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>crontab<span class="w"> </span>-e
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># Add:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="m">0</span><span class="w"> </span><span class="m">2</span><span class="w"> </span>*<span class="w"> </span>*<span class="w"> </span>*<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>sqlite3<span class="w"> </span><span class="k">$(</span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import sys; sys.path.insert(0,&#39;.&#39;); from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())&quot;</span><span class="k">)</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="s2">&quot;.backup </span><span class="nv">$ALEMS_DATA_ROOT</span><span class="s2">/</span><span class="k">$(</span>hostname<span class="k">)</span><span class="s2">/backups/experiments_</span><span class="k">$(</span>date<span class="w"> </span>+<span class="se">\%</span>Y<span class="se">\%</span>m<span class="se">\%</span>d<span class="k">)</span><span class="s2">.db&quot;</span>
+</code></pre></div>
+<p><strong>Verify backup integrity:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>sqlite3<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BACKUP_DIR</span><span class="s2">/experiments_&lt;date&gt;.db&quot;</span><span class="w"> </span><span class="s2">&quot;PRAGMA integrity_check;&quot;</span>
+</code></pre></div>
+<hr />
+<h2 id="keeping-machines-in-sync">Keeping Machines in Sync<a class="headerlink" href="#keeping-machines-in-sync" title="Permanent link">&para;</a></h2>
+<p>All machines in the fleet must run the same schema version. After
+any migration is applied on one machine, apply it on all machines
+before running cross-platform experiments.</p>
+<p><strong>Check schema version on current machine:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>bash<span class="w"> </span>scripts/alems<span class="w"> </span>dev<span class="w"> </span>status
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># Shows: Schema: v088</span>
+</code></pre></div>
+<p><strong>Apply pending migrations:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>venv/bin/activate
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>main
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>python3<span class="w"> </span>scripts/tools/alems_migrate.py
+</code></pre></div>
+<p><strong>Check for migration failures:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python3<span class="w"> </span>scripts/tools/alems_migrate.py<span class="w"> </span>--status<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-v<span class="w"> </span><span class="s2">&quot;applied&quot;</span>
+</code></pre></div>
+<p>Any row that is not <code>applied</code> is a problem. Investigate before running
+experiments.</p>
+<hr />
+<h2 id="production-migration-protocol">Production Migration Protocol<a class="headerlink" href="#production-migration-protocol" title="Permanent link">&para;</a></h2>
+<p>In <code>prod</code> environment, migrations are immutable. Never edit an applied
+migration file. If a migration has an error, create a new migration
+that corrects it — do not modify the original.</p>
+<p>Before applying any migration to prod:</p>
+<ol>
+<li>Test on a dev environment first</li>
+<li>Take a database backup</li>
+<li>Apply with <code>python3 scripts/tools/alems_migrate.py</code></li>
+<li>Verify with <code>python3 scripts/tools/alems_migrate.py --status</code></li>
+<li>Run one experiment to confirm the application works correctly</li>
+</ol>
+<p>If a migration fails on prod, the database is in an intermediate state.
+Restore from backup immediately. Do not attempt to continue.</p>
+<hr />
+<h2 id="hardware-config-refresh">Hardware Config Refresh<a class="headerlink" href="#hardware-config-refresh" title="Permanent link">&para;</a></h2>
+<p>When hardware changes on a machine (new GPU, kernel upgrade, BIOS
+update), regenerate <code>hw_config.json</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>venv/bin/activate
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python3<span class="w"> </span>scripts/detect_hardware.py
+</code></pre></div>
+<p>Verify the capability profile updated correctly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="s2">import json</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="s2">with open(&#39;config/hw_config.json&#39;) as f:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="s2">    cfg = json.load(f)</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="s2">print(&#39;platform_class:     &#39;, cfg.get(&#39;platform_class&#39;))</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="s2">print(&#39;energy_measurement: &#39;, cfg.get(&#39;energy_measurement&#39;))</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="s2">print(&#39;hw_config_version:  &#39;, cfg.get(&#39;hw_config_version&#39;))</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s2">print(&#39;capability_profile: &#39;, cfg.get(&#39;capability_profile&#39;))</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="s2">&quot;</span>
+</code></pre></div>
+<p>After any hardware change, re-measure the idle baseline:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>bash<span class="w"> </span>scripts/alems<span class="w"> </span>measure
+</code></pre></div>
+<p>The new baseline replaces the old one in the database. All future
+runs subtract the new baseline.</p>
+<hr />
+<h2 id="shared-data-root">Shared Data Root<a class="headerlink" href="#shared-data-root" title="Permanent link">&para;</a></h2>
+<p>For a fleet where multiple machines write to a shared network storage,
+configure each machine's <code>ALEMS_DATA_ROOT</code> to point to the shared mount:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># In ~/.alemsrc on each machine</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_DATA_ROOT</span><span class="o">=</span>/shared/alems-data
+</code></pre></div>
+<p>Each machine writes to its own subdirectory:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>/shared/alems-data/
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>    gn100-2b96/envs/prod/experiments.db
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>    ubuntu-intel/envs/prod/experiments.db
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>    amd-workstation/envs/prod/experiments.db
+</code></pre></div></p>
+<p>For cross-platform analysis, attach all databases in a single SQLite
+session:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>sqlite3<span class="w"> </span>/shared/alems-data/gn100-2b96/envs/prod/experiments.db<span class="w"> </span><span class="s">&lt;&lt; &#39;SQL&#39;</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="s">ATTACH &#39;/shared/alems-data/ubuntu-intel/envs/prod/experiments.db&#39; AS intel;</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="s">ATTACH &#39;/shared/alems-data/amd-workstation/envs/prod/experiments.db&#39; AS amd;</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="s">SELECT</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="s">  &#39;grace&#39; as platform, AVG(total_energy_uj) as avg_uj</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="s">FROM runs</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="s">WHERE workflow_type = &#39;linear&#39;</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="s">UNION ALL</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="s">SELECT</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="s">  &#39;intel&#39;, AVG(total_energy_uj)</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="s">FROM intel.runs</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="s">WHERE workflow_type = &#39;linear&#39;</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="s">UNION ALL</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="s">SELECT</span>
+<a id="__codelineno-15-16" name="__codelineno-15-16" href="#__codelineno-15-16"></a><span class="s">  &#39;amd&#39;, AVG(total_energy_uj)</span>
+<a id="__codelineno-15-17" name="__codelineno-15-17" href="#__codelineno-15-17"></a><span class="s">FROM amd.runs</span>
+<a id="__codelineno-15-18" name="__codelineno-15-18" href="#__codelineno-15-18"></a><span class="s">WHERE workflow_type = &#39;linear&#39;;</span>
+<a id="__codelineno-15-19" name="__codelineno-15-19" href="#__codelineno-15-19"></a><span class="s">SQL</span>
+</code></pre></div>
+<hr />
+<h2 id="documentation-deployment">Documentation Deployment<a class="headerlink" href="#documentation-deployment" title="Permanent link">&para;</a></h2>
+<p>After any change to platform documentation, deploy to GitHub Pages:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>git<span class="w"> </span>add<span class="w"> </span>-A
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;docs: description of change&quot;</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>bash<span class="w"> </span>scripts/build-docs.sh<span class="w"> </span>--deploy
+</code></pre></div>
+<p><code>--deploy</code> pushes source to <code>main</code> and documentation to <code>gh-pages</code>.
+Both happen together. See
+<a href="../../contributing/adding-documentation/">Contributing Documentation</a>
+for the full documentation protocol.</p>
 
 
 

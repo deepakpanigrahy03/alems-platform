@@ -19,25 +19,12 @@
 <polygon fill="none" stroke="lightgreen" points="8,-8 8,-83 216,-83 216,-8 8,-8"/>
 <text text-anchor="middle" x="112" y="-69.4" font-family="Helvetica,sans-Serif" font-size="12.00">Kernel / Hardware</text>
 </g>
-<!-- exec.samples -->
-<g id="node1" class="node">
-<title>exec.samples</title>
-<polygon fill="lightgrey" stroke="black" points="482,-54 381,-54 381,-16 482,-16 482,-54"/>
-<text text-anchor="middle" x="431.5" y="-38.8" font-family="Helvetica,sans-Serif" font-size="14.00">Raw Samples</text>
-<text text-anchor="middle" x="431.5" y="-23.8" font-family="Helvetica,sans-Serif" font-size="14.00">(Layer 1)</text>
-</g>
 <!-- exec.analyzer -->
-<g id="node2" class="node">
+<g id="node1" class="node">
 <title>exec.analyzer</title>
 <polygon fill="lightgrey" stroke="black" points="630,-54 518,-54 518,-16 630,-16 630,-54"/>
 <text text-anchor="middle" x="574" y="-38.8" font-family="Helvetica,sans-Serif" font-size="14.00">EnergyAnalyzer</text>
 <text text-anchor="middle" x="574" y="-23.8" font-family="Helvetica,sans-Serif" font-size="14.00">(Layers 2/3)</text>
-</g>
-<!-- exec.samples&#45;&gt;exec.analyzer -->
-<g id="edge4" class="edge">
-<title>exec.samples&#45;&gt;exec.analyzer</title>
-<path fill="none" stroke="blue" d="M482.23,-33.89C492.24,-33.68 500.56,-33.53 507.72,-33.44"/>
-<polygon fill="blue" stroke="blue" points="507.8,-36.94 517.76,-33.34 507.72,-29.94 507.8,-36.94"/>
 </g>
 <!-- db.main -->
 <g id="node6" class="node">
@@ -52,6 +39,19 @@
 <path fill="none" stroke="blue" d="M630.15,-34.4C640.33,-34.31 648.29,-34.26 655.06,-34.25"/>
 <polygon fill="blue" stroke="blue" points="655.53,-37.75 665.54,-34.27 655.54,-30.75 655.53,-37.75"/>
 </g>
+<!-- exec.samples -->
+<g id="node2" class="node">
+<title>exec.samples</title>
+<polygon fill="lightgrey" stroke="black" points="482,-54 381,-54 381,-16 482,-16 482,-54"/>
+<text text-anchor="middle" x="431.5" y="-38.8" font-family="Helvetica,sans-Serif" font-size="14.00">Raw Samples</text>
+<text text-anchor="middle" x="431.5" y="-23.8" font-family="Helvetica,sans-Serif" font-size="14.00">(Layer 1)</text>
+</g>
+<!-- exec.samples&#45;&gt;exec.analyzer -->
+<g id="edge4" class="edge">
+<title>exec.samples&#45;&gt;exec.analyzer</title>
+<path fill="none" stroke="blue" d="M482.23,-33.89C492.24,-33.68 500.56,-33.53 507.72,-33.44"/>
+<polygon fill="blue" stroke="blue" points="507.8,-36.94 517.76,-33.34 507.72,-29.94 507.8,-36.94"/>
+</g>
 <!-- exec.engine -->
 <g id="node3" class="node">
 <title>exec.engine</title>
@@ -65,30 +65,30 @@
 <path fill="none" stroke="blue" d="M345.32,-18.17C352.96,-17.51 360.95,-18.07 371.01,-19.87"/>
 <polygon fill="blue" stroke="blue" points="370.39,-23.32 380.89,-21.86 371.78,-16.45 370.39,-23.32"/>
 </g>
-<!-- hw.readers -->
-<g id="node4" class="node">
-<title>hw.readers</title>
-<polygon fill="lightgrey" stroke="black" points="208,-53 140,-53 140,-17 208,-17 208,-53"/>
-<text text-anchor="middle" x="174" y="-31.3" font-family="Helvetica,sans-Serif" font-size="14.00">Readers</text>
-</g>
-<!-- hw.readers&#45;&gt;exec.engine -->
-<g id="edge2" class="edge">
-<title>hw.readers&#45;&gt;exec.engine</title>
-<path fill="none" stroke="blue" d="M208.29,-33.66C215.18,-33.57 222.92,-33.6 233.59,-33.76"/>
-<polygon fill="blue" stroke="blue" points="233.71,-37.26 243.77,-33.93 233.83,-30.26 233.71,-37.26"/>
-</g>
 <!-- hw.source -->
-<g id="node5" class="node">
+<g id="node4" class="node">
 <title>hw.source</title>
 <polygon fill="lightgrey" stroke="black" points="104,-54 16,-54 16,-16 104,-16 104,-54"/>
 <text text-anchor="middle" x="60" y="-38.8" font-family="Helvetica,sans-Serif" font-size="14.00">Hardware</text>
 <text text-anchor="middle" x="60" y="-23.8" font-family="Helvetica,sans-Serif" font-size="14.00">(/sys, MSR)</text>
+</g>
+<!-- hw.readers -->
+<g id="node5" class="node">
+<title>hw.readers</title>
+<polygon fill="lightgrey" stroke="black" points="208,-53 140,-53 140,-17 208,-17 208,-53"/>
+<text text-anchor="middle" x="174" y="-31.3" font-family="Helvetica,sans-Serif" font-size="14.00">Readers</text>
 </g>
 <!-- hw.source&#45;&gt;hw.readers -->
 <g id="edge1" class="edge">
 <title>hw.source&#45;&gt;hw.readers</title>
 <path fill="none" stroke="blue" d="M104.08,-34.3C110.89,-34.32 119.07,-34.38 129.83,-34.49"/>
 <polygon fill="blue" stroke="blue" points="129.94,-37.99 139.98,-34.6 130.02,-31 129.94,-37.99"/>
+</g>
+<!-- hw.readers&#45;&gt;exec.engine -->
+<g id="edge2" class="edge">
+<title>hw.readers&#45;&gt;exec.engine</title>
+<path fill="none" stroke="blue" d="M208.29,-33.66C215.18,-33.57 222.92,-33.6 233.59,-33.76"/>
+<polygon fill="blue" stroke="blue" points="233.71,-37.26 243.77,-33.93 233.83,-30.26 233.71,-37.26"/>
 </g>
 </g>
 </svg>

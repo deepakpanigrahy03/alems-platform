@@ -2600,6 +2600,24 @@
         
       
       
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributor Guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
       <a href="./" class="md-nav__link md-nav__link--active">
         
   
@@ -2616,6 +2634,113 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#before-you-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Before You Start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-platform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a Platform
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-an-energy-reader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding an Energy Reader
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a Provider
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a Task
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-schema-migration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a Schema Migration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-quality-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Quality Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
       
     </li>
   
@@ -2737,7 +2862,193 @@
 
 
 <h1 id="contributor-guide">Contributor Guide<a class="headerlink" href="#contributor-guide" title="Permanent link">&para;</a></h1>
-<p>Coming soon.</p>
+<p>A-LEMS is designed for extension. Adding a new platform, energy reader,
+provider, task, or documentation section follows a defined process that
+confines changes to the right files and leaves everything else untouched.
+This guide covers each extension point.</p>
+<hr />
+<h2 id="before-you-start">Before You Start<a class="headerlink" href="#before-you-start" title="Permanent link">&para;</a></h2>
+<p>Read the documentation protocol before making any change:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>docs-src/mkdocs/source/contributing/adding-documentation.md
+</code></pre></div>
+<p>Run the build pipeline to confirm the baseline is clean:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>bash<span class="w"> </span>scripts/build-docs.sh<span class="w"> </span>--validate-only
+</code></pre></div>
+<p>All changes must leave the build at 0 warnings and the validator at
+0 failures.</p>
+<hr />
+<h2 id="adding-a-platform">Adding a Platform<a class="headerlink" href="#adding-a-platform" title="Permanent link">&para;</a></h2>
+<p>A new <code>platform_class</code> requires changes in two places only.
+See <a href="../../developer/adding-a-platform/">Adding a Platform</a> for the
+full 4-step process.</p>
+<p>Summary:</p>
+<ol>
+<li>Add a detector class to <code>scripts/detect_hardware.py</code></li>
+<li>Register it in <code>PlatformDetector.for_current_platform()</code></li>
+<li>Create <code>scripts/platforms/&lt;platform_class&gt;/provision.sh</code> and <code>verify.sh</code></li>
+<li>Test on hardware — verify <code>platform_class</code>, <code>energy_measurement</code>, and <code>capability_profile</code></li>
+</ol>
+<p>After the platform works:
+- Add a row to <code>reference/platform-matrix.md</code>
+- Add methodology entries for any new energy readers
+- Run <code>bash scripts/build-docs.sh --deploy</code></p>
+<hr />
+<h2 id="adding-an-energy-reader">Adding an Energy Reader<a class="headerlink" href="#adding-an-energy-reader" title="Permanent link">&para;</a></h2>
+<p>An energy reader is a Python class that reads a hardware counter and
+returns a value in microjoules. Readers live in <code>core/energy/readers/</code>.</p>
+<p><strong>Step 1:</strong> Create the reader class:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># core/energy/readers/my_reader.py</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">class</span><span class="w"> </span><span class="nc">MyEnergyReader</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">is_available</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return True only if the counter is present AND readable.&quot;&quot;&quot;</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>            <span class="c1"># Actually read the counter — existence check is not enough</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>            <span class="n">val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s2">&quot;/sys/path/to/counter&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>            <span class="k">return</span> <span class="n">val</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>            <span class="k">return</span> <span class="kc">False</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">read_energy_uj</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Return current cumulative counter value in microjoules.&quot;&quot;&quot;</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s2">&quot;/sys/path/to/counter&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+</code></pre></div>
+<p><strong>Step 2:</strong> Add the capability check to <code>capability_profile.py</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">_check_my_reader</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>        <span class="n">val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s2">&quot;/sys/path/to/counter&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>        <span class="k">return</span> <span class="n">val</span> <span class="o">&gt;=</span> <span class="mi">0</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>        <span class="k">return</span> <span class="kc">False</span>
+</code></pre></div>
+<p>Add it to <code>build_capability_profile()</code> return dict.</p>
+<p><strong>Step 3:</strong> Add the method to <code>seed_methodology.py</code>. Read
+<code>methodology_loader.py</code> — do not hardcode doc/section. Add an entry
+to <code>config/methodology_docs.yaml</code> first.</p>
+<p><strong>Step 4:</strong> Add a section to the appropriate research doc with a
+<code>{ #anchor }</code> tag matching the <code>method_anchor</code> in <code>methodology_docs.yaml</code>.</p>
+<p><strong>Step 5:</strong> Run the validator:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python3<span class="w"> </span>scripts/tools/validate_methodology_refs.py
+</code></pre></div>
+<p><strong>Step 6:</strong> Re-seed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python3<span class="w"> </span>scripts/seed_methodology.py
+</code></pre></div>
+<hr />
+<h2 id="adding-a-provider">Adding a Provider<a class="headerlink" href="#adding-a-provider" title="Permanent link">&para;</a></h2>
+<p>A provider that speaks the OpenAI-compatible <code>/chat/completions</code> API
+requires only a <code>config/models.yaml</code> entry. No code changes.</p>
+<p>Add to <code>config/models.yaml</code> under <code>providers:</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">my_provider</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">transport</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">remote_http</span><span class="w">           </span><span class="c1"># or loopback_http, inprocess</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;https://api.myprovider.com/v1&quot;</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">api_key_env</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;MY_PROVIDER_API_KEY&quot;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">    </span><span class="nt">openai_compat</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">    </span><span class="nt">is_local</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">    </span><span class="nt">energy_side</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">client_only</span><span class="w">         </span><span class="c1"># or full, remote_measured</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">    </span><span class="nt">cost_class</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">paid</span>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="w">    </span><span class="nt">tools_supported</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a><span class="w">    </span><span class="nt">models</span><span class="p">:</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">model_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;my-model-7b&quot;</span>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;My</span><span class="nv"> </span><span class="s">Model</span><span class="nv"> </span><span class="s">7B&quot;</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="w">        </span><span class="nt">context_window</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">32768</span>
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a><span class="w">        </span><span class="nt">available</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<p>Add the API key variable to <code>~/.alemsrc</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">MY_PROVIDER_API_KEY</span><span class="o">=</span>your_key_here
+</code></pre></div>
+<p>Test connectivity:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>venv/bin/activate
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>python3<span class="w"> </span>core/execution/tests/test_llm_setup.py<span class="w"> </span>--provider<span class="w"> </span>my_provider<span class="w"> </span>--verbose
+</code></pre></div>
+<p>Update <code>reference/provider-registry.md</code> with the new provider entry.</p>
+<hr />
+<h2 id="adding-a-task">Adding a Task<a class="headerlink" href="#adding-a-task" title="Permanent link">&para;</a></h2>
+<p>Tasks are defined in <code>config/tasks.yaml</code> and loaded into the
+<code>task_categories</code> database table at install time.</p>
+<p>Add to <code>config/tasks.yaml</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">tasks</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_new_task</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;My</span><span class="nv"> </span><span class="s">New</span><span class="nv"> </span><span class="s">Task&quot;</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;What</span><span class="nv"> </span><span class="s">this</span><span class="nv"> </span><span class="s">task</span><span class="nv"> </span><span class="s">measures&quot;</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nt">difficulty</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w">                    </span><span class="c1"># 1=simple, 2=multi-step, 3=complex</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">    </span><span class="nt">workflow_types</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">linear</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">agentic</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="nt">tools_required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span><span class="nt">prompt_template</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">      </span><span class="no">Your prompt here. Use {variable} for dynamic content.</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">    </span><span class="nt">expected_output_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">text</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">    </span><span class="nt">evaluation_criteria</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">accuracy</span>
+</code></pre></div>
+<p>Reload tasks into the database:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>venv/bin/activate
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python3<span class="w"> </span>scripts/migrate_yaml_to_db.py
+</code></pre></div>
+<p>Verify the task appears:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>python3<span class="w"> </span>core/execution/tests/run_experiment.py<span class="w"> </span>--list-tasks<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>my_new_task
+</code></pre></div>
+<p>Test with one repetition:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>python3<span class="w"> </span>core/execution/tests/run_experiment.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--tasks<span class="w"> </span>my_new_task<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>--repetitions<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span>--provider<span class="w"> </span>groq<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span>--workflow-mode<span class="w"> </span>linear<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span>--experiment-type<span class="w"> </span>debug<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span>--experiment-goal<span class="w"> </span><span class="s2">&quot;test new task&quot;</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span>--verbose
+</code></pre></div>
+<p>Update <code>reference/task-registry.md</code> with the new task entry.</p>
+<hr />
+<h2 id="adding-documentation">Adding Documentation<a class="headerlink" href="#adding-documentation" title="Permanent link">&para;</a></h2>
+<p>Every documentation change follows the protocol in
+<code>contributing/adding-documentation.md</code>. The short version:</p>
+<ol>
+<li>Read the existing file before changing it</li>
+<li>Verify every command against actual source code</li>
+<li>Run <code>bash scripts/build-docs.sh</code> — must show 0 warnings</li>
+<li>Commit and deploy: <code>bash scripts/build-docs.sh --deploy</code></li>
+</ol>
+<p><strong>Adding a new methodology section:</strong></p>
+<ol>
+<li>Add the section heading with anchor to the research doc:
+   <div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gu">## My Method Name { #my-method-anchor }</span>
+</code></pre></div></li>
+<li>Add an entry to <code>config/methodology_docs.yaml</code></li>
+<li>Add the method to <code>seed_methodology.py</code></li>
+<li>Run the validator: <code>python3 scripts/tools/validate_methodology_refs.py</code></li>
+<li>Re-seed: <code>python3 scripts/seed_methodology.py</code></li>
+</ol>
+<p><strong>Adding a new page:</strong></p>
+<ol>
+<li>Create the file in the correct section under <code>docs-src/mkdocs/source/</code></li>
+<li>Add it to <code>mkdocs.yml</code> nav</li>
+<li>Run <code>bash scripts/build-docs.sh</code> to confirm 0 warnings</li>
+</ol>
+<hr />
+<h2 id="adding-a-schema-migration">Adding a Schema Migration<a class="headerlink" href="#adding-a-schema-migration" title="Permanent link">&para;</a></h2>
+<p>Any database schema change requires a migration file.
+See <a href="../../developer/schema-migration/">Schema Migration</a> for the
+full migration system documentation.</p>
+<p>Summary:</p>
+<ol>
+<li>Create <code>migrations/schema/v0NN_description.sql</code></li>
+<li>Update <code>core/database/schema.py</code> to match</li>
+<li>Test in dev: <code>python3 scripts/tools/alems_migrate.py</code></li>
+<li>Verify: <code>python3 scripts/tools/alems_migrate.py --status</code></li>
+<li>Never modify an applied migration file</li>
+</ol>
+<p>If the new table or columns need documentation, add entries to
+<code>TABLE_DESCRIPTIONS</code> in <code>scripts/tools/generate_data_dictionary.py</code>.
+The data dictionary regenerates automatically on the next build.</p>
+<hr />
+<h2 id="code-quality-checklist">Code Quality Checklist<a class="headerlink" href="#code-quality-checklist" title="Permanent link">&para;</a></h2>
+<p>Before any pull request or commit to main:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>□ python3 scripts/tools/validate_methodology_refs.py — 0 failures
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>□ bash scripts/build-docs.sh — 0 warnings
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>□ python3 scripts/tools/alems_migrate.py --check — no checksum errors
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>□ One test experiment runs cleanly end to end
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>□ reference/ docs updated for any new platform, provider, or task
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a>□ TABLE_DESCRIPTIONS updated for any new DB table
+</code></pre></div>
 
 
 
