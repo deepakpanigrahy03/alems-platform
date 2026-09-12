@@ -3,7 +3,7 @@
 This page is for researchers deciding which A-LEMS data to use for an
 analysis. If you want the schema reference, query examples, and
 verification steps instead, see
-[Outlier Detection Methodology](../research/32-outlier-detection-methodology.md).
+[Outlier Detection Methodology](../research/outlier-detection.md).
 
 ## The short version
 

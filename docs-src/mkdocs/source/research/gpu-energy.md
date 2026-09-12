@@ -343,5 +343,5 @@ ALTER TABLE run_quality ADD COLUMN gpu_rejection_reason TEXT;
 ## Cross-References
 
 - `07-energy-readers-methodology.md` — CPU RAPL measurement, GPU PP1 section
-- `01-measurement-methodology.md` — Overall A-LEMS measurement model
+- `measurement-methodology.md` — Overall A-LEMS measurement model
 - arXiv:2605.27599 — "The Energy Blind Spot" (LOCO Workshop paper)

@@ -245,6 +245,6 @@ If you use A-LEMS in your research, please cite:
 
 ## ✅ Next Steps
 
-- [Measurement Methodology](01-measurement-methodology.md)
-- [Mathematical Derivations](02-mathematical-derivations.md)
-- [Orchestration Tax Framework](03-orchestration-tax.md)
+- [Measurement Methodology](measurement-methodology.md)
+- [Mathematical Derivations](mathematical-derivations.md)
+- [Orchestration Tax Framework](orchestration-tax.md)

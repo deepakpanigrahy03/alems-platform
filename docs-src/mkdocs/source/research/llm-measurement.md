@@ -325,14 +325,14 @@ Full-scale experiments will:
 - Compare across different model sizes and providers
 - Analyze scaling behavior with increasing steps/tools
 
-See [Publication Roadmap](04-publications.md) for detailed plan.
+See [Publication Roadmap](publications.md) for detailed plan.
 
 
 ## 📚 References
 
 1. A-LEMS Technical Documentation: [System Architecture](../developer-guide/01-architecture.md)
 2. A-LEMS Database Schema: [Database Design](../developer-guide/03-database-schema.md)
-3. Orchestration Tax Analysis: [Mathematical Derivations](02-mathematical-derivations.md)   # APPEND TO: docs-src/mkdocs/source/research/05-llm-measurement-methodology.md
+3. Orchestration Tax Analysis: [Mathematical Derivations](mathematical-derivations.md)   # APPEND TO: docs-src/mkdocs/source/research/05-llm-measurement-methodology.md
 # Chunk 4: Add TTFT/TPOT section
 # Required by MPC-4 — new derived metrics need a doc section.
 #

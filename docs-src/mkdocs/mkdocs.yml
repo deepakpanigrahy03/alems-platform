@@ -74,7 +74,7 @@ nav:
     - Tool Failure: research/tool-failure.md
     - Tool Instrumentation: research/tool-instrumentation.md
     - Retry Methodology: research/retry-methodology.md
-    - Network Energy: research/network-energy.md
+    - Network Wait Energy: research/network-wait-energy.md
     - GPU Energy: research/gpu-energy.md
     - Power Rail Schema: research/power-rail-schema.md
     - Unified Energy Schema: research/unified-energy-schema.md

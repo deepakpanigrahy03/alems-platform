@@ -4,7 +4,7 @@
 
 A-LEMS runs as a **hub-and-spoke** system. The Oracle VM is the brain — it holds the job queue, the PostgreSQL database, and the Streamlit dashboard visible to everyone. Local researcher machines are worker nodes — each runs the full A-LEMS stack locally (SQLite + Streamlit) and optionally connects to the server as an agent.
 
-![Architecture diagram](../diagrams/architecture.svg)
+![Architecture diagram](../assets/diagrams/architecture.svg)
 
 ## Three operating modes
 
