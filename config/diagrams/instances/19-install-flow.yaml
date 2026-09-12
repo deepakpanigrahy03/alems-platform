@@ -1,0 +1,251 @@
+# Install Flow — install.sh 12-step sequence with decision branches
+version: 1.0
+name: install-flow
+title: "A-LEMS Installation Flow"
+template: lifecycle
+boundaries: []
+
+nodes:
+  - id: install.start
+    label: "bash scripts/install.sh"
+    shape: box
+    layer: execution
+    color: lightblue
+
+  - id: install.s0
+    label: "Step 0\nPlatform Detection\n(detect_hardware.py --stdout)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.s0check
+    label: "platform_class\nknown?"
+    shape: diamond
+    layer: execution
+
+  - id: install.s0fallback
+    label: "Fallback:\nOS + ARCH\nheuristic"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.s05
+    label: "Step 0.5\nPrerequisite Check\nper platform_class"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.prereqcheck
+    label: "All required\ntools present?"
+    shape: diamond
+    layer: execution
+
+  - id: install.prereqfail
+    label: "Exit with\nmissing tool\ninstall command"
+    shape: box
+    layer: execution
+    color: "#ffcccc"
+
+  - id: install.s1
+    label: "Step 1\nSystem Build Deps\n(gcc, python3-dev, sqlite3)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.s1b
+    label: "Step 1b\nPython venv\n(reuse if exists)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.s2
+    label: "Step 2\nPip install\nrequirements.txt"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.s3
+    label: "Step 3\nfix_permissions.sh\n(sudo once)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.s4
+    label: "Step 4\nFull HW Detection\n+ Verification"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.verifycheck
+    label: "Verify\npassed?"
+    shape: diamond
+    layer: execution
+
+  - id: install.verifyfail
+    label: "Exit: hardware\nconfiguration\nerror"
+    shape: box
+    layer: execution
+    color: "#ffcccc"
+
+  - id: install.s5
+    label: "Step 5\nConfig: Ask 2 Questions\nWrite .alems-env + ~/.alemsrc"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: install.s5existing
+    label: ".alems-env\nexists?"
+    shape: diamond
+    layer: execution
+
+  - id: install.s5skip
+    label: "Reuse existing\nconfig (no questions)"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: install.s6
+    label: "Step 6\nDB Init + Migrations\n(alems_migrate.py)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.s7to11
+    label: "Steps 7-11\nSeed: methodology,\nplatform, quality,\nquery registry,\ntask categories"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.directcheck
+    label: "Direct energy\nplatform?"
+    shape: diamond
+    layer: execution
+
+  - id: install.s12
+    label: "Step 12\nIdle Baseline\n(90s measurement)"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: install.s12skip
+    label: "Skip baseline\n(modeled platform)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: install.done
+    label: "Install Complete\nalems dev status"
+    shape: box
+    layer: execution
+    color: lightblue
+
+edges:
+  - from: install.start
+    to: install.s0
+    type: flow
+
+  - from: install.s0
+    to: install.s0check
+    type: flow
+
+  - from: install.s0check
+    to: install.s05
+    type: flow
+    label: "yes"
+
+  - from: install.s0check
+    to: install.s0fallback
+    type: flow
+    label: "no"
+
+  - from: install.s0fallback
+    to: install.s05
+    type: flow
+
+  - from: install.s05
+    to: install.prereqcheck
+    type: flow
+
+  - from: install.prereqcheck
+    to: install.s1
+    type: flow
+    label: "yes"
+
+  - from: install.prereqcheck
+    to: install.prereqfail
+    type: flow
+    label: "no"
+
+  - from: install.s1
+    to: install.s1b
+    type: flow
+
+  - from: install.s1b
+    to: install.s2
+    type: flow
+
+  - from: install.s2
+    to: install.s3
+    type: flow
+
+  - from: install.s3
+    to: install.s4
+    type: flow
+
+  - from: install.s4
+    to: install.verifycheck
+    type: flow
+
+  - from: install.verifycheck
+    to: install.s5existing
+    type: flow
+    label: "yes"
+
+  - from: install.verifycheck
+    to: install.verifyfail
+    type: flow
+    label: "no"
+
+  - from: install.s5existing
+    to: install.s5skip
+    type: flow
+    label: "yes"
+
+  - from: install.s5existing
+    to: install.s5
+    type: flow
+    label: "no"
+
+  - from: install.s5
+    to: install.s6
+    type: flow
+
+  - from: install.s5skip
+    to: install.s6
+    type: flow
+
+  - from: install.s6
+    to: install.s7to11
+    type: flow
+
+  - from: install.s7to11
+    to: install.directcheck
+    type: flow
+
+  - from: install.directcheck
+    to: install.s12
+    type: flow
+    label: "yes"
+
+  - from: install.directcheck
+    to: install.s12skip
+    type: flow
+    label: "no"
+
+  - from: install.s12
+    to: install.done
+    type: flow
+
+  - from: install.s12skip
+    to: install.done
+    type: flow

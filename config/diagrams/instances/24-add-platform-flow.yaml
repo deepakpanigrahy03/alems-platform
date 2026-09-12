@@ -1,0 +1,100 @@
+# Add Platform Flow — 4-step process for adding a new platform_class
+version: 1.0
+name: add-platform-flow
+title: "Adding a New Platform — 4-Step Process"
+template: lifecycle
+boundaries: []
+
+nodes:
+  - id: ap.start
+    label: "New hardware\narrives"
+    shape: box
+    layer: execution
+    color: lightblue
+
+  - id: ap.s1
+    label: "Step 1\nAdd detector class\nto detect_hardware.py\n\nInherit PlatformDetector\nImplement detect()\nProbe hardware signals\nBuild capability_profile"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: ap.s2
+    label: "Step 2\nAdd elif branch in\nPlatformDetector\n.for_current_platform()\n\nAdd to VALID_VENDOR_PLATFORM\nMap cpu_vendor → platform_class"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: ap.s3
+    label: "Step 3\nCreate platform folder\nscripts/platforms/<class>/\n\nprovision.sh — system deps\nverify.sh — capability checks\n(optional seed SQL)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: ap.s4
+    label: "Step 4\nTest on hardware\n\nbash scripts/install.sh\nalems dev status\nverify platform_class, tiers\nrun one experiment"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: ap.verify
+    label: "hw_config.json\nshows correct\nplatform_class\n+ tiers?"
+    shape: diamond
+    layer: execution
+
+  - id: ap.fix
+    label: "Fix detection\nsignals in\ndetect_hardware.py"
+    shape: box
+    layer: execution
+    color: "#ffcccc"
+
+  - id: ap.done
+    label: "Platform supported\nAll existing platforms\nunaffected"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: ap.note
+    label: "No other files\nrequire changes.\nInstall.sh keys off\nplatform_class\nautomatically."
+    shape: box
+    layer: config
+    color: lightblue
+
+edges:
+  - from: ap.start
+    to: ap.s1
+    type: flow
+
+  - from: ap.s1
+    to: ap.s2
+    type: flow
+
+  - from: ap.s2
+    to: ap.s3
+    type: flow
+
+  - from: ap.s3
+    to: ap.s4
+    type: flow
+
+  - from: ap.s4
+    to: ap.verify
+    type: flow
+
+  - from: ap.verify
+    to: ap.done
+    type: flow
+    label: "yes"
+
+  - from: ap.verify
+    to: ap.fix
+    type: flow
+    label: "no"
+
+  - from: ap.fix
+    to: ap.s1
+    type: flow
+    label: "iterate"
+
+  - from: ap.done
+    to: ap.note
+    type: control

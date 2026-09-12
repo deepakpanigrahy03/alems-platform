@@ -5,9 +5,9 @@
 
 project:
   name: A-LEMS
-  root: .  # relative to project root
-  repo_url: https://github.com/deepakpanigrahy03/a-lems 
-  author: Deepak Panigrahy  # ← ADD THIS
+  root: .
+  repo_url: https://github.com/deepakpanigrahy03/alems-platform
+  author: Deepak Panigrahy
   description: Agentic LLM Energy Measurement System
 
 # ============================================================================
@@ -16,18 +16,20 @@ project:
 docs:
   # Manual guides (written by humans)
   guides: docs/guides
-  
+
   # Generated documentation
   generated:
     base: docs/generated
     api: docs/generated/api
     sphinx: docs/generated/sphinx
     mkdocs: docs/generated/mkdocs
-  
-  # Assets (images, diagrams)
+
+  # Intermediate diagram store (generate_diagrams.py writes here)
   assets: docs/assets
   diagrams: docs/assets/diagrams
-  mkdocs_diagrams: docs/generated/mkdocs/docs/assets/diagrams
+
+  # MkDocs source assets (diagrams copied here for mkdocs build to serve)
+  mkdocs_diagrams: docs-src/mkdocs/source/assets/diagrams
 
 # ============================================================================
 # Documentation Sources
@@ -36,7 +38,7 @@ sources:
   sphinx:
     source: docs-src/sphinx/source
     config: docs-src/sphinx/source/conf.py
-  
+
   mkdocs:
     source: docs-src/mkdocs/source
     config: docs-src/mkdocs/mkdocs.yml

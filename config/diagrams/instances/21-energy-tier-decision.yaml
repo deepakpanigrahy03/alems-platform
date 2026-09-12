@@ -1,0 +1,208 @@
+# Energy Tier Decision — classify_measurement() two parallel tracks
+version: 1.0
+name: energy-tier-decision
+title: "Measurement Tier Classification — classify_measurement()"
+template: dataflow
+boundaries: []
+
+nodes:
+  - id: tier.start
+    label: "capability_profile\n+ platform_class"
+    shape: box
+    layer: execution
+    color: lightblue
+
+  - id: tier.compute_q1
+    label: "arm_pmu_sysfs\nreadable?"
+    shape: diamond
+    layer: execution
+
+  - id: tier.compute_q2
+    label: "RAPL PMU\nperf_event\nreadable?"
+    shape: diamond
+    layer: execution
+
+  - id: tier.compute_q3
+    label: "kperf (Darwin)\navailable?"
+    shape: diamond
+    layer: execution
+
+  - id: tier.compute_q4
+    label: "/proc/stat\naccessible?"
+    shape: diamond
+    layer: execution
+
+  - id: tier.compute_direct
+    label: "compute_measurement:\ndirect"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: tier.compute_estimated
+    label: "compute_measurement:\nestimated"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: tier.compute_unavail
+    label: "compute_measurement:\nunavailable"
+    shape: box
+    layer: execution
+    color: "#ffcccc"
+
+  - id: tier.energy_q1
+    label: "energy_rapl\nreadable?"
+    shape: diamond
+    layer: execution
+
+  - id: tier.energy_q2
+    label: "energy_spbm\nreadable?"
+    shape: diamond
+    layer: execution
+
+  - id: tier.energy_q3
+    label: "energy_iokit\nreadable?"
+    shape: diamond
+    layer: execution
+
+  - id: tier.energy_q4
+    label: "Any compute\ntier available?"
+    shape: diamond
+    layer: execution
+
+  - id: tier.energy_direct
+    label: "energy_measurement:\ndirect"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: tier.energy_modeled
+    label: "energy_measurement:\nmodeled\n(energy_uj = 0)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: tier.energy_unavail
+    label: "energy_measurement:\nunavailable"
+    shape: box
+    layer: execution
+    color: "#ffcccc"
+
+  - id: tier.result
+    label: "Stored in\nhw_config.json\n+ every run record"
+    shape: box
+    layer: execution
+    color: lightblue
+
+edges:
+  - from: tier.start
+    to: tier.compute_q1
+    type: data
+
+  - from: tier.compute_q1
+    to: tier.compute_direct
+    type: flow
+    label: "yes"
+
+  - from: tier.compute_q1
+    to: tier.compute_q2
+    type: flow
+    label: "no"
+
+  - from: tier.compute_q2
+    to: tier.compute_direct
+    type: flow
+    label: "yes"
+
+  - from: tier.compute_q2
+    to: tier.compute_q3
+    type: flow
+    label: "no"
+
+  - from: tier.compute_q3
+    to: tier.compute_direct
+    type: flow
+    label: "yes"
+
+  - from: tier.compute_q3
+    to: tier.compute_q4
+    type: flow
+    label: "no"
+
+  - from: tier.compute_q4
+    to: tier.compute_estimated
+    type: flow
+    label: "yes"
+
+  - from: tier.compute_q4
+    to: tier.compute_unavail
+    type: flow
+    label: "no"
+
+  - from: tier.start
+    to: tier.energy_q1
+    type: data
+
+  - from: tier.energy_q1
+    to: tier.energy_direct
+    type: flow
+    label: "yes"
+
+  - from: tier.energy_q1
+    to: tier.energy_q2
+    type: flow
+    label: "no"
+
+  - from: tier.energy_q2
+    to: tier.energy_direct
+    type: flow
+    label: "yes"
+
+  - from: tier.energy_q2
+    to: tier.energy_q3
+    type: flow
+    label: "no"
+
+  - from: tier.energy_q3
+    to: tier.energy_direct
+    type: flow
+    label: "yes"
+
+  - from: tier.energy_q3
+    to: tier.energy_q4
+    type: flow
+    label: "no"
+
+  - from: tier.energy_q4
+    to: tier.energy_modeled
+    type: flow
+    label: "yes"
+
+  - from: tier.energy_q4
+    to: tier.energy_unavail
+    type: flow
+    label: "no"
+
+  - from: tier.compute_direct
+    to: tier.result
+    type: data
+
+  - from: tier.compute_estimated
+    to: tier.result
+    type: data
+
+  - from: tier.compute_unavail
+    to: tier.result
+    type: data
+
+  - from: tier.energy_direct
+    to: tier.result
+    type: data
+
+  - from: tier.energy_modeled
+    to: tier.result
+    type: data
+
+  - from: tier.energy_unavail
+    to: tier.result
+    type: data

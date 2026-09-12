@@ -2,537 +2,415 @@
 """
 Diagram Processor for A-LEMS
 --------------------------------
-This module handles loading, validating, and processing diagram definitions
-from YAML files. It's designed to be simple, modular, and easy to understand.
+Handles loading, validating, and processing diagram definitions from YAML
+files. Each class has one clear responsibility.
 
-Each class has ONE clear responsibility:
-- DiagramLoader: Reads YAML files
-- DiagramValidator: Checks for errors
-- ComponentResolver: Handles wildcards and merging
-- DotBuilder: Creates DOT format strings
-- SvgRenderer: Converts DOT to SVG
+Classes:
+    DiagramLoader    — reads YAML configuration files
+    DiagramValidator — validates diagram definitions
+    ComponentResolver — resolves wildcards and merges component data
+    DotBuilder       — produces Graphviz DOT format strings
+    SvgRenderer      — renders DOT to SVG via Graphviz
 """
 
-import yaml
 import re
 import subprocess
+import yaml
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
 
 # ============================================================================
-# LOADER: Reads all YAML configuration files
+# LOADER
 # ============================================================================
 
 class DiagramLoader:
     """
     Loads all YAML files from the diagrams configuration directory.
-    
-    This class reads:
-    - components.yaml: Reusable component definitions
-    - templates.yaml: Visual styling rules
-    - boundaries.yaml: System boundary definitions
-    - validation.yaml: Validation rules
-    - instances/*.yaml: Individual diagram definitions
+
+    Reads:
+        components.yaml  — reusable component definitions
+        templates.yaml   — visual styling rules per template type
+        boundaries.yaml  — system boundary (cluster) definitions
+        validation.yaml  — validation rules
+        instances/*.yaml — individual diagram definitions
     """
-    
+
     def __init__(self, config_dir: Path):
-        # Store the configuration directory path
         self.config_dir = config_dir
-        
-        # Initialize empty containers for each config type
-        self.components = {}      # Reusable components
-        self.templates = {}        # Visual styling rules
-        self.boundaries = []       # System boundaries
-        self.validation = {}       # Validation rules
-        self.instances = []        # Individual diagrams
-        
+        self.components: Dict = {}
+        self.templates: Dict = {}
+        self.boundaries: List = []
+        self.validation: Dict = {}
+        self.instances: List = []
+
     def load_all(self) -> Dict[str, Any]:
-        """
-        Load all configuration files and return as a dictionary.
-        
-        Returns:
-            Dictionary containing all loaded configurations
-        """
-        # Load reusable components (optional file)
+        """Load all configuration files and return as a single dictionary."""
         components_file = self.config_dir / "components.yaml"
         if components_file.exists():
             with open(components_file) as f:
-                data = yaml.safe_load(f)
-                self.components = data.get('components', {})
-        
-        # Load templates (required file)
+                data = yaml.safe_load(f) or {}
+                self.components = data.get("components", {})
+
         templates_file = self.config_dir / "templates.yaml"
         with open(templates_file) as f:
-            data = yaml.safe_load(f)
-            self.templates = data.get('templates', {})
-        
-        # Load boundaries (required file)
+            data = yaml.safe_load(f) or {}
+            self.templates = data.get("templates", {})
+
         boundaries_file = self.config_dir / "boundaries.yaml"
         with open(boundaries_file) as f:
-            data = yaml.safe_load(f)
-            self.boundaries = data.get('boundaries', [])
-        
-        # Load validation rules (required file)
+            data = yaml.safe_load(f) or {}
+            self.boundaries = data.get("boundaries", [])
+
         validation_file = self.config_dir / "validation.yaml"
         with open(validation_file) as f:
-            data = yaml.safe_load(f)
-            self.validation = data.get('validation', {})
-        
-        # Load instances (diagrams) in filename order
+            data = yaml.safe_load(f) or {}
+            self.validation = data.get("validation", {})
+
         instances_dir = self.config_dir / "instances"
-        instance_files = sorted(instances_dir.glob("*.yaml"))
-        
-        for inst_file in instance_files:
+        for inst_file in sorted(instances_dir.glob("*.yaml")):
             with open(inst_file) as f:
                 instance = yaml.safe_load(f)
-                # Store filename for error messages
-                instance['_file'] = inst_file.name
+                instance["_file"] = inst_file.name
                 self.instances.append(instance)
-        
-        # Return everything as one dictionary
+
         return {
-            'components': self.components,
-            'templates': self.templates,
-            'boundaries': self.boundaries,
-            'validation': self.validation,
-            'instances': self.instances
+            "components": self.components,
+            "templates": self.templates,
+            "boundaries": self.boundaries,
+            "validation": self.validation,
+            "instances": self.instances,
         }
 
 
 # ============================================================================
-# VALIDATOR: Checks diagram definitions for errors
+# VALIDATOR
 # ============================================================================
 
 class DiagramValidator:
     """
-    Validates diagram definitions against rules.
-    
-    This class checks for:
-    - Node ID format (namespace.name)
-    - Missing components
-    - Duplicate node IDs
-    - Invalid edge references
-    - Missing layer definitions
+    Validates diagram definitions against rules from validation.yaml.
+
+    Checks:
+        node ID format (namespace.name, lowercase)
+        component existence for string-referenced nodes
+        duplicate node IDs
+        edge endpoint existence
+        inline node layer presence
     """
-    
+
     def __init__(self, validation_rules: Dict):
-        # Store validation rules from YAML
         self.rules = validation_rules
-        self.strict = validation_rules.get('strict', True)
-        
-        # Store errors and warnings separately
-        self.errors = []
-        self.warnings = []
-        
+        self.strict = validation_rules.get("strict", True)
+        self.errors: List[str] = []
+        self.warnings: List[str] = []
+
     def validate_node_id(self, node_id: str) -> bool:
-        """
-        Check if a node ID matches the required format.
-        
-        Expected format: namespace.name (e.g., 'hw.rapl')
-        - All lowercase
-        - No special characters except dot
-        - Dot separates namespace and name
-        """
-        pattern = self.rules.get('node_id_format', {}).get('pattern')
+        pattern = self.rules.get("node_id_format", {}).get("pattern")
         if not pattern:
             return True
-        
-        regex = re.compile(pattern)
-        return bool(regex.match(node_id))
-    
+        return bool(re.compile(pattern).match(node_id))
+
     def validate_instance(self, instance: Dict, all_components: Dict) -> bool:
-        """
-        Validate a single diagram instance.
-        
-        Returns:
-            True if valid, False if errors found
-        """
-        instance_name = instance.get('name', 'unknown')
-        nodes = instance.get('nodes', [])
-        edges = instance.get('edges', [])
-        
-        # Keep track of all node IDs in this diagram
-        node_ids = set()
-        
-        # ================================================================
-        # Validate all nodes
-        # ================================================================
-        for node in nodes:
+        name = instance.get("name", "unknown")
+        node_ids: set = set()
+
+        for node in instance.get("nodes", []):
             node_id = None
-            node_layer = None
-            
-            # Handle string nodes (references to components) - OLD FORMAT
+
             if isinstance(node, str):
                 node_id = node
-                # Check if component exists
                 if node_id not in all_components:
-                    self.errors.append(
-                        f"[{instance_name}] Component not found: {node_id}"
-                    )
-            
-            # Handle dict nodes - NEW FORMAT with 'id' field
+                    self.errors.append(f"[{name}] Component not found: {node_id}")
+
             elif isinstance(node, dict):
-                node_id = node.get('id')
+                node_id = node.get("id")
                 if not node_id:
-                    self.errors.append(
-                        f"[{instance_name}] Node missing 'id' field: {node}"
-                    )
+                    self.errors.append(f"[{name}] Node missing 'id' field: {node}")
                     continue
-                
-                node_layer = node.get('layer')
-                
-                # Inline nodes must specify a layer
-                if not node_layer:
-                    self.errors.append(
-                        f"[{instance_name}] Inline node missing layer: {node_id}"
-                    )
-            
-            # Check ID format
+                if not node.get("layer"):
+                    self.errors.append(f"[{name}] Inline node missing layer: {node_id}")
+
             if node_id and not self.validate_node_id(node_id):
-                self.errors.append(
-                    f"[{instance_name}] Invalid node ID format: {node_id}"
-                )
-            
-            # Check for duplicate IDs
+                self.errors.append(f"[{name}] Invalid node ID format: {node_id}")
+
             if node_id in node_ids:
-                self.errors.append(
-                    f"[{instance_name}] Duplicate node ID: {node_id}"
-                )
+                self.errors.append(f"[{name}] Duplicate node ID: {node_id}")
             node_ids.add(node_id)
-        
-        # ================================================================
-        # Validate all edges (same as before)
-        # ================================================================
-        for edge in edges:
-            from_node = edge.get('from')
-            to_node = edge.get('to')
-            
-            # Check that both endpoints exist
-            if from_node not in node_ids:
-                self.errors.append(
-                    f"[{instance_name}] Edge source not found: {from_node}"
-                )
-            if to_node not in node_ids:
-                self.errors.append(
-                    f"[{instance_name}] Edge target not found: {to_node}"
-                )
-        
-        # Return True if no errors found
+
+        for edge in instance.get("edges", []):
+            for endpoint in ("from", "to"):
+                if edge.get(endpoint) not in node_ids:
+                    self.errors.append(
+                        f"[{name}] Edge {endpoint} not found: {edge.get(endpoint)}"
+                    )
+
         return len(self.errors) == 0
-    
+
     def get_report(self) -> Dict:
-        """
-        Get validation results.
-        
-        Returns:
-            Dictionary with errors, warnings, and valid flag
-        """
         return {
-            'errors': self.errors,
-            'warnings': self.warnings,
-            'valid': len(self.errors) == 0
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "valid": len(self.errors) == 0,
         }
 
 
 # ============================================================================
-# RESOLVER: Handles wildcards and component merging
+# RESOLVER
 # ============================================================================
 
 class ComponentResolver:
     """
-    Resolves components, expands wildcards, and applies templates.
-    
-    This class takes the raw validated data and transforms it into
-    a complete graph definition ready for DOT generation.
+    Resolves component references, expands wildcards, and merges node data.
+
+    Wildcard expansion: 'hw.*' expands to all nodes with prefix 'hw.'
+    Component reference: string node ID looks up components.yaml entry
+    Inline node: dict with 'id' field is used as-is
     """
-    
+
     def __init__(self, components: Dict, templates: Dict, boundaries: List):
-        # Store all loaded data
         self.components = components
         self.templates = templates
         self.boundaries = boundaries
-        
+
     def expand_wildcard(self, pattern: str, all_nodes: List[str]) -> List[str]:
-        """
-        Expand wildcard patterns like 'config.*' to matching node IDs.
-        
-        Simple algorithm:
-        - If pattern ends with '*', match all nodes with that prefix
-        - Otherwise, treat as exact node ID
-        
-        Example:
-            pattern = 'config.*'
-            all_nodes = ['config.loader', 'hw.rapl', 'config.db']
-            returns = ['config.loader', 'config.db']
-        """
-        if pattern.endswith('*'):
-            # Remove the '*', treat as prefix
+        if pattern.endswith("*"):
             prefix = pattern[:-1]
             return [n for n in all_nodes if n.startswith(prefix)]
-        else:
-            # Exact match
-            return [pattern] if pattern in all_nodes else []
-    
+        return [pattern] if pattern in all_nodes else []
+
     def resolve_node(self, node_def: Any, all_nodes: List[str]) -> List[Dict]:
-        """
-        Convert a node definition into actual node data.
-        
-        Handles:
-        - String nodes: Look up in components (OLD FORMAT)
-        - Wildcard strings: Expand to multiple nodes
-        - Dict nodes with 'id' field (NEW FORMAT)
-        """
         results = []
-        
-        # Case 1: String node (could be component reference or wildcard)
+
         if isinstance(node_def, str):
-            # Check if it's a wildcard
-            if node_def.endswith('*'):
-                # Expand wildcard to multiple node IDs
-                expanded_ids = self.expand_wildcard(node_def, all_nodes)
-                for node_id in expanded_ids:
+            if node_def.endswith("*"):
+                for node_id in self.expand_wildcard(node_def, all_nodes):
                     if node_id in self.components:
-                        # Found in components - use component definition
                         node_data = self.components[node_id].copy()
-                        node_data['id'] = node_id
+                        node_data["id"] = node_id
                         results.append(node_data)
-                    else:
-                        # Wildcard matched but component missing
-                        print(f"Warning: No component for {node_id}")
             else:
-                # Single node reference
                 if node_def in self.components:
                     node_data = self.components[node_def].copy()
-                    node_data['id'] = node_def
+                    node_data["id"] = node_def
                     results.append(node_data)
-                else:
-                    print(f"Warning: Component not found: {node_def}")
-        
-        # Case 2: Dict node with 'id' field (NEW FORMAT)
+
         elif isinstance(node_def, dict):
-            node_id = node_def.get('id')
+            node_id = node_def.get("id")
             if node_id:
-                # Create node data from dict
                 node_data = node_def.copy()
-                node_data['id'] = node_id
                 results.append(node_data)
-            else:
-                print(f"Warning: Dict node missing 'id' field: {node_def}")
-        
+
         return results
 
 
 # ============================================================================
-# DOT BUILDER: Creates DOT format strings (pure printer, no logic)
-# ============================================================================
-
-# ============================================================================
-# DOT BUILDER: Creates DOT format strings (pure printer, no logic)
+# DOT BUILDER
 # ============================================================================
 
 class DotBuilder:
     """
-    Builds DOT format strings from resolved graph data.
-    
-    This class does NO business logic - it just prints DOT syntax.
-    All decisions should already be made by the resolver.
-    
-    IMPORTANT RULES:
-    1. Node IDs with dots MUST be quoted (e.g., "exec.harness")
-    2. Only DOT-compatible attributes are included
-    3. Labels with quotes or newlines are escaped
-    4. Edge styles come from template
+    Builds Graphviz DOT format strings from resolved graph data.
+
+    Responsibilities:
+        graph header with template attributes
+        node definitions with attributes
+        edge definitions with styles from template
+        cluster subgraphs for system boundaries
+
+    Boundaries from boundaries.yaml are rendered as named clusters.
+    Each boundary specifies which node namespaces it contains.
     """
-    
-    def __init__(self, template_name: str, templates: Dict):
-        # Get the template for this diagram
+
+    DOT_NODE_ATTRS = {
+        "label", "shape", "color", "style", "fontname", "fontsize",
+        "fillcolor", "width", "height",
+    }
+
+    def __init__(self, template_name: str, templates: Dict, boundaries: List):
         self.template = templates.get(template_name, {})
-        
-        # List of attributes that Graphviz understands
-        self.dot_attributes = [
-            'label',      # Text label
-            'shape',      # box, circle, cylinder, diamond, record
-            'color',      # Node color
-            'style',      # filled, dashed, solid, dotted
-            'fontname',   # Font family
-            'fontsize',   # Font size
-            'fillcolor',  # Fill color when style=filled
-            'width',      # Node width
-            'height'      # Node height
-        ]
-        
-    def _quote_if_needed(self, node_id: str) -> str:
-        """
-        Quote node IDs that contain dots.
-        
-        Graphviz treats unquoted dots as separators, causing syntax errors.
-        Since all our node IDs use namespace.name format, they ALL need quotes.
-        """
-        if '.' in node_id:
-            return f'"{node_id}"'
-        return node_id
-    
-    def _escape_label(self, label: str) -> str:
-        """
-        Escape special characters in labels.
-        
-        Handles:
-        - Double quotes (")
-        - Newlines (\n)
-        - Backslashes
-        """
-        # Escape double quotes
-        label = label.replace('"', '\\"')
-        return label
-        
+        self.boundaries = boundaries
+        self.template_name = template_name
+
+    def _quote(self, node_id: str) -> str:
+        """Quote node IDs containing dots — Graphviz requires this."""
+        return f'"{node_id}"' if "." in node_id else node_id
+
+    def _escape(self, text: str) -> str:
+        return text.replace('"', '\\"')
+
     def build_graph_header(self) -> str:
-        """Create the graph header with template attributes."""
         lines = ["digraph {"]
-        
-        # Add graph attributes from template
-        graph_attrs = self.template.get('graph', {})
-        for key, value in graph_attrs.items():
-            # Quote color values
-            if key == 'bgcolor' and value.startswith('#'):
+        for key, value in self.template.get("graph", {}).items():
+            if isinstance(value, str) and value.startswith("#"):
                 lines.append(f'  {key}="{value}";')
             else:
                 lines.append(f"  {key}={value};")
-        
-        return "\n".join(lines)
-    
-    def build_node(self, node_data: Dict) -> str:
-        """
-        Create a node definition string with proper attribute formatting.
-        
-        Special handling:
-        - shape attributes: no quotes (shape=none)
-        - HTML labels: no quotes (label=<<TABLE>>)
-        - regular labels: quoted (label="text")
-        """
-        node_id = node_data['id']
-        quoted_id = self._quote_if_needed(node_id)
-        
-        # Build attributes
-        attrs = []
-        for key, value in node_data.items():
-            if key in self.dot_attributes:
-                # Handle HTML labels (no quotes, no escaping)
-                if key == 'label' and isinstance(value, str) and value.strip().startswith('<'):
-                    attrs.append(f'label={value}')
-                else:
-                    if key == 'label':
-                        value = self._escape_label(value)
-                    attrs.append(f'{key}="{value}"')
-        
-        if attrs:
-            return f"  {quoted_id} [{', '.join(attrs)}];"
-        else:
-            return f"  {quoted_id};"
-    
-    def build_edge(self, edge_data: Dict, edge_styles: Dict) -> str:
-        from_node = self._quote_if_needed(edge_data['from'])
-        to_node = self._quote_if_needed(edge_data['to'])
-        edge_type = edge_data.get('type', 'flow')
-        
-        # Get style for this edge type from template
-        style = edge_styles.get(edge_type, {})
-        
-        # Build edge attributes
-        attrs = []
-        for key, value in style.items():
-            # Quote color values
-            if key == 'color' and isinstance(value, str) and value.startswith('#'):
-                attrs.append(f'{key}="{value}"')
-            else:
-                attrs.append(f'{key}={value}')
-        
-        if 'label' in edge_data:
-            label = edge_data['label'].replace('"', '\\"')
-            attrs.append(f'label="{label}"')
-        
-        if attrs:
-            return f"  {from_node} -> {to_node} [{', '.join(attrs)}];"
-        else:
-            return f"  {from_node} -> {to_node};"
-    
-    def build_subgraph(self, name: str, nodes: List[str], attrs: Dict) -> str:
-        """
-        Create a subgraph (cluster) definition.
-        
-        Example:
-            subgraph cluster_user_space {
-              label="User Space";
-              style=dashed;
-              color=lightblue;
-              "config.loader";
-              "exec.harness";
-            }
-        """
-        lines = [f"  subgraph cluster_{name} {{"]
-        
-        # Add subgraph attributes
-        for key, value in attrs.items():
-            if key == 'label':
-                value = self._escape_label(value)
-            lines.append(f"    {key}={value};")
-        
-        # Add nodes (already quoted by build_node when rendered)
-        for node in nodes:
-            quoted_node = self._quote_if_needed(node)
-            lines.append(f"    {quoted_node};")
-        
-        lines.append("  }")
+
+        node_defaults = self.template.get("node", {})
+        if node_defaults:
+            attrs = ", ".join(
+                f'{k}="{v}"' if isinstance(v, str) else f"{k}={v}"
+                for k, v in node_defaults.items()
+            )
+            lines.append(f"  node [{attrs}];")
+
+        edge_defaults = self.template.get("edge", {})
+        if edge_defaults:
+            attrs = ", ".join(
+                f'{k}="{v}"' if isinstance(v, str) else f"{k}={v}"
+                for k, v in edge_defaults.items()
+            )
+            lines.append(f"  edge [{attrs}];")
+
         return "\n".join(lines)
 
+    def build_node(self, node_data: Dict) -> str:
+        node_id = node_data["id"]
+        quoted_id = self._quote(node_id)
+
+        attrs = []
+        for key, value in node_data.items():
+            if key not in self.DOT_NODE_ATTRS:
+                continue
+            if key == "label" and isinstance(value, str):
+                if value.strip().startswith("<"):
+                    attrs.append(f"label={value}")
+                else:
+                    attrs.append(f'label="{self._escape(value)}"')
+            elif isinstance(value, str) and value.startswith("#"):
+                attrs.append(f'{key}="{value}"')
+            else:
+                attrs.append(f'{key}="{value}"')
+
+        return f"  {quoted_id} [{', '.join(attrs)}];" if attrs else f"  {quoted_id};"
+
+    def build_edge(self, edge_data: Dict, edge_styles: Dict) -> str:
+        from_node = self._quote(edge_data["from"])
+        to_node = self._quote(edge_data["to"])
+        edge_type = edge_data.get("type", "flow")
+        style = edge_styles.get(edge_type, {})
+
+        attrs = []
+        for key, value in style.items():
+            if isinstance(value, str) and value.startswith("#"):
+                attrs.append(f'{key}="{value}"')
+            else:
+                attrs.append(f"{key}={value}")
+
+        if "label" in edge_data:
+            attrs.append(f'label="{self._escape(str(edge_data["label"]))}"')
+
+        return (
+            f"  {from_node} -> {to_node} [{', '.join(attrs)}];"
+            if attrs
+            else f"  {from_node} -> {to_node};"
+        )
+
+    def build_clusters(self, resolved_nodes: List[Dict]) -> List[str]:
+        """
+        Build Graphviz cluster subgraphs from boundaries.yaml definitions.
+
+        Each boundary entry specifies:
+            name   — cluster label shown in diagram
+            nodes  — list of node namespace patterns (e.g. 'hw.*', 'exec.*')
+            style  — optional visual overrides (color, style, fontsize)
+
+        Nodes are matched by namespace prefix against resolved node IDs.
+        A node not matched by any boundary renders outside all clusters.
+        """
+        node_ids = {n["id"] for n in resolved_nodes}
+        lines = []
+
+        for i, boundary in enumerate(self.boundaries):
+            bname = boundary.get("name", f"boundary_{i}")
+            bstyle = boundary.get("style", {})
+            bnode_patterns = boundary.get("nodes", [])
+
+            matched: List[str] = []
+            for pattern in bnode_patterns:
+                if pattern.endswith("*"):
+                    prefix = pattern[:-1]
+                    matched.extend(n for n in node_ids if n.startswith(prefix))
+                elif pattern in node_ids:
+                    matched.append(pattern)
+
+            if not matched:
+                continue
+
+            cluster_key = bname.lower().replace(" ", "_").replace("/", "_")
+            lines.append(f"  subgraph cluster_{cluster_key} {{")
+
+            label = bstyle.get("label", bname)
+            color = bstyle.get("color", "gray")
+            style = bstyle.get("style", "dashed")
+            fontsize = bstyle.get("fontsize", 11)
+
+            lines.append(f'    label="{self._escape(label)}";')
+            lines.append(f"    color={color};")
+            lines.append(f"    style={style};")
+            lines.append(f"    fontsize={fontsize};")
+            lines.append(f'    fontname="Helvetica";')
+
+            cluster_style = self.template.get("cluster", {})
+            for key, value in cluster_style.items():
+                if key not in ("label", "color", "style", "fontsize"):
+                    lines.append(f"    {key}={value};")
+
+            for node_id in matched:
+                lines.append(f"    {self._quote(node_id)};")
+
+            lines.append("  }")
+
+        return lines
+
+    def build(self, resolved_nodes: List[Dict], edges: List[Dict]) -> str:
+        """
+        Build the complete DOT string for a diagram.
+
+        Order: header → clusters → nodes → edges → closing brace.
+        Clusters must be declared before nodes for Graphviz to group correctly.
+        """
+        edge_styles = self.template.get("edge_styles", {})
+
+        parts = [self.build_graph_header()]
+        parts.extend(self.build_clusters(resolved_nodes))
+        parts.extend(self.build_node(n) for n in resolved_nodes)
+        parts.extend(self.build_edge(e, edge_styles) for e in edges)
+        parts.append("}")
+
+        return "\n".join(parts)
+
+
 # ============================================================================
-# SVG RENDERER: Converts DOT to SVG
+# SVG RENDERER
 # ============================================================================
 
 class SvgRenderer:
     """
-    Renders DOT strings to SVG files using the 'dot' command.
-    
-    Simple wrapper around the Graphviz command-line tool.
+    Renders DOT strings to SVG files using the Graphviz 'dot' command.
+
+    The temporary DOT file is written alongside the output SVG and removed
+    after rendering. On failure the DOT file is preserved for debugging.
     """
-    
-    def __init__(self):
-        pass
-        
+
     def render(self, dot_string: str, output_path: Path) -> bool:
-        """
-        Convert DOT string to SVG file.
-        
-        Args:
-            dot_string: Graph in DOT format
-            output_path: Where to save the SVG
-            
-        Returns:
-            True if successful, False otherwise
-        """
+        temp_dot = output_path.with_suffix(".dot")
         try:
-            # Create temporary DOT file
-            temp_dot = output_path.with_suffix('.dot')
-            with open(temp_dot, 'w') as f:
-                f.write(dot_string)
-            
-            # Run dot command
+            temp_dot.write_text(dot_string)
             result = subprocess.run(
-                ['dot', '-Tsvg', '-o', str(output_path), str(temp_dot)],
+                ["dot", "-Tsvg", "-o", str(output_path), str(temp_dot)],
                 capture_output=True,
-                text=True
+                text=True,
             )
-            
-            # Clean up temp file
-            temp_dot.unlink()
-            
-            # Check for errors
             if result.returncode != 0:
-                print(f"Error generating SVG: {result.stderr}")
+                print(f"  Graphviz error: {result.stderr.strip()}")
                 return False
-            
+            temp_dot.unlink(missing_ok=True)
             return True
-            
-        except Exception as e:
-            print(f"Error rendering SVG: {e}")
+        except FileNotFoundError:
+            print("  Error: 'dot' command not found. Install Graphviz.")
+            return False
+        except Exception as exc:
+            print(f"  Render error: {exc}")
             return False

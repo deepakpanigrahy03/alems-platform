@@ -1,0 +1,254 @@
+# Platform Detection Flow — OS to platform_class decision tree
+version: 1.0
+name: platform-detection-flow
+title: "Platform Detection — PlatformDetector.for_current_platform()"
+template: lifecycle
+boundaries: []
+
+nodes:
+  - id: detect.start
+    label: "detect_hardware.py"
+    shape: box
+    layer: execution
+    color: lightblue
+
+  - id: detect.os
+    label: "OS Check\nuname -s"
+    shape: diamond
+    layer: execution
+
+  - id: detect.darwin
+    label: "Darwin\n(macOS)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: detect.darwinarch
+    label: "arch\narm64?"
+    shape: diamond
+    layer: execution
+
+  - id: detect.applesilicon
+    label: "AppleSiliconDetector\nplatform_class:\napple_silicon"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: detect.intelmac
+    label: "IntelMacDetector\nplatform_class:\nintel_mac"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: detect.linux
+    label: "Linux"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: detect.linuxarch
+    label: "arch\naarch64?"
+    shape: diamond
+    layer: execution
+
+  - id: detect.gracedmi
+    label: "DMI: NVIDIA\nGB10 GPU\npresent?"
+    shape: diamond
+    layer: execution
+
+  - id: detect.grace
+    label: "NVIDIAGraceDetector\nplatform_class:\nnvidia_grace"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: detect.armgeneric
+    label: "GenericARMLinuxDetector\nplatform_class:\nlinux_arm"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: detect.riscv
+    label: "arch\nriscv64?"
+    shape: diamond
+    layer: execution
+
+  - id: detect.riscvdet
+    label: "RISCVLinuxDetector\nplatform_class:\nlinux_riscv"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: detect.x86vendor
+    label: "x86_64\nCPU vendor?"
+    shape: diamond
+    layer: execution
+
+  - id: detect.intel
+    label: "IntelLinuxDetector\nplatform_class:\nintel_x86"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: detect.amd
+    label: "AMDLinuxDetector\nplatform_class:\namd_x86"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: detect.unknown
+    label: "GenericX86LinuxDetector\nplatform_class:\nlinux_x86_unknown"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: detect.capability
+    label: "build_capability_profile()\n9 real hardware reads"
+    shape: box
+    layer: execution
+    color: lightblue
+
+  - id: detect.classify
+    label: "classify_measurement()\ncompute + energy tiers"
+    shape: box
+    layer: execution
+    color: lightblue
+
+  - id: detect.context
+    label: "detect_execution_context()\nbare_metal / kvm / container"
+    shape: box
+    layer: execution
+    color: lightblue
+
+  - id: detect.output
+    label: "Write hw_config.json\n(schema version 4)"
+    shape: box
+    layer: execution
+    color: lightblue
+
+edges:
+  - from: detect.start
+    to: detect.os
+    type: flow
+
+  - from: detect.os
+    to: detect.darwin
+    type: flow
+    label: "Darwin"
+
+  - from: detect.os
+    to: detect.linux
+    type: flow
+    label: "Linux"
+
+  - from: detect.darwin
+    to: detect.darwinarch
+    type: flow
+
+  - from: detect.darwinarch
+    to: detect.applesilicon
+    type: flow
+    label: "arm64"
+
+  - from: detect.darwinarch
+    to: detect.intelmac
+    type: flow
+    label: "x86_64"
+
+  - from: detect.linux
+    to: detect.linuxarch
+    type: flow
+
+  - from: detect.linuxarch
+    to: detect.gracedmi
+    type: flow
+    label: "aarch64"
+
+  - from: detect.linuxarch
+    to: detect.riscv
+    type: flow
+    label: "x86_64"
+
+  - from: detect.linuxarch
+    to: detect.riscvdet
+    type: flow
+    label: "riscv64"
+
+  - from: detect.gracedmi
+    to: detect.grace
+    type: flow
+    label: "yes"
+
+  - from: detect.gracedmi
+    to: detect.armgeneric
+    type: flow
+    label: "no"
+
+  - from: detect.riscv
+    to: detect.riscvdet
+    type: flow
+    label: "yes"
+
+  - from: detect.riscv
+    to: detect.x86vendor
+    type: flow
+    label: "no"
+
+  - from: detect.x86vendor
+    to: detect.intel
+    type: flow
+    label: "GenuineIntel"
+
+  - from: detect.x86vendor
+    to: detect.amd
+    type: flow
+    label: "AuthenticAMD"
+
+  - from: detect.x86vendor
+    to: detect.unknown
+    type: flow
+    label: "unknown"
+
+  - from: detect.applesilicon
+    to: detect.capability
+    type: flow
+
+  - from: detect.intelmac
+    to: detect.capability
+    type: flow
+
+  - from: detect.grace
+    to: detect.capability
+    type: flow
+
+  - from: detect.armgeneric
+    to: detect.capability
+    type: flow
+
+  - from: detect.riscvdet
+    to: detect.capability
+    type: flow
+
+  - from: detect.intel
+    to: detect.capability
+    type: flow
+
+  - from: detect.amd
+    to: detect.capability
+    type: flow
+
+  - from: detect.unknown
+    to: detect.capability
+    type: flow
+
+  - from: detect.capability
+    to: detect.classify
+    type: flow
+
+  - from: detect.classify
+    to: detect.context
+    type: flow
+
+  - from: detect.context
+    to: detect.output
+    type: flow

@@ -1,100 +1,139 @@
 <div align="center">
-  
-  # ⚡ A-LEMS
-  ### **Agentic LLM Energy Measurement System**
-  
-  [![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://python.org)
-  [![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
-  [![Streamlit](https://img.shields.io/badge/GUI-Streamlit-FF4B4B?style=for-the-badge&logo=streamlit)](https://streamlit.io)
-  [![Documentation](https://img.shields.io/badge/Documentation-live-brightgreen?style=for-the-badge)](https://deepakpanigrahy03.github.io/a-lems)
-  [![Live Demo](https://img.shields.io/badge/Live%20Demo-Streamlit-FF4B4B?style=for-the-badge&logo=streamlit)](https://a-lems-dash.streamlit.app/)
-  
-  **Quantifying the energy cost of agentic AI workflows**
-  
-  <a href="https://deepakpanigrahy03.github.io/a-lems" target="_blank">📖 Documentation</a> • 
-  <a href="https://a-lems-dash.streamlit.app/" target="_blank">📊 Live Demo</a>
-  
+
+# ⚡ A-LEMS
+### **Agentic LLM Energy Measurement System**
+
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue?style=for-the-badge&logo=python)](https://python.org)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green?style=for-the-badge)](LICENSE)
+[![Platforms](https://img.shields.io/badge/Platforms-10-orange?style=for-the-badge)](https://deepakpanigrahy03.github.io/alems-platform/getting-started/installation/)
+[![Docs](https://img.shields.io/badge/Docs-live-brightgreen?style=for-the-badge)](https://deepakpanigrahy03.github.io/alems-platform/)
+
+**Research-grade measurement and profiling framework for AI workloads**
+
+<a href="https://deepakpanigrahy03.github.io/alems-platform/" target="_blank">📖 Documentation</a> •
+<a href="https://deepakpanigrahy03.github.io/alems-platform/research/measurement-methodology/" target="_blank">🔬 Methodology</a> •
+<a href="https://deepakpanigrahy03.github.io/alems-platform/research/publications/" target="_blank">📄 Publications</a>
+
 </div>
 
 ---
 
-## 🔬 **What is A-LEMS?**
+## What A-LEMS Does
 
-A research platform that measures **hardware-level energy consumption** of AI workflows:
+A-LEMS captures telemetry across hardware, system, orchestration, and workload
+levels for LLM inference workloads. It reads hardware counters directly — RAPL,
+SPBM, IOKit, ARM PMU, DCGM — with no estimation, and records 153 columns per
+run with full provenance tracing every value to the hardware counter that
+produced it.
 
-| **Linear** | **Agentic** |
-|------------|-------------|
-| Single LLM call | Planning + Tools + Synthesis |
-| 1 API request | Multiple steps + reasoning |
+| **Linear Workload** | **Agentic Workload** |
+|---|---|
+| Single LLM call | Planning + Tool calls + Synthesis |
+| Baseline energy cost | Baseline + orchestration tax |
 
-**Core contribution:** Quantifying the **orchestration tax** — the energy overhead of agentic coordination.
-
----
-
-## ✨ **Key Features**
-
-✅ **100Hz hardware sampling** — RAPL, MSR, perf counters  
-✅ **3-layer data model** — Raw → Baseline → Derived (immutable)  
-✅ **80+ metrics per run** — ML-ready dataset  
-✅ **Sustainability metrics** — Carbon, water, methane per query  
-✅ **Multi-provider** — Groq, OpenRouter, Ollama  
-✅ **11 developer tools** — Code analysis, docs, diagnostics  
+The **orchestration tax** is the energy overhead of agentic coordination.
+A-LEMS measures it directly, per phase, per run, per platform.
 
 ---
 
-## 🚀 **Quick Start**
+## Key Capabilities
 
+| Level | What Is Measured |
+|---|---|
+| Hardware | CPU package, core, uncore, DRAM energy (RAPL / SPBM / IOKit) |
+| Performance | Instructions, cycles, IPC, L1/L2/L3 cache, ARM PMU |
+| System | Context switches, interrupts, memory faults, disk I/O |
+| Thermal | Temperature, fan RPM, voltage, cooling device state |
+| Workload | Prompt tokens, completion tokens, TTFT, TPOT, wall time |
+| Orchestration | Planning, execution, synthesis phases with per-phase energy |
+
+---
+
+## Supported Platforms
+
+| Platform | Hardware | Energy Stack | Tier |
+|---|---|---|---|
+| `nvidia_grace` | GN100, DGX Spark | SPBM + DCGM + ARM PMU | Direct |
+| `intel_x86` | Any Intel bare metal | RAPL + MSR + turbostat | Direct |
+| `amd_x86` | Any AMD bare metal | RAPL + MSR | Direct |
+| `apple_silicon` | M1 / M2 / M3 / M4 | IOKit + powermetrics | Direct |
+| `linux_arm` | Graviton, RPi, KVM VMs | ARM PMU | Modeled |
+| `linux_x86_unknown` | VMs, Hygon, unknown x86 | RAPL if exposed | Modeled |
+| `intel_mac` | Pre-2020 Intel Mac | observation only | Unavailable |
+| `linux_riscv` | SiFive, StarFive | observation only | Unavailable |
+
+---
+
+## Providers
+
+16 providers: vllm (local and remote), Groq, OpenAI, Anthropic, Google Gemini,
+NVIDIA NIM, Ollama, llama.cpp, DeepSeek, Kokoro TTS, Indic Parler TTS,
+IndicF5 voice clone, Faster Whisper STT.
+
+---
+
+## Install
+
+```bash
+git clone https://github.com/deepakpanigrahy03/alems-platform.git
+cd alems-platform
+bash scripts/install.sh
+source ~/.bashrc
+alems dev status
 ```
-bash
-# 1. Install
-git clone https://github.com/deepakpanigrahy03/a-lems.git
-cd a-lems
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
 
-# 2. Detect hardware
-sudo python scripts/detect_hardware.py
+The installer detects your platform automatically and asks two questions:
+environment (dev or prod) and data root path.
 
-# 3. Run first experiment
-python -m core.execution.tests.test_harness --task-id simple --repetitions 1 --provider local --save-db
+---
 
-# 4. Launch dashboard
-streamlit run streamlit_app.py
+## Run an Experiment
+
+```bash
+cd alems-platform && source venv/bin/activate
+python3 core/execution/tests/run_experiment.py \
+  --tasks gsm8k_basic \
+  --repetitions 1 \
+  --provider groq \
+  --workflow-mode comparison \
+  --experiment-type normal \
+  --experiment-goal "first experiment" \
+  --save-db
 ```
----
 
-## 📊 **Live Demo**
+List all 65 available tasks:
 
-Try the dashboard: [a-lems-dash.streamlit.app](https:///a-lems-dash.streamlit.app)  (or)
-Alternatively on : [a-lems-dashboard.onrender.com](https://a-lems-dashboard.onrender.com/)
-
-*(No installation needed — runs in your browser)*
+```bash
+python3 core/execution/tests/run_experiment.py --list-tasks
+```
 
 ---
 
-## 📚 **Documentation**
+## Documentation
 
-- [Getting Started](docs-src/mkdocs/source/getting-started/01-installation.md)
-- [User Guide](docs-src/mkdocs/source/user-guide/01-running.md)
-- [Developer Guide](docs-src/mkdocs/source/developer-guide/01-architecture.md)
-- [API Reference](https://deepakpanigrahy03.github.io/a-lems)
+**[deepakpanigrahy03.github.io/alems-platform](https://deepakpanigrahy03.github.io/alems-platform/)**
 
----
-
-## 📄 **License**
-
-Apache License 2.0 — see [LICENSE](LICENSE)
+- [Installation](https://deepakpanigrahy03.github.io/alems-platform/getting-started/installation/) — prerequisites, install steps, platform verification
+- [Quick Start](https://deepakpanigrahy03.github.io/alems-platform/getting-started/quick-start/) — first experiment, reading output
+- [Concepts](https://deepakpanigrahy03.github.io/alems-platform/concepts/measurement-model/) — measurement model, platform detection, energy tiers
+- [Developer Guide](https://deepakpanigrahy03.github.io/alems-platform/developer/architecture/) — adding platforms, readers, providers
+- [Research Methodology](https://deepakpanigrahy03.github.io/alems-platform/research/measurement-methodology/) — per-platform measurement, citation templates
 
 ---
 
-## 📝 **Citation**
+## Citation
 
 ```bibtex
 @software{panigrahy2026alems,
-  title={A-LEMS: Agentic LLM Energy Measurement System},
-  author={Panigrahy, Deepak},
-  year={2026},
-  url={https://github.com/deepakpanigrahy03/a-lems}
+  title   = {A-LEMS: Agentic LLM Energy Measurement System},
+  author  = {Panigrahy, Deepak},
+  year    = {2026},
+  url     = {https://github.com/deepakpanigrahy03/alems-platform}
 }
-<div align="center"> Built with ⚡ for sustainable AI research </div> ```
+```
+
+---
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE)

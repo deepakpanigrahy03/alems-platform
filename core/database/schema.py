@@ -2674,6 +2674,9 @@ CREATE TABLE IF NOT EXISTS measurement_method_registry (
     validated_date        TEXT,
     active                INTEGER     DEFAULT 1,
     deprecated_reason     TEXT,
+    doc                   TEXT,
+    section               TEXT,
+    method_anchor         TEXT,
     created_at            REAL        DEFAULT (unixepoch()),
     updated_at            REAL        DEFAULT (unixepoch())
 );
@@ -2712,7 +2715,8 @@ CREATE TABLE IF NOT EXISTS measurement_methodology (
     primary_method_failed INTEGER     DEFAULT 0,
     failure_reason        TEXT,
     standard_ids          TEXT,
-    captured_at           REAL        DEFAULT (unixepoch())
+    captured_at           REAL        DEFAULT (unixepoch()),
+    method_anchor         TEXT
 );
 """
 
@@ -2746,6 +2750,9 @@ CREATE TABLE IF NOT EXISTS metric_display_registry (
     goal_id               TEXT,
     active                INTEGER     DEFAULT 1,
     sort_order            INTEGER     DEFAULT 0,
+    doc                   TEXT,
+    section               TEXT,
+    method_anchor         TEXT,
     created_at            REAL        DEFAULT (unixepoch()),
     updated_at            REAL        DEFAULT (unixepoch())
 );

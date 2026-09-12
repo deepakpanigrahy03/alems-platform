@@ -1901,6 +1901,18 @@ def _validate_row(row: Dict) -> List[str]:
 
 def _insert_registry(conn, row: Dict, dry_run: bool) -> None:
     """Validate then insert/replace one registry row."""
+    # Enrich row with doc/section/method_anchor from methodology_docs.yaml
+    try:
+        from scripts.tools.methodology_loader import get_method_doc_ref
+        doc_ref = get_method_doc_ref(row["id"])
+        row.setdefault("doc",           doc_ref.get("doc", None))
+        row.setdefault("section",       doc_ref.get("section", None))
+        row.setdefault("method_anchor", doc_ref.get("method_anchor", None))
+    except Exception:
+        row.setdefault("doc",           None)
+        row.setdefault("section",       None)
+        row.setdefault("method_anchor", None)
+
     # Validate before insert — fail loud, not silent
     errors = _validate_row(row)
     for err in errors:
@@ -1927,13 +1939,15 @@ def _insert_registry(conn, row: Dict, dry_run: bool) -> None:
             code_snapshot, code_language, code_version,
             parameters, output_metric, output_unit,
             provenance, layer, applicable_on, fallback_method_id,
-            validated, active, confidence, updated_at
+            validated, active, confidence, updated_at,
+            doc, section, method_anchor
         ) VALUES (
             :id, :name, :version, :description, :formula_latex,
             :code_snapshot, :code_language, :code_version,
             :parameters, :output_metric, :output_unit,
             :provenance, :layer, :applicable_on, :fallback_method_id,
-            0, 1, :confidence, unixepoch()
+            0, 1, :confidence, unixepoch(),
+            :doc, :section, :method_anchor
         )
     """, row)
 

@@ -1,291 +1,149 @@
-# Installation Guide
+---
+topic: "Installation"
+audience: user
+status: current
+last_validated: 2026-09-11
+---
 
-Complete step-by-step setup for A-LEMS. This guide works on any Linux distribution with Intel 6th gen+ processors.
+# Installation
+
+A-LEMS installs on 8 platform configurations across 4 ISAs. The installer detects your hardware automatically and configures everything for your machine. You answer two questions. The rest is automatic.
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
-### System Requirements
+Check these before running the installer. The installer will stop with a clear error if anything is missing, but checking first saves time.
 
-| Requirement | Minimum | Recommended |
-|------------|---------|-------------|
-| **OS** | Any Linux distribution | Ubuntu 24.04 / Debian 12 |
-| **CPU** | Intel 6th gen+ (RAPL support) | Intel 12th gen+ |
-| **RAM** | 8 GB | 16 GB |
-| **Storage** | 10 GB free | 20 GB free |
-| **Python** | 3.10 | 3.12 |
+| Platform | Required | Optional |
+|---|---|---|
+| `nvidia_grace` | gcc, python3-dev, sqlite3, perf, dcgmi | none |
+| `intel_x86` | gcc, python3-dev, sqlite3, perf, rdmsr | turbostat |
+| `amd_x86` | gcc, python3-dev, sqlite3, perf, rdmsr | none |
+| `apple_silicon` | Homebrew, Xcode CLI tools | none |
+| `linux_arm` | gcc, python3-dev, sqlite3, perf | none |
+| `linux_x86_unknown` | gcc, python3-dev, sqlite3 | perf |
 
-> **Note:** A-LEMS uses Intel RAPL (Running Average Power Limit) for energy measurement. AMD processors are currently not supported.
-
----
-
-### Automatic Hardware Detection
-
-A-LEMS includes intelligent hardware detection that automatically:
-- 🔍 Detects your CPU model and capabilities
-- 🌡️ Maps thermal zones dynamically (not hardcoded)
-- ⚡ Identifies available RAPL domains
-- 🔧 Configures MSR access for your specific CPU
-- 🖥️ Works across different Linux distributions
-
-The system adapts to your hardware - no manual configuration needed!
-
----
-
-### Distribution-Specific Package Installation
-
-Choose your distribution:
-
-<details>
-<summary><b>🐧 Ubuntu / Debian</b></summary>
+On Debian and Ubuntu systems, install required packages with:
 
 ```bash
-sudo apt update
-sudo apt install -y \
-    python3-pip \
-    python3-venv \
-    git \
-    build-essential \
-    linux-tools-common \
-    linux-tools-generic \
-    msr-tools \
-    lm-sensors
+sudo apt install gcc python3-dev sqlite3 linux-tools-common linux-tools-$(uname -r)
 ```
-</details>
 
-<details>
-<summary><b>📦 Fedora / RHEL / CentOS</b></summary>
+On NVIDIA Grace (GN100, DGX Spark), install DCGM before running the installer:
 
 ```bash
-sudo dnf install -y \
-    python3-pip \
-    python3-virtualenv \
-    git \
-    gcc \
-    make \
-    kernel-tools \
-    msr-tools \
-    lm_sensors
+sudo apt install datacenter-gpu-manager
+sudo systemctl enable nvidia-dcgm && sudo systemctl start nvidia-dcgm
 ```
-</details>
 
-<details>
-<summary><b>🏔️ Arch Linux / Manjaro</b></summary>
+On Apple Silicon, install Xcode CLI tools if not already present:
 
 ```bash
-sudo pacman -S --noconfirm \
-    python-pip \
-    python-virtualenv \
-    git \
-    base-devel \
-    linux-tools \
-    msr-tools \
-    lm_sensors
-```
-</details>
-
-<details>
-<summary><b>🔄 openSUSE</b></summary>
-
-```bash
-sudo zypper install -y \
-    python3-pip \
-    python3-virtualenv \
-    git \
-    gcc \
-    make \
-    kernel-tools \
-    msr-tools \
-    lm_sensors
-```
-</details>
-
----
-
-## 🚀 Step 1: Clone Repository
-
-```bash
-git clone https://github.com/deepakpanigrahy03/a-lems.git
-cd a-lems
+xcode-select --install
 ```
 
 ---
 
-## 🐍 Step 2: Create Virtual Environment
+## Install Steps
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+git clone https://github.com/deepakpanigrahy03/alems-platform.git
+cd alems-platform
+bash scripts/install.sh
 ```
 
-*On some systems, use `python` instead of `python3`.*
+The installer asks two questions:
 
----
+**Environment** — enter `dev` for a development install (recommended for first installs and research machines) or `prod` for a production measurement server. Dev installs isolate your database by username and project. Prod installs use a shared database path.
 
-## 📦 Step 3: Install Python Dependencies
+**Data root** — the directory where A-LEMS stores databases, baselines, and measurement files. This directory can be on any mounted drive. Example: `/mnt/alems-data` or `/home/yourname/alems-data`. The installer creates it if it does not exist.
+
+After the installer finishes:
 
 ```bash
-# Core requirements (always needed)
-pip install -r requirements.txt
-
-# Optional: GUI dashboard (for web interface)
-pip install -r requirements-gui.txt
-
-# Optional: Developer tools (for contributors)
-pip install -r requirements-tools.txt
-
-# Install library for local LLM
-pip install llama-cpp-python
+source ~/.bashrc          # or source ~/.zshrc on Mac
+alems dev status          # confirm everything is working
 ```
+
+A healthy `alems dev status` shows your platform class, environment, database path, schema version, and provider connectivity. Any missing prerequisite or misconfigured key appears here with a clear message.
 
 ---
 
-## 🔧 Step 4: Fix Permissions
+## What the Installer Does
 
-The `fix_permissions.sh` script grants necessary access to hardware interfaces:
+The installer runs 12 steps. None of them require manual intervention after the two questions are answered.
+
+**Step 0** detects your platform by reading hardware signals: DMI table entries, CPU vendor, GPU presence, and architecture. It does not guess from `uname` output. The result is written to `hw_config.json`.
+
+**Step 0.5** checks prerequisites for your detected platform. If a required tool is missing, the installer stops here with the exact package name to install.
+
+**Step 1** installs system build dependencies before creating the Python environment. This ordering prevents build failures during package compilation.
+
+**Step 2** creates a Python virtual environment and installs all Python dependencies, including platform-specific packages (llama-cpp-python with Metal on Apple Silicon, DCGM bindings on NVIDIA Grace).
+
+**Step 3** sets file permissions that allow hardware counter reads without requiring sudo at experiment time. Sudo is used once, here, and not again.
+
+**Step 4** runs hardware detection and verification. On direct energy platforms, this confirms that RAPL, SPBM, or IOKit counters are readable. On modeled platforms, it confirms ARM PMU access. If verification fails, the installer stops.
+
+**Step 5** writes two configuration files based on your answers: `.alems-env` in the project root (checkout-level, gitignored) and `~/.alemsrc` in your home directory (machine-level, holds API keys and paths). Neither file is ever committed to the repository.
+
+**Step 6** initializes the SQLite database and applies all schema migrations in version order.
+
+**Steps 7 through 11** seed reference data: measurement methodology entries, platform configuration, model parameters, quality thresholds, and the display registry used by the GUI and reports.
+
+**Step 12** measures an idle baseline on direct energy platforms. The baseline captures your machine's background energy consumption and is subtracted automatically from every experiment run. Modeled platforms skip this step.
+
+---
+
+## Supported Platforms
+
+| Platform | Hardware Examples | Energy Measurement | Compute Measurement |
+|---|---|---|---|
+| `nvidia_grace` | GN100, DGX Spark | Direct (SPBM) or Modeled (Secure Boot) | Direct (ARM PMU) |
+| `intel_x86` | Any Intel bare metal | Direct (RAPL) | Direct (RAPL + PMU) |
+| `amd_x86` | Any AMD bare metal | Direct (RAPL) | Direct (RAPL + PMU) |
+| `apple_silicon` | M1 / M2 / M3 / M4 Mac | Direct (IOKit) | Direct (kperf PMU) |
+| `linux_arm` | Graviton, RPi, KVM VMs | Modeled | Direct (ARM PMU) |
+| `linux_x86_unknown` | VMs, Hygon, unknown x86 | Modeled | Estimated |
+| `intel_mac` | Pre-2020 Intel Mac | Unavailable | Estimated |
+| `linux_riscv` | SiFive, StarFive | Unavailable | Estimated |
+
+Direct measurement reads a hardware counter. Modeled records `energy_uj = 0` with an explicit measurement tier. Unavailable records CPU time only. The measurement tier for your machine appears in every run record and in `alems dev status`.
+
+---
+
+## Verifying Your Install
 
 ```bash
-sudo ./scripts/fix_permissions.sh
+alems dev status
 ```
 
-**What this does:**
+This shows:
 
-- Grants read access to RAPL energy counters (`/sys/class/powercap/`)
-- Allows MSR register access for C-state monitoring
-- Enables turbostat for CPU frequency sampling
-- Provides access to thermal sensors
-
-*You only need to run this once after installation.*
-
----
-
-## 🖥️ Step 5: Verify Installation
-
-Run the hardware verification tool to check if everything is working:
-
-```bash
-python scripts/verify_hardware.py
+```
+Platform:     nvidia_grace
+Environment:  dev
+Database:     /mnt/alems-data/gn100-2b96/envs/dpani/dev/alems-platform/experiments.db
+Schema:       v086
+Branch:       main
+Providers:    vllm_remote ✓   groq ✓   openai ✗   anthropic ✗
 ```
 
-*Expected output: All 8 checks should pass with ✅ indicators.*
+Providers marked `✗` are not configured. See [API Keys](03-model-config.md) to add them.
 
 ---
 
-## 🏗️ Step 6: Hardware Detection
+## Troubleshooting
 
-A-LEMS automatically detects your hardware configuration:
+If `alems dev status` shows an error, the most common causes are:
 
-```bash
-# First run (requires sudo for MSR/turbostat access)
-python scripts/detect_hardware.py --output config/hw_config.json --merge --verbose
+`ALEMS_DATA_ROOT not set` means `~/.bashrc` was not sourced after install. Run `source ~/.bashrc`.
 
-# Fix permissions on generated config
-sudo ./scripts/fix_permissions.sh
-```
+`Database not found` means the data root directory does not exist or is not mounted. Check that the path you gave during install is accessible.
 
-**What gets detected:**
+`Schema version mismatch` means a migration did not apply. Run `alems dev sync` to reapply.
 
-- ✅ CPU model, cores, threads, flags (AVX2, AVX512)
-- ✅ GPU model and driver
-- ✅ RAPL energy domains (package, core, uncore, dram)
-- ✅ Thermal zones (dynamic mapping, not hardcoded)
-- ✅ MSR registers and C-state capabilities
-- ✅ System manufacturer and type
+`Platform: unknown` means `hw_config.json` is missing or unreadable. Run `python scripts/detect_hardware.py` and check the output.
 
-The generated `config/hw_config.json` contains your complete hardware fingerprint.
-
----
-
-## 🌍 Step 7: Environment Detection
-
-Capture your software environment for reproducibility:
-
-```bash
-python scripts/detect_environment.py --verbose
-```
-
-**What gets tracked:**
-
-- ✅ Python version and implementation
-- ✅ Git commit hash and branch
-- ✅ Dependency versions (numpy, torch, etc.)
-- ✅ OS name and kernel version
-
-This creates `config/environment.json` with a unique `env_hash` for your environment.
-
----
-## 🏗️ Step 8: Measure baselines
-
-Measure baseline MSR and idle power states before running experiments:
-
-```bash
-python -m core.utils.idle_baseline --duration 10 --samples 3
-python scripts/measure_msr_baseline.py
-```
-**What it does:**
-
-- ✅ Captures idle power consumption baseline
-- ✅ Records MSR C-state baseline for accurate measurements
-- ✅ Establishes reference for energy calculations
-
----
-
-## ✅ Installation Complete!
-
-Your A-LEMS installation is now ready. Next steps:
-
-- 📘 [Quick Start Guide](04-quick-start.md) - Run your first experiment in 5 minutes
-- 🔑 [Configuration Guide](03-model-config.md) - Set up API keys for cloud models
-- 📊 [Understanding Metrics](../user-guide/02-understanding-metrics.md) - Learn what the numbers mean
-
----
-
-## 🔄 Post-Installation Workflow
-
-After installation, your daily workflow is simple:
-
-```bash
-cd a-lems
-source venv/bin/activate
-
-# Load API keys (if using cloud models)
-cp core/.env.example core/.env
-# Edit core/.env with your API keys
-nano core/.env
-
-# Test LLM (verify everything works)
-python -m core.execution.tests.test_llm_setup --provider local --verbose
-python -m core.execution.tests.test_llm_setup --provider cloud --verbose
-
-# Run experiments
-python -m core.execution.tests.run_experiment --tasks gsm8k_basic --repetitions 3
-```
-
----
-
-## ⚠️ Troubleshooting
-
-| Issue | Likely Cause | Solution |
-|-------|--------------|----------|
-| Permission denied | Hardware access restricted | Run `sudo ./scripts/fix_permissions.sh` |
-| `ModuleNotFoundError` | Virtual env not activated | `source venv/bin/activate` |
-| RAPL not found | CPU doesn't support RAPL | Check: `cat /proc/cpuinfo \| grep rapl` |
-| MSR access failed | msr module not loaded | `sudo modprobe msr` |
-| Turbostat missing | linux-tools not installed | Install kernel-tools package for your distro |
-| No thermal zones | Sensors not detected | Install lm-sensors and run `sudo sensors-detect` |
-| GPU not detected | Missing drivers | Install appropriate GPU drivers |
-
-### Still having issues?
-
-Run the diagnostic tool:
-
-```bash
-python scripts/tools/issue_tracer.py
-```
-
-This will automatically check your system and suggest fixes.
-
----
-
-> **Note:** A-LEMS is designed to work on any Linux system with Intel processors. The hardware detection automatically adapts to your specific configuration - no manual tweaking required!
+For hardware-specific issues, see [Troubleshooting](05-troubleshooting.md).

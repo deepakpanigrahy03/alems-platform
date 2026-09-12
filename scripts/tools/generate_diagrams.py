@@ -2,278 +2,195 @@
 """
 A-LEMS Diagram Generator
 --------------------------------
-Main entry point for generating diagrams from YAML definitions.
-
-This script:
-1. Loads all diagram configurations from config/diagrams/
-2. Validates them for errors
-3. Resolves components and wildcards
-4. Builds DOT format graphs
-5. Renders SVG files to docs/assets/diagrams/
+Generates SVG diagrams from YAML definitions and copies them to the
+MkDocs source assets directory so they are available during mkdocs build.
 
 Usage:
-    python generate_diagrams.py              # Generate all diagrams
-    python generate_diagrams.py --name architecture  # Generate specific diagram
-    python generate_diagrams.py --help        # Show help
+    python3 scripts/tools/generate_diagrams.py
+    python3 scripts/tools/generate_diagrams.py --name platform-detection-flow
+    python3 scripts/tools/generate_diagrams.py --output /custom/path
+    python3 scripts/tools/generate_diagrams.py --no-copy
 """
 
 import argparse
+import shutil
 import sys
 from pathlib import Path
 
-# Add tools directory to path
 sys.path.append(str(Path(__file__).parent))
 
-# Import our diagram processor classes
 from diagram_processor import (
+    ComponentResolver,
     DiagramLoader,
     DiagramValidator,
-    ComponentResolver,
     DotBuilder,
-    SvgRenderer
+    SvgRenderer,
 )
-
-# Import path configuration
 from path_loader import config
 
 
 def get_project_root() -> Path:
-    """Find the project root directory (where .git is)."""
     current = Path(__file__).resolve().parent
     while current != current.parent:
-        if (current / '.git').exists():
+        if (current / ".git").exists():
             return current
         current = current.parent
     return Path.cwd()
 
 
-def load_and_validate_diagrams(config_dir: Path):
-    """
-    Load all diagram configurations and validate them.
-    
-    This function:
-    1. Loads all YAML files
-    2. Validates each diagram instance
-    3. Returns loaded data if valid, exits if errors found
-    """
-    print("📂 Loading diagram configurations...")
-    
-    # Create loader and load all files
+def load_and_validate(config_dir: Path) -> dict:
+    print("Loading diagram configurations...")
     loader = DiagramLoader(config_dir)
     data = loader.load_all()
-    
-    # Create validator with rules from YAML
-    validator = DiagramValidator(data['validation'])
-    
-    # Validate each diagram instance
-    print("🔍 Validating diagrams...")
+
+    print("Validating...")
+    validator = DiagramValidator(data["validation"])
     all_valid = True
-    
-    for instance in data['instances']:
-        instance_name = instance.get('name', 'unknown')
-        print(f"   Checking: {instance_name}")
-        
-        valid = validator.validate_instance(instance, data['components'])
+
+    for instance in data["instances"]:
+        name = instance.get("name", "unknown")
+        valid = validator.validate_instance(instance, data["components"])
         if not valid:
             all_valid = False
-    
-    # Show validation report
+
     report = validator.get_report()
-    if report['errors']:
-        print("\n❌ Validation errors found:")
-        for error in report['errors']:
-            print(f"   • {error}")
-    
-    if report['warnings']:
-        print("\n⚠️  Warnings:")
-        for warning in report['warnings']:
-            print(f"   • {warning}")
-    
+    if report["errors"]:
+        print("\nValidation errors:")
+        for error in report["errors"]:
+            print(f"  {error}")
+
+    if report["warnings"]:
+        print("\nWarnings:")
+        for warning in report["warnings"]:
+            print(f"  {warning}")
+
     if not all_valid:
-        print("\n❌ Validation failed. Please fix errors and try again.")
+        print("\nFix validation errors and re-run.")
         sys.exit(1)
-    
-    print("✅ All diagrams valid!")
+
+    print(f"  {len(data['instances'])} diagrams valid.")
     return data
 
 
-def generate_diagram(instance: dict, data: dict, output_dir: Path):
-    """
-    Generate a single diagram from its instance definition.
-    
-    This function:
-    1. Gets all node IDs from the instance
-    2. Resolves components and wildcards
-    3. Builds DOT format
-    4. Renders SVG
-    """
-    instance_name = instance.get('name', 'unknown')
-    template_name = instance.get('template', 'layered')
-    
-    print(f"\n📊 Generating: {instance_name}")
-    
-    # ================================================================
-    # Step 1: Get all node IDs from this instance
-    # ================================================================
+def generate_diagram(instance: dict, data: dict, output_dir: Path) -> bool:
+    name = instance.get("name", "unknown")
+    template_name = instance.get("template", "layered")
+
     all_node_ids = []
-    for node_def in instance.get('nodes', []):
+    for node_def in instance.get("nodes", []):
         if isinstance(node_def, str):
             all_node_ids.append(node_def)
         elif isinstance(node_def, dict):
-            all_node_ids.append(list(node_def.keys())[0])
-    
-    # ================================================================
-    # Step 2: Create resolver and resolve all nodes
-    # ================================================================
+            node_id = node_def.get("id")
+            if node_id:
+                all_node_ids.append(node_id)
+
     resolver = ComponentResolver(
-        data['components'],
-        data['templates'],
-        data['boundaries']
+        data["components"],
+        data["templates"],
+        data["boundaries"],
     )
-    
+
     resolved_nodes = []
-    for node_def in instance.get('nodes', []):
-        resolved = resolver.resolve_node(node_def, all_node_ids)
-        resolved_nodes.extend(resolved)
-    
-    # ================================================================
-    # Step 3: Build DOT graph
-    # ================================================================
-    builder = DotBuilder(template_name, data['templates'])
-    
-    # Start building DOT string
-    dot_lines = [builder.build_graph_header()]
-    
-    # Add all nodes
-    for node in resolved_nodes:
-        dot_lines.append(builder.build_node(node))
-    
-    # Add all edges
-    edge_styles = data['templates'][template_name].get('edge_styles', {})
-    for edge in instance.get('edges', []):
-        dot_lines.append(builder.build_edge(edge, edge_styles))
-    
-    # Close graph
-    dot_lines.append("}")
-    
-    # Combine all lines
-    dot_string = "\n".join(dot_lines)
+    for node_def in instance.get("nodes", []):
+        resolved_nodes.extend(resolver.resolve_node(node_def, all_node_ids))
 
+    builder = DotBuilder(template_name, data["templates"], data["boundaries"])
 
+    # Use instance-level boundary override if specified
+    instance_boundaries = instance.get("boundaries")
+    if instance_boundaries is not None:
+        filtered = [b for b in data["boundaries"] if b.get("name") in instance_boundaries]
+        builder.boundaries = filtered
 
+    dot_string = builder.build(resolved_nodes, instance.get("edges", []))
 
-
-
-    # ================================================================
-    # Step 4: Render to SVG
-    # ================================================================
-    output_file = output_dir / f"{instance_name}.svg"
-    # DEBUG: Print first 20 lines of DOT
-    print("\n--- DEBUG DOT (first 20 lines) ---")
-    for i, line in enumerate(dot_string.split('\n')[:20]):
-        print(f"{i+1}: {line}")
-    print("-----------------------------------\n")
-
-    # ================================================================
-    # Step 4: Save DOT for debugging
-    # ================================================================
-    debug_dot = output_dir / f"{instance_name}.debug.dot"
-    with open(debug_dot, 'w') as f:
-        f.write(dot_string)
-    print(f"📝 Saved debug DOT to: {debug_dot}")    
+    output_file = output_dir / f"{name}.svg"
     renderer = SvgRenderer()
     success = renderer.render(dot_string, output_file)
 
-    renderer = SvgRenderer()
-    
-    success = renderer.render(dot_string, output_file)
-    
     if success:
-        print(f"   ✅ Saved: {output_file}")
+        print(f"  {name}.svg")
     else:
-        print(f"   ❌ Failed: {instance_name}")
-    
+        print(f"  FAILED: {name}")
+
     return success
 
 
+def copy_to_mkdocs(output_dir: Path, mkdocs_assets: Path) -> None:
+    """
+    Copy generated SVGs to the MkDocs source assets directory.
+
+    This makes diagrams available to mkdocs build without requiring
+    generate_diagrams.py to know the MkDocs build output path.
+    The source path (docs-src/mkdocs/source/assets/diagrams/) is what
+    MkDocs reads; the generated path (docs/assets/diagrams/) is the
+    intermediate store.
+    """
+    mkdocs_assets.mkdir(parents=True, exist_ok=True)
+    copied = 0
+    for svg in output_dir.glob("*.svg"):
+        dest = mkdocs_assets / svg.name
+        shutil.copy2(svg, dest)
+        copied += 1
+    print(f"  Copied {copied} SVGs to {mkdocs_assets}")
+
+
 def main():
-    """Main entry point."""
-    # ================================================================
-    # Set up command line arguments
-    # ================================================================
-    parser = argparse.ArgumentParser(
-        description="Generate diagrams from YAML definitions"
-    )
+    parser = argparse.ArgumentParser(description="Generate A-LEMS diagrams")
+    parser.add_argument("--name", help="Generate only this diagram (by name)")
+    parser.add_argument("--output", help="Override output directory")
     parser.add_argument(
-        "--name",
-        help="Generate only specific diagram (by name)"
+        "--no-copy",
+        action="store_true",
+        help="Skip copying SVGs to MkDocs source assets",
     )
-    parser.add_argument(
-        "--output",
-        help="Output directory (default: from paths.yaml)"
-    )
-    
     args = parser.parse_args()
-    
-    # ================================================================
-    # Find configuration and output directories
-    # ================================================================
+
     project_root = get_project_root()
     config_dir = project_root / "config" / "diagrams"
-    
-    # Use output from paths.yaml, or override if provided
-    if args.output:
-        output_dir = Path(args.output)
-    else:
-        output_dir = config.DIAGRAMS_OUTPUT
-    
-    # Create output directory if it doesn't exist
+
+    output_dir = Path(args.output) if args.output else config.DIAGRAMS_OUTPUT
     output_dir.mkdir(parents=True, exist_ok=True)
-    
-    print("=" * 60)
-    print("🔧 A-LEMS Diagram Generator")
-    print("=" * 60)
+
+    # MkDocs source assets path — where MkDocs reads from during build
+    mkdocs_assets = project_root / "docs-src" / "mkdocs" / "source" / "assets" / "diagrams"
+
+    print("=" * 50)
+    print("A-LEMS Diagram Generator")
+    print("=" * 50)
     print(f"Config:  {config_dir}")
     print(f"Output:  {output_dir}")
+    if not args.no_copy:
+        print(f"MkDocs:  {mkdocs_assets}")
     print()
-    
-    # ================================================================
-    # Load and validate all diagrams
-    # ================================================================
-    data = load_and_validate_diagrams(config_dir)
-    
-    # ================================================================
-    # Generate diagrams
-    # ================================================================
-    print("\n🎨 Generating diagrams...")
-    
+
+    data = load_and_validate(config_dir)
+
+    print("\nGenerating:")
     generated = 0
     failed = 0
-    
-    for instance in data['instances']:
-        instance_name = instance.get('name', 'unknown')
-        
-        # Skip if specific diagram requested and this isn't it
-        if args.name and instance_name != args.name:
+
+    for instance in data["instances"]:
+        name = instance.get("name", "unknown")
+        if args.name and name != args.name:
             continue
-        
-        success = generate_diagram(instance, data, output_dir)
-        if success:
+        if generate_diagram(instance, data, output_dir):
             generated += 1
         else:
             failed += 1
-    
-    # ================================================================
-    # Show summary
-    # ================================================================
-    print("\n" + "=" * 60)
-    print("📊 Generation Complete")
-    print("=" * 60)
-    print(f"✅ Generated: {generated}")
+
+    if not args.no_copy and generated > 0:
+        print("\nCopying to MkDocs source:")
+        copy_to_mkdocs(output_dir, mkdocs_assets)
+
+    print()
+    print("=" * 50)
+    print(f"Generated: {generated}  Failed: {failed}")
+    print("=" * 50)
+
     if failed > 0:
-        print(f"❌ Failed:    {failed}")
-    print(f"📁 Output:    {output_dir}")
-    print("=" * 60)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

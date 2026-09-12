@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Prevent modification of already-committed migration files.
+# Write a new migration (next version number) instead.
+MIGRATIONS_DIR="migrations/schema"
+for file in $(git diff --cached --name-only --diff-filter=M); do
+    if [[ "$file" == "$MIGRATIONS_DIR/"* ]]; then
+        echo "BLOCKED: $file is an applied migration and must not be modified."
+        echo "Write a new migration (next version number) instead."
+        exit 1
+    fi
+done

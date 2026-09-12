@@ -1,13 +1,11 @@
 # mkdocs.yml
 site_name: A-LEMS Documentation
-site_description: Agent vs Linear AI Energy Measurement Platform
-site_author: A-LEMS Team
-repo_url: https://github.com/deepakpanigrahy03/a-lems
+site_description: Agentic LLM Energy Measurement System
+site_author: A-LEMS Research
+repo_url: https://github.com/deepakpanigrahy03/alems-platform
+site_url: https://deepakpanigrahy03.github.io/alems-platform/
 
-# Source files are in source/ directory
 docs_dir: source
-
-# Built site goes to docs/generated/mkdocs
 site_dir: ../../docs/generated/mkdocs
 
 theme:
@@ -15,110 +13,117 @@ theme:
   features:
     - navigation.tabs
     - navigation.sections
+    - navigation.top
     - toc.integrate
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
 
 nav:
   - Home: index.md
-  
+
   - Getting Started:
-    - Installation: getting-started/01-installation.md
-    - Database Setup: getting-started/02-database-setup.md
-    - Model Configuration: getting-started/03-model-config.md
-    - Quick Start: getting-started/04-quick-start.md
-    - Troubleshooting: getting-started/05-troubleshooting.md
-    - Adding a New Client: getting-started/06-new-client.md
-    - Seed Data Reference: getting-started/seed-data-reference.md
-    - Setup:
-      - Oracle VM: setup/02-oracle-vm.md
-  
-  - User Guide:
-    - Running Experiments: user-guide/01-running.md
-    - Understanding Metrics: user-guide/02-understanding-metrics.md
-    - Batch Experiments: user-guide/03-batch-experiments.md
-    - GUI Usage: user-guide/04-gui-usage.md
-    - Generating Reports: user-guide/05-generating-reports.md
-    - Troubleshooting: user-guide/06-troubleshooting.md
-    - Fleet Control: user-guide/07-fleet-control.md
-  
-  - Developer Guide:
-    - Architecture: developer-guide/01-architecture.md
-    - Data Flow: developer-guide/02-data-flow.md
-    - Database Schema: developer-guide/03-database-schema.md
-    - GUI Design: developer-guide/04-gui-design.md
-    - Adding New Readers: developer-guide/05-adding-readers.md
-    - Adding New Tasks: developer-guide/06-adding-tasks.md
-    - Developer Tools: developer-guide/07-tools-overview.md
-    - Distributed Architecture: developer-guide/08-distributed-architecture.md
-    - Data Flow & Sync: developer-guide/09-data-flow-sync.md
-    - Schema Migration: developer-guide/10-schema-migration.md
-    - Troubleshooting Distributed: developer-guide/11-troubleshooting-distributed.md
-    - Registration & Onboarding: developer-guide/12-registration-onboarding.md
-    - Sync & Backload Operations: developer-guide/13-sync-operations.md
-    - Table Details: developer-guide/14-database-tables.md
-    - Auto-Registration & PageRenderer: developer-guide/15-auto-registration.md
-    - Platform detection: developer-guide/18-platform-detection.md
-    - Energy Attribution and Normalization: developer-guide/19-attribution-developer-guide.md
-    - Model Factory Architecture: developer-guide/16-model-factory-architecture.md
-    - Adding New Models: developer-guide/how-to-add-model.md
-    - Adding New Providers: developer-guide/how-to-add-provider.md
-    - Testing Models: developer-guide/how-to-test-models.md
-    - Retry Study Design: developer-guide/20-retry-study-design.md
-    - kperf PMU Helper: developer-guide/23-kperf-pmu-helper.md
-    - Config Hierarchy & DB Path: developer-guide/21-config-hierarchy.md
+    - Installation: getting-started/installation.md
+    - API Keys: getting-started/api-keys.md
+    - Quick Start: getting-started/quick-start.md
+    - New Machine: getting-started/new-machine.md
+    - Troubleshooting: getting-started/troubleshooting.md
 
-    - Compliance:
-      - Developer Compliance Guide: compliance/COMPLIANCE.md
-      - Run Quality Checks: developer-guide/C10RUN_QUALITY.md
+  - Concepts:
+    - Platform Detection: concepts/platform-detection.md
+    - Measurement Model: concepts/measurement-model.md
+    - Energy Tiers: concepts/energy-tiers.md
+    - Configuration System: concepts/config-system.md
+    - Data Flow: concepts/data-flow.md
 
-    
+  - Developer:
+    - Architecture: developer/architecture.md
+    - Database Schema: developer/database-schema.md
+    - Schema Migration: developer/schema-migration.md
+    - Energy Chain: developer/energy-chain.md
+    - Adding a Platform: developer/adding-a-platform.md
+    - Adding a Reader: developer/adding-a-reader.md
+    - Adding a Provider: developer/adding-a-provider.md
+    - Adding a Model: developer/adding-a-model.md
+    - Adding a Task: developer/adding-a-task.md
+    - Model Factory: developer/model-factory.md
+    - Configuration Hierarchy: developer/config-hierarchy.md
+    - kperf PMU: developer/kperf-pmu.md
+    - Retry Study Design: developer/retry-study.md
+    - Engineering Standards: developer/engineering-standards.md
+    - Developer Tools: developer/developer-tools.md
+
   - Research:
-    - Measurement Methodology: research/01-measurement-methodology.md
-    - Mathematical Derivations: research/02-mathematical-derivations.md
-    - Orchestration Tax: research/03-orchestration-tax.md
-    - Publications: research/04-publications.md
-    - LLM Measurement Methodology: research/05-llm-measurement-methodology.md
-    - Energy Reader Methodology: research/07-energy-readers-methodology.md
-    - System Measurement Methodology: research/08-system-measurement-methodology.md
-    - Derived Metrics Methodology: research/09-derived-metrics-methodology.md
-    - Provenance & Research Value: research/10-provenance-research-value.md
-    - Phase Attribution: research/11-phase-attribution-developer-guide.md
-    - Run Quality Methodology: research/16-run-quality-methodology.md
-    - Experiment Classification Methodology : research/17-experiment-classification-methodology.md
-    - Goal Execution Methodology: research/18-goal-execution-methodology.md
-    - Hallucination and Output Quality Methodology: research/19-hallucination-output-quality-methodology.md
-    - Tool Failure and Attribution ETL Methodology: research/20-tool-failure-methodology.md
-    - Goal Tracking Runtime Methodology: research/21-goal-tracking-runtime.md
-    - Retry and Tool Failure Methodology: research/22-retry-tool-failure-methodology.md
-    - Tool instrumentation Methodology:   research/24-tool-instrumentation-methodology.md
-    - Energy Attribution Guide:           research/25-energy-attribution-guide.md
-    - Unified Energy Schema:              research/26-unified-energy-schema.md
-    - Power Rail Schema:                  research/27-power-rail-schema.md
-    - CPU Idle State Residency:           research/28-cpu-idle-states.md
-    - Cooling Device Measurement:         research/29-cooling-subsystem.md
-    - ARM PMU Cache Metrics:              research/30-arm-cpu-samples.md
-    - Network Energy Cross-Platform:      research/31-network-energy-cross-platform-methodology.md
-    - Outlier Detection Methodology:      research/32-outlier-detection-methodology.md
-  
-  - API Reference: 
-    - Overview: api/reference.md
-    - Orchestration API: api/orchestration-api.md
-    - Full API Docs: sphinx/
+    - Measurement Methodology: research/measurement-methodology.md
+    - Orchestration Tax: research/orchestration-tax.md
+    - Mathematical Derivations: research/mathematical-derivations.md
+    - Energy Attribution: research/energy-attribution.md
+    - Phase Attribution: research/phase-attribution.md
+    - Energy Readers: research/energy-readers.md
+    - System Measurement: research/system-measurement.md
+    - Derived Metrics: research/derived-metrics.md
+    - Normalization: research/normalization.md
+    - Measurement Boundary: research/measurement-boundary.md
+    - Provenance: research/provenance.md
+    - Run Quality: research/run-quality.md
+    - Experiment Classification: research/experiment-classification.md
+    - Goal Execution: research/goal-execution.md
+    - Output Quality: research/output-quality.md
+    - Tool Failure: research/tool-failure.md
+    - Tool Instrumentation: research/tool-instrumentation.md
+    - Retry Methodology: research/retry-methodology.md
+    - Network Energy: research/network-energy.md
+    - GPU Energy: research/gpu-energy.md
+    - Power Rail Schema: research/power-rail-schema.md
+    - Unified Energy Schema: research/unified-energy-schema.md
+    - CPU Idle States: research/cpu-idle-states.md
+    - Cooling Subsystem: research/cooling-subsystem.md
+    - ARM PMU Metrics: research/arm-pmu-metrics.md
+    - Outlier Detection: research/outlier-detection.md
+    - LLM Wait Energy: research/llm-wait-energy.md
+    - Publications: research/publications.md
+
+  - Reference:
+    - Platform Matrix: reference/platform-matrix.md
+    - Provider Registry: reference/provider-registry.md
+    - Task Registry: reference/task-registry.md
+    - CLI Reference: reference/cli-reference.md
+    - DB Path Resolution: reference/db-path-resolution.md
+    - Provider Debugging: reference/provider-debugging.md
+    - Data Dictionary: reference/data-dictionary.md
+    - API Reference: reference/api.md
+    - Orchestration API: reference/orchestration-api.md
+
+  - Guides:
+    - Researcher Journey: guides/researcher-journey.md
+    - Administrator Guide: guides/administrator-guide.md
+    - Contributor Guide: guides/contributor-guide.md
+
+  - Contributing:
+    - Adding Documentation: contributing/adding-documentation.md
 
 markdown_extensions:
   - admonition
+  - attr_list
   - codehilite
   - toc:
       permalink: true
   - pymdownx.superfences
-  - pymdownx.tabbed
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.arithmatex:
       generic: true
-
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.details
+  - tables
 
 extra_javascript:
-  - javascripts/mathjax.js  # ← ADD THIS
+  - javascripts/mathjax.js
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
-  
+
 plugins:
   - search

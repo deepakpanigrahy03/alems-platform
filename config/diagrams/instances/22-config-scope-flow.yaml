@@ -1,0 +1,91 @@
+# Config Scope Flow — three-layer config resolution
+version: 1.0
+name: config-scope-flow
+title: "Configuration Scope Resolution"
+template: dataflow
+boundaries: []
+
+nodes:
+  - id: cfg.alemsrc
+    label: "~/.alemsrc\n(machine level)\nALEMS_DATA_ROOT\nAPI keys\nmodel dirs"
+    shape: box
+    layer: config
+    color: lightblue
+
+  - id: cfg.alemsenv
+    label: ".alems-env\n(checkout level)\nALEMS_ENV\noptional DATA_ROOT override"
+    shape: box
+    layer: config
+    color: lightyellow
+
+  - id: cfg.db
+    label: "Database\n(experiment level)\nprovider, country\nmethodology, baseline_id"
+    shape: cylinder
+    layer: database
+    color: lightcoral
+
+  - id: cfg.yaml
+    label: "YAML configs\n(behavior only)\nmodels.yaml, tasks.yaml\nquality.yaml, metric_registry.yaml"
+    shape: box
+    layer: config
+    color: lightblue
+
+  - id: cfg.pathloader
+    label: "path_loader.py\nLayer 0: .alems-env\nLayer 1: ALEMS_DATA_ROOT\nLayer 2: app_settings.yaml\nLayer 3: data/ fallback"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: cfg.dbpath_prod
+    label: "prod DB path:\n$ALEMS_DATA_ROOT/<host>\n/envs/prod/experiments.db"
+    shape: box
+    layer: database
+    color: lightgreen
+
+  - id: cfg.dbpath_dev
+    label: "dev DB path:\n$ALEMS_DATA_ROOT/<host>\n/envs/<user>/dev/<project>\n/experiments.db"
+    shape: box
+    layer: database
+    color: lightgreen
+
+  - id: cfg.runtime
+    label: "Runtime\nSelf-sources ~/.alemsrc\nNo manual source needed"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+edges:
+  - from: cfg.alemsrc
+    to: cfg.pathloader
+    type: data
+    label: "ALEMS_DATA_ROOT"
+
+  - from: cfg.alemsenv
+    to: cfg.pathloader
+    type: data
+    label: "ALEMS_ENV (overrides)"
+
+  - from: cfg.pathloader
+    to: cfg.dbpath_prod
+    type: flow
+    label: "env=prod"
+
+  - from: cfg.pathloader
+    to: cfg.dbpath_dev
+    type: flow
+    label: "env=dev"
+
+  - from: cfg.alemsrc
+    to: cfg.runtime
+    type: data
+    label: "auto-sourced"
+
+  - from: cfg.yaml
+    to: cfg.db
+    type: data
+    label: "seeded at install"
+
+  - from: cfg.db
+    to: cfg.runtime
+    type: data
+    label: "captured at run time"

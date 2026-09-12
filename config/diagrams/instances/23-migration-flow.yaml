@@ -1,0 +1,149 @@
+# Migration Flow — alems_migrate.py execution and safety gates
+version: 1.0
+name: migration-flow
+title: "Schema Migration System — alems_migrate.py"
+template: lifecycle
+boundaries: []
+
+nodes:
+  - id: mig.start
+    label: "alems_migrate.py"
+    shape: box
+    layer: execution
+    color: lightblue
+
+  - id: mig.bootstrap
+    label: "Bootstrap\nAdd original_checksum\n+ healed_at columns\n(idempotent)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: mig.scan
+    label: "Scan migrations/\nschema/, seed/,\nplatform/ folders\nin version order"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: mig.foreach
+    label: "For each\nmigration file"
+    shape: diamond
+    layer: execution
+
+  - id: mig.applied
+    label: "Already in\nmigration_history\nwith status=applied?"
+    shape: diamond
+    layer: execution
+
+  - id: mig.checksum
+    label: "Checksum\nmatch?"
+    shape: diamond
+    layer: execution
+
+  - id: mig.envcheck
+    label: "env=prod?"
+    shape: diamond
+    layer: execution
+
+  - id: mig.fatal
+    label: "FATAL EXIT\nMigration file\nwas modified\nafter apply"
+    shape: box
+    layer: execution
+    color: "#ffcccc"
+
+  - id: mig.heal
+    label: "Heal: update stored\nchecksum, set healed_at\nWARN but continue"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: mig.apply
+    label: "Apply SQL\nRecord in\nmigration_history\n(version, checksum,\nhostname, commit)"
+    shape: box
+    layer: execution
+    color: lightgreen
+
+  - id: mig.skip
+    label: "Skip\n(already applied,\nchecksum OK)"
+    shape: box
+    layer: execution
+    color: lightyellow
+
+  - id: mig.more
+    label: "More\nmigrations?"
+    shape: diamond
+    layer: execution
+
+  - id: mig.done
+    label: "All migrations\napplied"
+    shape: box
+    layer: execution
+    color: lightblue
+
+edges:
+  - from: mig.start
+    to: mig.bootstrap
+    type: flow
+
+  - from: mig.bootstrap
+    to: mig.scan
+    type: flow
+
+  - from: mig.scan
+    to: mig.foreach
+    type: flow
+
+  - from: mig.foreach
+    to: mig.applied
+    type: flow
+
+  - from: mig.applied
+    to: mig.checksum
+    type: flow
+    label: "yes"
+
+  - from: mig.applied
+    to: mig.apply
+    type: flow
+    label: "no (pending)"
+
+  - from: mig.checksum
+    to: mig.skip
+    type: flow
+    label: "match"
+
+  - from: mig.checksum
+    to: mig.envcheck
+    type: flow
+    label: "mismatch"
+
+  - from: mig.envcheck
+    to: mig.fatal
+    type: flow
+    label: "prod"
+
+  - from: mig.envcheck
+    to: mig.heal
+    type: flow
+    label: "dev"
+
+  - from: mig.apply
+    to: mig.more
+    type: flow
+
+  - from: mig.skip
+    to: mig.more
+    type: flow
+
+  - from: mig.heal
+    to: mig.more
+    type: flow
+
+  - from: mig.more
+    to: mig.foreach
+    type: flow
+    label: "yes"
+
+  - from: mig.more
+    to: mig.done
+    type: flow
+    label: "no"

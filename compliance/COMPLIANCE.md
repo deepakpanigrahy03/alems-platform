@@ -57,7 +57,8 @@ Unknown    → FallbackReader (returns None, never raises)
 ```
 
 ### Rule PAC-5: Platform Matrix
-Before shipping any reader, document in `14-hardware-readers-developer-guide.md`:
+Before shipping any reader, document in
+`docs-src/mkdocs/source/developer-guide/adding-a-reader.md`:
 ```
 | Reader | Linux x86 | Linux ARM | macOS | Notes |
 ```
@@ -89,6 +90,9 @@ ANY new reader or compute function MUST be added to `scripts/seed_methodology.py
     "parameters":   {},
 }
 ```
+The `doc`, `section`, and `method_anchor` fields are NOT hardcoded in
+`seed_methodology.py`. They are read from `config/methodology_docs.yaml`
+by `scripts/tools/methodology_loader.py` at seed time.
 
 ### Rule MPC-3: Every New Method Gets References
 Add YAML to `config/methodology_refs/<method_id>.yaml`:
@@ -102,19 +106,58 @@ references:
     relevance: "..."
 ```
 
-### Rule MPC-4: Every New Derived Metric Gets a Doc Section
-Add to appropriate doc in `docs-src/mkdocs/source/research/`:
-- Hardware readers → `07-energy-readers-methodology.md`
-- OS/system → `08-system-measurement-methodology.md`
-- Computed metrics → `09-derived-metrics-methodology.md`
+### Rule MPC-4: Every New Method Gets a Doc Section and a Stable Anchor
+ 
+Step 1: Add a section heading with an explicit anchor to the appropriate
+research doc in `docs-src/mkdocs/source/research/`:
+ 
+```markdown
+## Your Method Name { #your-method-anchor }
+```
+ 
+Routing by method type:
+- Hardware energy readers → `energy-readers.md`
+- OS and system readers → `system-measurement.md`
+- Computed and derived metrics → `derived-metrics.md`
+- GPU energy methods → `gpu-energy.md`
+- Network energy methods → `network-energy.md`
+Step 2: Add an entry to `config/methodology_docs.yaml`:
+ 
+```yaml
+your_method_id:
+  doc: "energy-readers.md"          # filename relative to docs_base
+  method_anchor: "your-method-anchor"  # permanent, never changes once assigned
+  section: "Your Method Name"       # human display only
+```
+ 
+Step 3: Run the validator before committing:
+ 
+```bash
+python3 scripts/tools/validate_methodology_refs.py
+```
+ 
+The validator checks that the doc exists, the anchor exists as a proper
+heading in that doc, and the anchor is unique across the entire docs corpus.
+It must pass clean before any commit touching methodology docs or seed data.
+ 
+### Rule MPC-5: method_anchor Is Permanent
+ 
+Once a `method_anchor` is assigned and written to the DB via
+`seed_methodology.py`, it must never change. It is the stable identifier
+in every run record in `measurement_methodology` and
+`measurement_method_registry`. Changing it after DB records exist breaks
+the provenance chain for all historical runs.
+ 
+If a method needs to be restructured, create a new method_id with a new
+method_anchor. Deprecate the old one with `active: false` in the registry.
 
-### Rule MPC-5: Provenance Regression Must Pass
+### Rule MPC-6: Provenance Regression Must Pass
 After ANY change:
 ```bash
 bash scripts/test_provenance.sh   # MUST pass 22/22
 ```
 
-### Rule MPC-6: METHOD_CONFIDENCE Must Be In Sync
+### Rule MPC-7: METHOD_CONFIDENCE Must Be In Sync
 Every `method_id` in `COLUMN_PROVENANCE` MUST have an entry in `METHOD_CONFIDENCE`:
 ```python
 METHOD_CONFIDENCE = {
@@ -192,8 +235,14 @@ def process(data):
 ### Rule DC-5: Max 8 Space Indentation
 Never exceed 2 levels of indentation (8 spaces). Refactor if deeper.
 
-### Rule DC-6: New Doc Files Go in mkdocs.yml
-Any new `.md` file in `docs-src/mkdocs/source/` MUST be added to `mkdocs.yml` nav section.
+### Rule DC-6: New Doc Files — Three Required Steps
+Any new `.md` file in `docs-src/mkdocs/source/` requires three actions:
+ 
+1. Add to `mkdocs.yml` nav section.
+2. If the file contains methodology sections, add `{ #anchor }` tags to
+   each section heading referenced by a method in `methodology_docs.yaml`.
+3. Run `python3 scripts/tools/validate_methodology_refs.py` to confirm
+   all anchors resolve correctly.
 
 ---
 
@@ -845,10 +894,17 @@ Every measurement method has exactly TWO documents:
      — written for paper reviewers and researchers unfamiliar with the codebase
      — NOT referenced by seed_methodology
 
-The "doc" field in seed_methodology entries points to the explanatory .md
-only for the section heading lookup. The YAML is the authoritative method spec.
-A researcher querying the DB sees the YAML content — compact and precise.
-The .md is for humans reading the docs site.
+The `doc` and `method_anchor` fields in `seed_methodology.py` entries are
+NOT hardcoded. They are read from `config/methodology_docs.yaml` via
+`scripts/tools/methodology_loader.py`. The YAML map is the single source
+of truth for documentation location. The `.md` research doc is for humans
+reading the docs site and for paper reviewers.
+ 
+`method_anchor` is the permanent stable identifier stored in the DB.
+It does not change when files are renamed or headings are edited.
+The validator (`scripts/tools/validate_methodology_refs.py`) enforces
+that every anchor in `methodology_docs.yaml` resolves to an actual heading
+in the referenced doc. It runs as part of `scripts/build-docs.sh`.
 
 Every methodology document must start with a version header block:
 
@@ -886,3 +942,14 @@ MSC-4: migrations/schema/ contains DDL only (CREATE, ALTER, DROP).
 
 ## 16. Migration System (Database Changes)
 Any DB schema change MUST follow compliance/MIGRATION_GUIDE.md before touching any migration file.
+ 
+---
+ 
+## 17. Documentation Protocol
+ 
+Every agent working on documentation MUST read `compliance/DOC_PROTOCOL.md`
+before touching any file in `docs-src/`. That file is the single source of
+truth for how to create, update, rename, and validate documentation in A-LEMS.
+It covers: document structure standard, new document checklist, file rename
+sequence, methodology anchor protocol, diagram updates, build verification,
+and the full methodology document template.
