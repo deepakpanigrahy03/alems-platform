@@ -7,7 +7,7 @@ templates:
     graph:
       rankdir: TB
       compound: true
-      splines: ortho
+      splines: curved
       nodesep: 0.5
       ranksep: 0.8
     node:
@@ -93,7 +93,7 @@ templates:
   beautiful-schema:
     graph:
       rankdir: LR
-      splines: ortho
+      splines: curved
       nodesep: 1.0
       ranksep: 1.5
       bgcolor: "#f8f9fa"

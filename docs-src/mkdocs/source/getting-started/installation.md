@@ -195,7 +195,7 @@ cd alems-platform && source venv/bin/activate
 python3 scripts/detect_hardware.py --stdout
 ```
 
-For other errors see [Troubleshooting](05-troubleshooting.md).
+For other errors see [Troubleshooting](troubleshooting.md).
 
 ---
 

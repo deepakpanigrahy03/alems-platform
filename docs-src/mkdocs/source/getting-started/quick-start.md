@@ -172,4 +172,4 @@ curl -s --connect-timeout 3 \
 alems dev sync
 ```
 
-For hardware reader failures see [Troubleshooting](05-troubleshooting.md).
+For hardware reader failures see [Troubleshooting](troubleshooting.md).

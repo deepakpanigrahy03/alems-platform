@@ -6,12 +6,14 @@ validation:
   
   # ID format enforcement
   node_id_format:
-    pattern: "^[a-z][a-z0-9]*\\.[a-z][a-z0-9]*$"
-    description: "namespace.name (lowercase, no spaces)"
+    pattern: "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9_]*)+$"
+    description: "namespace.name or namespace.sub.name (lowercase, no spaces)"
     examples:
       - "config.loader"
       - "hw.rapl"
       - "exec.harness"
+      - "tier.compute_q1"
+      - "cfg.dbpath_prod"
   
   # Wildcard expansion rules
   wildcard_support: true

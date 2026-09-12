@@ -79,9 +79,16 @@ fi
 echo ""
 
 # =============================================================================
-# Step 3: Build MkDocs
+# Step 3: Generate data dictionary
 # =============================================================================
-echo "Step 3: Building MkDocs site..."
+echo "Step 3: Generating data dictionary..."
+python3 scripts/tools/generate_data_dictionary.py
+echo ""
+
+# =============================================================================
+# Step 4: Build MkDocs
+# =============================================================================
+echo "Step 4: Building MkDocs site..."
 
 cd "$MKDOCS_DIR"
 
@@ -101,10 +108,10 @@ echo ""
 # Step 4: Deploy to GitHub Pages (optional)
 # =============================================================================
 if $DEPLOY; then
-    echo "Step 4: Pushing source to main branch..."
+    echo "Step 5: Pushing source to main branch..."
     git push origin main
     echo ""
-    echo "Step 5: Deploying to GitHub Pages..."
+    echo "Step 6: Deploying to GitHub Pages..."
     mkdocs gh-deploy --force
     echo ""
     echo "  Deployed. Live in ~2 minutes at:"
