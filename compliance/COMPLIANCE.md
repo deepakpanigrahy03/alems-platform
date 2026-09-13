@@ -947,7 +947,7 @@ Any DB schema change MUST follow compliance/MIGRATION_GUIDE.md before touching a
  
 ## 17. Documentation Protocol
  
-Every agent working on documentation MUST read `compliance/DOC_PROTOCOL.md`
+Every agent working on documentation MUST read `compliance/DOC_PROTOCOL.md` and `docs-src/catalog.yaml`
 before touching any file in `docs-src/`. That file is the single source of
 truth for how to create, update, rename, and validate documentation in A-LEMS.
 It covers: document structure standard, new document checklist, file rename
