@@ -1,0 +1,388 @@
+# =============================================================================
+# A-LEMS Documentation Catalog
+# =============================================================================
+# Single source of truth: maps every topic to exactly one documentation file.
+# Every agent reads this before writing or editing any documentation.
+# Every build validates this catalog for staleness.
+#
+# Fields:
+#   topic         — what this doc covers (used for search and agent routing)
+#   file          — path relative to docs-src/mkdocs/source/
+#   audience      — user, developer, researcher, administrator
+#   status        — current | draft | stale
+#   last_validated — YYYY-MM-DD (date content was verified against codebase)
+#   nav_entry     — exact string from mkdocs.yml nav
+# =============================================================================
+
+catalog:
+
+  # ── Getting Started ────────────────────────────────────────────────────────
+
+  - topic: "Installation, prerequisites, install steps, post-install verification, migration system"
+    file: getting-started/installation.md
+    audience: user
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Installation: getting-started/installation.md"
+
+  - topic: "API keys, provider keys, ALEMS_VLLM_REMOTE_URL, model configuration, ~/.alemsrc"
+    file: getting-started/api-keys.md
+    audience: user
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "API Keys: getting-started/api-keys.md"
+
+  - topic: "Quick start, first experiment, run_experiment.py, reading output, workflow modes"
+    file: getting-started/quick-start.md
+    audience: user
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Quick Start: getting-started/quick-start.md"
+
+  - topic: "Troubleshooting, ALEMS_DATA_ROOT errors, platform unknown, database locked, permission denied"
+    file: getting-started/troubleshooting.md
+    audience: user
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Troubleshooting: getting-started/troubleshooting.md"
+
+  - topic: "Adding a new machine, new client setup, fleet onboarding"
+    file: getting-started/new-machine.md
+    audience: administrator
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "New Machine: getting-started/new-machine.md"
+
+  # ── Concepts ───────────────────────────────────────────────────────────────
+
+  - topic: "Platform detection, platform_class, hw_config.json, detector classes, capability_profile, classify_measurement, execution_context"
+    file: concepts/platform-detection.md
+    audience: developer
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Platform Detection: concepts/platform-detection.md"
+
+  - topic: "Measurement model, config-driven architecture, provenance chain, sample tables, ETL pipeline, baseline subtraction, experiment types"
+    file: concepts/measurement-model.md
+    audience: developer
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Measurement Model: concepts/measurement-model.md"
+
+  - topic: "Energy tiers, direct modeled unavailable, RAPL SPBM IOKit DCGM ARM PMU, energy_measurement, compute_measurement"
+    file: concepts/energy-tiers.md
+    audience: [developer, researcher]
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Energy Tiers: concepts/energy-tiers.md"
+
+  - topic: "Configuration system, three scopes, ~/.alemsrc, .alems-env, YAML config files, database path resolution"
+    file: concepts/config-system.md
+    audience: [user, developer]
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Configuration System: concepts/config-system.md"
+
+  - topic: "Data flow, energy pipeline, experiment pipeline, system architecture diagram"
+    file: concepts/data-flow.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Data Flow: concepts/data-flow.md"
+
+  # ── Developer ──────────────────────────────────────────────────────────────
+
+  - topic: "Architecture, system overview, hardware layer, execution layer, storage layer, ExperimentHarness, EnergyEngine, ModelFactory, ETL"
+    file: developer/architecture.md
+    audience: developer
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Architecture: developer/architecture.md"
+
+  - topic: "Database schema, tables overview, runs table, sample tables, reference tables"
+    file: developer/database-schema.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Database Schema: developer/database-schema.md"
+
+  - topic: "Schema migration, alems_migrate.py, migration folders, checksum enforcement, prod vs dev"
+    file: developer/schema-migration.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Schema Migration: developer/schema-migration.md"
+
+  - topic: "Energy chain, energy measurement chain, RAPL to runs table, energy attribution"
+    file: developer/energy-chain.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Energy Chain: developer/energy-chain.md"
+
+  - topic: "Adding a platform, new platform_class, detector class, platform folder, provision.sh, verify.sh"
+    file: developer/adding-a-platform.md
+    audience: developer
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Adding a Platform: developer/adding-a-platform.md"
+
+  - topic: "Adding a reader, energy reader, capability check, seed_methodology, COLUMN_PROVENANCE"
+    file: developer/adding-a-reader.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Adding a Reader: developer/adding-a-reader.md"
+
+  - topic: "Adding a provider, models.yaml, provider adapter, openai-compatible"
+    file: developer/adding-a-provider.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Adding a Provider: developer/adding-a-provider.md"
+
+  - topic: "Adding a model, models.yaml model entry, model_id, context_window"
+    file: developer/adding-a-model.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Adding a Model: developer/adding-a-model.md"
+
+  - topic: "Adding a task, tasks.yaml, task_categories, migrate_yaml_to_db"
+    file: developer/adding-a-task.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Adding a Task: developer/adding-a-task.md"
+
+  - topic: "Model factory, provider routing, ModelConfig, get_model_config_v2"
+    file: developer/model-factory.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Model Factory: developer/model-factory.md"
+
+  - topic: "Configuration hierarchy, config scopes, YAML expansion, app_settings.yaml"
+    file: developer/config-hierarchy.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Configuration Hierarchy: developer/config-hierarchy.md"
+
+  - topic: "kperf PMU, Apple Silicon performance counters, kperf helper"
+    file: developer/kperf-pmu.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "kperf PMU: developer/kperf-pmu.md"
+
+  - topic: "Retry study design, retry methodology, failure injection"
+    file: developer/retry-study.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Retry Study Design: developer/retry-study.md"
+
+  - topic: "Engineering standards, code quality, compliance rules, PAC MPC SC CQC"
+    file: developer/engineering-standards.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Engineering Standards: developer/engineering-standards.md"
+
+  - topic: "Developer tools, tool overview, 11 developer tools, diagnostics"
+    file: developer/developer-tools.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Developer Tools: developer/developer-tools.md"
+
+  # ── Reference ──────────────────────────────────────────────────────────────
+
+  - topic: "Platform matrix, all 8 platform classes, energy stacks, measurement tiers, capability profile per platform"
+    file: reference/platform-matrix.md
+    audience: [user, developer, researcher]
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Platform Matrix: reference/platform-matrix.md"
+
+  - topic: "Provider registry, all 16 providers, API key variables, transport, models list"
+    file: reference/provider-registry.md
+    audience: user
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Provider Registry: reference/provider-registry.md"
+
+  - topic: "Task registry, all 65 tasks, difficulty levels, tool counts, task categories"
+    file: reference/task-registry.md
+    audience: user
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Task Registry: reference/task-registry.md"
+
+  - topic: "CLI reference, alems commands, run_experiment.py arguments, build-docs.sh, alems_migrate.py"
+    file: reference/cli-reference.md
+    audience: [user, developer]
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "CLI Reference: reference/cli-reference.md"
+
+  - topic: "DB path resolution, ALEMS_DATA_ROOT, path_loader, four-layer resolution, debug commands"
+    file: reference/db-path-resolution.md
+    audience: [user, developer]
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "DB Path Resolution: reference/db-path-resolution.md"
+
+  - topic: "Provider debugging, test_llm_setup, vllm connectivity, model listing, preflight"
+    file: reference/provider-debugging.md
+    audience: user
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Provider Debugging: reference/provider-debugging.md"
+
+  - topic: "Data dictionary, all tables, all columns, column provenance, measurement methods, 71 tables 1092 columns"
+    file: reference/data-dictionary.md
+    audience: [developer, researcher]
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Data Dictionary: reference/data-dictionary.md"
+
+  - topic: "API reference, orchestration API"
+    file: reference/api.md
+    audience: developer
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "API Reference: reference/api.md"
+
+  # ── Research ───────────────────────────────────────────────────────────────
+
+  - topic: "Measurement methodology, idle baseline, per-platform methodology, citation templates"
+    file: research/measurement-methodology.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Measurement Methodology: research/measurement-methodology.md"
+
+  - topic: "Orchestration tax, agentic overhead, planning execution synthesis energy"
+    file: research/orchestration-tax.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Orchestration Tax: research/orchestration-tax.md"
+
+  - topic: "Mathematical derivations, efficiency metrics, IPC, cache miss rate, carbon water methane"
+    file: research/mathematical-derivations.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Mathematical Derivations: research/mathematical-derivations.md"
+
+  - topic: "Publications, papers, citations, A-LEMS in research"
+    file: research/publications.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Publications: research/publications.md"
+
+  - topic: "Energy readers, RAPL, SPBM, IOKit, ARM PMU, DCGM, ML estimator, reader methodology"
+    file: research/energy-readers.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Energy Readers: research/energy-readers.md"
+
+  - topic: "System measurement, perf counters, turbostat, MSR, thermal, network, memory, OS scheduler"
+    file: research/system-measurement.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "System Measurement: research/system-measurement.md"
+
+  - topic: "Derived metrics, dynamic energy, phase attribution, CPU fraction, energy per token"
+    file: research/derived-metrics.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Derived Metrics: research/derived-metrics.md"
+
+  - topic: "GPU energy, NVML, DCGM, IOKit GPU, ROCm, GPU attribution, dual-channel"
+    file: research/gpu-energy.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "GPU Energy: research/gpu-energy.md"
+
+  - topic: "Network energy, network wait energy, NIC observability, RAPL slice, SPBM fraction"
+    file: research/network-wait-energy.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Network Wait Energy: research/network-wait-energy.md"
+
+  - topic: "Outlier detection, run quality, MAD method, IQR fence, outlier classification"
+    file: research/outlier-detection.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Outlier Detection: research/outlier-detection.md"
+
+  - topic: "Output quality, LLM as judge, hallucination detection, quality scoring"
+    file: research/output-quality.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Output Quality: research/output-quality.md"
+
+  - topic: "Tool failure, failure classification, wasted energy, attribution ETL"
+    file: research/tool-failure.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Tool Failure: research/tool-failure.md"
+
+  - topic: "Retry methodology, failure injection, retry policy, retry study design"
+    file: research/retry-methodology.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Retry Methodology: research/retry-methodology.md"
+
+  - topic: "Provenance, measurement provenance chain, COLUMN_PROVENANCE, method_id"
+    file: research/provenance.md
+    audience: researcher
+    status: stale
+    last_validated: "2026-09-12"
+    nav_entry: "Provenance: research/provenance.md"
+
+  # ── Guides ─────────────────────────────────────────────────────────────────
+
+  - topic: "Researcher journey, end-to-end workflow, pilot experiment, data quality, analysis, methodology section, paper export"
+    file: guides/researcher-journey.md
+    audience: researcher
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Researcher Journey: guides/researcher-journey.md"
+
+  - topic: "Administrator guide, multi-machine deployment, prod vs dev, backup, migration protocol, fleet, shared data root"
+    file: guides/administrator-guide.md
+    audience: administrator
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Administrator Guide: guides/administrator-guide.md"
+
+  - topic: "Contributor guide, adding platform reader provider task documentation migration"
+    file: guides/contributor-guide.md
+    audience: developer
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Contributor Guide: guides/contributor-guide.md"
+
+  # ── Contributing ───────────────────────────────────────────────────────────
+
+  - topic: "Documentation protocol, how to add docs, methodology anchors, build verification, deploy"
+    file: contributing/adding-documentation.md
+    audience: developer
+    status: current
+    last_validated: "2026-09-12"
+    nav_entry: "Adding Documentation: contributing/adding-documentation.md"

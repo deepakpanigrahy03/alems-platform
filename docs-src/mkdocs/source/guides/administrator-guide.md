@@ -76,6 +76,8 @@ backup scheduler — use cron or a backup script.
 **Manual backup:**
 
 ```bash
+cd ~/mydrive/alems-platform && source ~/.alemsrc && source venv/bin/activate
+
 DB=$(python3 -c "
 import sys; sys.path.insert(0, '.')
 from scripts.tools.path_loader import get_alems_db_path
@@ -84,9 +86,8 @@ print(get_alems_db_path())
 
 BACKUP_DIR="$ALEMS_DATA_ROOT/$(hostname)/backups"
 mkdir -p "$BACKUP_DIR"
-
 sqlite3 "$DB" ".backup $BACKUP_DIR/experiments_$(date +%Y%m%d_%H%M%S).db"
-echo "Backup complete: $BACKUP_DIR"
+echo "Backup: $BACKUP_DIR"
 ```
 
 **Cron backup (daily at 2am):**
@@ -182,14 +183,16 @@ print('capability_profile: ', cfg.get('capability_profile'))
 "
 ```
 
-After any hardware change, re-measure the idle baseline:
+After any hardware change that affects power consumption, re-run the
+installer to capture a fresh idle baseline:
 
 ```bash
-bash scripts/alems measure
+bash scripts/install.sh
 ```
 
-The new baseline replaces the old one in the database. All future
-runs subtract the new baseline.
+The installer detects the existing configuration and skips steps that
+do not need to repeat. Step 12 (idle baseline measurement) always runs
+and updates the `idle_baselines` table.
 
 ---
 

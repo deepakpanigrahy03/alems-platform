@@ -1,6 +1,6 @@
 # Data Dictionary
 
-Auto-generated from the live database schema on 2026-09-12. Run `bash scripts/build-docs.sh` to regenerate after any schema migration.
+Auto-generated from the live database schema on 2026-09-13. Run `bash scripts/build-docs.sh` to regenerate after any schema migration.
 
 **71 tables · 30 views · 1092 columns**
 
@@ -1719,4 +1719,4 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ---
 
-_Generated 2026-09-12 18:28 from schema version recorded in `migration_history`._
+_Generated 2026-09-13 04:23 from schema version recorded in `migration_history`._
