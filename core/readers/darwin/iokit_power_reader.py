@@ -56,6 +56,12 @@ class IOKitPowerReader(EnergyReaderABC):
     """
 
     METHOD_ID          = "iokit_power_reader"
+    PRIORITY: int      = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on macOS in MEASURED mode."""
+        return caps.os == "Darwin" and caps.measurement_mode == "MEASURED"
     METHOD_NAME        = "IOKit Power Reader (macOS, powermetrics)"
     METHOD_LAYER       = "silicon"
     METHOD_CONFIDENCE  = 0.85   # cpu domain; gpu domain is 0.80, see SPEC_16F2

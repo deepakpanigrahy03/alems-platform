@@ -59,7 +59,13 @@ class KPerfPMUReader(CPUReaderABC):
     """
 
     # ===== Methodology metadata (for seed_methodology.py) =====
-    METHOD_ID = "kperf_pmu_v1"
+    METHOD_ID     = "kperf_pmu_v1"
+    PRIORITY: int = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on macOS Apple Silicon."""
+        return caps.os == "Darwin" and caps.arch in ("arm64", "aarch64")
     METHOD_NAME = "Apple Silicon kperf PMU Counters"
     METHOD_PROVENANCE = "MEASURED"
     METHOD_LAYER = "silicon"

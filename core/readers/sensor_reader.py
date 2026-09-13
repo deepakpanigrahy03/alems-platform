@@ -33,6 +33,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+from core.readers.interfaces import ThermalReaderABC
 
 # ============================================================================
 # FIX PYTHON PATH
@@ -47,9 +48,10 @@ from core.utils.debug import dprint
 logger = logging.getLogger(__name__)
 
 
-class SensorReader:
+class SensorReader(ThermalReaderABC):
     """
     Reads temperature and voltage sensors from sysfs.
+    Inherits ThermalReaderABC (SPEC 35A — ABC contract enforced).
 
     This class implements:
     - Req 1.9: Package thermal jitter (temperature monitoring)
@@ -60,6 +62,19 @@ class SensorReader:
     detect_hardware.py during system detection.
     """
 
+    # SPEC 35A: registry contract.
+    METHOD_ID: str = "sensor_reader_sysfs"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux x86_64 with thermal sysfs paths configured."""
+        return (
+            caps.os == "Linux"
+            and caps.arch == "x86_64"
+            and caps.has_thermal
+        )
+ 
     def __init__(self, config: Dict):
         """
         Initialize sensor reader with configuration from Module 0.

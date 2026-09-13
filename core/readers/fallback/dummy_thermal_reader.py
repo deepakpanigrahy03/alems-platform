@@ -21,11 +21,11 @@ Platforms that land here:
 
 import logging
 from typing import Dict, List, Optional
-
+from core.readers.interfaces import ThermalReaderABC
 logger = logging.getLogger(__name__)
 
 
-class DummyThermalReader:
+class DummyThermalReader(ThermalReaderABC):
     """
     No-op ThermalReader for platforms without accessible thermal hardware.
     All methods return safe empty values — never raises exceptions.
@@ -39,6 +39,16 @@ class DummyThermalReader:
     available_sensors   = []    # energy_engine gates sampling on this
     throttle_thresholds = {}    # energy_engine reads per-role thresholds
 
+    # SPEC 35A: dummy is NOT registered — factory fallback only.
+    # These attrs satisfy the BaseReader contract for introspection.
+    METHOD_ID: str = "dummy_thermal_reader"
+    PRIORITY: int  = 999
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Dummy never enters registry — factory uses it as LIMITED fallback."""
+        return False
+ 
     def __init__(self, config: dict = None):
         """Accept config for interface compatibility. Nothing to initialise."""
         self._config = config or {}

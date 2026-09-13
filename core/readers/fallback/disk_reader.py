@@ -14,6 +14,19 @@ from core.readers.interfaces import DiskReaderABC
 class FallbackDiskReader(DiskReaderABC):
     """No-op disk reader for unsupported platforms."""
 
+    # SPEC 35A: fallback disk is NOT registered — factory fallback only.
+    METHOD_ID: str = "disk_reader_fallback"
+    PRIORITY: int  = 999
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Fallback never enters registry — factory uses it as LIMITED fallback."""
+        return False
+ 
+    def get_name(self) -> str:
+        """Return reader name for logging."""
+        return "FallbackDiskReader"
+ 
     def __init__(self, config: dict = None, device: str = "", pid: int = 0):
         self.device = device
         self.pid    = pid

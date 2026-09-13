@@ -144,6 +144,12 @@ class IOReportCPUFreqReader:
     PRIMARY_CLUSTER_PREFIX = "PCPU"
 
     METHOD_ID          = "ioreport_cpufreq_v1"
+    PRIORITY: int      = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on macOS (preferred freq reader, residency-weighted)."""
+        return caps.os == "Darwin"
     METHOD_NAME        = "IOReport DVFS Residency Weighted CPU Frequency"
     METHOD_PROVENANCE  = "MEASURED"
     METHOD_LAYER       = "silicon"

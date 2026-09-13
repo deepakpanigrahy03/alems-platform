@@ -80,6 +80,22 @@ class RAPLReader:
     METHOD_PARAMS      = {"msr": "0x611", "domain": "package", "rate_hz": 100}
     FALLBACK_METHOD_ID = "ml_energy_estimator"
     METHOD_PROVENANCE  = "MEASURED"
+    PRIORITY: int      = 100
+
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux x86_64 in MEASURED mode."""
+        return (
+            caps.os == "Linux"
+            and caps.arch == "x86_64"
+            and caps.measurement_mode == "MEASURED"
+        )
+ 
+    METHOD_LAYER       = "silicon"
+    METHOD_CONFIDENCE  = 1.0
+    METHOD_PARAMS      = {"msr": "0x611", "domain": "package", "rate_hz": 100}
+    FALLBACK_METHOD_ID = "ml_energy_estimator"
+    METHOD_PROVENANCE  = "MEASURED"
 
     STANDARD_DOMAINS = {
         "package-0": "package",  # Primary package domain

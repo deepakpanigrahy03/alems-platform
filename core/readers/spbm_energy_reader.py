@@ -61,6 +61,17 @@ class SPBMEnergyReader(EnergyReaderABC):
 
     METHOD_ID         = 'spbm_pkg_v1'
     METHOD_PROVENANCE = 'spbm_pkg_v1'
+    PRIORITY: int     = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux aarch64 Grace CPU with SPBM available."""
+        return (
+            caps.os == "Linux"
+            and caps.is_grace_cpu
+            and caps.has_spbm
+            and caps.measurement_mode == "MEASURED"
+        )
 
     def __init__(self, config, hwmon_path=None):
         # type: (dict, Optional[str]) -> None

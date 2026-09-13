@@ -18,6 +18,19 @@ from core.readers.interfaces import DiskReaderABC
 class IOKitDiskReader(DiskReaderABC):
     """macOS disk reader via ioreg IOBlockStorageDriver statistics."""
 
+    # SPEC 35A: registry contract.
+    METHOD_ID: str = "disk_reader_darwin"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on macOS (Darwin)."""
+        return caps.os == "Darwin"
+ 
+    def get_name(self) -> str:
+        """Return reader name for logging."""
+        return "IOKitDiskReader"
+ 
     def __init__(self, config: dict = None, device: str = "", pid: int = 0):
         self.device = device
         self.pid = pid

@@ -12,17 +12,27 @@ macOS sysctl-based implementation deferred to Chunk 1.3.
 
 import logging
 from typing import Any, Dict, List, Tuple
+from core.readers.interfaces import SchedulerMonitorABC
 
 logger = logging.getLogger(__name__)
 
 
-class DummySchedulerMonitor:
+class DummySchedulerMonitor(SchedulerMonitorABC):
     """
     No-op SchedulerMonitor for non-Linux platforms.
     All methods return safe empty values — never raises.
     Measurement mode: LIMITED — no /proc scheduler data.
     """
 
+    # SPEC 35A: dummy is NOT registered — factory fallback only.
+    METHOD_ID: str = "dummy_scheduler_monitor"
+    PRIORITY: int  = 999
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Dummy never enters registry — factory uses it as LIMITED fallback."""
+        return False
+ 
     def __init__(self, config=None):
         # type: (Any) -> None
         """Accept same signature as SchedulerMonitor — ignore config."""

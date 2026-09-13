@@ -75,13 +75,45 @@ class BaseReader(ABC):
     def get_name(self) -> str:
         """
         Return a short human-readable name for this reader.
-
+ 
         Used in logging and the platform summary display.
-
+ 
         Returns:
             str: e.g. 'RAPLReader', 'EnergyEstimator', 'DummyEnergyReader'
         """
         ...
+ 
+    # ------------------------------------------------------------------
+    # SPEC 35A: adapter registry contract.
+    # Concrete defaults — subclasses override to participate in registry.
+    # Not abstract so existing subclasses that do not yet override still
+    # work via the factory.py fallback dispatch path (INV-7).
+    # ------------------------------------------------------------------
+ 
+    #: Dispatch ordering among eligible readers. Lower = higher priority.
+    #: Only meaningful among readers whose can_handle() returns True.
+    #: Default 999 = lowest priority / last-resort tier.
+    PRIORITY: int = 999
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """
+        Return True if this reader can operate on the detected platform.
+ 
+        Called during reader selection (SPEC 35 startup Step 3), after
+        PlatformCapabilities has been produced. Must not raise.
+ 
+        Default returns False — only readers that explicitly override
+        are selected via the registry. Others still work via factory
+        fallback (INV-7 backward compatibility).
+ 
+        Args:
+            caps: PlatformCapabilities from core/utils/platform.py.
+ 
+        Returns:
+            bool: True if this reader can run on caps.
+        """
+        return False
 
 
 # ============================================================================
@@ -525,16 +557,26 @@ class SchedulerMonitorABC(BaseReader):
         # type: () -> None
         """Record one interrupt sample."""
         ...
-class DiskReaderABC(ABC):
-    """ABC for disk I/O readers — Linux/macOS implementations."""
+class DiskReaderABC(BaseReader):
+    """
+    ABC for disk I/O readers — Linux/macOS implementations.
+    Inherits BaseReader so PRIORITY and can_handle() are available
+    for registry-based selection (SPEC 35A).
+    """
     @abstractmethod
     def is_available(self) -> bool: ...
+    @abstractmethod
+    def get_name(self) -> str: ...
     @abstractmethod
     def sample(self) -> Optional[dict]: ...
     @abstractmethod
     def _detect_device(self) -> str: ...
-class NICReaderABC(ABC):
-    """ABC for NIC byte counter readers — Linux/macOS/fallback implementations."""
+class NICReaderABC(BaseReader):
+    """
+    ABC for NIC byte counter readers — Linux/macOS/fallback implementations.
+    Inherits BaseReader so PRIORITY and can_handle() are available
+    for registry-based selection (SPEC 35A).
+    """
     @abstractmethod
     def is_available(self) -> bool: ...
     @abstractmethod

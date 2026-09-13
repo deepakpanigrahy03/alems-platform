@@ -110,7 +110,31 @@ class ReaderFactory:
             "ReaderFactory: selecting energy reader for mode=%s os=%s arch=%s",
             mode, caps.os, caps.arch,
         )
-
+        # SPEC 35A: registry path first. NoAdapterError -> dummy (LIMITED).
+        try:
+            from core.readers.bootstrap import energy_registry
+            from core.readers.registry import NoAdapterError
+            if not energy_registry.is_empty():
+                winner_cls = energy_registry.select(caps)
+                logger.info(
+                    "ReaderFactory[energy]: registry selected %s",
+                    winner_cls.__name__,
+                )
+                # SPBMEnergyReader needs hwmon_path injected from caps.
+                if winner_cls.__name__ == "SPBMEnergyReader":
+                    return cls._make_spbm_reader(config, caps)
+                return winner_cls(config)
+        except NoAdapterError:
+            logger.warning(
+                "ReaderFactory[energy]: no real reader for caps=%s "
+                "— falling back to DummyEnergyReader (LIMITED mode)", caps,
+            )
+            return cls._make_dummy(config)
+        except Exception as exc:
+            logger.warning(
+                "ReaderFactory[energy]: registry raised %s — "
+                "falling through to legacy dispatch", exc,
+            )        
         if mode == MEASURED:
             # macOS: IOKit provides real power sensor (watts); reader converts to µJ
             if caps.os == "Darwin":
@@ -151,7 +175,28 @@ class ReaderFactory:
         """
         caps   = caps or get_platform_capabilities()
         config = config or {}
-
+        # SPEC 35A: registry path first.
+        try:
+            from core.readers.bootstrap import cpu_registry
+            from core.readers.registry import NoAdapterError
+            if not cpu_registry.is_empty():
+                winner_cls = cpu_registry.select(caps)
+                logger.info(
+                    "ReaderFactory[cpu]: registry selected %s",
+                    winner_cls.__name__,
+                )
+                return winner_cls(config)
+        except NoAdapterError:
+            logger.warning(
+                "ReaderFactory[cpu]: no real reader for caps=%s "
+                "— falling back to DummyCPUReader (LIMITED mode)", caps,
+            )
+            return cls._make_dummy_cpu(config)
+        except Exception as exc:
+            logger.warning(
+                "ReaderFactory[cpu]: registry raised %s — "
+                "falling through to legacy dispatch", exc,
+            )
         if caps.os == "Linux":
             # ARM (GN100): use ARM PMU reader when aarch64 + has_arm_pmu
             if caps.arch == "aarch64" and caps.has_arm_pmu:
@@ -188,7 +233,28 @@ class ReaderFactory:
         """
         caps   = caps or get_platform_capabilities()
         config = config or {}
-
+        # SPEC 35A: registry path first.
+        try:
+            from core.readers.bootstrap import thermal_registry
+            from core.readers.registry import NoAdapterError
+            if not thermal_registry.is_empty():
+                winner_cls = thermal_registry.select(caps)
+                logger.info(
+                    "ReaderFactory[thermal]: registry selected %s",
+                    winner_cls.__name__,
+                )
+                return winner_cls(config)
+        except NoAdapterError:
+            logger.warning(
+                "ReaderFactory[thermal]: no real reader for caps=%s "
+                "— falling back to DummyThermalReader (LIMITED mode)", caps,
+            )
+            return cls._make_dummy_thermal(config)
+        except Exception as exc:
+            logger.warning(
+                "ReaderFactory[thermal]: registry raised %s — "
+                "falling through to legacy dispatch", exc,
+            )
         if caps.os == "Linux":
             # ARM (GN100): SensorReader reads hw_config thermal paths which are
             # x86-specific MSR/hwmon entries — returns {} on Grace.
@@ -230,7 +296,29 @@ class ReaderFactory:
         """
         caps   = caps or get_platform_capabilities()
         config = config or {}
- 
+        # SPEC 35A: registry path first.
+        try:
+            from core.readers.bootstrap import disk_registry
+            from core.readers.registry import NoAdapterError
+            if not disk_registry.is_empty():
+                winner_cls = disk_registry.select(caps)
+                logger.info(
+                    "ReaderFactory[disk]: registry selected %s",
+                    winner_cls.__name__,
+                )
+                return winner_cls(config=config, pid=0)
+        except NoAdapterError:
+            logger.warning(
+                "ReaderFactory[disk]: no real reader for caps=%s "
+                "— falling back to FallbackDiskReader (LIMITED mode)", caps,
+            )
+            from core.readers.fallback.disk_reader import FallbackDiskReader
+            return FallbackDiskReader(config=config, pid=0)
+        except Exception as exc:
+            logger.warning(
+                "ReaderFactory[disk]: registry raised %s — "
+                "falling through to legacy dispatch", exc,
+            ) 
         if caps.os == "Linux":
             from core.readers.disk_reader import DiskReader
             return DiskReader(config=config, pid=0)
@@ -269,7 +357,9 @@ class ReaderFactory:
         """
         caps   = caps or get_platform_capabilities()
         config = config or {}
- 
+
+
+
         if caps.os == "Linux" and caps.arch == "x86_64":
             # Real turbostat — MSR access available, binary resolved at runtime
             from core.readers.turbostat_reader import TurbostatReader
@@ -341,11 +431,35 @@ class ReaderFactory:
         """
         caps   = caps or get_platform_capabilities()
         config = config or {}
- 
+
+        # SPEC 35A: registry path first.
+        try:
+            from core.readers.bootstrap import msr_registry
+            from core.readers.registry import NoAdapterError
+            if not msr_registry.is_empty():
+                winner_cls = msr_registry.select(caps)
+                logger.info(
+                    "ReaderFactory[msr]: registry selected %s",
+                    winner_cls.__name__,
+                )
+                return winner_cls(config)
+        except NoAdapterError:
+            logger.warning(
+                "ReaderFactory[msr]: no real reader for caps=%s "
+                "— falling back to DummyMSRReader (LIMITED mode)", caps,
+            )
+            from core.readers.fallback.dummy_msr_reader import DummyMSRReader
+            return DummyMSRReader(config)
+        except Exception as exc:
+            logger.warning(
+                "ReaderFactory[msr]: registry raised %s — "
+                "falling through to legacy dispatch", exc,
+            )
+
         if caps.os == "Linux" and caps.arch == "x86_64":
             from core.readers.msr_reader import MSRReader
             return MSRReader(config)
- 
+
         # ARM, macOS, Windows, unknown — no MSR access
         from core.readers.fallback.dummy_msr_reader import DummyMSRReader
         logger.info(
@@ -371,7 +485,29 @@ class ReaderFactory:
         """
         caps   = caps or get_platform_capabilities()
         config = config or {}
- 
+        # SPEC 35A: registry path first.
+        try:
+            from core.readers.bootstrap import scheduler_registry
+            from core.readers.registry import NoAdapterError
+            if not scheduler_registry.is_empty():
+                winner_cls = scheduler_registry.select(caps)
+                logger.info(
+                    "ReaderFactory[scheduler]: registry selected %s",
+                    winner_cls.__name__,
+                )
+                return winner_cls(config)
+        except NoAdapterError:
+            logger.warning(
+                "ReaderFactory[scheduler]: no real reader for caps=%s "
+                "— falling back to DummySchedulerMonitor (LIMITED mode)", caps,
+            )
+            from core.readers.fallback.dummy_scheduler_monitor import DummySchedulerMonitor
+            return DummySchedulerMonitor(config)
+        except Exception as exc:
+            logger.warning(
+                "ReaderFactory[scheduler]: registry raised %s — "
+                "falling through to legacy dispatch", exc,
+            ) 
         if caps.os == "Linux":
             from core.readers.scheduler_monitor import SchedulerMonitor
             return SchedulerMonitor(config)

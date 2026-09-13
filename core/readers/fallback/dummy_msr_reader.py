@@ -13,17 +13,27 @@ Linux ARM MSR implementation deferred to Chunk 1.3.
 
 import logging
 from typing import Any, Dict, Optional, Tuple
+from core.readers.interfaces import MSRReaderABC
 
 logger = logging.getLogger(__name__)
 
 
-class DummyMSRReader:
+class DummyMSRReader(MSRReaderABC):
     """
     No-op MSRReader for non-Linux-x86 platforms.
     All methods return safe empty values — never raises.
     Measurement mode: LIMITED — no C-state or MSR data.
     """
 
+    # SPEC 35A: dummy is NOT registered — factory fallback only.
+    METHOD_ID: str = "dummy_msr_reader"
+    PRIORITY: int  = 999
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Dummy never enters registry — factory uses it as LIMITED fallback."""
+        return False
+ 
     def __init__(self, config=None, **kwargs):
         # type: (Optional[Dict], Any) -> None
         """Accept same signature as MSRReader — ignore all args."""

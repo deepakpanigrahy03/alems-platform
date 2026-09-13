@@ -62,6 +62,12 @@ class EnergyEstimator(EnergyReaderABC):
     # ------------------------------------------------------------------
     METHOD_ID          = "ml_energy_estimator"
     METHOD_NAME        = "ML-Based Energy Estimator (ARM / No-RAPL)"
+    PRIORITY: int      = 500
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible in INFERRED mode — real estimation attempt, not zeros."""
+        return caps.measurement_mode == "INFERRED"
     METHOD_LAYER       = "silicon"
     METHOD_CONFIDENCE  = 0.0
     METHOD_PROVENANCE  = "INFERRED"

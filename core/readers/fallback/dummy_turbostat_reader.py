@@ -13,11 +13,12 @@ PAC-4 compliant: complete stub — every attribute present, safe default value.
 
 import logging
 from typing import Dict
+from core.readers.interfaces import TurbostatReaderABC
 
 logger = logging.getLogger(__name__)
 
 
-class DummyTurbostatReader:
+class DummyTurbostatReader(TurbostatReaderABC):
     """
     No-op TurbostatReader for non-Linux or non-x86 platforms.
     All methods return safe empty values — never raises exceptions.
@@ -28,6 +29,15 @@ class DummyTurbostatReader:
     """
 
     # --- Interface contract attributes (PAC-4) ---
+    # SPEC 35A: dummy is NOT registered — factory fallback only.
+    METHOD_ID: str = "dummy_turbostat_reader"
+    PRIORITY: int  = 999
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Dummy never enters registry — factory uses it as LIMITED fallback."""
+        return False
+ 
     available         = False   # platform gate in energy_engine uses this
     turbostat_version = None    # metadata block: stored as NULL in runs table
     cpu_topology      = {}      # metadata block: empty topology on non-x86

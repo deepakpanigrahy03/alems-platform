@@ -28,6 +28,14 @@ CPUFREQ_SAMPLING_HZ = 10
 
 
 class ARMCPUFreqReader(TurbostatReaderABC):
+ 
+    METHOD_ID: str = "arm_cpufreq_sysfs"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux aarch64."""
+        return caps.os == "Linux" and caps.arch == "aarch64"
     """
     CPU frequency reader for ARM via cpufreq sysfs.
 

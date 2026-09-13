@@ -68,6 +68,19 @@ class DiskReader(DiskReaderABC):
         samples = reader.stop()
     """
 
+    # SPEC 35A: registry contract.
+    METHOD_ID: str = "disk_reader_linux"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux."""
+        return caps.os == "Linux"
+ 
+    def get_name(self) -> str:
+        """Return reader name for logging."""
+        return "DiskReader"
+ 
     def __init__(self, config: dict = None, device: str = "sda", pid: int = 0):
         device = (config or {}).get("hardware", {}).get("disk_device", device)
         self.device    = device

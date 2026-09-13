@@ -66,6 +66,14 @@ logger = logging.getLogger(__name__)
 
 
 class PerfReader(CPUReaderABC):
+ 
+    METHOD_ID: str = "perf_cpu_reader"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux x86_64."""
+        return caps.os == "Linux" and caps.arch == "x86_64"
     """
     Reads hardware performance counters using Linux perf_events.
 

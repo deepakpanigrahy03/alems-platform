@@ -40,6 +40,19 @@ PERF_TIMEOUT_SECONDS = 300
 
 
 class ARMPMUReader(CPUReaderABC):
+ 
+    METHOD_ID: str = "arm_pmu_reader"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux aarch64 with ARM PMU events available."""
+        return (
+            caps.os == "Linux"
+            and caps.arch == "aarch64"
+            and caps.has_arm_pmu
+        )
+ 
     """
     ARM Neoverse V2 performance counters via Linux perf stat.
 

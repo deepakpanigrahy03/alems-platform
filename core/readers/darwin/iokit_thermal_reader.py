@@ -81,6 +81,12 @@ class IOKitThermalReader(ThermalReaderABC):
     """
 
     METHOD_ID          = "iokit_thermal_reader"
+    PRIORITY: int      = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on macOS."""
+        return caps.os == "Darwin"
     METHOD_NAME        = "IOKit Thermal Reader (macOS)"
     METHOD_LAYER       = "silicon"
     METHOD_CONFIDENCE  = 0.75   # die temp is real, live, cross-validated

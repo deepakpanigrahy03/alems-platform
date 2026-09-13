@@ -41,7 +41,7 @@ import time
 from io import StringIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
+from core.readers.interfaces import TurbostatReaderABC
 
 import pandas as pd
 
@@ -58,10 +58,11 @@ from core.models.energy_measurement import PowerState
 logger = logging.getLogger(__name__)
 
 
-class TurbostatReader:
+class TurbostatReader(TurbostatReaderABC):
     """
     Reads Intel turbostat metrics using pandas for clean parsing.
-
+    Inherits TurbostatReaderABC (SPEC 35A — ABC contract enforced).
+ 
     This class handles:
     - Starting continuous monitoring of turbostat
     - Draining output in background thread to prevent pipe buffer full
@@ -75,7 +76,15 @@ class TurbostatReader:
     The reader uses column mappings from hw_config.json, which are
     detected automatically by Module 0's hardware detection.
     """
-
+    # SPEC 35A: registry contract.
+    METHOD_ID: str = "turbostat_reader_x86"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux x86_64 (MSR and turbostat binary available)."""
+        return caps.os == "Linux" and caps.arch == "x86_64"
+    
     def __init__(self, config: Dict):
         """
         Initialize the TurbostatReader with configuration from Module 0.

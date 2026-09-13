@@ -40,6 +40,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 from core.readers.factory import ReaderFactory
 from core.readers.gpu_collector import GPUCollector
+# SPEC 35A: populate reader registries before any ReaderFactory call.
+from core.readers.bootstrap import register_all_readers as _register_all_readers
+_register_all_readers()
 from core.readers.energy_collector import EnergyCollector
 from core.readers.normalized_writer import NormalizedWriter
 from core.readers.legacy_writer import LegacyWriter

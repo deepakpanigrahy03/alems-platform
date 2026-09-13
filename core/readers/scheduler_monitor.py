@@ -46,6 +46,14 @@ logger = logging.getLogger(__name__)
 
 
 class SchedulerMonitor(SchedulerMonitorABC):
+ 
+    METHOD_ID: str = "scheduler_monitor_proc"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux and macOS (graceful degradation on Darwin)."""
+        return caps.os in ("Linux", "Darwin")
     """
     Reads Linux scheduler metrics from /proc filesystem.
 

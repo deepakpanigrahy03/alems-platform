@@ -16,6 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 class DarwinCPUFreqReader:
+ 
+    METHOD_ID: str = "darwin_cpufreq_powermetrics"
+    PRIORITY: int  = 200
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on macOS as secondary freq reader (PRIORITY=200, loses to IOReport=100)."""
+        return caps.os == "Darwin"
     """
     Turbostat-equivalent frequency reader for Apple Silicon.
     Delegates to an IOKitPowerReader instance that is already running

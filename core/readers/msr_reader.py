@@ -54,6 +54,14 @@ logger = logging.getLogger(__name__)
 
 
 class MSRReader(MSRReaderABC):
+ 
+    METHOD_ID: str = "msr_reader_x86"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux x86_64."""
+        return caps.os == "Linux" and caps.arch == "x86_64"
     """
     High-performance MSR reader using C helper binary with TSC conversion.
     """
