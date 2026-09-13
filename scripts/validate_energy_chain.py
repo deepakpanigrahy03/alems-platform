@@ -45,7 +45,8 @@ Usage:
   python scripts/validate_energy_chain.py --all-valid
   python scripts/validate_energy_chain.py --run-id 1378
 """
-
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 import logging
 import sqlite3
