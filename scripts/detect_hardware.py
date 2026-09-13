@@ -236,6 +236,27 @@ def discover_thermal_zones() -> Dict[str, list]:
     return mapping
 
 
+def detect_thermal_paths() -> tuple:
+    """
+    Return (thermal_paths, pkg_temp_zone) for sample_processor.py.
+
+    thermal_paths: dict mapping sensor name -> sysfs temp file path.
+    pkg_temp_zone: sensor name identified as CPU package temp, or None.
+
+    Called only when turbostat DataFrame has no PkgTmp column (AMD k10temp
+    path). Wraps discover_hwmon_thermal() so the result is cheap to compute
+    once per run rather than per sample.
+    """
+    thermal_paths = discover_hwmon_thermal()
+    # Identify package temp zone — k10temp on AMD, coretemp on Intel
+    pkg_temp_zone = None
+    if "k10temp" in thermal_paths:
+        pkg_temp_zone = "k10temp"
+    elif "coretemp" in thermal_paths:
+        pkg_temp_zone = "coretemp"
+    return thermal_paths, pkg_temp_zone
+
+
 def discover_hwmon_thermal() -> Dict[str, str]:
     """Discover hwmon thermal sensors (k10temp, coretemp, etc.)."""
     result = {}
