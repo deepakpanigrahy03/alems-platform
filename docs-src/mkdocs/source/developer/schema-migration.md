@@ -1,5 +1,9 @@
 # Schema Design
 
+## Overview
+
+![Migration Flow](../assets/diagrams/migration-flow.svg)
+
 ## SQLite → PostgreSQL mapping
 
 ### What changes

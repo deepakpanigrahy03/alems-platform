@@ -1719,4 +1719,4 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ---
 
-_Generated 2026-09-13 04:58 from schema version recorded in `migration_history`._
+_Generated 2026-09-13 05:06 from schema version recorded in `migration_history`._

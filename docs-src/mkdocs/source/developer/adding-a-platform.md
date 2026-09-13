@@ -1,3 +1,5 @@
 # Adding A Platform
 
-Coming soon.
+## Overview
+
+![Add Platform Flow](../assets/diagrams/add-platform-flow.svg)

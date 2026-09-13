@@ -8,6 +8,8 @@ scope boundaries.
 
 ## Three Scopes
 
+![Configuration Scope Flow](../assets/diagrams/config-scope-flow.svg)
+
 ### Machine Scope — ~/.alemsrc
 
 Set once per machine. Contains paths, API keys, and URLs that are

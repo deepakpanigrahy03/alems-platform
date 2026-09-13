@@ -9,6 +9,8 @@ Both tiers are stored in every run record and in `hw_config.json`.
 
 ## Why Tiers Exist
 
+![Energy Tier Decision](../assets/diagrams/energy-tier-decision.svg)
+
 Different hardware exposes different measurement interfaces. An NVIDIA
 Grace SoC exposes SPBM hwmon rails. An Intel bare metal machine exposes
 RAPL sysfs counters. A KVM virtual machine exposes neither. A-LEMS

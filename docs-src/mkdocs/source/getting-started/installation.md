@@ -96,7 +96,11 @@ alems dev status
 ```
 
 ---
+## Installation Steps
 
+![Installation Flow](../assets/diagrams/install-flow.svg)
+
+---
 ## What the Installer Does
 
 **Step 0** runs a fast hardware probe using `detect_hardware.py` to get your

@@ -7,7 +7,11 @@ time and at experiment startup, so no other part of the codebase ever needs
 to know what hardware it is running on.
 
 ---
+## Overview
 
+![Platform Detection Flow](../assets/diagrams/platform-detection-flow.svg)
+
+---
 ## Design Principle
 
 Platform identity is determined by hardware signals, not by OS or architecture
