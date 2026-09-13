@@ -79,11 +79,19 @@ class TurbostatReader(TurbostatReaderABC):
     # SPEC 35A: registry contract.
     METHOD_ID: str = "turbostat_reader_x86"
     PRIORITY: int  = 100
- 
+
     @classmethod
     def can_handle(cls, caps) -> bool:
         """Eligible on Linux x86_64 (MSR and turbostat binary available)."""
         return caps.os == "Linux" and caps.arch == "x86_64"
+
+    def get_name(self) -> str:
+        """Return reader name for logging and platform summary."""
+        return "TurbostatReader"
+
+    def is_available(self) -> bool:
+        """Return True if turbostat binary was found at init time."""
+        return self.available
     
     def __init__(self, config: Dict):
         """
