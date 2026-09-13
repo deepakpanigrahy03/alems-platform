@@ -27,6 +27,9 @@ SUPPORTED_LANGUAGES = {"hi","ta","te","bn","mr","gu","kn","ml","pa","or","as","u
 
 
 class IndicParlerAdapter(MediaABC):
+ 
+    ENGINE_TYPE: str = "indic_parler"
+    METHOD_ID:   str = "indic_parler"
     """
     TTS adapter for Indic Parler — 13 Indian language support.
 

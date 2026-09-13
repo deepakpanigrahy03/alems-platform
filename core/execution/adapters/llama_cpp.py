@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 class LlamaCppAdapter(TextGenABC):
+ 
+    ENGINE_TYPE: str = "llama_cpp"
+    METHOD_ID:   str = "llama_cpp"
     """
     Adapter for llama-cpp-python GGUF local models.
 

@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 class AnthropicAdapter(TextGenABC):
+ 
+    ENGINE_TYPE: str = "anthropic"
+    METHOD_ID:   str = "anthropic"
     """
     Adapter for Anthropic Claude models via official SDK.
 

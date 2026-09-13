@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 class KokoroAdapter(MediaABC):
+ 
+    ENGINE_TYPE: str = "kokoro"
+    METHOD_ID:   str = "kokoro"
     """
     TTS adapter for Kokoro 82M English model.
 

@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 class IndicF5Adapter(MediaABC):
+ 
+    ENGINE_TYPE: str = "indic_f5"
+    METHOD_ID:   str = "indic_f5"
     """
     Voice cloning adapter for IndicF5.
 

@@ -44,6 +44,12 @@ _OAI_CHAT_PATH = "/chat/completions"
 
 
 class OpenAICompatAdapter(TextGenABC):
+ 
+    # SPEC 35B: serves OpenAI, Groq, NIM, vllm_remote, Ollama.
+    # All speak the same OpenAI-compatible HTTP format.
+    # Endpoint URL and API key come from provider config, not ENGINE_TYPE.
+    ENGINE_TYPE: str = "openai_compat"
+    METHOD_ID:   str = "openai_compat"   # registry keys on METHOD_ID
     """
     Single adapter for all OpenAI-compatible endpoints.
 

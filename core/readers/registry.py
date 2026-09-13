@@ -194,8 +194,33 @@ class AdapterRegistry(Generic[T]):
     # Introspection
     # ------------------------------------------------------------------
 
+    def get(self, key: str) -> type:
+        """
+        Look up an adapter class by its identity key.
+ 
+        Used by engine registries where selection is by exact ENGINE_TYPE
+        string match rather than capability probe (no can_handle/PRIORITY
+        needed for serving engines — the provider config names the engine).
+ 
+        Args:
+            key: ENGINE_TYPE string (e.g. "openai_compat", "llama_cpp").
+ 
+        Returns:
+            The registered adapter class.
+ 
+        Raises:
+            KeyError: if key not registered. Caller (model_factory.py)
+                      catches this and falls through to legacy dispatch.
+        """
+        if key not in self._classes:
+            raise KeyError(
+                f"[{self._family}] No adapter registered for '{key}'. "
+                f"Registered: {list(self._classes.keys())}."
+            )
+        return self._classes[key]
+ 
     def get_all(self) -> dict:
-        """Return copy of registry dict: METHOD_ID -> reader class."""
+        """Return copy of registry dict: METHOD_ID -> adapter class."""
         return dict(self._classes)
 
     def is_empty(self) -> bool:

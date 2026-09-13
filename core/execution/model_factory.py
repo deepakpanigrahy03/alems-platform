@@ -36,6 +36,14 @@ from core.execution.adapters.indic_parler import IndicParlerAdapter
 from core.execution.adapters.indic_f5 import IndicF5Adapter
 from core.execution.adapters.faster_whisper import FasterWhisperAdapter
 import core.models_loader as _loader
+ 
+# SPEC 35B: populate engine registries at import time.
+from core.execution.adapters.bootstrap import (
+    register_all_adapters as _register_all_adapters,
+    text_registry,
+    media_registry,
+)
+_register_all_adapters()
 
 logger = logging.getLogger(__name__)
 
@@ -187,18 +195,40 @@ class ModelFactory:
         Returns:
             TextGenABC instance
         """
+        # SPEC 35B: registry path first — resolve ENGINE_TYPE from meta.
+        engine_type = None
         if meta.get("openai_compat", False) or "ollama" in provider_id:
-            # groq, openai, ollama_local, ollama_remote — all speak same format
+            engine_type = "openai_compat"
+        elif provider_id in ("anthropic", "gemini"):
+            engine_type = provider_id
+ 
+        if engine_type and not text_registry.is_empty():
+            try:
+                adapter_cls = text_registry.get(engine_type)
+                logger.info(
+                    "ModelFactory[text]: registry resolved %s -> %s",
+                    engine_type, adapter_cls.__name__,
+                )
+                return adapter_cls(meta, flat_config)
+            except KeyError:
+                logger.warning(
+                    "ModelFactory[text]: ENGINE_TYPE '%s' not in registry — "
+                    "falling through to legacy dispatch", engine_type,
+                )
+ 
+        # Legacy fallback — preserved for backward compatibility (INV-7).
+        if meta.get("openai_compat", False) or "ollama" in provider_id:
             return OpenAICompatAdapter(meta, flat_config)
-
+ 
         adapter_cls = _NON_COMPAT_CLOUD.get(provider_id)
         if adapter_cls:
             return adapter_cls(meta, flat_config)
-
+ 
         raise ValueError(
             f"ModelFactory: no HTTP adapter for '{provider_id}'. "
             f"Set openai_compat=true or add to _NON_COMPAT_CLOUD."
         )
+ 
 
     @classmethod
     def _resolve_media(
@@ -215,10 +245,26 @@ class ModelFactory:
         Returns:
             MediaABC instance
         """
+        # SPEC 35B: registry path first.
+        if not media_registry.is_empty():
+            try:
+                adapter_cls = media_registry.get(provider_id)
+                logger.info(
+                    "ModelFactory[media]: registry resolved %s -> %s",
+                    provider_id, adapter_cls.__name__,
+                )
+                return adapter_cls(meta, flat_config)
+            except KeyError:
+                logger.warning(
+                    "ModelFactory[media]: provider_id '%s' not in registry — "
+                    "falling through to legacy dispatch", provider_id,
+                )
+ 
+        # Legacy fallback — preserved for backward compatibility (INV-7).
         adapter_cls = _MEDIA_ADAPTERS.get(provider_id)
         if adapter_cls:
             return adapter_cls(meta, flat_config)
-
+ 
         raise ValueError(
             f"ModelFactory: no media adapter for provider '{provider_id}'"
         )

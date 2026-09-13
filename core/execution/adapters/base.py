@@ -177,6 +177,12 @@ class BaseAdapterMixin:
 # =============================================================================
 
 class TextGenABC(BaseAdapterMixin, ABC):
+ 
+    # SPEC 35B: registry identity key.
+    # Subclass must override with a unique engine family string.
+    # ENGINE_TYPE identifies the adapter family, not a specific endpoint.
+    # The endpoint URL, API key, and model ID come from provider config.
+    ENGINE_TYPE: str = "unknown"
     """
     Abstract base for all text-generation adapters.
 
@@ -247,6 +253,9 @@ class TextGenABC(BaseAdapterMixin, ABC):
 # =============================================================================
 
 class MediaABC(BaseAdapterMixin, ABC):
+ 
+    # SPEC 35B: registry identity key for media adapters (TTS/STT).
+    ENGINE_TYPE: str = "unknown"
     """
     Abstract base for media adapters (TTS, STT, voice-cloning).
 

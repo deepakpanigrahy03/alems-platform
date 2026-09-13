@@ -25,6 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 class FasterWhisperAdapter(MediaABC):
+ 
+    ENGINE_TYPE: str = "faster_whisper"
+    METHOD_ID:   str = "faster_whisper"
     """
     STT adapter for FasterWhisper.
 

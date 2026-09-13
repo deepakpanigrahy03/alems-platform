@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiAdapter(TextGenABC):
+ 
+    ENGINE_TYPE: str = "gemini"
+    METHOD_ID:   str = "gemini"
     """
     Adapter for Google Gemini models via generativeai SDK.
 
