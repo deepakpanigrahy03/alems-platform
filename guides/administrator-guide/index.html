@@ -2909,17 +2909,18 @@ documentation current with the actual fleet.</p>
 <p>Back up the production database regularly. A-LEMS has no built-in
 backup scheduler — use cron or a backup script.</p>
 <p><strong>Manual backup:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">DB</span><span class="o">=</span><span class="k">$(</span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="s2">import sys; sys.path.insert(0, &#39;.&#39;)</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="s2">from scripts.tools.path_loader import get_alems_db_path</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">print(get_alems_db_path())</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">&quot;</span><span class="k">)</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="nv">BACKUP_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$ALEMS_DATA_ROOT</span><span class="s2">/</span><span class="k">$(</span>hostname<span class="k">)</span><span class="s2">/backups&quot;</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BACKUP_DIR</span><span class="s2">&quot;</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>sqlite3<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$DB</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;.backup </span><span class="nv">$BACKUP_DIR</span><span class="s2">/experiments_</span><span class="k">$(</span>date<span class="w"> </span>+%Y%m%d_%H%M%S<span class="k">)</span><span class="s2">.db&quot;</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Backup complete: </span><span class="nv">$BACKUP_DIR</span><span class="s2">&quot;</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>~/mydrive/alems-platform<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>~/.alemsrc<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>venv/bin/activate
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nv">DB</span><span class="o">=</span><span class="k">$(</span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="s2">import sys; sys.path.insert(0, &#39;.&#39;)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="s2">from scripts.tools.path_loader import get_alems_db_path</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="s2">print(get_alems_db_path())</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="s2">&quot;</span><span class="k">)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="nv">BACKUP_DIR</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$ALEMS_DATA_ROOT</span><span class="s2">/</span><span class="k">$(</span>hostname<span class="k">)</span><span class="s2">/backups&quot;</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$BACKUP_DIR</span><span class="s2">&quot;</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>sqlite3<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$DB</span><span class="s2">&quot;</span><span class="w"> </span><span class="s2">&quot;.backup </span><span class="nv">$BACKUP_DIR</span><span class="s2">/experiments_</span><span class="k">$(</span>date<span class="w"> </span>+%Y%m%d_%H%M%S<span class="k">)</span><span class="s2">.db&quot;</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Backup: </span><span class="nv">$BACKUP_DIR</span><span class="s2">&quot;</span>
 </code></pre></div>
 <p><strong>Cron backup (daily at 2am):</strong></p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>crontab<span class="w"> </span>-e
@@ -2983,11 +2984,13 @@ update), regenerate <code>hw_config.json</code>:</p>
 <a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="s2">print(&#39;capability_profile: &#39;, cfg.get(&#39;capability_profile&#39;))</span>
 <a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="s2">&quot;</span>
 </code></pre></div>
-<p>After any hardware change, re-measure the idle baseline:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>bash<span class="w"> </span>scripts/alems<span class="w"> </span>measure
+<p>After any hardware change that affects power consumption, re-run the
+installer to capture a fresh idle baseline:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>bash<span class="w"> </span>scripts/install.sh
 </code></pre></div>
-<p>The new baseline replaces the old one in the database. All future
-runs subtract the new baseline.</p>
+<p>The installer detects the existing configuration and skips steps that
+do not need to repeat. Step 12 (idle baseline measurement) always runs
+and updates the <code>idle_baselines</code> table.</p>
 <hr />
 <h2 id="shared-data-root">Shared Data Root<a class="headerlink" href="#shared-data-root" title="Permanent link">&para;</a></h2>
 <p>For a fleet where multiple machines write to a shared network storage,
