@@ -138,8 +138,22 @@ def test_provider_connectivity(
         result["status"] = "timeout"
         result["error"] = f"No response within {TIMEOUT_SECONDS}s"
     except Exception as exc:
-        result["status"] = "error"
-        result["error"] = str(exc)[:120]
+        err = str(exc)
+        if "Connection refused" in err or "Errno 111" in err:
+            result["status"] = "offline"
+            result["error"] = "Server not running"
+        elif "403" in err:
+            result["status"] = "error"
+            result["error"] = "403 Forbidden — API key invalid or expired"
+        elif "404" in err:
+            result["status"] = "error"
+            result["error"] = "404 Not Found — wrong endpoint or model not loaded"
+        elif "410" in err:
+            result["status"] = "error"
+            result["error"] = "410 Gone — model endpoint deprecated, update models.yaml"
+        else:
+            result["status"] = "error"
+            result["error"] = err[:120]
 
     return result
 
@@ -162,7 +176,7 @@ def _run_inference(provider_name: str, model_config: dict, verbose: bool):
         provider = model_config.get("provider", provider_name)
         model_id = model_config.get("model_id", "")
         base_url = model_config.get("base_url", "")
-        api_key_env = model_config.get("api_key_env", "")
+        api_key_env = _PROVIDER_KEY_VARS.get(provider_name, "")
         api_key = os.environ.get(api_key_env, "") if api_key_env else ""
 
         if transport == "inprocess":
@@ -178,15 +192,33 @@ def _run_inference(provider_name: str, model_config: dict, verbose: bool):
             if not base_url:
                 raise ValueError(f"No base_url configured for {provider_name}")
 
-            payload = {
-                "model": model_id,
-                "messages": [{"role": "user", "content": TEST_PROMPT}],
-                "max_tokens": TEST_MAX_TOKENS,
-                "temperature": 0,
-            }
+            # Expand environment variables (e.g. $ALEMS_VLLM_REMOTE_URL)
+            base_url = os.path.expandvars(base_url)
+
+            if verbose:
+                print(f"    URL:      {base_url}")
+
+            # Ollama uses /api/chat not /v1/chat/completions
+            is_ollama = "ollama" in provider_name.lower()
+
+            if is_ollama:
+                payload = {
+                    "model": model_id,
+                    "messages": [{"role": "user", "content": TEST_PROMPT}],
+                    "stream": False,
+                }
+                endpoint = f"{base_url.rstrip('/v1').rstrip('/')}/api/chat"
+            else:
+                payload = {
+                    "model": model_id,
+                    "messages": [{"role": "user", "content": TEST_PROMPT}],
+                    "max_tokens": TEST_MAX_TOKENS,
+                    "temperature": 0,
+                }
+                endpoint = f"{base_url}/chat/completions"
 
             req = urllib.request.Request(
-                f"{base_url}/chat/completions",
+                endpoint,
                 data=json.dumps(payload).encode(),
                 headers={
                     "Content-Type": "application/json",
@@ -198,7 +230,10 @@ def _run_inference(provider_name: str, model_config: dict, verbose: bool):
             with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
                 data = json.loads(resp.read())
                 if verbose:
-                    content = data["choices"][0]["message"]["content"]
+                    if is_ollama:
+                        content = data.get("message", {}).get("content", "")
+                    else:
+                        content = data["choices"][0]["message"]["content"]
                     print(f"    Response: {content.strip()[:60]}")
             return
 
@@ -227,6 +262,7 @@ def print_result(result: dict, verbose: bool = False):
         "ok":           "  OK  ",
         "no_key":       "NO KEY",
         "no_models":    "  --  ",
+        "offline":      "OFLINE",
         "timeout":      " TOUT ",
         "config_error": " CONF ",
         "error":        " FAIL ",
@@ -264,6 +300,9 @@ def list_all(config: ConfigLoader):
         for m in available:
             tasks = m.get("tasks", ["text-generation"])
             print(f"      {m.get('model_id',''):<40} {tasks}")
+    print()
+    print("  To add a provider or model: edit config/models.yaml")
+    print("  To set an API key: add 'export KEY=value' to ~/.alemsrc and run: source ~/.alemsrc")
     print()
 
 
@@ -355,10 +394,11 @@ Status codes:
     # Summary
     ok = sum(1 for r in results if r["status"] == "ok")
     no_key = sum(1 for r in results if r["status"] == "no_key")
+    offline = sum(1 for r in results if r["status"] == "offline")
     failed = sum(1 for r in results if r["status"] in ("error", "timeout", "config_error"))
     skipped = sum(1 for r in results if r["status"] == "no_models")
 
-    print(f"\n  {ok} passed  {no_key} no key  {failed} failed  {skipped} skipped\n")
+    print(f"\n  {ok} passed  {no_key} no key  {offline} offline  {failed} failed  {skipped} skipped\n")
 
     if failed > 0:
         sys.exit(1)
