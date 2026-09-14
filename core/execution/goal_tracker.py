@@ -285,6 +285,46 @@ class GoalTracker:
                 "finish_attempt: UPDATE failed attempt_id=%d: %s", attempt_id, e,
             )
 
+    def update_attempt_quality(
+        self,
+        conn,
+        attempt_id: int,
+        normalized_score: float,
+        pass_fail: int,
+    ) -> None:
+        """
+        UPDATE goal_attempt with quality scores after QualityJudge runs.
+ 
+        Called by experiment_runner after quality_judge.judge() returns.
+        normalized_score and pass_fail are written to goal_attempt so
+        the paper's core query can filter by quality without joining
+        output_quality on every query.
+ 
+        Args:
+            conn            : sqlite3 connection.
+            attempt_id      : goal_attempt primary key.
+            normalized_score: float [0.0, 1.0] or None (needs_review).
+            pass_fail       : 1 (pass), 0 (fail), or None (needs_review).
+        """
+        try:
+            conn.execute(
+                """
+                UPDATE goal_attempt
+                SET normalized_score = ?,
+                    pass_fail = ?
+                WHERE attempt_id = ?
+                """,
+                (normalized_score, pass_fail, attempt_id),
+            )
+            conn.commit()
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error(
+                "goal_tracker.update_attempt_quality failed for attempt_id=%d: %s",
+                attempt_id,
+                exc,
+            )
+            
     def finish_goal(
         self,
         conn,

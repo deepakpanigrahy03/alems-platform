@@ -55,6 +55,12 @@ import scripts.etl.goal_execution_etl as goal_execution_etl
 import scripts.etl.energy_attribution_etl as energy_attribution_etl
 from core.extensions.manager import ExtensionManager
 from core.extensions.abc import PostRunPayload
+from core.execution.quality_judge import QualityJudge
+from core.execution.hallucination_detector import HallucinationDetector
+ 
+# Module-level singletons — stateless, safe to reuse across attempts.
+_quality_judge = QualityJudge()
+_hallucination_detector = HallucinationDetector()
 from core.execution.retry_coordinator import RetryCoordinator, ExecutionResult
 from core.execution.failure_classifier import FailureClassifier
 from core.execution.failure_injector import FailureInjector
@@ -150,6 +156,92 @@ def _get_power_paths() -> dict:
 # save_single() without a self reference. Lives here alongside the other
 # module-level helpers (_insert_nic_samples, _convert_gpu_to_telemetry, etc.)
 # ---------------------------------------------------------------------------
+
+def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: str) -> None:
+    """
+    Run quality scoring for all attempts in a completed goal.
+ 
+    Called after goal_execution ETL so attempt_ids are committed.
+    Reads task metadata from result dict to get expected_output and
+    task_category for QualityJudge dispatch.
+ 
+    Args:
+        db           : DatabaseInterface wrapper.
+        goal_id      : goal_execution primary key.
+        result       : Result dict from harness.run_*().
+        workflow_type: "agentic" or "linear".
+    """
+    try:
+        conn = db.db.conn
+ 
+        # Get task category and expected output from result dict.
+        task_meta = result.get("task_meta", {}) or {}
+        task_category = task_meta.get("category") or result.get("task_category")
+        expected_output = task_meta.get("expected_answer") or result.get("expected_answer")
+
+        if not task_category or not expected_output:
+            # No quality config possible without these — skip silently.
+            return
+
+        # actual_output comes from result dict — goal_attempt has no such column.
+        actual_output = result.get("output") or result.get("response") or ""
+
+        # Find all attempts for this goal.
+        attempts = conn.execute(
+            """
+            SELECT attempt_id, run_id, outcome
+            FROM goal_attempt
+            WHERE goal_id = ?
+            ORDER BY attempt_id
+            """,
+            (goal_id,),
+        ).fetchall()
+
+        for attempt_id, run_id, outcome in attempts:
+            # Get energy for this attempt's run.
+            row = conn.execute(
+                "SELECT total_energy_uj FROM runs WHERE run_id = ? LIMIT 1",
+                (run_id,),
+            ).fetchone()
+            energy_uj = row[0] if row else 0
+ 
+            # Run quality judge.
+            judgment = _quality_judge.judge(
+                conn=conn,
+                attempt_id=attempt_id,
+                goal_id=goal_id,
+                task_category=task_category,
+                actual_output=actual_output or "",
+                expected_output=expected_output,
+                energy_uj=energy_uj or 0,
+            )
+ 
+            # Update goal_attempt with quality scores.
+            from core.execution.goal_tracker import GoalTracker
+            GoalTracker().update_attempt_quality(
+                conn=conn,
+                attempt_id=attempt_id,
+                normalized_score=judgment.normalized_score,
+                pass_fail=judgment.pass_fail,
+            )
+ 
+            # Detect hallucination if this attempt failed.
+            if judgment.pass_fail == 0:
+                _hallucination_detector.detect(
+                    conn=conn,
+                    attempt_id=attempt_id,
+                    goal_id=goal_id,
+                    actual_output=actual_output or "",
+                    expected_output=expected_output,
+                    judgment=judgment,
+                )
+ 
+    except Exception as exc:
+        logger.error(
+            "_run_quality_scoring failed for goal_id=%d: %s",
+            goal_id,
+            exc,
+        )
 
 def _dispatch_post_run(db: object, run_id: int, result: dict, workflow_type: str) -> None:
     """
@@ -1529,6 +1621,17 @@ class ExperimentRunner:
             _goal_tracker.queue_etl(
                 db.db.conn, 'goal_execution', agentic_goal_id, 'goal_execution_etl',
             )
+
+        # --- Quality scoring (8.5C) ---
+        # Called AFTER goal_execution ETL so attempt_ids are committed.
+        # Quality judge runs after core energy_uj is committed (Observer Energy).
+        if linear_goal_id is not None:
+            _run_quality_scoring(db=db, goal_id=linear_goal_id, result=linear_result,
+                                 workflow_type="linear")
+        if agentic_goal_id is not None:
+            _run_quality_scoring(db=db, goal_id=agentic_goal_id, result=agentic_result,
+                                 workflow_type="agentic")
+
         # Attribution stubs — runs sync after goal rows exist
         energy_attribution_etl.populate_attribution_stubs(linear_id, db.db.conn)
         energy_attribution_etl.populate_attribution_stubs(agentic_id, db.db.conn)
@@ -1870,6 +1973,11 @@ class ExperimentRunner:
                 _goal_tracker.queue_etl(
                     db.db.conn, "goal_execution", goal_id, "goal_execution_etl",
                 )
+
+            # --- Quality scoring (8.5C) ---
+            if goal_id is not None:
+                _run_quality_scoring(db=db, goal_id=goal_id, result=result,
+                                     workflow_type=result.get("workflow_type", "linear"))
 
             energy_attribution_etl.populate_attribution_stubs(run_id, db.db.conn)
             _goal_tracker.queue_etl(db.db.conn, "run", run_id, "energy_attribution_etl")

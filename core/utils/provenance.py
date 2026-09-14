@@ -107,6 +107,7 @@ COLUMN_PROVENANCE: Dict[str, Tuple[Optional[str], str]] = {
     "oq.score_method":           ("system_metadata_v1",                 "SYSTEM"),
     "oq.judge_count":            ("system_metadata_v1",                 "SYSTEM"),
     "oq.manual_reviewed":        ("system_metadata_v1",                 "SYSTEM"),
+    "oq.task_category":          ("output_quality_judge_v2",            "SYSTEM"),
     "oq.raw_score":              ("output_quality_normalization_v1",    "MEASURED"),
     "oq.normalized_score":       ("output_quality_normalization_v1",    "CALCULATED"),
     "oq.agreement_score":        ("output_quality_normalization_v1",    "CALCULATED"),
@@ -134,6 +135,12 @@ COLUMN_PROVENANCE: Dict[str, Tuple[Optional[str], str]] = {
     "tfe.retry_success":         ("system_metadata_v1",             "SYSTEM"),
     "tfe.recovery_strategy":     ("system_metadata_v1",             "SYSTEM"),
     "tfe.wasted_energy_uj":      ("tool_failure_wasted_energy_v1",  "CALCULATED"),
+
+    "tqc.metric_type":         ("quality_config_seed_v1", "SYSTEM"),
+    "tqc.n_judges":            ("quality_config_seed_v1", "SYSTEM"),
+    "tqc.judge_model_set":     ("quality_config_seed_v1", "SYSTEM"),
+    "tqc.rubric":              ("quality_config_seed_v1", "SYSTEM"),
+    "tqc.success_threshold":   ("quality_config_seed_v1", "SYSTEM"),
 
     # goal_execution ETL columns
     "ge.total_energy_uj":        ("goal_execution_rollup_v1",       "CALCULATED"),
@@ -556,7 +563,9 @@ METHOD_CONFIDENCE: Dict[str, float] = {
     "system_metadata_v1":       1.0,    # experiment classification metadata, no computation   
     "goal_execution_rollup_v1": 1.0,    # sum of run energies per goal, deterministic
     "goal_overhead_fraction_v1":1.0,    # overhead/total ratio, deterministic arithmetic  
-    "output_quality_normalization_v1": 0.90,  # stub — seed entry owned by Agent 8.3 
+    "output_quality_normalization_v1": 0.90,  # stub — seed entry done by chunk 8.3
+    "output_quality_judge_v2":         0.90,  # N-judge median reconciliation (8.5C)
+    "quality_config_seed_v1":          1.0,   # system config seed — deterministic 
     "hallucination_detection_v1":      0.85,  # detection confidence + similarity signals
     "hallucination_wasted_energy_v1":  0.85,  # energy from attempt start to detection 
     "tool_failure_wasted_energy_v1":   0.90,  # energy consumed by failed tool call

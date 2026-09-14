@@ -31,27 +31,31 @@ logger = logging.getLogger(__name__)
 # dual_judge=1: two independent LLM judges, agreement required
 # threshold: minimum normalized_score for pass_fail=1
 # ============================================================================
+# (task_category, metric_type, judge_method, threshold, dual_judge, n_judges)
+# dual_judge kept for backward compat. n_judges is the authoritative field.
+# dual_judge=1 → n_judges=2; dual_judge=0 → n_judges=1.
+# judge_method uses 'semantic' (DB CHECK constraint) not 'semantic_similarity'.
 QUALITY_CONFIG = [
     # Original 7 categories
-    ("reasoning",        "scalar",    "llm_judge",           0.80, 1),
-    ("coding",           "testsuite", "unit_test",           0.80, 0),
-    ("qa",               "binary",    "exact_match",         1.00, 0),
-    ("summarization",    "scalar",    "llm_judge",           0.75, 1),
-    ("classification",   "binary",    "exact_match",         1.00, 0),
-    ("extraction",       "scalar",    "llm_judge",           0.80, 1),
-    ("custom",           "scalar",    "llm_judge",           0.70, 0),
+    ("reasoning",        "scalar",    "llm_judge",  0.80, 1, 2),
+    ("coding",           "testsuite", "unit_test",  0.80, 0, 1),
+    ("qa",               "binary",    "exact_match",1.00, 0, 1),
+    ("summarization",    "scalar",    "llm_judge",  0.75, 1, 2),
+    ("classification",   "binary",    "exact_match",1.00, 0, 1),
+    ("extraction",       "scalar",    "llm_judge",  0.80, 1, 2),
+    ("custom",           "scalar",    "llm_judge",  0.70, 0, 1),
     # New categories — tool-using and orchestration tasks
-    ("multi_tool",       "binary",    "exact_match",         1.00, 0),
-    ("planning",         "scalar",    "llm_judge",           0.80, 1),
-    ("data_analysis",    "scalar",    "llm_judge",           0.80, 1),
-    ("debugging",        "binary",    "exact_match",         1.00, 0),
-    ("research",         "scalar",    "llm_judge",           0.75, 1),
-    ("orchestration",    "scalar",    "llm_judge",           0.70, 1),
-    ("translation",      "scalar",    "semantic_similarity", 0.85, 1),
-    ("creative_writing", "scalar",    "llm_judge",           0.70, 1),
-    ("web_search",       "binary",    "exact_match",         1.00, 0),
+    ("multi_tool",       "binary",    "exact_match",1.00, 0, 1),
+    ("planning",         "scalar",    "llm_judge",  0.80, 1, 2),
+    ("data_analysis",    "scalar",    "llm_judge",  0.80, 1, 2),
+    ("debugging",        "binary",    "exact_match",1.00, 0, 1),
+    ("research",         "scalar",    "llm_judge",  0.75, 1, 2),
+    ("orchestration",    "scalar",    "llm_judge",  0.70, 1, 2),
+    ("translation",      "scalar",    "semantic",   0.85, 1, 2),
+    ("creative_writing", "scalar",    "llm_judge",  0.70, 1, 2),
+    ("web_search",       "binary",    "exact_match",1.00, 0, 1),
     # Media tasks — TTS/STT/VC quality proxy via semantic similarity
-    ("media",            "scalar",    "semantic_similarity", 0.80, 0),
+    ("media",            "scalar",    "semantic",   0.80, 0, 1),
 ]
 
 
@@ -67,13 +71,14 @@ def seed(db_path: str) -> None:
         inserted = 0
         skipped = 0
         for row in QUALITY_CONFIG:
+            task_category, metric_type, judge_method, threshold, dual_judge, n_judges = row
             cur = conn.execute(
                 """
                 INSERT OR IGNORE INTO task_quality_config
-                    (task_category, metric_type, judge_method, threshold, dual_judge)
-                VALUES (?, ?, ?, ?, ?)
+                    (task_category, metric_type, judge_method, threshold, dual_judge, n_judges)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                row,
+                (task_category, metric_type, judge_method, threshold, dual_judge, n_judges),
             )
             if cur.rowcount > 0:
                 inserted += 1
@@ -104,6 +109,9 @@ def verify(db_path: str) -> None:
 
 
 if __name__ == "__main__":
+    import sys
+    from pathlib import Path as _Path
+    sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description="Seed task_quality_config table")
     parser.add_argument(

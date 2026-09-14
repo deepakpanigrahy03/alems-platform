@@ -338,7 +338,11 @@ CREATE TABLE IF NOT EXISTS output_quality (
     judge_method            TEXT NOT NULL CHECK(judge_method IN ('exact_match','semantic','llm_judge','unit_test')),
     judge_count             INTEGER NOT NULL DEFAULT 1,
     agreement_score         REAL,
-    score_method            TEXT CHECK(score_method IN ('averaged','conservative_min','needs_review','single_judge')),
+    task_category           TEXT,
+    score_method            TEXT CHECK(score_method IN (
+                                'averaged','conservative_min','consensus_median',
+                                'majority_median','needs_review','single_judge'
+                            )),
     expected_output         TEXT,
     actual_output           TEXT,
     energy_uj_at_judgment   INTEGER,
@@ -396,13 +400,17 @@ CREATE INDEX IF NOT EXISTS idx_oqj_goal    ON output_quality_judges(goal_id);
 # ========================================================================
 CREATE_TASK_QUALITY_CONFIG = """
 CREATE TABLE IF NOT EXISTS task_quality_config (
-    config_id       INTEGER PRIMARY KEY AUTOINCREMENT,
-    task_category   TEXT NOT NULL UNIQUE,
-    metric_type     TEXT NOT NULL CHECK(metric_type IN ('binary','scalar','pairwise','testsuite')),
-    judge_method    TEXT NOT NULL CHECK(judge_method IN ('exact_match','semantic_similarity','llm_judge','unit_test')),
-    threshold       REAL NOT NULL DEFAULT 0.80,
-    dual_judge      INTEGER NOT NULL DEFAULT 0,
-    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    config_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_category     TEXT NOT NULL UNIQUE,
+    metric_type       TEXT NOT NULL CHECK(metric_type IN ('binary','scalar','pairwise','testsuite')),
+    judge_method      TEXT NOT NULL CHECK(judge_method IN ('exact_match','semantic_similarity','llm_judge','unit_test')),
+    threshold         REAL NOT NULL DEFAULT 0.80,
+    dual_judge        INTEGER NOT NULL DEFAULT 0,
+    created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    n_judges          INTEGER NOT NULL DEFAULT 1,
+    judge_model_set   TEXT,
+    rubric            TEXT,
+    success_threshold REAL,
     FOREIGN KEY (task_category) REFERENCES task_categories(task_id)
 );
 CREATE INDEX IF NOT EXISTS idx_tqc_category ON task_quality_config(task_category);
@@ -2016,7 +2024,7 @@ CREATE TABLE IF NOT EXISTS extension_registry (
     migration_version TEXT
 );
 """
- 
+
 CREATE_RUN_OUTLIERS = """
 CREATE TABLE IF NOT EXISTS run_outliers (
     outlier_id            INTEGER PRIMARY KEY AUTOINCREMENT,
