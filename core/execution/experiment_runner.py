@@ -57,10 +57,13 @@ from core.extensions.manager import ExtensionManager
 from core.extensions.abc import PostRunPayload
 from core.execution.quality_judge import QualityJudge
 from core.execution.hallucination_detector import HallucinationDetector
+from core.execution.expectation.schema import Expectation
+from core.execution.expectation.adapter import TaskExpectationAdapter
  
 # Module-level singletons — stateless, safe to reuse across attempts.
 _quality_judge = QualityJudge()
 _hallucination_detector = HallucinationDetector()
+_expectation_adapter = TaskExpectationAdapter()
 from core.execution.retry_coordinator import RetryCoordinator, ExecutionResult
 from core.execution.failure_classifier import FailureClassifier
 from core.execution.failure_injector import FailureInjector
@@ -150,6 +153,53 @@ def _get_power_paths() -> dict:
         logger.warning("_get_power_paths: failed to read hw_config: %s", e)
         return {}
 
+
+def _auto_expectation(expected_answer: str, task_meta: dict) -> dict:
+    """
+    Auto-detect scorer type from expected_answer string.
+
+    Called when a task has expected_answer at top level but no explicit
+    expectation: block. Covers 42 existing tasks without YAML changes.
+
+    Rules:
+        Contains a digit → numeric (math, calculations, ratios)
+        5 words or fewer → exact (names, short facts)
+        Otherwise        → semantic (prose descriptions, summaries)
+
+    Args:
+        expected_answer: The expected_answer string from tasks.yaml.
+        task_meta      : Full task dict (unused currently, reserved for
+                         future category-based overrides).
+
+    Returns:
+        expectation dict compatible with Expectation.from_dict().
+    """
+    import re
+    text = expected_answer.strip()
+
+    # Numeric: contains a number (integer, float, fraction, percentage).
+    if re.search(r"\d", text.replace(",", "")):
+        return {
+            "scorer_type": "numeric",
+            "expected_source": "inline",
+            "answer": text,
+        }
+
+    # Short fixed string (5 words or fewer): exact match.
+    if len(text.split()) <= 5:
+        return {
+            "scorer_type": "exact",
+            "expected_source": "inline",
+            "answer": text,
+        }
+
+    # Prose description: semantic similarity.
+    return {
+        "scorer_type": "semantic",
+        "expected_source": "inline",
+        "answer": text,
+    }
+
 # ---------------------------------------------------------------------------
 # Extension post-run dispatch helper (35D)
 # Module-level function so it can be called from both save_pair() and
@@ -161,87 +211,180 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
     """
     Run quality scoring for all attempts in a completed goal.
  
-    Called after goal_execution ETL so attempt_ids are committed.
-    Reads task metadata from result dict to get expected_output and
-    task_category for QualityJudge dispatch.
+    Uses TaskExpectationAdapter to resolve the task's expectation block
+    and dispatch to the correct scorer via ScorerRegistry.
+    Supports exact, numeric, semantic, rubric, and structural scoring.
+ 
+    Quality scoring fires only when the task has an expectation: block
+    with a valid scorer_type and expected value. Tasks without this
+    block are silently skipped.
  
     Args:
         db           : DatabaseInterface wrapper.
         goal_id      : goal_execution primary key.
-        result       : Result dict from harness.run_*().
+        result       : Result dict from harness including task_meta.
         workflow_type: "agentic" or "linear".
     """
     try:
         conn = db.db.conn
  
-        # Get task category and expected output from result dict.
+        # Extract task metadata.
         task_meta = result.get("task_meta", {}) or {}
         task_category = task_meta.get("category") or result.get("task_category")
-        expected_output = task_meta.get("expected_answer") or result.get("expected_answer")
 
-        if not task_category or not expected_output:
-            # No quality config possible without these — skip silently.
+        # Resolve expectation — explicit block takes priority, then auto-detect
+        # from expected_answer at top level. 42 existing tasks use expected_answer.
+        expectation_dict = task_meta.get("expectation") or {}
+        if not expectation_dict and task_meta.get("expected_answer"):
+            expectation_dict = _auto_expectation(
+                task_meta["expected_answer"], task_meta
+            )
+        expectation = Expectation.from_dict(expectation_dict)
+
+        if not expectation.is_scoreable():
+            # Task has no expectation and no expected_answer — skip silently.
             return
-
-        # actual_output comes from result dict — goal_attempt has no such column.
-        actual_output = result.get("output") or result.get("response") or ""
-
+ 
+        # Get actual LLM response text.
+        # Primary: result["execution"]["response"] (both linear and agentic).
+        exec_block = result.get("execution", {}) or {}
+        actual_output = (
+            exec_block.get("response")
+            or result.get("response")
+            or result.get("output")
+            or ""
+        )
+ 
         # Find all attempts for this goal.
         attempts = conn.execute(
-            """
-            SELECT attempt_id, run_id, outcome
-            FROM goal_attempt
-            WHERE goal_id = ?
-            ORDER BY attempt_id
-            """,
+            "SELECT attempt_id, run_id, outcome FROM goal_attempt "
+            "WHERE goal_id = ? ORDER BY attempt_id",
             (goal_id,),
         ).fetchall()
+ 
 
         for attempt_id, run_id, outcome in attempts:
-            # Get energy for this attempt's run.
-            row = conn.execute(
-                "SELECT total_energy_uj FROM runs WHERE run_id = ? LIMIT 1",
-                (run_id,),
-            ).fetchone()
-            energy_uj = row[0] if row else 0
+            try:
+                # Get energy for this run.
+                row = conn.execute(
+                    "SELECT total_energy_uj FROM runs WHERE run_id = ? LIMIT 1",
+                    (run_id,),
+                ).fetchone()
+                energy_uj = int(row[0] or 0) if row else 0
+            except Exception as _e:
+                print(f"DBG energy error: {_e}")
+                energy_uj = 0
+
  
-            # Run quality judge.
-            judgment = _quality_judge.judge(
-                conn=conn,
-                attempt_id=attempt_id,
-                goal_id=goal_id,
-                task_category=task_category,
-                actual_output=actual_output or "",
-                expected_output=expected_output,
-                energy_uj=energy_uj or 0,
+            # Score via TaskExpectationAdapter.
+            try:
+                score_result = _expectation_adapter.score(
+                    expectation=expectation,
+                    model_output=actual_output,
+                    agentic_result=result if workflow_type == "agentic" else None,
+                )
+                print(f"DBG score: attempt={attempt_id} score={score_result.score} reason={score_result.reasoning[:80]}")
+            except Exception as _se:
+
+                continue
+ 
+
+            # Map scorer_type to DB-allowed judge_method values.
+            # output_quality CHECK: exact_match, semantic, llm_judge, unit_test.
+            _judge_method_map = {
+                "numeric": "exact_match",
+                "exact":   "exact_match",
+                "semantic": "semantic",
+                "rubric":  "llm_judge",
+                "structural": "exact_match",
+            }
+            db_judge_method = _judge_method_map.get(
+                expectation.scorer_type, "exact_match"
             )
+
+            # Map ScoreResult to JudgmentResult for DB writes via QualityJudge.
+            from core.execution.quality_judge import JudgmentResult
+            threshold = 0.7  # default acceptance threshold
+            pass_fail = None
+            if score_result.score is not None and score_result.reasoning != "no_expectation_defined":
+                pass_fail = 1 if score_result.score >= threshold else 0
  
-            # Update goal_attempt with quality scores.
-            from core.execution.goal_tracker import GoalTracker
-            GoalTracker().update_attempt_quality(
-                conn=conn,
-                attempt_id=attempt_id,
-                normalized_score=judgment.normalized_score,
-                pass_fail=judgment.pass_fail,
+            # Write to output_quality directly.
+            cur = conn.execute(
+                """
+                INSERT OR REPLACE INTO output_quality
+                    (attempt_id, goal_id, task_category, metric_type,
+                     raw_score, normalized_score, pass_fail,
+                     judge_method, judge_count, score_method,
+                     expected_output, actual_output,
+                     energy_uj_at_judgment, manual_reviewed, judged_at)
+                VALUES (?, ?, ?, 'scalar', ?, ?, ?, ?, 1, 'single_judge',
+                        ?, ?, ?, 0, datetime('now'))
+                """,
+                (
+                    attempt_id, goal_id, task_category,
+                    score_result.score, score_result.score, pass_fail,
+                    db_judge_method,
+                    str(expectation.get_expected_value())[:500] if expectation.get_expected_value() else None,
+                    actual_output[:500] if actual_output else None,
+                    energy_uj,
+                ),
             )
+            quality_id = cur.lastrowid
+            conn.commit()
  
-            # Detect hallucination if this attempt failed.
-            if judgment.pass_fail == 0:
+            # Write judge evidence row.
+            conn.execute(
+                """
+                INSERT INTO output_quality_judges
+                    (quality_id, attempt_id, goal_id, judge_model,
+                     judge_score, judge_confidence, judge_reasoning, judged_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                """,
+                (
+                    quality_id, attempt_id, goal_id,
+                    expectation.scorer_type,
+                    score_result.score, score_result.confidence,
+                    score_result.reasoning[:500] if score_result.reasoning else "",
+                ),
+            )
+            conn.commit()
+ 
+            # Update goal_attempt quality columns.
+            conn.execute(
+                "UPDATE goal_attempt SET normalized_score=?, pass_fail=? "
+                "WHERE attempt_id=?",
+                (score_result.score, pass_fail, attempt_id),
+            )
+            conn.commit()
+ 
+            # Detect hallucination on failed attempts.
+            if pass_fail == 0:
+                from core.execution.quality_judge import JudgmentResult
+                judgment = JudgmentResult(
+                    normalized_score=score_result.score,
+                    pass_fail=0,
+                    score_method="single_judge",
+                    quality_id=quality_id,
+                    n_judges_used=1,
+                )
                 _hallucination_detector.detect(
                     conn=conn,
                     attempt_id=attempt_id,
                     goal_id=goal_id,
                     actual_output=actual_output or "",
-                    expected_output=expected_output,
+                    expected_output=str(expectation.get_expected_value() or ""),
                     judgment=judgment,
                 )
  
     except Exception as exc:
+
         logger.error(
             "_run_quality_scoring failed for goal_id=%d: %s",
             goal_id,
             exc,
         )
+ 
 
 def _dispatch_post_run(db: object, run_id: int, result: dict, workflow_type: str) -> None:
     """
@@ -973,7 +1116,10 @@ class ExperimentRunner:
         # Derive task context from results if not passed explicitly by caller
         task_id   = task_id   or linear_result.get("task_id", "unknown")
         task_name = task_name or linear_result.get("task_name", task_id)
-        task_meta = task_meta or linear_result.get("task_meta", {})
+        task_meta = task_meta or linear_result.get("task_meta", {}) or {}
+        # Inject task_meta into both result dicts so _run_quality_scoring can read it.
+        linear_result["task_meta"] = task_meta
+        agentic_result["task_meta"] = task_meta
         linear_outcome  = "success" if linear_result.get("execution", {}).get("status") == "success"  else "failure"
         agentic_exec = agentic_result.get("execution", {})
         agentic_outcome = "success" if (agentic_exec.get("status") == "success" or agentic_exec.get("execution", {}).get("status") == "success") else "failure"
@@ -1743,6 +1889,7 @@ class ExperimentRunner:
             result: dict,
             rep_num: int,
             workflow_type: str,
+            task_meta: dict = None,
         ) -> int:
             """
             Save one run for single-workflow-mode experiments (linear or agentic only).
@@ -1773,7 +1920,11 @@ class ExperimentRunner:
 
             task_id   = result.get("task_id", "unknown")
             task_name = result.get("task_name", task_id)
-            task_meta = result.get("task_meta", {})
+            # Use passed task_meta (from run_experiment.py) if available,
+            # otherwise fall back to what the harness put in the result dict.
+            task_meta = task_meta or result.get("task_meta", {}) or {}
+            # Inject task_meta into result so _run_quality_scoring can read it.
+            result["task_meta"] = task_meta
             outcome   = "success" if result.get("execution", {}).get("status") == "success" else "failure"
 
             with db.transaction():

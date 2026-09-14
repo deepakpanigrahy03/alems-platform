@@ -15,6 +15,10 @@ tasks:
     tool_calls: 0
     prompt: "If John has 5 apples and buys 7 more, how many apples does he have?"
     tags: ["math", "gsm8k"]
+    expectation:
+      scorer_type: numeric
+      expected_source: inline
+      answer: "12"    
 
   - id: gsm8k_multi_step
     category: reasoning
@@ -101,6 +105,10 @@ tasks:
     tool_calls: 0
     prompt: "What is the chemical symbol for water?"
     tags: ["science"]
+    expectation:
+      scorer_type: exact
+      expected_source: inline
+      answer: "H2O"
 
   - id: geography_qa
     category: qa
@@ -320,6 +328,10 @@ tasks:
       Calculate the orchestration tax: if linear workflow uses 1000 µJ
       and agentic uses 4500 µJ, what is the overhead fraction?
     expected_answer: "0.778 or 77.8%"
+    expectation:
+      scorer_type: numeric
+      expected_source: inline
+      answer: "77.8"
 
   - id: tg_sequential_2
     tier: 2

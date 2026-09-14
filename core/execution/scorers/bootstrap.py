@@ -61,6 +61,18 @@ def register_all_scorers() -> None:
         scorer_registry.register(LLMJudgeScorer)
     except Exception as exc:
         logger.error("scorer_bootstrap: failed to register LLMJudgeScorer: %s", exc)
+ 
+    try:
+        from core.execution.scorers.numeric import NumericScorer
+        scorer_registry.register(NumericScorer)
+    except Exception as exc:
+        logger.error("scorer_bootstrap: failed to register NumericScorer: %s", exc)
+ 
+    try:
+        from core.execution.scorers.structural import StructuralScorer
+        scorer_registry.register(StructuralScorer)
+    except Exception as exc:
+        logger.error("scorer_bootstrap: failed to register StructuralScorer: %s", exc)
 
     logger.info(
         "scorer_bootstrap: registered %d scorers: %s",

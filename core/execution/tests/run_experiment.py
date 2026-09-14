@@ -273,17 +273,19 @@ def run_provider_task(
                             runner.save_pair(
                                 db, exp_id, hw_id, linear_result, agentic_result, rep + 1,
                                 task_id=task.get("id"), task_name=task.get("name"),
-                                task_meta=task.get("meta"),
+                                task_meta=task,
                             )
                             runs_completed = (rep + 1) * 2
                         elif workflow_mode == 'linear':
                             runner.save_single(
                                 db, exp_id, hw_id, linear_result, rep + 1, 'linear',
+                                task_meta=task,
                             )
                             runs_completed += 1
                         elif workflow_mode == 'agentic':
                             runner.save_single(
                                 db, exp_id, hw_id, agentic_result, rep + 1, 'agentic',
+                                task_meta=task,
                             )
                             runs_completed += 1
  
