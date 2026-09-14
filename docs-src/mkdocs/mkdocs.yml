@@ -54,6 +54,7 @@ nav:
     - Engineering Standards: developer/engineering-standards.md
     - Developer Tools: developer/developer-tools.md
     - Extenstion System : developer/extension-system.md
+    - Plugin Architecture: developer/plugin-packaging.md
     - Quality Scoring System: developer/quality-scoring-system.md
 
   - Research:
