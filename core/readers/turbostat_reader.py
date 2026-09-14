@@ -82,8 +82,12 @@ class TurbostatReader(TurbostatReaderABC):
 
     @classmethod
     def can_handle(cls, caps) -> bool:
-        """Eligible on Linux x86_64 (MSR and turbostat binary available)."""
-        return caps.os == "Linux" and caps.arch == "x86_64"
+        """Eligible on Linux x86_64, not synthetic platform."""
+        return (
+            caps.os == "Linux"
+            and caps.arch == "x86_64"
+            and getattr(caps, "platform_class", "") != "synthetic"
+        )
 
     def get_name(self) -> str:
         """Return reader name for logging and platform summary."""

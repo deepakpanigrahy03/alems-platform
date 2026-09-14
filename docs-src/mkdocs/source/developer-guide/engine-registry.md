@@ -13,7 +13,7 @@ The engine registry solves this the same way the reader registry solved it for
 hardware readers: each adapter declares its own identity, and the factory asks
 the registry for the right class rather than containing the mapping itself.
 
-This document covers SPEC 35B (serving engine registry, Phase 2). The reader
+This document covers the serving engine registry. The reader
 registry is documented separately in adapter-registry.md.
 
 ## How Engine Selection Differs from Reader Selection
@@ -198,7 +198,7 @@ python3 -m pytest tests/test_engine_registry.py -v
 python3 ~/mydrive/alems-platform/core/execution/tests/run_experiment.py \
   --tasks tg_single_calc --repetitions 1 --provider llama_cpp \
   --experiment-type normal \
-  --experiment-goal "35B regression" \
+  --experiment-goal "engine registry regression" \
   --save-db 2>&1 | grep -E "registry resolved|energy_uj|ERROR"
 ```
 

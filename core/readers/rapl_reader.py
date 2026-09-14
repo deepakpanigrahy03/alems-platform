@@ -84,11 +84,12 @@ class RAPLReader:
 
     @classmethod
     def can_handle(cls, caps) -> bool:
-        """Eligible on Linux x86_64 in MEASURED mode."""
+        """Eligible on Linux x86_64 in MEASURED mode, not synthetic platform."""
         return (
             caps.os == "Linux"
             and caps.arch == "x86_64"
             and caps.measurement_mode == "MEASURED"
+            and getattr(caps, "platform_class", "") != "synthetic"
         )
  
     METHOD_LAYER       = "silicon"

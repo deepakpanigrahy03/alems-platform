@@ -52,8 +52,11 @@ class SchedulerMonitor(SchedulerMonitorABC):
  
     @classmethod
     def can_handle(cls, caps) -> bool:
-        """Eligible on Linux and macOS (graceful degradation on Darwin)."""
-        return caps.os in ("Linux", "Darwin")
+        """Eligible on Linux and macOS, not synthetic platform."""
+        return (
+            caps.os in ("Linux", "Darwin")
+            and getattr(caps, "platform_class", "") != "synthetic"
+        )
     """
     Reads Linux scheduler metrics from /proc filesystem.
 

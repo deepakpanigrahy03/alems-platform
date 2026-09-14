@@ -594,6 +594,34 @@ def run_checks(config):
 # MAIN
 # ============================================================================
 
+def adapter_verify() -> bool:
+    """
+    SPEC 35C Part C: verify via platform adapter if registry is available.
+    Falls through to existing main() if adapter system not yet initialized.
+ 
+    Returns:
+        True if adapter-based verification ran and passed.
+        False if adapter-based verification ran and failed.
+        Raises ImportError if adapter system not available (caller falls through).
+    """
+    from core.platform.bootstrap import register_all_platform_adapters, platform_registry
+    register_all_platform_adapters()
+    result = platform_registry.verify()
+ 
+    print("\n" + "=" * 70)
+    print("A-LEMS HARDWARE VERIFICATION (adapter-based)")
+    print("=" * 70)
+    for check in result.checks:
+        mark = "OK  " if check.passed else ("WARN" if check.severity != "critical" else "FAIL")
+        print(f"  {mark}  {check.name:30} {check.message}")
+    print("=" * 70)
+    if result.passed:
+        print("✅ All checks passed.")
+    else:
+        print("❌ One or more critical checks failed.")
+    return result.passed
+ 
+ 
 def main():
     """Entry point. Loads config, runs platform checks, prints summary, returns exit code."""
     print("\n" + "=" * 70)

@@ -35,6 +35,12 @@ PLATFORM=$(python3 scripts/detect_hardware.py --stdout 2>/dev/null \
     | python3 -c "import json,sys; print(json.load(sys.stdin).get('platform_class','unknown'))" \
     2>/dev/null || echo "unknown")
 
+# SPEC 35C: synthetic platform override for CI testing.
+if [ "${ALEMS_PLATFORM_OVERRIDE:-}" = "synthetic" ]; then
+    PLATFORM="synthetic"
+    echo "  ALEMS_PLATFORM_OVERRIDE=synthetic: using synthetic platform"
+fi
+ 
 if [ "$PLATFORM" = "unknown" ]; then
     # Fallback: derive from OS/ARCH if detect_hardware.py not yet available
     case "${OS}_${ARCH}" in

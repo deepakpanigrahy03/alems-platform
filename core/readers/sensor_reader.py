@@ -68,11 +68,12 @@ class SensorReader(ThermalReaderABC):
  
     @classmethod
     def can_handle(cls, caps) -> bool:
-        """Eligible on Linux x86_64 with thermal sysfs paths configured."""
+        """Eligible on Linux x86_64 with thermal sysfs paths, not synthetic."""
         return (
             caps.os == "Linux"
             and caps.arch == "x86_64"
             and caps.has_thermal
+            and getattr(caps, "platform_class", "") != "synthetic"
         )
  
     def __init__(self, config: Dict):

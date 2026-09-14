@@ -209,7 +209,7 @@ exactly the same relationship as `DummyEnergyReader`: it is available
 (returns zeros without crashing), but its values have zero confidence (they
 are zeros, not measurements).
 
-## AC-6: Synthetic Never Selected on Real Hardware
+## Structural Guarantee: Synthetic Never Selected on Real Hardware
 
 This is a structural guarantee, not a convention.
 
@@ -329,15 +329,13 @@ print('PASS: synthetic not selected on real hardware:', cls.__name__)
 
 ## Known Limitations
 
-**RAPLReader can_handle() gap on Linux x86 synthetic sessions.**
-On a Linux x86 machine with `ALEMS_PLATFORM_OVERRIDE=synthetic`, both
-`RAPLReader.can_handle()` and `SyntheticEnergyReader.can_handle()` return
-True (RAPL checks OS and arch, not platform_class). Both are PRIORITY=100.
-This causes a tie and raises `ConfigurationError`. The fix in a future
-cleanup is to add `caps.platform_class != "synthetic"` to
-`RAPLReader.can_handle()`. For now, synthetic testing should be run on
-GN100 (where RAPL never matches) or with the env var set and RAPL paths
-absent (DummyEnergyReader fallback, not SyntheticEnergyReader).
+**RAPLReader can_handle() on Linux x86 synthetic sessions.**
+On a Linux x86 machine with `ALEMS_PLATFORM_OVERRIDE=synthetic`, real
+readers such as `RAPLReader`, `PerfReader`, `SensorReader` are guarded
+by `caps.platform_class != "synthetic"` in their `can_handle()` methods.
+This means only `SyntheticEnergyReader` is eligible on all platforms when
+the synthetic override is active. No tie can occur. The guard is applied
+in the platform adapter system. See the platform adapter documentation for details.
 
 **No synthetic turbostat, MSR, disk, scheduler, or NIC readers.**
 Only energy, CPU, and thermal are synthetic in Part B. The other reader

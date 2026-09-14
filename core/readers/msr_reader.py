@@ -60,8 +60,12 @@ class MSRReader(MSRReaderABC):
  
     @classmethod
     def can_handle(cls, caps) -> bool:
-        """Eligible on Linux x86_64."""
-        return caps.os == "Linux" and caps.arch == "x86_64"
+        """Eligible on Linux x86_64, not synthetic platform."""
+        return (
+            caps.os == "Linux"
+            and caps.arch == "x86_64"
+            and getattr(caps, "platform_class", "") != "synthetic"
+        )
     """
     High-performance MSR reader using C helper binary with TSC conversion.
     """

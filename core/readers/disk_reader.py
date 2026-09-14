@@ -74,8 +74,11 @@ class DiskReader(DiskReaderABC):
  
     @classmethod
     def can_handle(cls, caps) -> bool:
-        """Eligible on Linux."""
-        return caps.os == "Linux"
+        """Eligible on Linux, not synthetic platform."""
+        return (
+            caps.os == "Linux"
+            and getattr(caps, "platform_class", "") != "synthetic"
+        )
  
     def get_name(self) -> str:
         """Return reader name for logging."""

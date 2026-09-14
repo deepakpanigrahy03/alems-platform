@@ -17,7 +17,7 @@ and uses the answer. Adding a new reader is now one file plus one line in
 This document explains the design, the runtime lifecycle, the failure policy,
 and how to extend the system. It covers the reader registry only. The full
 adapter taxonomy covering serving engines, extensions, scorers, and output
-formats is in SPEC 35 and ADAPTER_TAXONOMY_FULL.md.
+formats is in ADAPTER_TAXONOMY_FULL.md.
 
 ## Why This Architecture
 
