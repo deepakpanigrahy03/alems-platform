@@ -34,6 +34,7 @@ Author: Deepak Panigrahy
 """
 
 import json
+import os
 import logging
 import platform
 import subprocess
@@ -123,6 +124,12 @@ class PlatformCapabilities:
     has_amd_energy:    bool          = False   # amd_energy kernel module loaded
     cpu_vendor:        str           = ""      # 'intel' | 'amd' | 'nvidia_grace' | 'apple'
     gpu_vendor:        str           = ""      # 'nvidia' | 'amd' | 'intel' | 'apple'
+ 
+    # SPEC 35C: platform class identifier for registry-based selection.
+    # Matches platform_class in hw_config.json.
+    # "synthetic" only when ALEMS_PLATFORM_OVERRIDE=synthetic is set.
+    # Empty string on pre-existing machines until hw_config.json is regenerated.
+    platform_class:    str           = ""      # 'nvidia_grace' | 'intel_x86' | 'amd_x86' | 'synthetic' | ...
 
 
     def to_dict(self) -> dict:
@@ -311,6 +318,7 @@ class PlatformDetector:
             has_amd_energy    = has_amd_energy,
             cpu_vendor        = cpu_vendor,
             gpu_vendor        = gpu_vendor,
+            platform_class    = self._hw_config.get("platform_class", ""),
  
             rapl_domains      = rapl_domains,
             virtualization    = virtualization,
@@ -541,7 +549,31 @@ def get_platform_capabilities(
     # Return cache unless refresh is explicitly requested
     if _cached_caps is not None and not force_refresh:
         return _cached_caps
-
+    # SPEC 35C: synthetic platform override.
+    # When ALEMS_PLATFORM_OVERRIDE=synthetic is set, bypass hardware detection
+    # entirely and return a synthetic PlatformCapabilities.
+    # This enables the full measurement pipeline to run without physical hardware.
+    # Never active by default — must be explicitly set in the environment.
+    override = os.environ.get("ALEMS_PLATFORM_OVERRIDE", "").strip().lower()
+    if override == "synthetic":
+        import platform as _platform
+        logger.info(
+            "ALEMS_PLATFORM_OVERRIDE=synthetic: bypassing hardware detection"
+        )
+        _cached_caps = PlatformCapabilities(
+            os               = _platform.system(),
+            arch             = _platform.machine(),
+            measurement_mode = "MEASURED",
+            platform_class   = "synthetic",
+            cpu_vendor       = "synthetic",
+            hostname         = _platform.node(),
+            has_thermal      = True,
+            has_perf         = False,
+            has_rapl         = False,
+            has_spbm         = False,
+        )
+        return _cached_caps
+    
     detector     = PlatformDetector(
         hw_config_path  = hw_config_path,
         env_config_path = env_config_path,

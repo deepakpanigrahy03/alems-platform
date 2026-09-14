@@ -1,0 +1,43 @@
+# ==============================================================================
+# Synthetic Energy Reader — Default Fixture Values
+# ==============================================================================
+#
+# Purpose:
+#   Default values used by SyntheticEnergyReader in constant mode.
+#   Override these by adding a [plugins.synthetic] section to
+#   config/app_settings.yaml.
+#
+# Modes:
+#   constant — same values every call (default, used for CI assertions)
+#   linear   — monotonically increasing by increment per call
+#   replay   — reads from CSV file, replays in order
+#
+# Units: all energy values in microjoules (µJ).
+#
+# These values are intentionally round numbers so CI assertions
+# are unambiguous: energy_uj == 1000000, not ~1000000.
+# ==============================================================================
+
+mode: constant
+
+constant:
+  package_uj: 1000000    # 1 J total package envelope
+  core_uj:     600000    # 0.6 J CPU cores (subset of package)
+  dram_uj:     200000    # 0.2 J DRAM (independent domain)
+  domains:
+    - package-0
+    - core
+    - dram
+
+linear:
+  start_package_uj: 1000000
+  increment_uj:       50000   # each call increases by 50 mJ
+  domains:
+    - package-0
+    - core
+    - dram
+
+replay:
+  csv_path: data/fixtures/synthetic_energy_replay.csv
+  # CSV format: package_uj,core_uj,dram_uj (one row per call)
+  # When exhausted, wraps around to first row.

@@ -264,6 +264,39 @@ def register_disk_readers() -> None:
     except ImportError as exc:
         logger.debug("bootstrap[disk]: IOKitDiskReader not importable: %s", exc)
 
+# ---------------------------------------------------------------------------
+# Synthetic readers — registered alongside real readers.
+# Selected ONLY when caps.platform_class == "synthetic" (SPEC 35C AC-6).
+# On real hardware their can_handle() always returns False.
+# ---------------------------------------------------------------------------
+ 
+def register_synthetic_readers() -> None:
+    """
+    Register synthetic platform readers.
+ 
+    These readers are eligible only when ALEMS_PLATFORM_OVERRIDE=synthetic
+    is set. On real hardware (GN100, x86, macOS) can_handle() returns False
+    and they are never selected. Registering them on all machines is safe
+    and intentional — it means the synthetic platform works immediately on
+    any machine without any install step.
+    """
+    try:
+        from core.readers.synthetic_energy_reader import SyntheticEnergyReader
+        _safe_register(energy_registry, SyntheticEnergyReader)
+    except ImportError as exc:
+        logger.warning("bootstrap[energy]: SyntheticEnergyReader not importable: %s", exc)
+ 
+    try:
+        from core.readers.synthetic_cpu_reader import SyntheticCPUReader
+        _safe_register(cpu_registry, SyntheticCPUReader)
+    except ImportError as exc:
+        logger.warning("bootstrap[cpu]: SyntheticCPUReader not importable: %s", exc)
+ 
+    try:
+        from core.readers.synthetic_thermal_reader import SyntheticThermalReader
+        _safe_register(thermal_registry, SyntheticThermalReader)
+    except ImportError as exc:
+        logger.warning("bootstrap[thermal]: SyntheticThermalReader not importable: %s", exc)
 
 # ---------------------------------------------------------------------------
 # Top-level entry point
@@ -285,4 +318,7 @@ def register_all_readers() -> None:
     register_msr_readers()
     register_scheduler_monitors()
     register_disk_readers()
+    # SPEC 35C: synthetic readers registered on all machines.
+    # Safe — can_handle() returns False on real hardware.
+    register_synthetic_readers()
     logger.info("bootstrap: registration complete")
