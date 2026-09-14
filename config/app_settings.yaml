@@ -102,3 +102,9 @@ webui:
 # Remove this section entirely to return to legacy mode (all extensions run as before).
 extensions:
   active: []
+
+plugins:
+  synthetic:
+    enabled: false
+    mode: constant
+    package_uj: 9999999

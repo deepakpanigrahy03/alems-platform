@@ -62,6 +62,7 @@ from typing import Dict, List, Optional
 import yaml
 
 from core.readers.interfaces import EnergyReaderABC
+from core.config.plugin_config import load_plugin_config
 from core.models.normalized_energy_reading import NormalizedEnergyReading
 from core.readers.measurement_schema import (
     MeasurementSchema,
@@ -136,6 +137,42 @@ class SyntheticEnergyReader(EnergyReaderABC):
     # Initialisation
     # ------------------------------------------------------------------
 
+    @classmethod
+    def get_config_schema(cls) -> dict:
+        """
+        Declare configuration keys read from plugins.synthetic in app_settings.yaml.
+ 
+        These values override fixture YAML defaults and hardcoded fallbacks.
+        All keys are optional — the synthetic reader works with no config section.
+        """
+        return {
+            "enabled": {
+                "type": "bool",
+                "required": False,
+                "default": True,
+            },
+            "mode": {
+                "type": "str",
+                "required": False,
+                "default": None,
+            },
+            "package_uj": {
+                "type": "int",
+                "required": False,
+                "default": None,
+            },
+            "core_uj": {
+                "type": "int",
+                "required": False,
+                "default": None,
+            },
+            "dram_uj": {
+                "type": "int",
+                "required": False,
+                "default": None,
+            },
+        }
+ 
     def __init__(self, config: dict = None):
         """
         Initialise synthetic reader from fixture file and optional config.
@@ -403,10 +440,14 @@ class SyntheticEnergyReader(EnergyReaderABC):
         Returns:
             Resolved value.
         """
-        # Priority 1: hw_config plugins.synthetic
-        plugins_cfg = self._config.get("plugins", {}).get("synthetic", {})
-        if key in plugins_cfg:
-            return plugins_cfg[key]
+        # Priority 1: app_settings.yaml plugins.synthetic (validated at startup)
+        # Load is cached — no file I/O after first call.
+        try:
+            app_cfg = load_plugin_config("synthetic", self.get_config_schema())
+        except Exception:
+            app_cfg = {}
+        if app_cfg.get("enabled", True) and key in app_cfg and app_cfg[key] is not None:
+            return app_cfg[key]
 
         # Priority 2: fixture constant section (top-level keys)
         if key in fixture:

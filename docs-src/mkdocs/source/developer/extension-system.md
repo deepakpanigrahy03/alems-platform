@@ -1061,17 +1061,24 @@ class ExtensionABC(ABC):
         Must not raise. Wrap all logic in try/except and log failures.
         """
 
-    @abstractmethod
-    def get_config_schema(self) -> Dict:
+    @classmethod
+    def get_config_schema(cls) -> Dict:
         """
         Declare configuration keys your extension reads from app_settings.yaml.
-        Keys are read from [plugins.<your_extension_name>] section.
-        Return empty dict if you need no configuration.
+        Keys are read from the plugins.<your_extension_name> section.
+        Return an empty dict if you need no configuration.
+        The default implementation returns {} — override only when your
+        extension needs configuration.
         Example:
             return {
-                "threshold": {"type": float, "default": 0.5, "description": "..."}
+                "carbon_intensity_g_per_kwh": {
+                    "type": "float",
+                    "required": False,
+                    "default": 386.0,
+                }
             }
         """
+        return {}
 ```
 
 ### PostRunPayload Fields (complete)

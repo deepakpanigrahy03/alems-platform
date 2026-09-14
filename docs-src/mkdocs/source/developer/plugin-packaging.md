@@ -122,6 +122,46 @@ pip install -e .
 ALEMS_PLATFORM_OVERRIDE=synthetic alems run --task your_test_task
 ```
 
+## Plugin configuration
+
+If your plugin needs configuration, declare a `get_config_schema()`
+classmethod on your adapter class:
+
+```python
+@classmethod
+def get_config_schema(cls) -> dict:
+    return {
+        "timeout_ms": {
+            "type": "int",
+            "required": False,
+            "default": 30000,
+        },
+        "judge_model": {
+            "type": "str",
+            "required": True,
+            "default": None,
+        },
+    }
+```
+
+The researcher adds a matching section to `config/app_settings.yaml`:
+
+```yaml
+plugins:
+  yourname:
+    timeout_ms: 60000
+    judge_model: "gpt-4o-mini"
+```
+
+The platform validates this at startup and injects a typed dict into
+your adapter before any experiment runs. Your adapter never reads
+config files directly.
+
+Valid types: `"str"`, `"int"`, `"float"`, `"bool"`.
+`required: true` with no `default` means startup fails with a clear
+message if the key is absent.
+Unknown keys in the YAML section are warned and ignored.
+
 ## What A-LEMS guarantees
 
 - Your plugin cannot write to core measurement columns.

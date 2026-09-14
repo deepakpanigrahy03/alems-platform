@@ -28,8 +28,14 @@ logger = logging.getLogger(__name__)
 platform_registry = PlatformRegistry()
 
 
-def _safe_register(cls) -> None:
-    """Register cls, re-raising DuplicatePlatformError, swallowing others."""
+def _safe_register(cls, config: dict = None) -> None:
+    """Register cls, re-raising DuplicatePlatformError, swallowing others.
+ 
+    Args:
+        cls:    Platform adapter class to register.
+        config: Validated plugin config dict from load_plugin_config().
+                None for built-in platform adapters.
+    """
     try:
         platform_registry.register(cls)
     except DuplicatePlatformError:
@@ -109,7 +115,7 @@ def register_all_platform_adapters() -> None:
     builtin_before = list(platform_registry.get_all().keys())
     external_names = discover_plugins(
         group="alems.platforms",
-        register_fn=_safe_register,
+        register_fn=lambda cls, cfg: _safe_register(cls, cfg),
         core_version=_CORE_VERSION,
     )
     if external_names:

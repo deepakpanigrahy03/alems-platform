@@ -201,24 +201,25 @@ class ExtensionABC(ABC):
             payload: Frozen snapshot of the completed run. See PostRunPayload.
         """
 
-    @abstractmethod
-    def get_config_schema(self) -> Dict:
+    @classmethod
+    def get_config_schema(cls) -> Dict:
         """
         Declare configuration keys this extension reads from app_settings.yaml.
 
-        Keys are read from the [plugins.<extension_name>] section.
+        Keys are read from the plugins.<extension_name> section.
         The framework validates these keys at activation time.
         Return an empty dict if no configuration is needed.
 
         Schema format:
             {
                 "key_name": {
-                    "type": float,           # Python type (int, float, str, bool)
-                    "default": 0.5,          # used when key is absent
-                    "description": "...",    # human-readable, shown in docs
+                    "type": "str",       # one of: str, int, float, bool
+                    "required": False,
+                    "default": None,
                 }
             }
 
         Returns:
             Dict mapping config key names to their schema dicts.
         """
+        return {}

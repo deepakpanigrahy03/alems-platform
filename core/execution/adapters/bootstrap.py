@@ -50,14 +50,16 @@ media_registry = AdapterRegistry(family="media_engine")
 # _safe_register: same pattern as reader bootstrap
 # ---------------------------------------------------------------------------
 
-def _safe_register(registry: AdapterRegistry, cls) -> None:
+def _safe_register(registry: AdapterRegistry, cls, config: dict = None) -> None:
     """
     Register cls, re-raising DuplicateRegistrationError (programming error)
     and logging all other exceptions as warnings.
-
+ 
     Args:
         registry: Target AdapterRegistry instance.
         cls:      Adapter class to register.
+        config:   Validated plugin config dict from load_plugin_config().
+                  None for built-in adapters.
     """
     try:
         registry.register(cls)
@@ -168,7 +170,7 @@ def register_external_engine_plugins() -> None:
         builtin_before = list(registry.get_all().keys())
         names = discover_plugins(
             group=group,
-            register_fn=lambda cls, r=registry: _safe_register(r, cls),
+            register_fn=lambda cls, cfg, r=registry: _safe_register(r, cls, cfg),
             core_version=_CORE_VERSION,
         )
         all_builtin.extend(builtin_before)

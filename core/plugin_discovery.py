@@ -38,6 +38,7 @@ from importlib.metadata import entry_points
 from typing import Callable, Iterable, List, Optional, Type
 
 from core.plugin_validator import PluginValidationError, validate_meta
+from core.config.plugin_config import load_plugin_config, PluginConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -48,27 +49,31 @@ class PluginLoadError(Exception):
 
 def discover_plugins(
     group: str,
-    register_fn: Callable[[Type], None],
+    register_fn: Callable[[Type, dict], None],
     core_version: str,
     active_names: Optional[Iterable[str]] = None,
 ) -> List[str]:
     """
     Discover and register all plugins for an entry_point group.
-
+ 
+    After metadata validation, loads and validates plugin configuration
+    from app_settings.yaml plugins.<name> against the schema declared
+    by get_config_schema() on the adapter class.
+    The validated config dict is passed to register_fn alongside the
+    class so each bootstrap can inject it into the constructor.
+ 
     Args:
         group: Entry point group name, e.g. "alems.readers.energy".
-        register_fn: Callable that registers a resolved class into the
-            target family registry — typically a lambda wrapping the
-            bootstrap module's own _safe_register(registry, cls), so
-            DuplicateRegistrationError (INV-6) semantics are identical
-            for built-in and external adapters.
+        register_fn: Callable(cls, config) that registers a resolved
+            class into the target family registry.
+            config is a validated dict from load_plugin_config().
         core_version: alems.__version__ of the running core, passed to
             plugin_validator for alems_compat checks.
         active_names: If provided, plugin names in this collection are
             explicitly activated (failure raises PluginLoadError).
             Names not in it are optional (failure logs and skips). If
             None, every discovered plugin in this group is optional.
-
+ 
     Returns:
         List of plugin identity names successfully registered.
     """
@@ -121,9 +126,29 @@ def discover_plugins(
         except PluginValidationError as exc:
             _handle_failure(group, ep.name, "validate", exc, is_explicit)
             continue
-
+ 
+        # Load and validate plugin config from app_settings.yaml.
+        # Uses the schema declared by get_config_schema() on the class.
+        # Missing required keys raise PluginConfigError — treated as an
+        # explicit activation failure (always fatal) or optional skip.
+        schema = {}
+        if callable(getattr(cls, "get_config_schema", None)):
+            try:
+                schema = cls.get_config_schema()
+            except Exception as exc:
+                logger.warning(
+                    "plugin_discovery[%s]: get_config_schema() on %s raised: %s",
+                    group, ep.name, exc,
+                )
+ 
         try:
-            register_fn(cls)
+            plugin_cfg = load_plugin_config(ep.name, schema)
+        except PluginConfigError as exc:
+            _handle_failure(group, ep.name, "config", exc, is_explicit)
+            continue
+ 
+        try:
+            register_fn(cls, plugin_cfg)
         except Exception as exc:
             _handle_failure(group, ep.name, "register", exc, is_explicit)
             continue

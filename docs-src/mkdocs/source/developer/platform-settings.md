@@ -259,6 +259,41 @@ python3 scripts/tools/alems_migrate.py
 Remove the name from the active list. No migration needed.
 The extension's tables and all historical data are preserved.
 You can query them directly via SQL at any time.
+---
+
+## plugins
+
+Provides configuration values to individual adapters and extensions.
+Each plugin gets its own subsection keyed by its identity name.
+
+```yaml
+plugins:
+  synthetic:
+    enabled: false       # true to override fixture defaults for local testing
+    mode: constant
+    package_uj: 9999999
+  ollama:
+    timeout_ms: 30000
+  factuality_scorer:
+    judge_model: "gpt-4o-mini"
+    judge_provider: "openai"
+```
+
+**This section is optional.** When absent, every adapter runs with its
+own built-in defaults. No errors, no warnings.
+
+Each adapter or extension declares what keys it accepts via
+`get_config_schema()` on its class. The platform validates every key
+at startup — wrong type or missing required key surfaces as a clear
+error before any experiment runs.
+
+Unknown keys in a plugin's subsection are logged as warnings and
+ignored. They never cause a startup failure.
+
+API keys and machine-specific paths belong in `~/.alemsrc` as shell
+exports, not here.
+
+---
 
 ### Legacy mode vs selective mode
 
