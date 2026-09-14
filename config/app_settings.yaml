@@ -97,3 +97,8 @@ webui:
   sampling_rate_hz: 10
   timeout_ms: 1  
   
+
+# Extension system (35D) — research extensions active on this machine.
+# Remove this section entirely to return to legacy mode (all extensions run as before).
+extensions:
+  active: []
