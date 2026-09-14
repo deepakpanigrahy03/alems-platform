@@ -1,0 +1,9 @@
+[project]
+name = "alems-plugin-ollama"
+version = "0.1.0"
+description = "Ollama serving engine adapter for A-LEMS"
+requires-python = ">=3.9"
+dependencies = ["alems-platform>=1.0,<2.0", "requests>=2.31.0"]
+
+[project.entry-points."alems.engines.text"]
+ollama = "alems_plugin_ollama.adapter:OllamaAdapter"

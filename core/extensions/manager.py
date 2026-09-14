@@ -26,14 +26,17 @@ AUTHOR: Deepak Panigrahy
 """
 
 import logging
+from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Dict, List, Optional, Type
-
+ 
 import yaml
-
+ 
 from core.extensions.abc import ExtensionABC, PostRunPayload
 from core.extensions.registry import ExtensionRegistry
-
+from core.plugin_validator import PluginValidationError, validate_meta
+from alems import __version__ as _CORE_VERSION
+ 
 logger = logging.getLogger(__name__)
 
 # Default config path — resolved relative to repo root at import time.
@@ -244,19 +247,31 @@ class ExtensionManager:
     def _resolve_class(self, name: str) -> Optional[Type[ExtensionABC]]:
         """
         Resolve an extension name to its class.
-
-        Phase 1 (this chunk): looks up built-in extensions registered
-        via _BUILTIN_EXTENSIONS dict below.
-        Phase 6 (35E): will also query importlib.metadata entry_points
-        for externally installed extensions.
-
+ 
+        Phase 1: looks up built-in extensions registered via
+        _BUILTIN_EXTENSIONS dict below.
+        Phase 6 (SPEC 35E): falls through to importlib.metadata
+        entry_points for externally pip-installed extensions when the
+        name is not a built-in.
+ 
+        Any failure here (missing entry point, bad ALEMS_PLUGIN_META,
+        incompatible alems_compat) returns None rather than raising.
+        The caller, load_extensions(), already raises a fatal
+        RuntimeError when an explicitly-activated name resolves to
+        None — so the "explicitly activated plugin fails" semantics
+        are preserved without duplicating that logic here.
+ 
         Args:
             name: Extension identity string, e.g. "output_quality".
-
+ 
         Returns:
-            ExtensionABC subclass, or None if not found.
+            ExtensionABC subclass, or None if not found or invalid.
         """
-        return _BUILTIN_EXTENSIONS.get(name)
+        builtin = _BUILTIN_EXTENSIONS.get(name)
+        if builtin is not None:
+            return builtin
+ 
+        return _resolve_external_extension(name)
 
     def _last_migration_version(self, instance: ExtensionABC) -> Optional[str]:
         """
@@ -316,9 +331,56 @@ def _build_builtin_registry() -> Dict[str, Type[ExtensionABC]]:
     #     registry["orchestration"] = OrchestrationExtension
     # except Exception as exc:
     #     logger.debug("Built-in extension 'orchestration' not loadable: %s", exc)
-
+ 
     return registry
-
-
+ 
+ 
+def _resolve_external_extension(name: str) -> Optional[Type[ExtensionABC]]:
+    """
+    Look up a pip-installed extension by name via entry_points.
+ 
+    SPEC 35E. Mirrors core/plugin_discovery.py's validation steps but
+    returns None on any failure instead of raising — load_extensions()
+    already applies the correct fatal/optional distinction based on
+    whether the name is in [extensions] active.
+    """
+    try:
+        eps = entry_points(group="alems.extensions")
+    except Exception as exc:
+        logger.warning("extensions: entry_points() lookup failed: %s", exc)
+        return None
+ 
+    matches = [ep for ep in eps if ep.name == name]
+    if not matches:
+        return None
+ 
+    ep = matches[0]
+ 
+    try:
+        cls = ep.load()
+    except Exception as exc:
+        logger.warning("extensions: failed to load entry point '%s': %s", name, exc)
+        return None
+ 
+    try:
+        package_name = cls.__module__.rsplit(".", 1)[0]
+        package = __import__(package_name, fromlist=["ALEMS_PLUGIN_META"])
+        meta = getattr(package, "ALEMS_PLUGIN_META", None)
+    except Exception:
+        meta = None
+ 
+    if meta is None:
+        logger.warning("extensions: '%s' has no ALEMS_PLUGIN_META", name)
+        return None
+ 
+    try:
+        validate_meta(meta, _CORE_VERSION)
+    except PluginValidationError as exc:
+        logger.warning("extensions: '%s' failed validation: %s", name, exc)
+        return None
+ 
+    return cls
+ 
+ 
 # Module-level singleton built once at import time.
 _BUILTIN_EXTENSIONS: Dict[str, Type[ExtensionABC]] = _build_builtin_registry()

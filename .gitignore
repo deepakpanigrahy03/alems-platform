@@ -120,3 +120,4 @@ scripts/detect_hardware_old.py
 scripts/detect_hardware_new.py
 config/hw_config.json
 migrations/migration_manifest.json
+*.egg-info/

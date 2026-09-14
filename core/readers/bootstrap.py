@@ -29,7 +29,10 @@ Spec:   SPEC 35A, Phase 1
 
 import logging
 from core.readers.registry import AdapterRegistry, DuplicateRegistrationError
-
+from core.plugin_discovery import discover_plugins
+from core.startup_banner import print_adapter_summary
+from alems import __version__ as _CORE_VERSION
+ 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -302,10 +305,46 @@ def register_synthetic_readers() -> None:
 # Top-level entry point
 # ---------------------------------------------------------------------------
 
+def register_external_reader_plugins() -> None:
+    """
+    Discover and register externally pip-installed readers via entry_points.
+
+    Additive to the built-in registration above. Every reader family
+    here has no per-plugin activation list, so any discovered external
+    reader is an "optional" plugin — a broken external reader logs a
+    warning and is skipped, never blocking startup.
+    """
+    family_groups = {
+        "energy":    ("alems.readers.energy", energy_registry),
+        "cpu":       ("alems.readers.cpu", cpu_registry),
+        "thermal":   ("alems.readers.thermal", thermal_registry),
+        "turbostat": ("alems.readers.turbostat", turbostat_registry),
+        "msr":       ("alems.readers.msr", msr_registry),
+        "scheduler": ("alems.readers.scheduler", scheduler_registry),
+        "disk":      ("alems.readers.disk", disk_registry),
+    }
+    all_builtin = []
+    all_external = []
+    for family_name, (group, registry) in family_groups.items():
+        builtin_before = list(registry.get_all().keys())
+        names = discover_plugins(
+            group=group,
+            register_fn=lambda cls, r=registry: _safe_register(r, cls),
+            core_version=_CORE_VERSION,
+        )
+        all_builtin.extend(builtin_before)
+        all_external.extend(names)
+        if names:
+            logger.info(
+                "bootstrap[%s]: %d external plugin(s) registered via entry_points",
+                family_name, len(names),
+            )
+    print_adapter_summary("readers", all_builtin, all_external)
+ 
 def register_all_readers() -> None:
     """
     Register every built-in real reader family.
-
+ 
     Called once from energy_engine.py before any ReaderFactory method.
     Matches SPEC 35 startup lifecycle Step 1 (discovery).
     Platform detection (Step 2) and reader selection (Step 3) happen after.
@@ -321,4 +360,8 @@ def register_all_readers() -> None:
     # SPEC 35C: synthetic readers registered on all machines.
     # Safe — can_handle() returns False on real hardware.
     register_synthetic_readers()
+    # SPEC 35E: external plugins installed via pip, discovered through
+    # entry_points. Runs after built-ins so INV-6 duplicate detection
+    # catches a plugin that collides with a built-in METHOD_ID.
+    register_external_reader_plugins()
     logger.info("bootstrap: registration complete")

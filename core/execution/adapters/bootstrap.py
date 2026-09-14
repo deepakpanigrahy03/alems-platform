@@ -30,15 +30,18 @@ Spec:   SPEC 35B, Phase 2
 
 import logging
 from core.readers.registry import AdapterRegistry, DuplicateRegistrationError
-
+from core.plugin_discovery import discover_plugins
+from core.startup_banner import print_adapter_summary
+from alems import __version__ as _CORE_VERSION
+ 
 logger = logging.getLogger(__name__)
-
+ 
 # ---------------------------------------------------------------------------
 # Registry instances — one per adapter family.
 # text_registry: ENGINE_TYPE -> TextGenABC subclass
 # media_registry: ENGINE_TYPE -> MediaABC subclass
 # ---------------------------------------------------------------------------
-
+ 
 text_registry  = AdapterRegistry(family="text_engine")
 media_registry = AdapterRegistry(family="media_engine")
 
@@ -147,6 +150,36 @@ def register_media_adapters() -> None:
 # Top-level entry point
 # ---------------------------------------------------------------------------
 
+def register_external_engine_plugins() -> None:
+    """
+    Discover and register externally pip-installed engines via entry_points.
+
+    Engines select by exact ENGINE_TYPE string match (registry.get()),
+    not can_handle()/PRIORITY, so an external engine plugin is usable
+    the moment the provider config names its ENGINE_TYPE.
+    """
+    family_groups = {
+        "text_engine":  ("alems.engines.text", text_registry),
+        "media_engine": ("alems.engines.media", media_registry),
+    }
+    all_builtin = []
+    all_external = []
+    for family_name, (group, registry) in family_groups.items():
+        builtin_before = list(registry.get_all().keys())
+        names = discover_plugins(
+            group=group,
+            register_fn=lambda cls, r=registry: _safe_register(r, cls),
+            core_version=_CORE_VERSION,
+        )
+        all_builtin.extend(builtin_before)
+        all_external.extend(names)
+        if names:
+            logger.info(
+                "bootstrap[%s]: %d external plugin(s) registered via entry_points",
+                family_name, len(names),
+            )
+    print_adapter_summary("engines", all_builtin, all_external)
+ 
 def register_all_adapters() -> None:
     """
     Register every built-in adapter family.
@@ -161,4 +194,7 @@ def register_all_adapters() -> None:
     logger.info("bootstrap: registering all engine adapters (SPEC 35B Phase 2)")
     register_text_adapters()
     register_media_adapters()
+    # SPEC 35E: external plugins installed via pip, discovered through
+    # entry_points.
+    register_external_engine_plugins()
     logger.info("bootstrap: engine adapter registration complete")

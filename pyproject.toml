@@ -1,0 +1,68 @@
+[project]
+name = "alems-platform"
+version = "1.0.0"
+description = "Agentic LLM Energy Measurement System"
+requires-python = ">=3.9"
+dependencies = [
+    "packaging>=21.0",
+]
+
+[tool.setuptools]
+packages = ["core", "alems"]
+
+[project.entry-points."alems.readers.energy"]
+rapl = "core.readers.rapl_reader:RAPLReader"
+spbm = "core.readers.spbm_energy_reader:SPBMEnergyReader"
+iokit = "core.readers.darwin.iokit_power_reader:IOKitPowerReader"
+estimator = "core.readers.fallback.energy_estimator:EnergyEstimator"
+synthetic = "core.readers.synthetic_energy_reader:SyntheticEnergyReader"
+
+[project.entry-points."alems.readers.cpu"]
+perf = "core.readers.perf_reader:PerfReader"
+arm_pmu = "core.readers.arm_pmu_reader:ARMPMUReader"
+kperf = "core.readers.darwin.kperf_pmu_reader:KPerfPMUReader"
+synthetic_cpu = "core.readers.synthetic_cpu_reader:SyntheticCPUReader"
+
+[project.entry-points."alems.readers.thermal"]
+sensor = "core.readers.sensor_reader:SensorReader"
+arm_thermal = "core.readers.arm_thermal_reader:ARMThermalReader"
+iokit_thermal = "core.readers.darwin.iokit_thermal_reader:IOKitThermalReader"
+synthetic_thermal = "core.readers.synthetic_thermal_reader:SyntheticThermalReader"
+
+[project.entry-points."alems.readers.turbostat"]
+turbostat = "core.readers.turbostat_reader:TurbostatReader"
+arm_cpufreq = "core.readers.arm_cpufreq_reader:ARMCPUFreqReader"
+ioreport = "core.readers.darwin.ioreport_cpufreq_reader:IOReportCPUFreqReader"
+darwin_cpufreq = "core.readers.darwin.darwin_cpufreq_reader:DarwinCPUFreqReader"
+
+[project.entry-points."alems.readers.msr"]
+msr = "core.readers.msr_reader:MSRReader"
+
+[project.entry-points."alems.readers.scheduler"]
+scheduler = "core.readers.scheduler_monitor:SchedulerMonitor"
+
+[project.entry-points."alems.readers.disk"]
+disk = "core.readers.disk_reader:DiskReader"
+iokit_disk = "core.readers.darwin.disk_reader:IOKitDiskReader"
+
+[project.entry-points."alems.engines.text"]
+openai_compat = "core.execution.adapters.openai_compat:OpenAICompatAdapter"
+anthropic = "core.execution.adapters.anthropic:AnthropicAdapter"
+llama_cpp = "core.execution.adapters.llama_cpp:LlamaCppAdapter"
+gemini = "core.execution.adapters.gemini:GeminiAdapter"
+
+[project.entry-points."alems.engines.media"]
+kokoro = "core.execution.adapters.kokoro:KokoroAdapter"
+faster_whisper = "core.execution.adapters.faster_whisper:FasterWhisperAdapter"
+indic_f5 = "core.execution.adapters.indic_f5:IndicF5Adapter"
+indic_parler = "core.execution.adapters.indic_parler:IndicParlerAdapter"
+
+[project.entry-points."alems.platforms"]
+nvidia_grace = "core.platform.adapters.nvidia_grace:NVIDIAGraceAdapter"
+apple_silicon = "core.platform.adapters.apple_silicon:AppleSiliconAdapter"
+intel_linux = "core.platform.adapters.intel_linux:IntelLinuxAdapter"
+amd_linux = "core.platform.adapters.amd_linux:AMDLinuxAdapter"
+arm_linux = "core.platform.adapters.arm_linux:ARMLinuxAdapter"
+riscv_linux = "core.platform.adapters.riscv_linux:RISCVLinuxAdapter"
+generic_linux = "core.platform.adapters.generic_linux:GenericLinuxAdapter"
+synthetic_platform = "core.platform.adapters.synthetic_platform:SyntheticPlatformAdapter"

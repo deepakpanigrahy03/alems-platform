@@ -18,9 +18,12 @@ Spec:   SPEC 35C, Part A
 
 import logging
 from core.platform.registry import PlatformRegistry, DuplicatePlatformError
-
+from core.plugin_discovery import discover_plugins
+from core.startup_banner import print_adapter_summary
+from alems import __version__ as _CORE_VERSION
+ 
 logger = logging.getLogger(__name__)
-
+ 
 # Module-level singleton — one registry for the process lifetime
 platform_registry = PlatformRegistry()
 
@@ -100,6 +103,21 @@ def register_all_platform_adapters() -> None:
         _safe_register(SyntheticPlatformAdapter)
     except ImportError as exc:
         logger.debug("platform_bootstrap: SyntheticPlatformAdapter not importable: %s", exc)
+ 
+    # SPEC 35E: external platform plugins installed via pip, discovered
+    # through entry_points.
+    builtin_before = list(platform_registry.get_all().keys())
+    external_names = discover_plugins(
+        group="alems.platforms",
+        register_fn=_safe_register,
+        core_version=_CORE_VERSION,
+    )
+    if external_names:
+        logger.info(
+            "platform_bootstrap: %d external plugin(s) registered via entry_points",
+            len(external_names),
+        )
+    print_adapter_summary("platforms", builtin_before, external_names)
 
     logger.info(
         "platform_bootstrap: registered %d platform adapters",
