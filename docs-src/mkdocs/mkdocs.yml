@@ -53,6 +53,7 @@ nav:
     - Retry Study Design: developer/retry-study.md
     - Engineering Standards: developer/engineering-standards.md
     - Developer Tools: developer/developer-tools.md
+    - Extenstion System : developer/extension-system.md
 
   - Research:
     - Measurement Methodology: research/measurement-methodology.md

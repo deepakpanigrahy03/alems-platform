@@ -32,6 +32,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS_DIR = REPO_ROOT / "migrations"
 SCHEMA_DIR = MIGRATIONS_DIR / "schema"
 SEED_DIR = MIGRATIONS_DIR / "seed"
+EXTENSIONS_DIR = MIGRATIONS_DIR / "extensions"
 MANIFEST_PATH = MIGRATIONS_DIR / "migration_manifest.json"
 MACHINE_SETUP_ROOT = REPO_ROOT / "scripts" / "machine_setup"
 ALEMSRC_PATH = Path.home() / ".alemsrc"
@@ -487,14 +488,174 @@ def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod")
     for filepath in pending_setup:
         apply_machine_setup(conn, filepath, hostname, machine_id, commit)
         print(f"Applied machine setup {filepath.name}")
-
+ 
+    # --- Extension migrations (35D) ---
+    # Run only when [extensions] active is present in app_settings.yaml.
+    # When absent, legacy mode is active and extension migrations are skipped.
+    pending_ext = _get_pending_extension_migrations(conn)
+    for ext_name, filepath, version in pending_ext:
+        _apply_extension_migration(conn, filepath, version, ext_name, hostname, machine_id, commit)
+        print(f"Applied extension migration: {ext_name} {filepath.name}")
+ 
     generate_manifest(conn, hostname)
     print(
         f"\nTotal applied: {len(pending_schema)} schema, {len(pending_seed)} seed, "
-        f"{len(pending_setup)} machine setup."
+        f"{len(pending_setup)} machine setup, {len(pending_ext)} extension."
     )
 
 
+def _read_active_extensions() -> list:
+    """Read [extensions] active from config/app_settings.yaml.
+ 
+    Returns the list of active extension names, or an empty list when
+    the [extensions] key is absent (legacy mode — no extension migrations
+    are run). The empty-list return for legacy mode is intentional:
+    cmd_migrate still runs to zero completion with no extension work done.
+ 
+    Returns:
+        List of extension name strings (may be empty).
+    """
+    try:
+        import yaml
+        config_path = REPO_ROOT / "config" / "app_settings.yaml"
+        if not config_path.exists():
+            return []
+        with open(config_path, "r") as fh:
+            config = yaml.safe_load(fh) or {}
+        extensions_section = config.get("extensions")
+        if extensions_section is None:
+            # Key absent: legacy mode. No extension migrations.
+            return []
+        active = extensions_section.get("active") or []
+        if isinstance(active, str):
+            # Support scalar "active: orchestration" as well as list form.
+            active = [s.strip() for s in active.split(",") if s.strip()]
+        return list(active)
+    except Exception as exc:
+        print(f"Warning: could not read [extensions] from app_settings.yaml: {exc}")
+        return []
+ 
+ 
+def _get_pending_extension_migrations(conn) -> list:
+    """Discover pending extension migrations for all active extensions.
+ 
+    For each extension listed in [extensions] active, scans its migration
+    directory for e*.sql files not yet recorded in migration_history with
+    source='ext:<name>'. Returns them in order ready to apply.
+ 
+    Returns:
+        List of (ext_name, filepath, version) tuples, sorted by
+        (ext_name, version) for deterministic application order.
+    """
+    active_names = _read_active_extensions()
+    if not active_names:
+        return []
+ 
+    pending = []
+    for ext_name in active_names:
+        ext_dir = EXTENSIONS_DIR / ext_name
+        if not ext_dir.exists():
+            print(f"Warning: extension migration dir not found: {ext_dir} — skipping")
+            continue
+ 
+        source_key = f"ext:{ext_name}"
+        # Find versions already applied for this extension.
+        applied_rows = conn.execute(
+            "SELECT filename FROM migration_history WHERE source = ? AND status = 'applied'",
+            (source_key,),
+        ).fetchall()
+        applied_filenames_set = {r[0] for r in applied_rows}
+
+        ext_files = discover_repo_files(ext_dir, "e")
+        for version, filepath in sorted(ext_files.items()):
+            if filepath.name not in applied_filenames_set:
+                pending.append((ext_name, filepath, version))
+ 
+    return pending
+ 
+ 
+def _apply_extension_migration(
+    conn,
+    filepath: Path,
+    version: int,
+    ext_name: str,
+    hostname: str,
+    machine_id,
+    commit: str,
+) -> None:
+    """Apply one extension migration file.
+ 
+    Reuses apply_one() internals but records source='ext:<name>' in
+    migration_history so extension migrations are distinguishable from
+    core migrations in the history table and in --status output.
+ 
+    Args:
+        conn      : sqlite3 connection.
+        filepath  : Path to the e*.sql file.
+        version   : Integer version parsed from filename.
+        ext_name  : Extension identity string, e.g. "output_quality".
+        hostname  : Machine hostname for provenance.
+        machine_id: Machine ID from ~/.alemsrc.
+        commit    : Git commit hash for provenance.
+    """
+    import hashlib
+    import time
+ 
+    source_key = f"ext:{ext_name}"
+    checksum = sha256_file(filepath)
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO migration_history "
+        "(version, type, filename, checksum_sha256, tool_version, duration_ms, "
+        " status, hostname, machine_id, repo_commit, source) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        [
+            90000 + version, "schema", filepath.name, checksum, TOOL_VERSION, 0,
+            "running", hostname, machine_id, commit, source_key,
+        ],
+    )
+    record_id = cur.lastrowid
+    conn.commit()
+ 
+    start = time.monotonic_ns()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.executescript(filepath.read_text())
+        duration_ms = (time.monotonic_ns() - start) // 1_000_000
+        conn.execute(
+            "UPDATE migration_history SET status='applied', duration_ms=? WHERE id=?",
+            [duration_ms, record_id],
+        )
+        conn.execute("COMMIT")
+    except Exception as exc:
+        if "duplicate column name" in str(exc).lower() or "already exists" in str(exc).lower():
+            # Idempotent: table or column already exists from a previous run.
+            duration_ms = (time.monotonic_ns() - start) // 1_000_000
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            conn.execute(
+                "UPDATE migration_history SET status='applied', duration_ms=? WHERE id=?",
+                [duration_ms, record_id],
+            )
+            conn.commit()
+            return
+        try:
+            conn.execute("ROLLBACK")
+        except Exception:
+            pass
+        duration_ms = (time.monotonic_ns() - start) // 1_000_000
+        conn.execute(
+            "UPDATE migration_history SET status='failed', duration_ms=? WHERE id=?",
+            [duration_ms, record_id],
+        )
+        conn.commit()
+        raise MigrationError(
+            f"Extension migration {ext_name}/{filepath.name} failed: {exc}"
+        ) from exc
+ 
+ 
 def cmd_check(conn) -> int:
     """Manifest only comparison, no directory scan, this is the cheap
     startup gate from Section 7. Returns 0 if compatible, 1 otherwise."""

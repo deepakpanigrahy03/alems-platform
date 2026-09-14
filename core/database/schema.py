@@ -2006,6 +2006,16 @@ CREATE INDEX IF NOT EXISTS idx_odc_active
     ON outlier_detection_config(method, metric_name)
     WHERE effective_to IS NULL;
 """
+
+CREATE_EXTENSION_REGISTRY = """
+CREATE TABLE IF NOT EXISTS extension_registry (
+    name              TEXT PRIMARY KEY,
+    version           TEXT NOT NULL,
+    activated_at      TEXT NOT NULL,
+    status            TEXT NOT NULL DEFAULT 'active',
+    migration_version TEXT
+);
+"""
  
 CREATE_RUN_OUTLIERS = """
 CREATE TABLE IF NOT EXISTS run_outliers (

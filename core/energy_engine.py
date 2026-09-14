@@ -43,10 +43,8 @@ from core.readers.gpu_collector import GPUCollector
 # SPEC 35A: populate reader registries before any ReaderFactory call.
 from core.readers.bootstrap import register_all_readers as _register_all_readers
 _register_all_readers()
-# SPEC 35C Part A: register platform adapters.
-# detect() runs lazily when get_platform_capabilities() is first called.
-from core.platform.bootstrap import register_all_platform_adapters as _register_platforms
-_register_platforms()
+# Platform adapter registry (35C) is used by verify_hardware.py and install.sh.
+# energy_engine uses get_platform_capabilities() from core.utils.platform directly.
 from core.readers.energy_collector import EnergyCollector
 from core.readers.normalized_writer import NormalizedWriter
 from core.readers.legacy_writer import LegacyWriter

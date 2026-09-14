@@ -53,12 +53,19 @@ from scripts.etl.ttft_tpot_etl import populate_run as populate_ttft_tpot
 from core.execution.goal_tracker import GoalTracker
 import scripts.etl.goal_execution_etl as goal_execution_etl
 import scripts.etl.energy_attribution_etl as energy_attribution_etl
+from core.extensions.manager import ExtensionManager
+from core.extensions.abc import PostRunPayload
 from core.execution.retry_coordinator import RetryCoordinator, ExecutionResult
 from core.execution.failure_classifier import FailureClassifier
 from core.execution.failure_injector import FailureInjector
 from core.readers.power_rail_sampler import PowerRailSampler
 import logging
 logger = logging.getLogger(__name__)
+ 
+# Extension manager singleton — initialized once at module import time.
+# In legacy mode (no [extensions] in app_settings.yaml), this manager
+# is a no-op and all existing direct-write code paths run unchanged.
+_extension_manager = ExtensionManager()
 
 _goal_tracker = GoalTracker()   # module-level singleton — stateless class
 _failure_classifier = FailureClassifier()  # stateless — classify failures on normal path
@@ -136,7 +143,77 @@ def _get_power_paths() -> dict:
     except Exception as e:
         logger.warning("_get_power_paths: failed to read hw_config: %s", e)
         return {}
-    
+
+# ---------------------------------------------------------------------------
+# Extension post-run dispatch helper (35D)
+# Module-level function so it can be called from both save_pair() and
+# save_single() without a self reference. Lives here alongside the other
+# module-level helpers (_insert_nic_samples, _convert_gpu_to_telemetry, etc.)
+# ---------------------------------------------------------------------------
+
+def _dispatch_post_run(db: object, run_id: int, result: dict, workflow_type: str) -> None:
+    """
+    Build a PostRunPayload and dispatch to active extensions.
+
+    Called by save_pair() and save_single() after core commits.
+    In legacy mode this function is never called (guarded by
+    _extension_manager.is_legacy_mode() at both call sites).
+
+    Reads energy_uj, duration_ns, and status from the result dict
+    produced by the harness. Falls back to DB query if not present.
+
+    Args:
+        db           : DatabaseInterface wrapper instance.
+        run_id       : Committed run_id from insert_run().
+        result       : Result dict from harness.run_*().
+        workflow_type: "agentic" or "linear".
+    """
+    try:
+        # Extract core measurement fields from result dict.
+        # These are set by the harness after measurement completes.
+        energy_uj = int(result.get("energy_uj") or 0)
+        duration_ns = int(result.get("duration_ns") or 0)
+        status = result.get("status", "completed")
+        model_name = result.get("model_name", "")
+        baseline_id = result.get("baseline_id", "")
+
+        # Retrieve exp_id and hw_id from the run record if not in result.
+        # These are always available because insert_run() already committed.
+        exp_id = int(result.get("exp_id") or 0)
+        hw_id = int(result.get("hw_id") or 0)
+        if not exp_id or not hw_id:
+            row = db.db.conn.execute(
+                "SELECT exp_id, hw_id FROM runs WHERE run_id = ? LIMIT 1",
+                (run_id,),
+            ).fetchone()
+            if row:
+                exp_id = row[0]
+                hw_id = row[1]
+
+        payload = PostRunPayload(
+            run_id=run_id,
+            exp_id=exp_id,
+            hw_id=hw_id,
+            workflow_type=workflow_type,
+            model_name=model_name,
+            energy_uj=energy_uj,
+            duration_ns=duration_ns,
+            status=status,
+            baseline_id=baseline_id,
+            db=db,
+        )
+
+        _extension_manager.run_post_run(payload)
+
+    except Exception as exc:
+        # Extension dispatch must never crash save_pair/save_single.
+        # The core run record is already committed and is safe.
+        logger.error(
+            "Extension post-run dispatch failed for run_id=%d: %s",
+            run_id,
+            exc,
+        )
+            
 class ExperimentRunner:
     """Shared experiment logic - ONLY duplicate code + new features"""
 
@@ -1260,6 +1337,14 @@ class ExperimentRunner:
                 db.insert_orchestration_events(
                     agentic_id, agentic_result["orchestration_events"]
                 )
+ 
+            # --- Extension post-run dispatch (35D) ---
+            # Selective mode: call active extensions after core commits.
+            # Legacy mode: _extension_manager.run_post_run() is a no-op;
+            # all existing direct writes above continue to execute unchanged.
+            if not _extension_manager.is_legacy_mode():
+                _dispatch_post_run(db, agentic_id, agentic_result, "agentic")
+                _dispatch_post_run(db, linear_id, linear_result, "linear")
 
             print(
                 f"🔍 DEBUG - linear pending_interactions count: {len(linear_result.get('pending_interactions', []))}"
@@ -1901,6 +1986,10 @@ class ExperimentRunner:
         if "llm_interactions" in result:
             for interaction in result["llm_interactions"]:
                 db.insert_llm_interaction(interaction)
+
+        # --- Extension post-run dispatch (35D) ---
+        if not _extension_manager.is_legacy_mode():
+            _dispatch_post_run(db, run_id, result, result.get("workflow_type", "linear"))                
         try:
             from scripts.etl.network_energy_etl import process_run as _pne
             _pne(run_id, db.db.conn)
