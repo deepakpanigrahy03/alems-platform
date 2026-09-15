@@ -319,9 +319,21 @@ class AgenticExecutor:
             # specify exact required tools deterministically and must
             # never be filtered.
             if tool_selector_config:
-                from core.execution.tools.selector_bootstrap import selector_registry
+                from core.execution.tools.selector_bootstrap import (
+                    selector_registry,
+                    register_all_selectors as _register_all_selectors,
+                )
                 from core.execution.tools.selector_abc import ToolSelectionContext
-                from core.execution.tools.bootstrap import tool_registry as _tool_registry
+                from core.execution.tools.bootstrap import (
+                    tool_registry as _tool_registry,
+                    register_all_tool_providers as _register_all_tool_providers,
+                )
+                # SPEC 35H fix, same root cause as _dispatch_tool's earlier
+                # fix: selector_registry has no import-time registration
+                # call anywhere, so it is always empty in a fresh process.
+                # Idempotent, safe to call every time.
+                _register_all_tool_providers()
+                _register_all_selectors()
 
                 selector_type = tool_selector_config.get("type", "static")
                 selector = selector_registry.get(selector_type)
@@ -334,7 +346,8 @@ class AgenticExecutor:
                         f"fallback to all tools."
                     )
                 all_defs = [
-                    t for p in _tool_registry.get_all().values() for t in p.get_tools()
+                    t for p_cls in _tool_registry.get_all().values()
+                    for t in p_cls().get_tools()
                     if t.name in self.supported_tools
                 ]
                 sel_result = selector.select(
@@ -960,7 +973,8 @@ You can use tools like calculator or web search if needed.
         # zero providers (bootstrap not run, or genuinely broken). Never
         # silent: names every registered tool so the gap is obvious.
         all_registered = [
-            t.name for p in _tool_registry.get_all().values() for t in p.get_tools()
+            t.name for p_cls in _tool_registry.get_all().values()
+            for t in p_cls().get_tools()
         ]
         logger.warning(
             "AgenticExecutor: tool '%s' not found in tool_registry "
