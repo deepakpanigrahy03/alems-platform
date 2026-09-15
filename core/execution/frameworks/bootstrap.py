@@ -144,6 +144,26 @@ def register_all_frameworks() -> None:
         return
     logger.info("framework_bootstrap: registering builtin framework (SPEC 35G)")
     _safe_register(BuiltinFrameworkAdapter)
+
+    # SPEC 35H Part 2: LangChain, built on the native-client architecture
+    # (see CHUNK_31_SUPPLEMENTARY_RESEARCH_v2.md) — LangChain uses its own
+    # ChatOllama client, not a TextGenABC bridge. Only registered if the
+    # optional langchain/langchain-ollama packages are actually installed;
+    # absence is not an error, same as any other optional plugin.
+    try:
+        from core.execution.frameworks.langchain_adapter import LangChainFrameworkAdapter
+        if LangChainFrameworkAdapter().is_available():
+            _safe_register(LangChainFrameworkAdapter)
+        else:
+            logger.info(
+                "framework_bootstrap: LangChainFrameworkAdapter not available "
+                "(langchain/langchain-ollama not installed) — skipping"
+            )
+    except ImportError as exc:
+        logger.debug(
+            "framework_bootstrap: LangChainFrameworkAdapter not importable: %s", exc
+        )
+
     register_external_framework_plugins()
     logger.info(
         "framework_bootstrap: registered %d framework(s): %s",

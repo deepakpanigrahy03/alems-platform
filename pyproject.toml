@@ -77,6 +77,9 @@ structural = "core.execution.scorers.structural:StructuralScorer"
 [project.entry-points."alems.tools"]
 builtin = "core.execution.tools.bootstrap:BuiltinToolProvider"
 
+[project.entry-points."alems.tool_selectors"]
+static = "core.execution.tools.static_selector:StaticToolSelector"
+
 [project.entry-points."alems.frameworks"]
 builtin = "core.execution.frameworks.bootstrap:BuiltinFrameworkAdapter"
 
