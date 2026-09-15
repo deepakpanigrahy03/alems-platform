@@ -826,6 +826,7 @@ class ExperimentHarness:
         country_code: str = "US",
         run_number: int = 1,
         tool_graph: list = None,
+        framework_type: str = "builtin",
     ) -> Dict[str, Any]:
         """
         Run agentic executor with synchronized energy measurement.
@@ -880,7 +881,25 @@ class ExperimentHarness:
         _total_ticks_start = read_total_cpu_ticks()
         _pid_ticks_start   = read_process_cpu_ticks(_pid)
         self.energy_engine.set_workload_pid(_pid)  # Chunk 5: pass PID to interrupt sampler        
-        exec_result = executor.execute_comparison(task, tool_graph=tool_graph)
+        # SPEC 35G: framework_type="builtin" (the default every existing
+        # caller gets) preserves this exact line, unchanged. A caller that
+        # explicitly requests a different framework goes through the
+        # registry instead. run_experiment.py, test_harness.py, and
+        # optimizer_wrapper.py all construct `executor` directly and never
+        # pass framework_type — none of them are touched by this branch.
+        if framework_type != "builtin":
+            from core.execution.frameworks.bootstrap import framework_registry
+            framework = framework_registry.get(framework_type)
+            task_config = {
+                "model_config": getattr(executor, "config", {}),
+                "task": task,
+                "tool_graph": tool_graph,
+            }
+            framework_result = framework.execute_task(task_config, tools=[], engine=None)
+            exec_result = framework_result.metadata
+        else:
+            exec_result = executor.execute_comparison(task, tool_graph=tool_graph)
+
         # t1: task boundary — agentic executor has returned, all phases complete.
         task_end_perf        = time.perf_counter()
         _total_ticks_t1      = read_total_cpu_ticks()

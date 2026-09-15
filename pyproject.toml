@@ -66,3 +66,20 @@ arm_linux = "core.platform.adapters.arm_linux:ARMLinuxAdapter"
 riscv_linux = "core.platform.adapters.riscv_linux:RISCVLinuxAdapter"
 generic_linux = "core.platform.adapters.generic_linux:GenericLinuxAdapter"
 synthetic_platform = "core.platform.adapters.synthetic_platform:SyntheticPlatformAdapter"
+
+[project.entry-points."alems.scorers"]
+exact_match = "core.execution.scorers.exact_match:ExactMatchScorer"
+semantic = "core.execution.scorers.semantic:SemanticScorer"
+llm_judge = "core.execution.scorers.llm_judge:LLMJudgeScorer"
+numeric = "core.execution.scorers.numeric:NumericScorer"
+structural = "core.execution.scorers.structural:StructuralScorer"
+
+[project.entry-points."alems.tools"]
+builtin = "core.execution.tools.bootstrap:BuiltinToolProvider"
+
+[project.entry-points."alems.frameworks"]
+builtin = "core.execution.frameworks.bootstrap:BuiltinFrameworkAdapter"
+
+[project.entry-points."alems.outputs"]
+csv = "core.execution.outputs.csv_output:CSVOutputAdapter"
+json = "core.execution.outputs.json_output:JSONOutputAdapter"
