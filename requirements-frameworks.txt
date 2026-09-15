@@ -1,0 +1,9 @@
+# scripts/tools style: optional framework-adapter dependencies (SPEC 35H)
+# Not needed for core A-LEMS measurement — only required if you want a
+# specific FrameworkAdapterABC implementation active.
+# Install only the block for the framework(s) you actually plan to run.
+
+# ── LangChain (core/execution/frameworks/langchain_adapter.py) ──
+langchain>=0.3,<1.0
+langchain-core>=0.3,<1.0
+langchain-ollama>=0.2,<1.0
