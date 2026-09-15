@@ -248,7 +248,8 @@ class AgenticExecutor:
             },
         }
 
-    def execute(self, task: str, planning_temperature: float = 0.0, tool_graph: list = None) -> Dict[str, Any]:
+    def execute(self, task: str, planning_temperature: float = 0.0, tool_graph: list = None,
+                tool_selector_config: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Execute agentic workflow with phase-level timing.
 
@@ -309,6 +310,44 @@ class AgenticExecutor:
                     self.supported_tools.append(s["tool"])
             plan = {"steps": steps}
         else:
+            # SPEC 35H Part 3: selector runs before the LLM ever sees
+            # supported_tools — filters self.supported_tools (which
+            # both _create_plan()'s prompt string and the plan-step
+            # dispatch check at "if step.get('tool') in self.supported_tools"
+            # read from), not after. Tier-2 (tool_graph) tasks bypass this
+            # entirely (see the `if tool_graph:` branch above) — they
+            # specify exact required tools deterministically and must
+            # never be filtered.
+            if tool_selector_config:
+                from core.execution.tools.selector_bootstrap import selector_registry
+                from core.execution.tools.selector_abc import ToolSelectionContext
+                from core.execution.tools.bootstrap import tool_registry as _tool_registry
+
+                selector_type = tool_selector_config.get("type", "static")
+                selector = selector_registry.get(selector_type)
+                if not selector.is_available():
+                    raise RuntimeError(
+                        f"Tool selector '{selector_type}' is configured but "
+                        f"not available (missing dependency, or its required "
+                        f"extension is not active). SPEC 35H Section 4.5: "
+                        f"selector failure is task failure, never a silent "
+                        f"fallback to all tools."
+                    )
+                all_defs = [
+                    t for p in _tool_registry.get_all().values() for t in p.get_tools()
+                    if t.name in self.supported_tools
+                ]
+                sel_result = selector.select(
+                    all_defs, tool_selector_config,
+                    ToolSelectionContext(
+                        run_id=getattr(self, "_current_run_id", None),
+                        agent_id=getattr(self, "_current_agent_id", None),
+                        energy_reader=None,  # threaded in by harness once wired
+                        db=None,             # threaded in by harness once wired
+                    ),
+                )
+                self.supported_tools = [t.name for t in sel_result.selected]
+
             plan = self._create_plan(
                 task, temperature=planning_temperature, call_counter=call_counter
             )
@@ -714,7 +753,8 @@ class AgenticExecutor:
         )
         return result
 
-    def execute_comparison(self, task: str, tool_graph: list = None) -> Dict[str, Any]:
+    def execute_comparison(self, task: str, tool_graph: list = None,
+                            tool_selector_config: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Execute with standardized prompt for fair comparison with linear.
 
@@ -737,7 +777,8 @@ class AgenticExecutor:
 To solve this effectively, break it down into steps.
 You can use tools like calculator or web search if needed.
 """
-        return self.execute(planning_prompt, tool_graph=tool_graph)
+        return self.execute(planning_prompt, tool_graph=tool_graph,
+                             tool_selector_config=tool_selector_config)
 
     def _create_plan(
         self, task: str, temperature: float = 0.0, call_counter: int = None
@@ -874,11 +915,58 @@ You can use tools like calculator or web search if needed.
     def _dispatch_tool(self, name: str, args: Dict) -> ToolResult:
         """
         Route tool name to real implementation.
-        Instantiated per-call — tools are stateless execution primitives.
+
+        SPEC 35H Part 1: registry-first. Checks every registered
+        ToolProviderABC (BuiltinToolProvider included — it exposes all
+        six tools below under TOOL_PROVIDER_TYPE="builtin") before
+        falling through to the hardcoded tool_map. This is what makes
+        an externally pip-installed tool plugin actually reachable from
+        a running agent, closing SPEC 35G's AC-3 gap.
+
         Never raises — returns ToolResult(success=False) on unknown tool.
-        db_path passed to DatabaseQueryTool so it queries live experiments DB.
+        db_path passed via ToolExecutionContext (CR-1) so DatabaseQueryTool
+        queries the live experiments DB.
         """
         db_path = getattr(self, "db_path", "data/experiments.db")
+
+        from core.execution.tools.abc import ToolExecutionContext
+        from core.execution.tools.bootstrap import (
+            tool_registry as _tool_registry,
+            register_all_tool_providers as _register_all_tool_providers,
+        )
+        # SPEC 35H fix: unlike engines (model_factory.py registers at
+        # import time), tool_registry has no equivalent top-level call —
+        # nothing populated it until now, so this branch was silently
+        # always empty and always fell through to legacy. Idempotent
+        # (checks is_empty() internally), safe to call every time.
+        _register_all_tool_providers()
+
+        context = ToolExecutionContext(
+            db_path=db_path,
+            run_id=getattr(self, "_current_run_id", None),
+            agent_id=getattr(self, "_current_agent_id", None),
+        )
+        for provider_cls in _tool_registry.get_all().values():
+            provider = provider_cls()
+            defined_names = {t.name for t in provider.get_tools()}
+            if name in defined_names:
+                logger.debug(
+                    "AgenticExecutor: tool '%s' resolved via tool_registry "
+                    "(provider=%s)", name, provider.get_name(),
+                )
+                return provider.execute(name, args, context)
+
+        # Legacy fallback (INV-7) — reachable only if tool_registry has
+        # zero providers (bootstrap not run, or genuinely broken). Never
+        # silent: names every registered tool so the gap is obvious.
+        all_registered = [
+            t.name for p in _tool_registry.get_all().values() for t in p.get_tools()
+        ]
+        logger.warning(
+            "AgenticExecutor: tool '%s' not found in tool_registry "
+            "(registered: %s) — falling through to legacy tool_map",
+            name, all_registered,
+        )
         tool_map = {
             "calculator":     CalculatorTool(),
             "database_query": DatabaseQueryTool(db_path),
