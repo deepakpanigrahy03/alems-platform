@@ -308,21 +308,56 @@ def apply_one(conn, filepath: Path, version: int, mtype: str,
     until this one commits or rolls back."""
     checksum = sha256_file(filepath)
     cur = conn.cursor()
+    # Upsert, not blind insert. A prior attempt at this exact
+    # (version, type) may have left a 'failed' or a crashed 'running'
+    # row occupying the UNIQUE(version, type) slot — that row must
+    # never block a retry. This fixes the entire class of bug found
+    # during 35G rollout (v090 stuck on debian-vm/fedora-vm after its
+    # first failure), not just that one migration.
     cur.execute(
         "INSERT INTO migration_history "
         "(version, type, filename, checksum_sha256, tool_version, duration_ms, "
         " status, hostname, machine_id, repo_commit) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?)",
+        "VALUES (?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(version, type) DO UPDATE SET "
+        "  filename=excluded.filename, "
+        "  checksum_sha256=excluded.checksum_sha256, "
+        "  applied_at=datetime('now'), "
+        "  tool_version=excluded.tool_version, "
+        "  duration_ms=excluded.duration_ms, "
+        "  status=excluded.status, "
+        "  hostname=excluded.hostname, "
+        "  machine_id=excluded.machine_id, "
+        "  repo_commit=excluded.repo_commit",
         [version, mtype, filepath.name, checksum, TOOL_VERSION, 0,
          "running", hostname, machine_id, commit],
     )
-    record_id = cur.lastrowid
-    # commit the running marker before the migration transaction starts,
-    # so a crash mid migration is visibly distinguishable on restart
     conn.commit()
+    # cur.lastrowid is unreliable across the INSERT vs UPDATE path of an
+    # upsert on some SQLite versions — look the row up explicitly instead.
+    record_id = conn.execute(
+        "SELECT id FROM migration_history WHERE version=? AND type=?",
+        (version, mtype),
+    ).fetchone()[0]
 
     start = time.monotonic_ns()
     try:
+        # SQLite's ALTER TABLE RENAME triggers a full schema-wide view
+        # revalidation by default, not just views referencing the
+        # renamed table. v090 renames output_quality and has nothing to
+        # do with v_energy, but a stale v_energy (fixed separately —
+        # see v092) still fails the whole RENAME. legacy_alter_table
+        # disables that revalidation, matching pre-3.25 SQLite RENAME
+        # behavior. Confirmed safe here: no live view or trigger
+        # references output_quality by name on any current database
+        # (checked during 35G fleet rollout, 2026-09) — the only such
+        # reference lives in migrations/deprecated/legacy/030_chunk8_views.sql,
+        # which alems_migrate.py never discovers or applies. If a future
+        # migration adds a view/trigger that references a table being
+        # renamed in the SAME migration, that migration must recreate
+        # it explicitly afterward, since legacy_alter_table means SQLite
+        # will not do it automatically.
+        conn.execute("PRAGMA legacy_alter_table = ON")
         conn.execute("BEGIN IMMEDIATE")
         conn.executescript(filepath.read_text())
         duration_ms = (time.monotonic_ns() - start) // 1_000_000
@@ -377,6 +412,22 @@ def apply_machine_setup(conn, filepath: Path, hostname: str, machine_id, commit)
 
     start = time.monotonic_ns()
     try:
+        # SQLite's ALTER TABLE RENAME triggers a full schema-wide view
+        # revalidation by default, not just views referencing the
+        # renamed table. v090 renames output_quality and has nothing to
+        # do with v_energy, but a stale v_energy (fixed separately —
+        # see v092) still fails the whole RENAME. legacy_alter_table
+        # disables that revalidation, matching pre-3.25 SQLite RENAME
+        # behavior. Confirmed safe here: no live view or trigger
+        # references output_quality by name on any current database
+        # (checked during 35G fleet rollout, 2026-09) — the only such
+        # reference lives in migrations/deprecated/legacy/030_chunk8_views.sql,
+        # which alems_migrate.py never discovers or applies. If a future
+        # migration adds a view/trigger that references a table being
+        # renamed in the SAME migration, that migration must recreate
+        # it explicitly afterward, since legacy_alter_table means SQLite
+        # will not do it automatically.
+        conn.execute("PRAGMA legacy_alter_table = ON")
         conn.execute("BEGIN IMMEDIATE")
         conn.executescript(filepath.read_text())
         duration_ms = (time.monotonic_ns() - start) // 1_000_000
@@ -619,6 +670,22 @@ def _apply_extension_migration(
  
     start = time.monotonic_ns()
     try:
+        # SQLite's ALTER TABLE RENAME triggers a full schema-wide view
+        # revalidation by default, not just views referencing the
+        # renamed table. v090 renames output_quality and has nothing to
+        # do with v_energy, but a stale v_energy (fixed separately —
+        # see v092) still fails the whole RENAME. legacy_alter_table
+        # disables that revalidation, matching pre-3.25 SQLite RENAME
+        # behavior. Confirmed safe here: no live view or trigger
+        # references output_quality by name on any current database
+        # (checked during 35G fleet rollout, 2026-09) — the only such
+        # reference lives in migrations/deprecated/legacy/030_chunk8_views.sql,
+        # which alems_migrate.py never discovers or applies. If a future
+        # migration adds a view/trigger that references a table being
+        # renamed in the SAME migration, that migration must recreate
+        # it explicitly afterward, since legacy_alter_table means SQLite
+        # will not do it automatically.
+        conn.execute("PRAGMA legacy_alter_table = ON")
         conn.execute("BEGIN IMMEDIATE")
         conn.executescript(filepath.read_text())
         duration_ms = (time.monotonic_ns() - start) // 1_000_000

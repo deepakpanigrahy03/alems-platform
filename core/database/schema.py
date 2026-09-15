@@ -712,31 +712,80 @@ CREATE INDEX IF NOT EXISTS idx_pdr_hash
     ON platform_domain_relationships(hardware_hash, source_id, domain_id);
 """
  
-# Unified query surface — legacy RAPL rows + new normalized rows
+# Unified query surface — legacy RAPL rows + new normalized rows.
+# CORRECTED (schema.py/migrations divergence fix, see v092): this must
+# stay byte-identical to migrations/schema/v092_v_energy_view_fix.sql's
+# view body forever. If v_energy is ever changed again, change both
+# files in the same commit — this exact drift (schema.py silently
+# falling behind a migration fix) is what broke debian-vm/fedora-vm.
 CREATE_V_ENERGY_VIEW = """
 CREATE VIEW IF NOT EXISTS v_energy AS
-SELECT es.sample_id, es.run_id, es.timestamp_ns, es.interval_ns,
-    'RAPL' AS source_name, 'PACKAGE' AS domain_name, es.package_energy_uj AS energy_uj
-FROM energy_samples es WHERE es.package_energy_uj IS NOT NULL
-UNION ALL
-SELECT es.sample_id, es.run_id, es.timestamp_ns, es.interval_ns,
-    'RAPL', 'CORE', es.core_energy_uj
-FROM energy_samples es WHERE es.core_energy_uj IS NOT NULL
-UNION ALL
-SELECT es.sample_id, es.run_id, es.timestamp_ns, es.interval_ns,
-    'RAPL', 'UNCORE', es.uncore_energy_uj
-FROM energy_samples es WHERE es.uncore_energy_uj IS NOT NULL
-UNION ALL
-SELECT es.sample_id, es.run_id, es.timestamp_ns, es.interval_ns,
-    'RAPL', 'DRAM', es.dram_energy_uj
-FROM energy_samples es WHERE es.dram_energy_uj IS NOT NULL
-UNION ALL
-SELECT esv2.sample_id, esv2.run_id, esv2.timestamp_ns, esv2.interval_ns,
-    src.name AS source_name, dom.name AS domain_name, esd.energy_uj
+SELECT
+    esv2.sample_id,
+    esv2.run_id,
+    esv2.timestamp_ns,
+    esv2.interval_ns,
+    src.name                                                        AS source_name,
+    MAX(CASE WHEN esd.domain_id = 1  THEN esd.energy_uj END)       AS package_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 2  THEN esd.energy_uj END)       AS core_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 3  THEN esd.energy_uj END)       AS uncore_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 4  THEN esd.energy_uj END)       AS dram_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 5  THEN esd.energy_uj END)       AS cpu_p_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 6  THEN esd.energy_uj END)       AS cpu_e_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 7 AND esd.source_id = 2
+             THEN esd.energy_uj END)                                AS gpu_spbm_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 7 AND esd.source_id = 4
+             THEN esd.energy_uj END)                                AS gpu_dcgm_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 7 AND esd.source_id = 3
+             THEN esd.energy_uj END)                                AS gpu_nvml_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 7 AND esd.source_id = 7
+             THEN esd.energy_uj END)                                AS gpu_smi_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 7 AND esd.source_id = 8
+             THEN esd.energy_uj END)                                AS gpu_pp1_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 11 THEN esd.energy_uj END)       AS unified_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 12 THEN esd.energy_uj END)       AS cpu_apple_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 13 THEN esd.energy_uj END)       AS gpu_apple_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 15 THEN esd.energy_uj END)       AS nvlink_c2c_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 8  THEN esd.energy_uj END)       AS ccd0_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 9  THEN esd.energy_uj END)       AS ccd1_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 10 THEN esd.energy_uj END)       AS iodie_energy_uj,
+    MAX(CASE WHEN esd.domain_id = 20 THEN esd.energy_uj END)       AS dla_energy_uj
 FROM energy_samples_v2 esv2
 JOIN energy_sources        src ON src.source_id = esv2.source_id
 JOIN energy_sample_domains esd ON esd.sample_id = esv2.sample_id
-JOIN energy_domains        dom ON dom.domain_id  = esd.domain_id;
+GROUP BY
+    esv2.sample_id,
+    esv2.run_id,
+    esv2.timestamp_ns,
+    esv2.interval_ns,
+    src.name
+UNION ALL
+SELECT
+    es.sample_id,
+    es.run_id,
+    es.timestamp_ns,
+    es.interval_ns,
+    'RAPL'                  AS source_name,
+    es.pkg_energy_uj        AS package_energy_uj,
+    es.core_energy_uj,
+    es.uncore_energy_uj,
+    es.dram_energy_uj,
+    NULL                    AS cpu_p_energy_uj,
+    NULL                    AS cpu_e_energy_uj,
+    NULL                    AS gpu_spbm_energy_uj,
+    NULL                    AS gpu_dcgm_energy_uj,
+    NULL                    AS gpu_nvml_energy_uj,
+    NULL                    AS gpu_smi_energy_uj,
+    es.gpu_energy_uj        AS gpu_pp1_energy_uj,
+    NULL                    AS unified_energy_uj,
+    NULL                    AS cpu_apple_energy_uj,
+    NULL                    AS gpu_apple_energy_uj,
+    NULL                    AS nvlink_c2c_energy_uj,
+    NULL                    AS ccd0_energy_uj,
+    NULL                    AS ccd1_energy_uj,
+    NULL                    AS iodie_energy_uj,
+    NULL                    AS dla_energy_uj
+FROM energy_samples es;
 """
 CREATE_POWER_RAILS = """
 CREATE TABLE IF NOT EXISTS power_rails (
