@@ -162,9 +162,9 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
         repo_commit      TEXT,
         original_checksum TEXT,
         healed_at        TEXT,
-        UNIQUE(version, type)
+        source           TEXT DEFAULT 'core',
+        UNIQUE(version, type, source)
     );
-
     CREATE TABLE IF NOT EXISTS machine_setup_history (
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         filename        TEXT NOT NULL,
@@ -193,30 +193,50 @@ def ensure_tables(conn: sqlite3.Connection) -> None:
 # ---------------------------------------------------------------------------
 # State queries. Set based only, MAX(version) never appears (Design
 # Principle 7).
+#
+# CORE_SOURCE-scoped by construction (found 2026-09-15, shipping
+# tool_selection alongside output_quality): applied_versions(),
+# running_versions(), and applied_checksums() are core migration
+# lifecycle functions ONLY. Confirmed by repo-wide grep — every one of
+# their 9 call sites lives in this file, all in core migration code
+# paths (preflight, generate_manifest, cmd_adopt). No extension
+# migration path has ever called these; _get_pending_extension_migrations()
+# uses its own direct (source, filename) query instead. Hardcoded here
+# rather than genericized with a source parameter, specifically so a
+# future reader seeing "WHERE type = ?" does not assume this is generic
+# across namespaces and start reusing it for extension state — the
+# exact class of mistake that produced the original 90000+version
+# collision bug. See MIGRATION_HISTORY_SOURCE_SCOPED_UNIQUENESS.md.
 # ---------------------------------------------------------------------------
 
+CORE_SOURCE = "core"
+
+
 def applied_versions(conn: sqlite3.Connection, mtype: str):
+    """Return applied migration versions for CORE migrations only.
+    Never returns extension rows regardless of their type value."""
     rows = conn.execute(
-        "SELECT version FROM migration_history WHERE type=? AND status='applied'",
-        [mtype],
+        "SELECT version FROM migration_history WHERE type=? AND source=? AND status='applied'",
+        [mtype, CORE_SOURCE],
     ).fetchall()
     return {r[0] for r in rows}
 
 
 def running_versions(conn: sqlite3.Connection, mtype: str):
+    """Return running migration versions for CORE migrations only."""
     rows = conn.execute(
-        "SELECT version FROM migration_history WHERE type=? AND status='running'",
-        [mtype],
+        "SELECT version FROM migration_history WHERE type=? AND source=? AND status='running'",
+        [mtype, CORE_SOURCE],
     ).fetchall()
     return {r[0] for r in rows}
 
-
 def applied_checksums(conn: sqlite3.Connection, mtype: str):
-    """Returns {version: (filename, checksum)} for every applied record."""
+    """Returns {version: (filename, checksum)} for every applied CORE
+    migration record only — see the CORE_SOURCE note above applied_versions()."""
     rows = conn.execute(
         "SELECT version, filename, checksum_sha256 FROM migration_history "
-        "WHERE type=? AND status='applied'",
-        [mtype],
+        "WHERE type=? AND source=? AND status='applied'",
+        [mtype, CORE_SOURCE],
     ).fetchall()
     return {r[0]: (r[1], r[2]) for r in rows}
 
@@ -309,35 +329,76 @@ def apply_one(conn, filepath: Path, version: int, mtype: str,
     checksum = sha256_file(filepath)
     cur = conn.cursor()
     # Upsert, not blind insert. A prior attempt at this exact
-    # (version, type) may have left a 'failed' or a crashed 'running'
-    # row occupying the UNIQUE(version, type) slot — that row must
-    # never block a retry. This fixes the entire class of bug found
-    # during 35G rollout (v090 stuck on debian-vm/fedora-vm after its
-    # first failure), not just that one migration.
-    cur.execute(
-        "INSERT INTO migration_history "
-        "(version, type, filename, checksum_sha256, tool_version, duration_ms, "
-        " status, hostname, machine_id, repo_commit) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?) "
-        "ON CONFLICT(version, type) DO UPDATE SET "
-        "  filename=excluded.filename, "
-        "  checksum_sha256=excluded.checksum_sha256, "
-        "  applied_at=datetime('now'), "
-        "  tool_version=excluded.tool_version, "
-        "  duration_ms=excluded.duration_ms, "
-        "  status=excluded.status, "
-        "  hostname=excluded.hostname, "
-        "  machine_id=excluded.machine_id, "
-        "  repo_commit=excluded.repo_commit",
-        [version, mtype, filepath.name, checksum, TOOL_VERSION, 0,
-         "running", hostname, machine_id, commit],
-    )
-    conn.commit()
-    # cur.lastrowid is unreliable across the INSERT vs UPDATE path of an
+    # (version, type, source) may have left a 'failed' or a crashed
+    # 'running' row occupying the UNIQUE slot — that row must never
+    # block a retry. source is CORE_SOURCE here always: apply_one() is
+    # the core migration path only (extension migrations go through
+    # _apply_extension_migration(), which has its own upsert following
+    # this exact same pattern). Explicit rather than relying on the
+    # column's DEFAULT, per this file's "be explicit, don't lean on
+    # defaults for correctness-critical identity" convention — see
+    # MIGRATION_HISTORY_SOURCE_SCOPED_UNIQUENESS.md.
+    # Self-bootstrapping fallback (found 2026-09-15 applying v093 on
+    # gn100): v093 is the migration that CREATES the (version, type,
+    # source) constraint — but apply_one() must insert v093's own
+    # bookkeeping row BEFORE v093's SQL has run, meaning the OLD
+    # (version, type) constraint is still live at that exact moment.
+    # Try the new conflict target first (correct for every machine
+    # once past v093); fall back to the old one only on the specific
+    # "constraint doesn't exist yet" error, which self-resolves the
+    # instant this same call's migration SQL (v093 itself) commits.
+    # This makes every one of the 7 fleet machines bootstrap through
+    # v093 identically via a plain 'alems dev sync', no manual
+    # multi-step deploy required anywhere.
+    try:
+        cur.execute(
+            "INSERT INTO migration_history "
+            "(version, type, filename, checksum_sha256, tool_version, duration_ms, "
+            " status, hostname, machine_id, repo_commit, source) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(version, type, source) DO UPDATE SET "
+            "  filename=excluded.filename, "
+            "  checksum_sha256=excluded.checksum_sha256, "
+            "  applied_at=datetime('now'), "
+            "  tool_version=excluded.tool_version, "
+            "  duration_ms=excluded.duration_ms, "
+            "  status=excluded.status, "
+            "  hostname=excluded.hostname, "
+            "  machine_id=excluded.machine_id, "
+            "  repo_commit=excluded.repo_commit",
+            [version, mtype, filepath.name, checksum, TOOL_VERSION, 0,
+             "running", hostname, machine_id, commit, CORE_SOURCE],
+        )
+    except sqlite3.OperationalError as exc:
+        if "ON CONFLICT clause does not match" not in str(exc):
+            raise
+        print(
+            "apply_one: pre-v093 database, falling back to legacy "
+            "(version, type) conflict target for this call"
+        )
+        cur.execute(
+            "INSERT INTO migration_history "
+            "(version, type, filename, checksum_sha256, tool_version, duration_ms, "
+            " status, hostname, machine_id, repo_commit, source) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(version, type) DO UPDATE SET "
+            "  filename=excluded.filename, "
+            "  checksum_sha256=excluded.checksum_sha256, "
+            "  applied_at=datetime('now'), "
+            "  tool_version=excluded.tool_version, "
+            "  duration_ms=excluded.duration_ms, "
+            "  status=excluded.status, "
+            "  hostname=excluded.hostname, "
+            "  machine_id=excluded.machine_id, "
+            "  repo_commit=excluded.repo_commit",
+            [version, mtype, filepath.name, checksum, TOOL_VERSION, 0,
+             "running", hostname, machine_id, commit, CORE_SOURCE],
+        )
+    conn.commit()    # cur.lastrowid is unreliable across the INSERT vs UPDATE path of an
     # upsert on some SQLite versions — look the row up explicitly instead.
     record_id = conn.execute(
-        "SELECT id FROM migration_history WHERE version=? AND type=?",
-        (version, mtype),
+        "SELECT id FROM migration_history WHERE version=? AND type=? AND source=?",
+        (version, mtype, CORE_SOURCE),
     ).fetchone()[0]
 
     start = time.monotonic_ns()
@@ -652,6 +713,22 @@ def _apply_extension_migration(
     import hashlib
     import time
  
+    # FIX (2026-09-15, found shipping tool_selection alongside
+    # output_quality): version used to be 90000 + local version, with
+    # no extension identity in the number at all — every extension's
+    # e001 collided at exactly 90001 regardless of which extension it
+    # was. Now: the REAL local version number is stored (parsed
+    # straight from the e*.sql filename, same as `version` already is),
+    # and `source` — already present, already unique per extension —
+    # is what the UNIQUE(version, type, source) constraint (v093) uses
+    # to keep every extension's independent e001/e002/... sequence
+    # collision-free. Two different extensions can now both legitimately
+    # have version=1 — that's correct, not a bug. Full design:
+    # MIGRATION_HISTORY_SOURCE_SCOPED_UNIQUENESS.md.
+    #
+    # Same upsert/retry-safety pattern as apply_one() — this function
+    # previously had NONE at all, which is exactly what turned tonight's
+    # collision into an unhandled crash instead of a clean retry.
     source_key = f"ext:{ext_name}"
     checksum = sha256_file(filepath)
     cur = conn.cursor()
@@ -659,14 +736,27 @@ def _apply_extension_migration(
         "INSERT INTO migration_history "
         "(version, type, filename, checksum_sha256, tool_version, duration_ms, "
         " status, hostname, machine_id, repo_commit, source) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+        "ON CONFLICT(version, type, source) DO UPDATE SET "
+        "  filename=excluded.filename, "
+        "  checksum_sha256=excluded.checksum_sha256, "
+        "  applied_at=datetime('now'), "
+        "  tool_version=excluded.tool_version, "
+        "  duration_ms=excluded.duration_ms, "
+        "  status=excluded.status, "
+        "  hostname=excluded.hostname, "
+        "  machine_id=excluded.machine_id, "
+        "  repo_commit=excluded.repo_commit",
         [
-            90000 + version, "schema", filepath.name, checksum, TOOL_VERSION, 0,
+            version, "schema", filepath.name, checksum, TOOL_VERSION, 0,
             "running", hostname, machine_id, commit, source_key,
         ],
     )
-    record_id = cur.lastrowid
     conn.commit()
+    record_id = conn.execute(
+        "SELECT id FROM migration_history WHERE version=? AND type=? AND source=?",
+        (version, "schema", source_key),
+    ).fetchone()[0]
  
     start = time.monotonic_ns()
     try:
