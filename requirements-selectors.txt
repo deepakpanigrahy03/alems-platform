@@ -1,0 +1,6 @@
+# Optional selector-specific dependencies (SPEC 35I).
+# Not needed for core A-LEMS measurement — only required if you want
+# RetrievalToolSelector active. StaticToolSelector needs nothing here.
+
+# ── Retrieval-based tool selection (core/execution/tools/retrieval_selector.py) ──
+sentence-transformers>=3.0,<4.0

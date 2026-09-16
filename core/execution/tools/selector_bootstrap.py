@@ -57,6 +57,21 @@ def register_all_selectors() -> None:
     logger.info("selector_bootstrap: registering builtin static selector (SPEC 35H)")
     from core.execution.tools.static_selector import StaticToolSelector
     _safe_register(StaticToolSelector)
+
+    # SPEC 35I: retrieval selector, optional — only registered if
+    # sentence-transformers is actually installed (requirements-selectors.txt).
+    try:
+        from core.execution.tools.retrieval_selector import RetrievalToolSelector
+        if RetrievalToolSelector().is_available():
+            _safe_register(RetrievalToolSelector)
+        else:
+            logger.info(
+                "selector_bootstrap: RetrievalToolSelector not available "
+                "(sentence-transformers not installed) — skipping"
+            )
+    except ImportError as exc:
+        logger.debug("selector_bootstrap: RetrievalToolSelector not importable: %s", exc)
+
     register_external_selector_plugins()
     logger.info(
         "selector_bootstrap: registered %d selector(s): %s",

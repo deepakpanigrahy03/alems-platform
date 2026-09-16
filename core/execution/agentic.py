@@ -355,10 +355,9 @@ class AgenticExecutor:
                     ToolSelectionContext(
                         run_id=getattr(self, "_current_run_id", None),
                         agent_id=getattr(self, "_current_agent_id", None),
-                        energy_reader=None,  # threaded in by harness once wired
-                        db=None,             # threaded in by harness once wired
-                    ),
-                )
+                        energy_reader=getattr(self, "_energy_reader", None),
+                        db=getattr(self, "_db", None),
+                    ),                )
                 self.supported_tools = [t.name for t in sel_result.selected]
 
             plan = self._create_plan(

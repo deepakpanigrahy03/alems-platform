@@ -827,6 +827,7 @@ class ExperimentHarness:
         run_number: int = 1,
         tool_graph: list = None,
         framework_type: str = "builtin",
+        tool_selector_config: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """
         Run agentic executor with synchronized energy measurement.
@@ -898,7 +899,26 @@ class ExperimentHarness:
             framework_result = framework.execute_task(task_config, tools=[], engine=None)
             exec_result = framework_result.metadata
         else:
-            exec_result = executor.execute_comparison(task, tool_graph=tool_graph)
+            # SPEC 35I: energy_reader/db only constructed when a selector
+            # is actually configured — avoids a wasted DB connection on
+            # every default (no-selector) run, which is the common case.
+            # NOTE (deviation from CR-5's original assumption): harness.py
+            # does not hold a persistent db connection during a run —
+            # confirmed by grep, DatabaseManager is only constructed
+            # locally inside save_to_database() after the run completes.
+            # This opens a genuinely separate connection specifically for
+            # the selector rather than reusing an existing one. Safe under
+            # this project's WAL journal mode (concurrent readers/writers
+            # supported); documented here as an intentional deviation, not
+            # silently passed off as full CR-5 compliance.
+            if tool_selector_config:
+                from core.config_loader import ConfigLoader
+                from core.database.manager import DatabaseManager
+                executor._energy_reader = self.energy_engine.rapl
+                executor._db = DatabaseManager(ConfigLoader().get_db_config())
+            exec_result = executor.execute_comparison(
+                task, tool_graph=tool_graph, tool_selector_config=tool_selector_config,
+            )
 
         # t1: task boundary — agentic executor has returned, all phases complete.
         task_end_perf        = time.perf_counter()
