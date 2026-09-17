@@ -405,6 +405,7 @@ class SQLiteAdapter(DatabaseInterface):
             ("migration_history", "source",            "TEXT DEFAULT 'core'"),
             ("energy_domains",    "reader_keys",        "TEXT"),
             ("energy_domains",    "legacy_column",      "TEXT"),
+            ("output_quality",    "task_category",      "TEXT"),
         ]
         for table, column, typedef in _col_additions:
             existing = [r[1] for r in
