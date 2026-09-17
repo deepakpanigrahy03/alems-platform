@@ -549,6 +549,14 @@ energy_tier = hw.get('energy_measurement', 'unavailable')
 if energy_tier != 'direct':
     print(f'  Baseline skipped — energy_measurement={energy_tier}')
 else:
+    platform_class = hw.get('platform_class', '')
+    if platform_class in ('apple_silicon', 'intel_mac'):
+        import subprocess
+        r = subprocess.run(['sudo', '-n', 'powermetrics', '--samplers', 'cpu_power', '-n', '1', '-i', '100'],
+            capture_output=True, timeout=5)
+        if r.returncode != 0:
+            print('  Baseline skipped — powermetrics sudo not configured (run fix_permissions.sh first)')
+            sys.exit(0)
     mgr = BaselineManager()
     existing = mgr.get_latest()
     if existing:
@@ -561,8 +569,11 @@ else:
         engine = EnergyEngine(cl.get_hardware_config())
         baseline = engine.measure_idle_baseline(duration_seconds=10, num_samples=1, pre_wait_seconds=5)
         if baseline:
-            mgr.save(baseline)
-            print(f'  Baseline saved: {baseline.baseline_id}')
+            if hasattr(baseline, 'package_power_w') and baseline.package_power_w == 0.0:
+                print('  Baseline rejected — 0.000W reading invalid, skipping save')
+            else:
+                mgr.save(baseline)
+                print(f'  Baseline saved: {baseline.baseline_id}')
         else:
             print('  Baseline measurement returned None')
 " 2>/dev/null || echo "  Baseline measurement skipped (non-fatal)"
