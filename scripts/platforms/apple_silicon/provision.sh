@@ -31,16 +31,19 @@ case "$SUBCOMMAND" in
 
     permissions)
         echo "  Setting up powermetrics sudoers rule..."
-        if [ -f "${PROJECT_ROOT}/scripts/fix_permissions.sh" ]; then
+        if ! sudo -n true 2>/dev/null; then
+            echo "  ⚠️  No sudo access — powermetrics permissions not configured."
+            echo "  Ask an admin to run: sudo bash scripts/fix_permissions.sh"
+            echo "  Energy measurement will be blocked until this is done."
+        elif [ -f "${PROJECT_ROOT}/scripts/fix_permissions.sh" ]; then
             sudo bash "${PROJECT_ROOT}/scripts/fix_permissions.sh"
-            # Verify non-interactive sudo works
             if sudo -n powermetrics --samplers cpu_power -n 1 -i 100 > /dev/null 2>&1; then
-                echo "  Sudoers rule verified (non-interactive powermetrics OK)"
+                echo "  ✅ Sudoers rule verified (non-interactive powermetrics OK)"
             else
-                echo "  WARNING: sudoers rule may not be active, reopen terminal and retry"
+                echo "  ⚠️  Sudoers rule may not be active — reopen terminal and retry"
             fi
         else
-            echo "  WARNING: fix_permissions.sh not found"
+            echo "  ⚠️  fix_permissions.sh not found — skipping"
         fi
         ;;
 
