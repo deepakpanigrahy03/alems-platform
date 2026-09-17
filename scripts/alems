@@ -80,6 +80,12 @@ case "$CMD" in
                 NEEDS_YAML=$(echo "$CHANGED" | grep -qE "config/.*\.yaml|gui/report_engine/goals/" && echo "yes" || echo "no")
                 NEEDS_SEED=$(echo "$CHANGED" | grep -q "migrations/seed/" && echo "yes" || echo "no")
                 echo "  Syncing..."
+                DB_PATH=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())")
+                python3 -c "
+from core.database.sqlite_adapter import SQLiteAdapter
+db = SQLiteAdapter({'path': '${DB_PATH}'})
+db.create_tables()
+"
                 python3 scripts/tools/alems_migrate.py
                 [ "$NEEDS_YAML" = "yes" ] && python3 scripts/migrate_yaml_to_db.py || true
                 [ "$NEEDS_SEED" = "yes" ] && python3 scripts/seed_methodology.py || true
@@ -93,6 +99,13 @@ case "$CMD" in
                 # Ensure DB directory exists before running migrations
                 DB_DIR=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; import os; print(os.path.dirname(get_alems_db_path()))")
                 mkdir -p "$DB_DIR"
+                # Ensure all tables exist before migrations run
+                DB_PATH=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())")
+                python3 -c "
+from core.database.sqlite_adapter import SQLiteAdapter
+db = SQLiteAdapter({'path': '${DB_PATH}'})
+db.create_tables()
+"
                 python3 scripts/tools/alems_migrate.py
                 python3 scripts/migrate_yaml_to_db.py
                 python3 scripts/seed_methodology.py
