@@ -1,0 +1,2 @@
+# nvidia_grace platform pip deps (beyond core requirements.txt)
+nvidia-ml-py>=13.0.0

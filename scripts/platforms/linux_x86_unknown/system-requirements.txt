@@ -1,0 +1,4 @@
+# linux_x86_unknown platform additions (beyond common)
+# Best-effort — some may be absent in restricted VM environments
+linux-tools-common
+msr-tools

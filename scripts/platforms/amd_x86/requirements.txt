@@ -1,0 +1,2 @@
+# amd_x86 platform pip deps (beyond core requirements.txt)
+pynvml

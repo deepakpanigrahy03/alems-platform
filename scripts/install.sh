@@ -220,8 +220,11 @@ esac
 
 if [ "$PREREQ_FAILED" -eq 1 ]; then
     echo ""
-    echo "  ❌ Required tools missing. Fix the above then re-run:"
+    echo "  ❌ Required tools missing. Run the install hints above, then:"
     echo "     bash scripts/install.sh"
+    echo ""
+    echo "  Tip: on apt systems you can install all at once:"
+    echo "     sudo apt install -y build-essential sqlite3 ${PKG_PERF} ${PKG_MSR}"
     exit 1
 fi
 echo "  Prerequisites OK"
@@ -232,15 +235,7 @@ echo ""
 # like psutil. Install system deps first, then create venv.
 echo "[1/12] System build dependencies..."
 if [ "${OS}" = "Linux" ]; then
-    # Install dev and venv packages for the pinned Python, not system python3
-    ALEMS_PY_SHORT=$(echo "${ALEMS_PYTHON}" | sed 's/python//')
-    if command -v apt &>/dev/null; then
-        ${PKG_INSTALL} "${ALEMS_PYTHON}-dev" "${ALEMS_PYTHON}-venv" ${PKG_BUILD} 2>/dev/null || true
-    elif command -v dnf &>/dev/null; then
-        ${PKG_INSTALL} "${ALEMS_PYTHON}-devel" ${PKG_BUILD} 2>/dev/null || true
-    else
-        ${PKG_INSTALL} ${PKG_DEV} ${PKG_VENV} ${PKG_BUILD} 2>/dev/null || true
-    fi
+    ${PKG_INSTALL} ${PKG_DEV} ${PKG_VENV} ${PKG_BUILD} 2>/dev/null || true
 fi
 
 # ── Step 1b: Python venv ─────────────────────────────────────────────

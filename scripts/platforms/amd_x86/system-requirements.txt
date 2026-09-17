@@ -1,0 +1,4 @@
+# amd_x86 platform additions (beyond common)
+linux-tools-common
+linux-tools-generic
+msr-tools

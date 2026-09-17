@@ -1,0 +1,2 @@
+# linux_riscv platform additions (beyond common)
+# No additional system packages needed

@@ -1,0 +1,23 @@
+# A-LEMS Common System Dependencies
+# Installed on every Linux platform by install.sh before venv creation.
+# Mac platforms use brew and are handled separately in install.sh.
+# Do not add platform-specific packages here.
+
+# Version control and tooling
+git
+graphviz
+
+# Python foundation (system-level, venv uses pinned version separately)
+python3
+python3-pip
+python3-venv
+python3-dev
+
+# C extension compilation
+build-essential
+
+# Database CLI
+sqlite3
+
+# JSON parsing (used by fix_permissions.sh and install.sh)
+jq

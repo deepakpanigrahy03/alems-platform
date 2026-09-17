@@ -1,0 +1,3 @@
+# apple_silicon platform additions
+# Installed via brew by install.sh
+jq
