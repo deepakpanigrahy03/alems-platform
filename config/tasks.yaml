@@ -41,7 +41,7 @@ tasks:
     tool_calls: 0
     prompt: "All birds can fly. Penguins are birds. Can penguins fly? Explain briefly."
     expectation:
-      scorer_type: exact
+      scorer_type: exact_match
       expected_source: inline
       answer: "No"
     tags: ["logic"]
@@ -108,7 +108,7 @@ tasks:
     tool_calls: 0
     prompt: "Who was the first president of the United States?"
     expectation:
-      scorer_type: exact
+      scorer_type: exact_match
       expected_source: inline
       answer: "George Washington"
     tags: ["history"]
@@ -122,7 +122,7 @@ tasks:
     prompt: "What is the chemical symbol for water?"
     tags: ["science"]
     expectation:
-      scorer_type: exact
+      scorer_type: exact_match
       expected_source: inline
       answer: "H2O"
 
@@ -134,7 +134,7 @@ tasks:
     tool_calls: 0
     prompt: "What is the capital city of Japan?"
     expectation:
-      scorer_type: exact
+      scorer_type: exact_match
       expected_source: inline
       answer: "Tokyo"
     tags: ["geography"]
@@ -189,7 +189,7 @@ tasks:
     tool_calls: 0
     prompt: "Classify the sentiment (positive, negative, neutral): 'The movie was absolutely fantastic and I loved every moment.'"
     expectation:
-      scorer_type: exact
+      scorer_type: exact_match
       expected_source: inline
       answer: "positive"
     tags: ["sentiment"]
@@ -202,7 +202,7 @@ tasks:
     tool_calls: 0
     prompt: "Classify the topic (sports, politics, technology): 'The new smartphone processor offers significant improvements in performance.'"
     expectation:
-      scorer_type: exact
+      scorer_type: exact_match
       expected_source: inline
       answer: "technology"
     tags: ["nlp"]

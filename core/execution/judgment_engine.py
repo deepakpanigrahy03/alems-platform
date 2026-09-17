@@ -35,6 +35,8 @@ AUTHOR: Deepak Panigrahy (original 8.5C reconciliation logic),
 ================================================================================
 """
 
+import hashlib
+import json
 import logging
 import statistics
 from typing import List, Optional, Tuple
@@ -129,10 +131,11 @@ def judge(
 
     raw_score = statistics.mean([s for s, c, r in valid_scores]) if valid_scores else None
 
-    per_judge: List[Tuple[Optional[str], float, float, str]] = [
+    per_judge: List[Tuple[Optional[str], Optional[str], float, float, str]] = [
         (
             (models_used[i].get("model_id") if isinstance(models_used[i], dict) else models_used[i])
             or (expectation.scorer_type if hasattr(expectation, "scorer_type") else "unknown"),
+            (models_used[i].get("provider") if isinstance(models_used[i], dict) else None),
             score, confidence, reasoning,
         )
         for i, (score, confidence, reasoning) in enumerate(raw_scores)
@@ -144,6 +147,26 @@ def judge(
         normalized_score if normalized_score is not None else "None",
         score_method, n_valid,
     )
+
+    # scorer_version: stable identity string — scorer_type from the expectation
+    # plus the adapter class name. No registry lookup needed; scorer_type is
+    # the canonical registered name and is already resolved by this point.
+    _scorer_version = (
+        f"{expectation.scorer_type}:{_adapter.__class__.__name__}"
+        if expectation.scorer_type else "unknown"
+    )
+
+    # scorer_config_hash: SHA-256 (first 16 hex chars) of the exact
+    # task_quality_config row used for this call. Fingerprints category +
+    # judge_method + n_judges + judge_model_set so any researcher can
+    # reproduce the exact scoring setup for any output_quality row.
+    _config_payload = json.dumps({
+        "task_category":   task_category,
+        "judge_method":    expectation.scorer_type,
+        "n_judges":        n_judges,
+        "judge_model_set": judge_model_set,
+    }, sort_keys=True)
+    _scorer_config_hash = hashlib.sha256(_config_payload.encode()).hexdigest()[:16]
 
     return JudgmentComputation(
         result=JudgmentResult(
@@ -163,6 +186,8 @@ def judge(
         raw_score=raw_score,
         per_judge=per_judge,
         energy_uj_at_judgment=energy_uj,
+        scorer_version=_scorer_version,
+        scorer_config_hash=_scorer_config_hash,
         expected_output=expected_value_seen or None,  # SPEC 35J Bug 2 fixed:
                                 # now populated from ScoreResult.expected_value.
         actual_output=model_output,

@@ -76,5 +76,7 @@ class JudgmentComputation:
     raw_score: Optional[float]
     per_judge: List[Tuple[Optional[str], float, float, str]] = field(default_factory=list)
     energy_uj_at_judgment: Optional[int] = None
+    scorer_version: Optional[str] = None
+    scorer_config_hash: Optional[str] = None
     expected_output: Optional[str] = None
     actual_output: Optional[str] = None

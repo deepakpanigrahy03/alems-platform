@@ -92,7 +92,21 @@ _UNSCORED_SQL = """
       AND oq.quality_id  IS NULL
       AND li.response    IS NOT NULL
       AND li.response    != ''
-    ORDER BY li.interaction_id DESC
+      AND li.interaction_id = (
+          SELECT MAX(interaction_id) FROM llm_interactions
+          WHERE run_id        = ga.run_id
+            AND workflow_type = ge.workflow_type
+            AND step_index    = (
+                SELECT MAX(step_index) FROM llm_interactions
+                WHERE run_id        = ga.run_id
+                  AND workflow_type = ge.workflow_type
+            )
+      )
+    ORDER BY
+        CASE WHEN li.response LIKE 'Error:%' OR li.response LIKE '429%'
+                  OR li.response LIKE '502%' OR li.response LIKE '503%'
+             THEN 1 ELSE 0 END ASC,
+        ga.attempt_id ASC
 """
 
 _ONE_GOAL_SQL = """

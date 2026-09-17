@@ -84,13 +84,14 @@ class OutputQualityExtension:
         for its own control flow.
         """
         quality_id = self._insert_output_quality(conn, attempt_id, goal_id, computation)
-        for model, score, confidence, reasoning in computation.per_judge:
+        for model, provider, score, confidence, reasoning in computation.per_judge:
             self._insert_judge_row(
                 conn=conn,
                 quality_id=quality_id,
                 attempt_id=attempt_id,
                 goal_id=goal_id,
                 judge_model=model or computation.judge_method,
+                judge_provider=provider,
                 judge_score=score,
                 judge_confidence=confidence,
                 judge_reasoning=reasoning,
@@ -130,8 +131,8 @@ class OutputQualityExtension:
                 computation.expected_output,
                 computation.actual_output,
                 computation.energy_uj_at_judgment,
-                None,  # scorer_version — TODO: source from scorer registry metadata
-                None,  # scorer_config_hash — TODO: hash resolved config
+                computation.scorer_version,
+                computation.scorer_config_hash,
             ),
         )
         return cur.lastrowid
@@ -143,25 +144,20 @@ class OutputQualityExtension:
         attempt_id: int,
         goal_id: int,
         judge_model: str,
-        judge_score: float,
-        judge_confidence: float,
-        judge_reasoning: str,
+        judge_provider: str = None,
+        judge_score: float = 0.0,
+        judge_confidence: float = 0.0,
+        judge_reasoning: str = "",
     ) -> None:
-        """
-        INSERT one output_quality_judges row. Real schema has additional
-        columns (judge_provider, judge_version, judge_temperature,
-        judge_prompt_hash) not populated by the original quality_judge.py
-        either — left NULL here for parity, not a regression.
-        """
         conn.execute(
             """
             INSERT INTO output_quality_judges
-                (quality_id, attempt_id, goal_id, judge_model,
+                (quality_id, attempt_id, goal_id, judge_model, judge_provider,
                  judge_score, judge_confidence, judge_reasoning, judged_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             """,
             (
-                quality_id, attempt_id, goal_id, judge_model,
+                quality_id, attempt_id, goal_id, judge_model, judge_provider,
                 judge_score, judge_confidence, judge_reasoning,
             ),
         )

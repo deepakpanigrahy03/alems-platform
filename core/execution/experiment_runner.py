@@ -1964,6 +1964,10 @@ class ExperimentRunner:
                 # SPBM samples — EnergySampleV2 list, empty on non-GN100 platforms
             if "spbm_samples" in result and result["spbm_samples"]:
                 db.insert_energy_samples_v2(run_id, result["spbm_samples"])
+            # Backward compat — old tuple-format samples from pre-chunk-2 harness versions.
+            # save_pair() handles these on both sides; save_single() must match.
+            if "legacy_samples" in result and result["legacy_samples"]:
+                db.insert_energy_samples(run_id, result["legacy_samples"])
             if "rail_result" in result and result["rail_result"]:
                 try:
                     db.insert_power_rail_samples(run_id, result["rail_result"].samples)
@@ -2001,6 +2005,62 @@ class ExperimentRunner:
             if result.get("nic_samples"):
                 _insert_nic_samples(db, run_id, result["nic_samples"])
 
+            # 16D3: ARM — write summary cpu_samples row from PerformanceCounters.
+            # On x86, turbostat already wrote continuous rows above.
+            # On aarch64, turbostat is absent; ARMPMUReader fills PerformanceCounters.
+            # aggregate_hardware_metrics ETL reads SUM() from cpu_samples,
+            # so one summary row is sufficient for paper-level columns in runs.
+            _hw_info = self.get_hardware_info()
+            _caps_arch = (_hw_info.get('cpu_architecture') or '').lower()
+            if _caps_arch == 'aarch64':
+                _arm_row = _build_arm_cpu_sample_row(run_id, result)
+                if _arm_row:
+                    _r = db.get_run(run_id)
+                    if _r:
+                        _arm_row['sample_start_ns'] = _r.get('start_time_ns')
+                        _arm_row['sample_end_ns']   = _r.get('end_time_ns')
+                        _arm_row['timestamp_ns']    = _r.get('end_time_ns')
+                    db.insert_cpu_samples(run_id, [_arm_row])
+            elif platform.system() == 'Darwin':
+                # Darwin: one summary row from KPerfPMUReader — mirrors ARM pattern.
+                _darwin_row = _build_darwin_cpu_sample_row(run_id, result)
+                if _darwin_row:
+                    _r = db.get_run(run_id)
+                    if _r:
+                        _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
+                        _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
+                        _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
+                        _darwin_row['interval_ns'] = (
+                            (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
+                        )
+                    try:
+                        db.insert_cpu_samples(run_id, [_darwin_row])
+                    except Exception as _e:
+                        logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
+
+            # cpu_idle_states — ARM sysfs path
+            if _caps_arch == 'aarch64':
+                try:
+                    db.cpu_idle.write_from_cpuidle_sysfs(run_id, platform="grace_aarch64")
+                except Exception as _e:
+                    logger.warning("cpu_idle_states ARM insert failed (single): %s", _e)
+            else:
+                # cpu_idle_states — x86 path: prefer turbostat, fall back to cpuidle sysfs.
+                # AMD Zen 2: turbostat crashes (SIGABRT in rapl_perf_init);
+                # cpuidle sysfs verified working on AMD.
+                try:
+                    _cpu_vendor = (_hw_info.get('cpu_vendor') or 'intel').lower()
+                    _idle_platform = "amd_x86_64" if _cpu_vendor == 'amd' else "intel_x86_64"
+                    _cpu_samples_idle = result.get("cpu_samples", [])
+                    if _cpu_samples_idle:
+                        db.cpu_idle.write_from_turbostat(run_id, _cpu_samples_idle, platform=_idle_platform)
+                    elif os.path.exists("/sys/devices/system/cpu/cpu0/cpuidle/state0"):
+                        db.cpu_idle.write_from_cpuidle_sysfs(run_id, platform=_idle_platform)
+                    else:
+                        logger.info("cpu_idle_states: no turbostat data and no cpuidle sysfs, skipping")
+                except Exception as _e:
+                    logger.warning("cpu_idle_states x86 insert failed (single): %s", _e)
+
             if "interrupt_samples" in result:
                 db.insert_interrupt_samples(run_id, result["interrupt_samples"])
 
@@ -2034,6 +2094,26 @@ class ExperimentRunner:
 
             if "thermal_samples" in result:
                 db.insert_thermal_samples(run_id, result["thermal_samples"])
+                # Thermal V2: per-zone rows — mirrors save_pair() both sides.
+                try:
+                    import socket as _socket
+                    db.thermal.insert_thermal_samples_v2(
+                        run_id,
+                        result["thermal_samples"],
+                        _socket.gethostname().lower(),
+                    )
+                except Exception as _e:
+                    logger.warning("thermal_samples_v2 insert failed (single): %s", _e)
+                # 16D2a: cooling_samples — end-of-run snapshot of cooling device state.
+                try:
+                    import socket as _socket_cool
+                    _n_cool = db.cooling.snapshot_cooling_state(
+                        run_id,
+                        _socket_cool.gethostname().lower(),
+                    )
+                    logger.debug("cooling_samples: wrote %d rows for run %d", _n_cool, run_id)
+                except Exception as _e:
+                    logger.warning("cooling_samples insert failed (single): %s", _e)
                 # Aggregate hardware stats after thermal samples inserted — mirrors save_pair()
                 agg = self.aggregate_run_stats(
                     run_id,
@@ -2042,6 +2122,11 @@ class ExperimentRunner:
                     result.get("thermal_samples", []),
                 )
                 _ml = result.get("ml_features") or {}
+                # ARM: preserve frequency_mhz from INSERT when cpu_samples is empty —
+                # aggregate_run_stats returns None for cpu_avg_mhz when no rows exist.
+                if not agg.get("cpu_avg_mhz") and _ml.get("frequency_mhz"):
+                    agg["cpu_avg_mhz"]  = _ml["frequency_mhz"]
+                    agg["cpu_busy_mhz"] = _ml["frequency_mhz"]
                 _task_dur_s  = _ml.get("task_duration_sec") or 0
                 _fw_s        = _ml.get("framework_overhead_sec") or 0
                 _attr_uj     = _ml.get("attributed_energy_uj") or 0
@@ -2053,8 +2138,20 @@ class ExperimentRunner:
                 if _attr_uj and _task_dur_s:
                     agg["avg_task_power_watts"] = round(
                         _attr_uj / 1_000_000.0 / _task_dur_s, 4)
+                # IOKit coverage: compute from sample count when SPBM and phase both absent.
+                # IOKit samples at 200ms intervals (5 Hz).
+                _iokit_cov = None
+                if _spbm_cov is None and _phase_cov is None:
+                    _task_dur_ns = _ml.get("task_duration_ns") or 0
+                    _sample_count = _ml.get("energy_sample_count") or 0
+                    if _task_dur_ns > 0 and _sample_count > 0:
+                        _iokit_cov = min(
+                            (_sample_count * 200_000_000) / _task_dur_ns * 100, 100.0
+                        )
                 agg["energy_sample_coverage_pct"] = (
-                    _spbm_cov if _spbm_cov is not None else _phase_cov)
+                    _spbm_cov if _spbm_cov is not None else
+                    _phase_cov if _phase_cov is not None else
+                    _iokit_cov)
                 if agg.get("avg_task_power_watts") and _fw_s:
                     agg["framework_overhead_energy_uj"] = round(
                         agg["avg_task_power_watts"] * _fw_s * 1_000_000)
@@ -2082,6 +2179,12 @@ class ExperimentRunner:
                 for interaction in result["pending_interactions"]:
                     interaction["run_id"] = run_id
                     db.insert_llm_interaction(interaction)
+            # Network energy ETL — mirrors save_pair() call after LLM interactions.
+            try:
+                from scripts.etl.network_energy_etl import process_run as _pne
+                _pne(run_id, db.db.conn)
+            except Exception as _e:
+                logger.warning("network_energy_etl failed single run_id=%d: %s", run_id, _e)
 
             # (energy_uj/orchestration_uj now computed above, unconditionally,
             # before this thermal_samples check — see SPEC 35J note above)

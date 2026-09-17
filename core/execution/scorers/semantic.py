@@ -28,6 +28,23 @@ _EMBEDDING_CONFIDENCE = 0.85
 _TOKEN_OVERLAP_CONFIDENCE = 0.60
 
 
+_SHARED_MODEL = None
+_SHARED_UTIL = None
+_USE_EMBEDDINGS = False
+
+
+def _try_load_shared_model():
+    global _SHARED_MODEL, _SHARED_UTIL, _USE_EMBEDDINGS
+    try:
+        from sentence_transformers import SentenceTransformer, util
+        _SHARED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+        _SHARED_UTIL = util
+        _USE_EMBEDDINGS = True
+        logger.debug("SemanticScorer: sentence-transformers loaded (singleton)")
+    except ImportError:
+        logger.debug("SemanticScorer: sentence-transformers not available — using token overlap")
+
+
 class SemanticScorer(ScorerABC):
     """
     Semantic similarity scorer.
@@ -47,28 +64,10 @@ class SemanticScorer(ScorerABC):
     METRIC_TYPES = ("scalar",)
 
     def __init__(self) -> None:
-        """Try to load sentence-transformers at instantiation time."""
-        self._model = None
-        self._use_embeddings = False
-        self._try_load_model()
-
-    def _try_load_model(self) -> None:
-        """
-        Attempt to load the sentence-transformer model.
-        Silently falls back to token overlap if not available.
-        """
-        try:
-            from sentence_transformers import SentenceTransformer, util
-            self._model = SentenceTransformer("all-MiniLM-L6-v2")
-            self._util = util
-            self._use_embeddings = True
-            logger.debug("SemanticScorer: sentence-transformers loaded")
-        except ImportError:
-            # Fallback to token overlap — no external dependency.
-            logger.debug(
-                "SemanticScorer: sentence-transformers not available — "
-                "using token overlap fallback"
-            )
+        # Load shared model on first instantiation only.
+        # Subsequent instances reuse the module-level singleton.
+        if not _USE_EMBEDDINGS and _SHARED_MODEL is None:
+            _try_load_shared_model()
 
     def is_available(self) -> bool:
         """Always available — token overlap fallback requires no dependencies."""
@@ -100,7 +99,7 @@ class SemanticScorer(ScorerABC):
             if not actual or not expected:
                 return (0.0, 1.0, "empty input")
 
-            if self._use_embeddings:
+            if _USE_EMBEDDINGS:
                 return self._score_embeddings(actual, expected)
             return self._score_token_overlap(actual, expected)
 
@@ -115,9 +114,9 @@ class SemanticScorer(ScorerABC):
         for very dissimilar sentences.
         """
         try:
-            embeddings = self._model.encode([actual, expected], convert_to_tensor=True)
+            embeddings = _SHARED_MODEL.encode([actual, expected], convert_to_tensor=True)
             # cosine_similarity returns a tensor — extract scalar.
-            cosine = float(self._util.cos_sim(embeddings[0], embeddings[1]))
+            cosine = float(_SHARED_UTIL.cos_sim(embeddings[0], embeddings[1]))
             score = max(0.0, min(1.0, cosine))
             reasoning = f"embedding cosine_similarity={cosine:.4f}"
             return (score, _EMBEDDING_CONFIDENCE, reasoning)

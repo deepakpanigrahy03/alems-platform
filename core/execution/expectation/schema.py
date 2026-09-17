@@ -149,26 +149,19 @@ class Expectation:
         """
         Return the expected value for the scorer.
 
-        For exact/numeric/semantic: returns answer string.
-        For rubric: returns rubric dict.
         For structural: returns conditions list.
-        For none: returns None.
+        For all others: returns rubric dict if present, else answer string.
+        Works for any registered scorer type without hardcoding names.
         """
-        if self.scorer_type in ("exact", "numeric", "semantic"):
-            return self.answer
-        if self.scorer_type == "llm_judge":
-            # SPEC 35J: llm_judge can be configured either way — a
-            # structured rubric dict (multi-criteria scoring) or a plain
-            # answer string (simple reference-answer grading, the same
-            # pattern exact/numeric/semantic already use). Prefer rubric
-            # when both are present; fall back to answer. All 3 tasks
-            # added this session (news_summary, research_summary,
-            # keyword_extraction) use answer:, not rubric:, and were
-            # incorrectly reporting is_scoreable()=False before this fix.
-            return self.rubric if self.rubric is not None else self.answer
+        # Structural scorer needs conditions, not an answer string.
         if self.scorer_type == "structural":
             return self.conditions
-        return None
+        # Every other scorer: prefer rubric when present (llm_judge multi-criteria),
+        # fall back to answer string. No hardcoded scorer type list — works for
+        # any registered scorer without touching this file when new scorers are added.
+        if self.rubric is not None:
+            return self.rubric
+        return self.answer
 
     def requires_execution_trace(self) -> bool:
         """Return True if this expectation needs the agentic execution trace."""
