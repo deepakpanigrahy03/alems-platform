@@ -508,8 +508,10 @@ sudo ln -sf "${PROJECT_ROOT}/scripts/alems" /usr/local/bin/alems 2>/dev/null || 
 echo "  alems CLI ready. Use 'alems dev pull' instead of 'git pull'"
 # Add alems shell function to ~/.bashrc once — works for any number of checkouts
 # The function walks up from current directory to find the project root
-if ! grep -q "function alems" "${HOME}/.bashrc" 2>/dev/null; then
-    cat >> "${HOME}/.bashrc" << 'RCEOF'
+SHELL_RC="${HOME}/.bashrc"
+[ "$(uname -s)" = "Darwin" ] && SHELL_RC="${HOME}/.zshrc"
+if ! grep -q "function alems" "${SHELL_RC}" 2>/dev/null; then
+    cat >> "${SHELL_RC}" << 'RCEOF'
 # A-LEMS CLI — auto-discovers project root from current directory
 function alems() {
     local scripts="$(pwd)/scripts/alems"
@@ -521,7 +523,7 @@ function alems() {
     [ -f "$scripts" ] && bash "$scripts" "$@" || echo "Not inside an A-LEMS project"
 }
 RCEOF
-    echo "  ~/.bashrc updated with alems shell function"
+    echo "  ${SHELL_RC} updated with alems shell function"
 fi
 
 # ── Verification ─────────────────────────────────────────────────────
