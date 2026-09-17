@@ -113,6 +113,41 @@ else
     PKG_MSR="msr-tools"
 fi
 
+# ── Resolve a supported Python (3.13 > 3.12 > 3.11) ─────────────────
+# Bleeding-edge system python (3.14+) breaks C extension wheels (lxml,
+# psutil, etc.) for months after release.
+# A-LEMS pins to the newest available Python in the supported window.
+ALEMS_SUPPORTED_PYTHONS="python3.13 python3.12 python3.11"
+ALEMS_PYTHON=""
+
+for candidate in ${ALEMS_SUPPORTED_PYTHONS}; do
+    if command -v "${candidate}" &>/dev/null; then
+        ALEMS_PYTHON="${candidate}"
+        break
+    fi
+done
+
+if [ -z "${ALEMS_PYTHON}" ]; then
+    echo "  No supported Python (3.11 through 3.13) found."
+    echo "  System python3 is $(python3 --version 2>&1)."
+    echo "  Installing python3.12..."
+    if command -v apt &>/dev/null; then
+        sudo add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null || true
+        sudo apt update -qq
+        sudo apt install -y python3.12 python3.12-venv python3.12-dev
+    elif command -v dnf &>/dev/null; then
+        ${PKG_INSTALL} python3.12 python3.12-devel
+    elif command -v pacman &>/dev/null; then
+        echo "ERROR: Arch Linux detected but no python 3.11/3.12/3.13 found."
+        echo "  Install one manually: sudo pacman -S python312"
+        exit 1
+    fi
+    ALEMS_PYTHON="python3.12"
+fi
+
+ALEMS_PYTHON_VERSION=$("${ALEMS_PYTHON}" --version 2>&1)
+echo "  A-LEMS Python: ${ALEMS_PYTHON} (${ALEMS_PYTHON_VERSION})"
+
 check_tool() {
     local tool="$1"
     local required="$2"
@@ -198,16 +233,38 @@ echo ""
 # like psutil. Install system deps first, then create venv.
 echo "[1/12] System build dependencies..."
 if [ "${OS}" = "Linux" ]; then
-    ${PKG_INSTALL} ${PKG_DEV} ${PKG_VENV} ${PKG_BUILD} 2>/dev/null || true
+    # Install dev and venv packages for the pinned Python, not system python3
+    ALEMS_PY_SHORT=$(echo "${ALEMS_PYTHON}" | sed 's/python//')
+    if command -v apt &>/dev/null; then
+        ${PKG_INSTALL} "${ALEMS_PYTHON}-dev" "${ALEMS_PYTHON}-venv" ${PKG_BUILD} 2>/dev/null || true
+    elif command -v dnf &>/dev/null; then
+        ${PKG_INSTALL} "${ALEMS_PYTHON}-devel" ${PKG_BUILD} 2>/dev/null || true
+    else
+        ${PKG_INSTALL} ${PKG_DEV} ${PKG_VENV} ${PKG_BUILD} 2>/dev/null || true
+    fi
 fi
 
 # ── Step 1b: Python venv ─────────────────────────────────────────────
 echo "[1b/12] Python virtual environment..."
 if [ ! -d "venv" ]; then
-    python3 -m venv venv
-    echo "  Created venv/"
+    "${ALEMS_PYTHON}" -m venv venv
+    echo "  Created venv/ using ${ALEMS_PYTHON}"
 else
-    echo "  venv/ already exists, reusing"
+    # Verify existing venv uses a supported Python
+    VENV_PY_VERSION=$(venv/bin/python3 --version 2>&1 | awk '{print $2}')
+    VENV_PY_MINOR=$(echo "${VENV_PY_VERSION}" | cut -d. -f1,2)
+    case "${VENV_PY_MINOR}" in
+        3.11|3.12|3.13)
+            echo "  venv/ already exists (Python ${VENV_PY_VERSION}), reusing"
+            ;;
+        *)
+            echo "  WARNING: existing venv uses Python ${VENV_PY_VERSION} (unsupported)"
+            echo "  Rebuilding with ${ALEMS_PYTHON}..."
+            rm -rf venv
+            "${ALEMS_PYTHON}" -m venv venv
+            echo "  Rebuilt venv/ using ${ALEMS_PYTHON}"
+            ;;
+    esac
 fi
 # shellcheck disable=SC1091
 source venv/bin/activate
