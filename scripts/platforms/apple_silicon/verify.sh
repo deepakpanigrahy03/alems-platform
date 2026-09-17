@@ -91,7 +91,11 @@ from core.readers.darwin.iokit_power_reader import IOKitPowerReader
 r = IOKitPowerReader({})
 print('true' if r.is_available() else 'false')
 " 2>/dev/null || echo "IMPORT_FAIL")
-check "IOKitPowerReader available" "true" "$POWER_AVAIL"
+if sudo -n true 2>/dev/null; then
+    check "IOKitPowerReader available" "true" "$POWER_AVAIL"
+else
+    echo "  SKIP IOKitPowerReader available (no sudo — preflight will gate experiments)"
+fi
 
 echo ""
 

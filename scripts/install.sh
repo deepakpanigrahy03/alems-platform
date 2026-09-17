@@ -28,6 +28,14 @@ echo "  OS/Arch:  ${OS} ${ARCH}"
 echo "  Project:  ${PROJECT_ROOT}"
 echo ""
 
+# Root guard — install.sh must never run as root or with sudo.
+# Individual steps call sudo internally where needed.
+if [ "$(id -u)" = "0" ]; then
+    echo "❌ Do not run install.sh with sudo or as root."
+    echo "   Run as your normal user: bash scripts/install.sh"
+    exit 1
+fi
+
 # Pass 0: fast detection to get platform_class before venv/deps are set up.
 # Uses --stdout so no file is written yet; full detection runs in Step 4.
 echo "[0/12] Platform identification..."
