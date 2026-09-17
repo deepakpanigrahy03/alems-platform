@@ -20,6 +20,23 @@ def get_env(key):
     return None
 
 
+def check_powermetrics():
+    """Check powermetrics can run non-interactively (Mac only)."""
+    import subprocess
+    result = subprocess.run(
+        ["sudo", "-n", "powermetrics", "--samplers", "cpu_power", "-n", "1", "-i", "100"],
+        capture_output=True,
+        timeout=5,
+    )
+    if result.returncode != 0:
+        sys.exit(
+            "❌ powermetrics requires sudo access for energy measurement.\n"
+            "   Ask an admin to run: sudo bash scripts/fix_permissions.sh\n"
+            "   Then verify with: sudo -n powermetrics --samplers cpu_power -n 1 -i 100"
+        )
+    print("✅ powermetrics: OK (non-interactive sudo confirmed)")
+
+
 def check_msr():
     """Check MSR helper."""
     msr = Path("core/msr_helper/msr_read")
@@ -108,8 +125,21 @@ def check_groq(config):
 def preflight(executor, provider):
     """Run checks."""
     print("\n🔍 Pre-flight checks:\n")
-    check_msr()
     check_configs()
+
+    # Platform-specific energy measurement gate
+    import json
+    hw_config_path = Path("config/hw_config.json")
+    if hw_config_path.exists():
+        with open(hw_config_path) as f:
+            hw = json.load(f)
+        platform_class = hw.get("platform_class", "")
+        if platform_class in ("apple_silicon", "intel_mac"):
+            check_powermetrics()
+        else:
+            check_msr()
+    else:
+        check_msr()
     if provider in ("vllm_local", "vllm_remote"):
         base_url = executor.config.get("base_url", "http://localhost:8000/v1")
         check_vllm(base_url)

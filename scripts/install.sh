@@ -162,17 +162,8 @@ check_tool() {
     fi
 }
 
-# Python version and build dependencies — required on all platforms
-PY_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo "0")
-PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)" 2>/dev/null || echo "0")
-if [ "$PY_MAJOR" -lt 3 ] || [ "$PY_MINOR" -lt 9 ]; then
-    echo "  ❌ python3 >= 3.9 required (found ${PY_MAJOR}.${PY_MINOR}). Install from https://www.python.org"
-    PREREQ_FAILED=1
-elif [ "$PY_MINOR" -gt 13 ]; then
-    echo "  ⚠️  python3.${PY_MINOR} detected — supported range is 3.9-3.13. Some packages may fail."
-else
-    echo "  ✅ python3.${PY_MINOR} (supported)"
-fi
+# Python version — resolver already picked ALEMS_PYTHON in supported range
+echo "  ✅ ${ALEMS_PYTHON_VERSION} (venv target: ${ALEMS_PYTHON})"
 
 if [ "${OS}" = "Linux" ]; then
     check_tool "gcc"        "required" "${PKG_INSTALL} ${PKG_BUILD}"
@@ -413,6 +404,22 @@ echo "  DB path: ${DB_PATH}"
 
 # ── Step 6: Database init ────────────────────────────────────────────
 echo "[6/12] Database initialization..."
+
+# Guard: if DB exists but lacks the runs table, it is a partial init
+# from a previously failed install — no experiment data can exist yet.
+# Safe to remove and let create_tables() build a clean schema.
+if [ -f "${DB_PATH}" ]; then
+    HAS_RUNS_TABLE=$(sqlite3 "${DB_PATH}" \
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='runs';" \
+        2>/dev/null || echo "0")
+    if [ "${HAS_RUNS_TABLE}" = "0" ]; then
+        echo "  Partial init detected (no runs table) — resetting DB..."
+        rm -f "${DB_PATH}"
+    else
+        echo "  Existing DB verified (runs table present)"
+    fi
+fi
+
 # Clear pyc cache to ensure latest schema.py is used, not cached version
 find . -name "*.pyc" -delete 2>/dev/null || true
 find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
