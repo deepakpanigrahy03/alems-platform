@@ -284,6 +284,24 @@ class SQLiteAdapter(DatabaseInterface):
         if not self.conn:
             self.connect()
 
+        # ── MSC-5: Column additions for existing tables ───────────────
+        # Must run BEFORE any executescript so indexes on new columns
+        # don't fail on tables missing those columns.
+        _col_additions = [
+            ("migration_history", "source",         "TEXT DEFAULT 'core'"),
+            ("energy_domains",    "reader_keys",     "TEXT"),
+            ("energy_domains",    "legacy_column",   "TEXT"),
+            ("output_quality",    "task_category",   "TEXT"),
+        ]
+        for table, column, typedef in _col_additions:
+            existing = [r[1] for r in
+                self.conn.execute(f"PRAGMA table_info({table})").fetchall()]
+            if existing and column not in existing:
+                self.conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {column} {typedef}"
+                )
+        self.conn.commit()
+
         # Execute each CREATE statement in order - NO transaction wrapper
         self.conn.execute(CREATE_EXPERIMENTS)
         self.conn.executescript(CREATE_EXPERIMENT_TYPE_TRIGGERS)
@@ -395,25 +413,6 @@ class SQLiteAdapter(DatabaseInterface):
         # Created as part of core schema so it exists on every install (35D).
         self.conn.executescript(CREATE_EXTENSION_REGISTRY)        
 
-        # ── Column additions for existing tables ──────────────────────
-        # When a column is added to an existing table in schema.py,
-        # add it here too. CREATE TABLE IF NOT EXISTS skips existing
-        # tables so new columns never reach old DBs without this block.
-        # Pattern: check PRAGMA table_info, ALTER TABLE if missing.
-        # Safe to run on any DB age — only adds, never removes.
-        _col_additions = [
-            ("migration_history", "source",            "TEXT DEFAULT 'core'"),
-            ("energy_domains",    "reader_keys",        "TEXT"),
-            ("energy_domains",    "legacy_column",      "TEXT"),
-            ("output_quality",    "task_category",      "TEXT"),
-        ]
-        for table, column, typedef in _col_additions:
-            existing = [r[1] for r in
-                self.conn.execute(f"PRAGMA table_info({table})").fetchall()]
-            if existing and column not in existing:
-                self.conn.execute(
-                    f"ALTER TABLE {table} ADD COLUMN {column} {typedef}"
-                )
 
         # Commit explicitly (DDL should be committed)
         self.conn.commit()
