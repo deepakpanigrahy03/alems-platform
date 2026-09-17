@@ -288,10 +288,14 @@ class SQLiteAdapter(DatabaseInterface):
         # Must run BEFORE any executescript so indexes on new columns
         # don't fail on tables missing those columns.
         _col_additions = [
-            ("migration_history", "source",         "TEXT DEFAULT 'core'"),
-            ("energy_domains",    "reader_keys",     "TEXT"),
-            ("energy_domains",    "legacy_column",   "TEXT"),
-            ("output_quality",    "task_category",   "TEXT"),
+            ("migration_history",    "source",           "TEXT DEFAULT 'core'"),
+            ("energy_domains",       "reader_keys",       "TEXT"),
+            ("energy_domains",       "legacy_column",     "TEXT"),
+            ("output_quality",       "task_category",     "TEXT"),
+            ("task_quality_config",  "n_judges",          "INTEGER NOT NULL DEFAULT 1"),
+            ("task_quality_config",  "judge_model_set",   "TEXT"),
+            ("task_quality_config",  "rubric",            "TEXT"),
+            ("task_quality_config",  "success_threshold", "REAL"),
         ]
         for table, column, typedef in _col_additions:
             existing = [r[1] for r in

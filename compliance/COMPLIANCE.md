@@ -940,6 +940,17 @@ MSC-4: migrations/schema/ contains DDL only (CREATE, ALTER, DROP).
        A schema/ file with INSERT is a violation. A seed/ file with
        ALTER TABLE is a violation.
 
+MSC-5: Adding a column to any table in schema.py requires two changes:
+       1. New migration: ALTER TABLE <table> ADD COLUMN <col> <type>
+       2. Entry in _col_additions block in create_tables() in sqlite_adapter.py
+       Missing step 1 breaks existing DBs. Missing step 2 breaks fresh installs.
+       Neither step alone is sufficient.
+
+MSC-6: Data migrations must never use SELECT * when copying between tables.
+       Always use explicit column lists.
+       SELECT * assumes column count which varies per machine history.
+       Violation = migration fails on machines with different column histories.
+       
 ## 16. Migration System (Database Changes)
 Any DB schema change MUST follow compliance/MIGRATION_GUIDE.md before touching any migration file.
  
