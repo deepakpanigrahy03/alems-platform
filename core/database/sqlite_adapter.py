@@ -57,7 +57,7 @@ from .schema import (CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALI
                      CREATE_EXPERIMENTS, CREATE_EXPERIMENT_TYPE_TRIGGERS,CREATE_HARDWARE_CONFIG,
                      CREATE_GOAL_EXECUTION, CREATE_GOAL_ATTEMPT,CREATE_ETL_QUEUE,
                      CREATE_RETRY_POLICY, CREATE_TASK_RETRY_OVERRIDE,
-                     CREATE_HALLUCINATION_EVENTS, CREATE_OUTPUT_QUALITY, CREATE_OUTPUT_QUALITY_JUDGES,
+                     CREATE_HALLUCINATION_EVENTS, CREATE_OUTPUT_QUALITY, CREATE_OUTPUT_QUALITY_JUDGES, CREATE_GOAL_OUTPUT,
                      CREATE_TOOL_FAILURE_EVENTS,CREATE_TASK_QUALITY_CONFIG,
                      CREATE_IDLE_BASELINES, CREATE_INTERRUPT_SAMPLES,
                      CREATE_LLM_INTERACTIONS, CREATE_ML_VIEW,
@@ -297,6 +297,7 @@ class SQLiteAdapter(DatabaseInterface):
         self.conn.executescript(CREATE_OUTPUT_QUALITY)
         self.conn.executescript(CREATE_OUTPUT_QUALITY_JUDGES) 
         self.conn.executescript(CREATE_TASK_QUALITY_CONFIG)
+        self.conn.executescript(CREATE_GOAL_OUTPUT)
         self.conn.executescript(CREATE_OUTLIER_DETECTION_CONFIG)
         self.conn.executescript(CREATE_RUN_OUTLIERS)
         self.conn.executescript(CREATE_ANALYSIS_DOMAIN_CONFIG)
@@ -393,6 +394,25 @@ class SQLiteAdapter(DatabaseInterface):
         # Extension registry table — tracks activated research extensions per machine.
         # Created as part of core schema so it exists on every install (35D).
         self.conn.executescript(CREATE_EXTENSION_REGISTRY)        
+
+        # ── Column additions for existing tables ──────────────────────
+        # When a column is added to an existing table in schema.py,
+        # add it here too. CREATE TABLE IF NOT EXISTS skips existing
+        # tables so new columns never reach old DBs without this block.
+        # Pattern: check PRAGMA table_info, ALTER TABLE if missing.
+        # Safe to run on any DB age — only adds, never removes.
+        _col_additions = [
+            ("migration_history", "source",            "TEXT DEFAULT 'core'"),
+            ("energy_domains",    "reader_keys",        "TEXT"),
+            ("energy_domains",    "legacy_column",      "TEXT"),
+        ]
+        for table, column, typedef in _col_additions:
+            existing = [r[1] for r in
+                self.conn.execute(f"PRAGMA table_info({table})").fetchall()]
+            if existing and column not in existing:
+                self.conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN {column} {typedef}"
+                )
 
         # Commit explicitly (DDL should be committed)
         self.conn.commit()
