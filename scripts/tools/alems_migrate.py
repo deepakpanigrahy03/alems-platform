@@ -1179,6 +1179,13 @@ def main() -> int:
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
 
+    # Bootstrap guard: machines below v089 lack the source column in
+    # migration_history. Add it before any query references it.
+    _mh_cols = [r[1] for r in conn.execute("PRAGMA table_info(migration_history)").fetchall()]
+    if _mh_cols and 'source' not in _mh_cols:
+        conn.execute("ALTER TABLE migration_history ADD COLUMN source TEXT DEFAULT 'core'")
+        conn.commit()
+
     try:
         if args.check:
             return cmd_check(conn)
