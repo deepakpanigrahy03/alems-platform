@@ -47,6 +47,7 @@ nav:
     - Adding a Provider: developer/adding-a-provider.md
     - Adding a Model: developer/adding-a-model.md
     - Adding a Task: developer/adding-a-task.md
+    - Adding a Tool Provider: developer/adding-a-tool-provider.md
     - Model Factory: developer/model-factory.md
     - Configuration Hierarchy: developer/config-hierarchy.md
     - kperf PMU: developer/kperf-pmu.md

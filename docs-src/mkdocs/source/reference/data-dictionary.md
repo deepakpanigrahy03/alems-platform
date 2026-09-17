@@ -1,8 +1,8 @@
 # Data Dictionary
 
-Auto-generated from the live database schema on 2026-09-13. Run `bash scripts/build-docs.sh` to regenerate after any schema migration.
+Auto-generated from the live database schema on 2026-09-16. Run `bash scripts/build-docs.sh` to regenerate after any schema migration.
 
-**71 tables · 30 views · 1092 columns**
+**74 tables · 30 views · 1128 columns**
 
 Column provenance is sourced from `core/utils/provenance.py` (`COLUMN_PROVENANCE`) and `measurement_method_registry`. Columns without a provenance entry are marked as unregistered.
 
@@ -17,72 +17,75 @@ Column provenance is sourced from `core/utils/provenance.py` (`COLUMN_PROVENANCE
 | [`audit_log`](#audit_log) | 0 | Run-level audit events — tracks metric updates and data quality changes |
 | [`component_registry`](#component_registry) | 0 | Registered system components with schema and data shape definitions |
 | [`cooling_devices`](#cooling_devices) | 27 | Cooling device inventory per platform (fans, liquid coolers) |
-| [`cooling_samples`](#cooling_samples) | 40,284 | Cooling device state and target temperature at 1Hz |
-| [`cpu_idle_states`](#cpu_idle_states) | 5,968 | CPU C-state residency data per platform |
-| [`cpu_samples`](#cpu_samples) | 276 | CPU frequency, IPC, cache counters at 10Hz |
-| [`device_telemetry`](#device_telemetry) | 501 | Generic device telemetry samples for non-standard hardware |
-| [`energy_attribution`](#energy_attribution) | 1,546 | Phase-attributed energy values per run (planning, tool, synthesis) |
+| [`cooling_samples`](#cooling_samples) | 43,308 | Cooling device state and target temperature at 1Hz |
+| [`cpu_idle_states`](#cpu_idle_states) | 6,416 | CPU C-state residency data per platform |
+| [`cpu_samples`](#cpu_samples) | 378 | CPU frequency, IPC, cache counters at 10Hz |
+| [`device_telemetry`](#device_telemetry) | 19,414 | Generic device telemetry samples for non-standard hardware |
+| [`energy_attribution`](#energy_attribution) | 1,665 | Phase-attributed energy values per run (planning, tool, synthesis) |
 | [`energy_derived_metrics`](#energy_derived_metrics) | 8,320 | Computed energy metrics derived from raw samples via ETL |
 | [`energy_domains`](#energy_domains) | 29 | Energy domain taxonomy (pkg, core, uncore, dram, gpu) |
-| [`energy_sample_domains`](#energy_sample_domains) | 3,206,530 | Domain assignments for energy samples (pkg, core, uncore, dram, gpu) |
+| [`energy_sample_domains`](#energy_sample_domains) | 3,406,132 | Domain assignments for energy samples (pkg, core, uncore, dram, gpu) |
 | [`energy_samples`](#energy_samples) | 0 | Raw RAPL/SPBM/IOKit counter reads at 100Hz |
-| [`energy_samples_v2`](#energy_samples_v2) | 336,217 | Energy samples schema v2 with domain registry integration |
+| [`energy_samples_v2`](#energy_samples_v2) | 365,666 | Energy samples schema v2 with domain registry integration |
 | [`energy_sources`](#energy_sources) | 9 | Energy source registry (rapl, spbm, iokit, dcgm, arm_pmu) |
-| [`environment_config`](#environment_config) | 67 | Software environment fingerprint — git commit, package versions |
-| [`etl_queue`](#etl_queue) | 672 | Pending and completed ETL job tracking |
-| [`eval_criteria`](#eval_criteria) | 0 | Evaluation criteria definitions for task quality assessment |
-| [`experiments`](#experiments) | 175 | One experiment per research question — parent of runs |
-| [`goal_attempt`](#goal_attempt) | 1,836 | Individual goal attempt records within goal execution sessions |
-| [`goal_execution`](#goal_execution) | 1,553 | Goal execution session records — multi-step agentic task tracking |
+| [`environment_config`](#environment_config) | 80 | Software environment fingerprint — git commit, package versions |
+| [`etl_queue`](#etl_queue) | 902 | Pending and completed ETL job tracking |
+| [`eval_criteria`](#eval_criteria) | 10 | Evaluation criteria definitions for task quality assessment |
+| [`experiments`](#experiments) | 240 | One experiment per research question — parent of runs |
+| [`extension_registry`](#extension_registry) | 11 |  |
+| [`goal_attempt`](#goal_attempt) | 1,951 | Individual goal attempt records within goal execution sessions |
+| [`goal_execution`](#goal_execution) | 1,668 | Goal execution session records — multi-step agentic task tracking |
+| [`goal_output`](#goal_output) | 15 |  |
 | [`gpu_config`](#gpu_config) | 0 | GPU configuration snapshot captured at experiment time |
-| [`gpu_samples`](#gpu_samples) | 45,130 | DCGM GPU utilization and memory (NVIDIA Grace only) |
+| [`gpu_samples`](#gpu_samples) | 64,043 | DCGM GPU utilization and memory (NVIDIA Grace only) |
 | [`hallucination_events`](#hallucination_events) | 0 | Detected hallucination events with classification and energy cost |
-| [`hardware_config`](#hardware_config) | 2 | hw_config.json snapshot captured at experiment time |
+| [`hardware_config`](#hardware_config) | 3 | hw_config.json snapshot captured at experiment time |
 | [`idle_baseline_domains`](#idle_baseline_domains) | 53 | Per-domain idle baseline power values (pkg, core, uncore, dram, gpu) |
 | [`idle_baselines`](#idle_baselines) | 11 | Idle energy baseline measurements per platform |
-| [`interrupt_samples`](#interrupt_samples) | 337,654 | Context switches and interrupt ticks at 10Hz |
-| [`io_samples`](#io_samples) | 336,075 | Disk read/write byte deltas at 10Hz |
-| [`llm_interactions`](#llm_interactions) | 7,071 | One row per LLM API call within a run |
+| [`interrupt_samples`](#interrupt_samples) | 353,574 | Context switches and interrupt ticks at 10Hz |
+| [`io_samples`](#io_samples) | 351,886 | Disk read/write byte deltas at 10Hz |
+| [`llm_interactions`](#llm_interactions) | 7,280 | One row per LLM API call within a run |
 | [`machine_setup_history`](#machine_setup_history) | 0 | Machine provisioning and configuration change history |
 | [`measurement_method_registry`](#measurement_method_registry) | 92 | Master registry of all measurement methods with formula and provenance |
-| [`measurement_methodology`](#measurement_methodology) | 109,438 | Per-run methodology audit trail — links runs to method_registry entries |
+| [`measurement_methodology`](#measurement_methodology) | 117,727 | Per-run methodology audit trail — links runs to method_registry entries |
 | [`method_references`](#method_references) | 108 | Literature citations per measurement method |
 | [`metric_analysis_domains`](#metric_analysis_domains) | 132 | Analysis domain assignments for metrics in the view system |
-| [`metric_display_registry`](#metric_display_registry) | 0 | Display configuration for all metrics in GUI and reports |
-| [`migration_history`](#migration_history) | 19 | Applied migration versions with checksums |
-| [`network_energy_attribution`](#network_energy_attribution) | 1,489 | Network wait energy attribution per run and phase |
-| [`nic_samples`](#nic_samples) | 307,647 | Network interface byte and packet counters at 10Hz |
-| [`normalization_factors`](#normalization_factors) | 1,554 | Grid intensity and environmental conversion factors per country |
-| [`orchestration_events`](#orchestration_events) | 2,756 | Timeline of agentic orchestration phase transitions |
-| [`orchestration_tax_summary`](#orchestration_tax_summary) | 173 | Pre-computed orchestration tax summary per experiment |
+| [`metric_display_registry`](#metric_display_registry) | 229 | Display configuration for all metrics in GUI and reports |
+| [`migration_history`](#migration_history) | 33 | Applied migration versions with checksums |
+| [`network_energy_attribution`](#network_energy_attribution) | 1,601 | Network wait energy attribution per run and phase |
+| [`nic_samples`](#nic_samples) | 474,082 | Network interface byte and packet counters at 10Hz |
+| [`normalization_factors`](#normalization_factors) | 1,673 | Grid intensity and environmental conversion factors per country |
+| [`orchestration_events`](#orchestration_events) | 2,965 | Timeline of agentic orchestration phase transitions |
+| [`orchestration_tax_summary`](#orchestration_tax_summary) | 229 | Pre-computed orchestration tax summary per experiment |
 | [`outlier_detection_config`](#outlier_detection_config) | 11 | Outlier detection thresholds and domain rules |
-| [`output_quality`](#output_quality) | 0 | LLM output quality scores per run |
-| [`output_quality_judges`](#output_quality_judges) | 0 | Judge model configurations for LLM-as-judge quality evaluation |
-| [`page_configs`](#page_configs) | 0 | GUI page layout configurations |
+| [`output_quality`](#output_quality) | 49 | LLM output quality scores per run |
+| [`output_quality_judges`](#output_quality_judges) | 76 | Judge model configurations for LLM-as-judge quality evaluation |
+| [`page_configs`](#page_configs) | 10 | GUI page layout configurations |
 | [`page_metric_configs`](#page_metric_configs) | 0 | Metric display configurations per GUI page |
-| [`page_sections`](#page_sections) | 0 | GUI page section definitions |
+| [`page_sections`](#page_sections) | 7 | GUI page section definitions |
 | [`page_templates`](#page_templates) | 0 | GUI page template definitions |
 | [`platform_domain_relationships`](#platform_domain_relationships) | 0 | Platform-to-energy-domain mapping for cross-platform queries |
 | [`power_limit_events`](#power_limit_events) | 0 | Thermal throttle and power limit events during runs |
 | [`power_limits`](#power_limits) | 4 | Platform thermal design power limits |
-| [`power_rail_samples`](#power_rail_samples) | 275,220 | SPBM per-rail power readings (NVIDIA Grace only) |
+| [`power_rail_samples`](#power_rail_samples) | 465,490 | SPBM per-rail power readings (NVIDIA Grace only) |
 | [`power_rails`](#power_rails) | 10 | SPBM power rail definitions (NVIDIA Grace only) |
-| [`query_registry`](#query_registry) | 0 | All SQL queries — no SQL hardcoded in application code |
+| [`query_registry`](#query_registry) | 31 | All SQL queries — no SQL hardcoded in application code |
 | [`retry_policy`](#retry_policy) | 3 | Retry behavior configuration per failure type |
 | [`run_outliers`](#run_outliers) | 22 | Outlier detection results per run with classification and severity |
-| [`run_power_limits`](#run_power_limits) | 984 | Power limit state snapshots captured during runs |
-| [`run_quality`](#run_quality) | 1,554 | Composite run quality scores across multiple quality dimensions |
-| [`runs`](#runs) | 1,554 | One row per linear or agentic workflow execution (153 columns) |
-| [`schema_version`](#schema_version) | 23 | Current schema version tracking |
-| [`sqlite_sequence`](#sqlite_sequence) | 33 | SQLite internal auto-increment sequence tracking |
+| [`run_power_limits`](#run_power_limits) | 1,460 | Power limit state snapshots captured during runs |
+| [`run_quality`](#run_quality) | 1,673 | Composite run quality scores across multiple quality dimensions |
+| [`runs`](#runs) | 1,673 | One row per linear or agentic workflow execution (153 columns) |
+| [`schema_version`](#schema_version) | 27 | Current schema version tracking |
+| [`sqlite_sequence`](#sqlite_sequence) | 39 | SQLite internal auto-increment sequence tracking |
 | [`standardization_registry`](#standardization_registry) | 0 | Metric standardization parameters for cross-platform normalization |
 | [`task_categories`](#task_categories) | 65 | Task definitions loaded from config/tasks.yaml |
-| [`task_quality_config`](#task_quality_config) | 0 | Quality thresholds per task type |
+| [`task_quality_config`](#task_quality_config) | 17 | Quality thresholds per task type |
 | [`task_retry_override`](#task_retry_override) | 0 | Per-task retry policy overrides |
-| [`thermal_samples`](#thermal_samples) | 34,904 | Temperature, fan RPM, voltage at 1Hz |
-| [`thermal_samples_v2`](#thermal_samples_v2) | 29,778 | Thermal samples schema v2 with zone registry integration |
+| [`thermal_samples`](#thermal_samples) | 36,691 | Temperature, fan RPM, voltage at 1Hz |
+| [`thermal_samples_v2`](#thermal_samples_v2) | 41,636 | Thermal samples schema v2 with zone registry integration |
 | [`thermal_zones`](#thermal_zones) | 7 | Thermal zone inventory and configuration per platform |
 | [`tool_failure_events`](#tool_failure_events) | 287 | Tool execution failure events with classification and recovery data |
+| [`tool_selection_events`](#tool_selection_events) | 2 |  |
 
 ---
 
@@ -205,7 +208,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `cooling_samples`
 
-**Rows:** 40,284 — Cooling device state and target temperature at 1Hz
+**Rows:** 43,308 — Cooling device state and target temperature at 1Hz
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -220,7 +223,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `cpu_idle_states`
 
-**Rows:** 5,968 — CPU C-state residency data per platform
+**Rows:** 6,416 — CPU C-state residency data per platform
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -235,7 +238,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `cpu_samples`
 
-**Rows:** 276 — CPU frequency, IPC, cache counters at 10Hz
+**Rows:** 378 — CPU frequency, IPC, cache counters at 10Hz
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -271,7 +274,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `device_telemetry`
 
-**Rows:** 501 — Generic device telemetry samples for non-standard hardware
+**Rows:** 19,414 — Generic device telemetry samples for non-standard hardware
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -292,7 +295,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `energy_attribution`
 
-**Rows:** 1,546 — Phase-attributed energy values per run (planning, tool, synthesis)
+**Rows:** 1,665 — Phase-attributed energy values per run (planning, tool, synthesis)
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -377,7 +380,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `energy_sample_domains`
 
-**Rows:** 3,206,530 — Domain assignments for energy samples (pkg, core, uncore, dram, gpu)
+**Rows:** 3,406,132 — Domain assignments for energy samples (pkg, core, uncore, dram, gpu)
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -419,7 +422,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `energy_samples_v2`
 
-**Rows:** 336,217 — Energy samples schema v2 with domain registry integration
+**Rows:** 365,666 — Energy samples schema v2 with domain registry integration
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -445,7 +448,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `environment_config`
 
-**Rows:** 67 — Software environment fingerprint — git commit, package versions
+**Rows:** 80 — Software environment fingerprint — git commit, package versions
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -471,7 +474,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `etl_queue`
 
-**Rows:** 672 — Pending and completed ETL job tracking
+**Rows:** 902 — Pending and completed ETL job tracking
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -486,7 +489,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `eval_criteria`
 
-**Rows:** 0 — Evaluation criteria definitions for task quality assessment
+**Rows:** 10 — Evaluation criteria definitions for task quality assessment
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -503,7 +506,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `experiments`
 
-**Rows:** 175 — One experiment per research question — parent of runs
+**Rows:** 240 — One experiment per research question — parent of runs
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -538,9 +541,21 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 | 28 | `invalidated_at` | TIMESTAMP (nullable) |  |  |
 | 29 | `global_exp_id` | TEXT (nullable) |  |  |
 
+### `extension_registry`
+
+**Rows:** 11
+
+| # | Column | Type | Provenance | Note |
+|---|---|---|---|---|
+| 0 | `name` | TEXT |  |  |
+| 1 | `version` | TEXT |  |  |
+| 2 | `activated_at` | TEXT |  |  |
+| 3 | `status` | TEXT |  |  |
+| 4 | `migration_version` | TEXT (nullable) |  |  |
+
 ### `goal_attempt`
 
-**Rows:** 1,836 — Individual goal attempt records within goal execution sessions
+**Rows:** 1,951 — Individual goal attempt records within goal execution sessions
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -568,7 +583,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `goal_execution`
 
-**Rows:** 1,553 — Goal execution session records — multi-step agentic task tracking
+**Rows:** 1,668 — Goal execution session records — multi-step agentic task tracking
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -597,6 +612,21 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 | 22 | `gpu_total_energy_uj` | INTEGER (nullable) | MEASURED (silicon) | Intel Iris Xe GPU Energy via MSR 0x641 |
 | 23 | `gpu_pct_of_pkg` | REAL (nullable) | CALCULATED (silicon) | GPU Dynamic Energy via Run-Local Adaptive Idle Baseline |
 
+### `goal_output`
+
+**Rows:** 15
+
+| # | Column | Type | Provenance | Note |
+|---|---|---|---|---|
+| 0 | `goal_id` | INTEGER |  |  |
+| 1 | `run_id` | INTEGER | SYSTEM |  |
+| 2 | `attempt_id` | INTEGER |  |  |
+| 3 | `output_text` | TEXT (nullable) |  |  |
+| 4 | `output_type` | TEXT |  |  |
+| 5 | `capture_method` | TEXT |  |  |
+| 6 | `step_index` | INTEGER (nullable) |  |  |
+| 7 | `captured_at` | TEXT |  |  |
+
 ### `gpu_config`
 
 **Rows:** 0 — GPU configuration snapshot captured at experiment time
@@ -620,7 +650,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `gpu_samples`
 
-**Rows:** 45,130 — DCGM GPU utilization and memory (NVIDIA Grace only)
+**Rows:** 64,043 — DCGM GPU utilization and memory (NVIDIA Grace only)
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -667,7 +697,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `hardware_config`
 
-**Rows:** 2 — hw_config.json snapshot captured at experiment time
+**Rows:** 3 — hw_config.json snapshot captured at experiment time
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -748,7 +778,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `interrupt_samples`
 
-**Rows:** 337,654 — Context switches and interrupt ticks at 10Hz
+**Rows:** 353,574 — Context switches and interrupt ticks at 10Hz
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -772,7 +802,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `io_samples`
 
-**Rows:** 336,075 — Disk read/write byte deltas at 10Hz
+**Rows:** 351,886 — Disk read/write byte deltas at 10Hz
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -791,7 +821,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `llm_interactions`
 
-**Rows:** 7,071 — One row per LLM API call within a run
+**Rows:** 7,280 — One row per LLM API call within a run
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -883,7 +913,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `measurement_methodology`
 
-**Rows:** 109,438 — Per-run methodology audit trail — links runs to method_registry entries
+**Rows:** 117,727 — Per-run methodology audit trail — links runs to method_registry entries
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -935,7 +965,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `metric_display_registry`
 
-**Rows:** 0 — Display configuration for all metrics in GUI and reports
+**Rows:** 229 — Display configuration for all metrics in GUI and reports
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -972,7 +1002,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `migration_history`
 
-**Rows:** 19 — Applied migration versions with checksums
+**Rows:** 33 — Applied migration versions with checksums
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -990,10 +1020,11 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 | 11 | `repo_commit` | TEXT (nullable) |  |  |
 | 12 | `original_checksum` | TEXT (nullable) |  |  |
 | 13 | `healed_at` | TEXT (nullable) |  |  |
+| 14 | `source` | TEXT (nullable) |  |  |
 
 ### `network_energy_attribution`
 
-**Rows:** 1,489 — Network wait energy attribution per run and phase
+**Rows:** 1,601 — Network wait energy attribution per run and phase
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1013,7 +1044,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `nic_samples`
 
-**Rows:** 307,647 — Network interface byte and packet counters at 10Hz
+**Rows:** 474,082 — Network interface byte and packet counters at 10Hz
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1030,7 +1061,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `normalization_factors`
 
-**Rows:** 1,554 — Grid intensity and environmental conversion factors per country
+**Rows:** 1,673 — Grid intensity and environmental conversion factors per country
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1064,7 +1095,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `orchestration_events`
 
-**Rows:** 2,756 — Timeline of agentic orchestration phase transitions
+**Rows:** 2,965 — Timeline of agentic orchestration phase transitions
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1105,7 +1136,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `orchestration_tax_summary`
 
-**Rows:** 173 — Pre-computed orchestration tax summary per experiment
+**Rows:** 229 — Pre-computed orchestration tax summary per experiment
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1140,7 +1171,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `output_quality`
 
-**Rows:** 0 — LLM output quality scores per run
+**Rows:** 49 — LLM output quality scores per run
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1148,23 +1179,26 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 | 1 | `attempt_id` | INTEGER |  |  |
 | 2 | `goal_id` | INTEGER |  |  |
 | 3 | `task_id` | TEXT (nullable) |  |  |
-| 4 | `metric_type` | TEXT |  |  |
-| 5 | `raw_score` | REAL (nullable) |  |  |
-| 6 | `normalized_score` | REAL (nullable) |  |  |
-| 7 | `pass_fail` | INTEGER (nullable) |  |  |
-| 8 | `judge_method` | TEXT |  |  |
-| 9 | `judge_count` | INTEGER |  |  |
-| 10 | `agreement_score` | REAL (nullable) |  |  |
-| 11 | `score_method` | TEXT (nullable) |  |  |
-| 12 | `expected_output` | TEXT (nullable) |  |  |
-| 13 | `actual_output` | TEXT (nullable) |  |  |
-| 14 | `energy_uj_at_judgment` | INTEGER (nullable) |  |  |
-| 15 | `manual_reviewed` | INTEGER |  |  |
-| 16 | `judged_at` | TIMESTAMP |  |  |
+| 4 | `task_category` | TEXT (nullable) |  |  |
+| 5 | `metric_type` | TEXT |  |  |
+| 6 | `raw_score` | REAL (nullable) |  |  |
+| 7 | `normalized_score` | REAL (nullable) |  |  |
+| 8 | `pass_fail` | INTEGER (nullable) |  |  |
+| 9 | `judge_method` | TEXT |  |  |
+| 10 | `judge_count` | INTEGER |  |  |
+| 11 | `agreement_score` | REAL (nullable) |  |  |
+| 12 | `score_method` | TEXT (nullable) |  |  |
+| 13 | `expected_output` | TEXT (nullable) |  |  |
+| 14 | `actual_output` | TEXT (nullable) |  |  |
+| 15 | `energy_uj_at_judgment` | INTEGER (nullable) |  |  |
+| 16 | `manual_reviewed` | INTEGER |  |  |
+| 17 | `judged_at` | TIMESTAMP |  |  |
+| 18 | `scorer_version` | TEXT (nullable) |  |  |
+| 19 | `scorer_config_hash` | TEXT (nullable) |  |  |
 
 ### `output_quality_judges`
 
-**Rows:** 0 — Judge model configurations for LLM-as-judge quality evaluation
+**Rows:** 76 — Judge model configurations for LLM-as-judge quality evaluation
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1184,7 +1218,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `page_configs`
 
-**Rows:** 0 — GUI page layout configurations
+**Rows:** 10 — GUI page layout configurations
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1218,7 +1252,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `page_sections`
 
-**Rows:** 0 — GUI page section definitions
+**Rows:** 7 — GUI page section definitions
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1285,7 +1319,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `power_rail_samples`
 
-**Rows:** 275,220 — SPBM per-rail power readings (NVIDIA Grace only)
+**Rows:** 465,490 — SPBM per-rail power readings (NVIDIA Grace only)
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1313,7 +1347,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `query_registry`
 
-**Rows:** 0 — All SQL queries — no SQL hardcoded in application code
+**Rows:** 31 — All SQL queries — no SQL hardcoded in application code
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1387,7 +1421,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `run_power_limits`
 
-**Rows:** 984 — Power limit state snapshots captured during runs
+**Rows:** 1,460 — Power limit state snapshots captured during runs
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1397,7 +1431,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `run_quality`
 
-**Rows:** 1,554 — Composite run quality scores across multiple quality dimensions
+**Rows:** 1,673 — Composite run quality scores across multiple quality dimensions
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1412,7 +1446,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `runs`
 
-**Rows:** 1,554 — One row per linear or agentic workflow execution (153 columns)
+**Rows:** 1,673 — One row per linear or agentic workflow execution (153 columns)
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1572,7 +1606,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `schema_version`
 
-**Rows:** 23 — Current schema version tracking
+**Rows:** 27 — Current schema version tracking
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1582,7 +1616,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `sqlite_sequence`
 
-**Rows:** 33 — SQLite internal auto-increment sequence tracking
+**Rows:** 39 — SQLite internal auto-increment sequence tracking
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1619,7 +1653,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `task_quality_config`
 
-**Rows:** 0 — Quality thresholds per task type
+**Rows:** 17 — Quality thresholds per task type
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1630,6 +1664,10 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 | 4 | `threshold` | REAL |  |  |
 | 5 | `dual_judge` | INTEGER |  |  |
 | 6 | `created_at` | TIMESTAMP (nullable) |  |  |
+| 7 | `n_judges` | INTEGER |  |  |
+| 8 | `judge_model_set` | TEXT (nullable) |  |  |
+| 9 | `rubric` | TEXT (nullable) |  |  |
+| 10 | `success_threshold` | REAL (nullable) |  |  |
 
 ### `task_retry_override`
 
@@ -1643,7 +1681,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `thermal_samples`
 
-**Rows:** 34,904 — Temperature, fan RPM, voltage at 1Hz
+**Rows:** 36,691 — Temperature, fan RPM, voltage at 1Hz
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1666,7 +1704,7 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 
 ### `thermal_samples_v2`
 
-**Rows:** 29,778 — Thermal samples schema v2 with zone registry integration
+**Rows:** 41,636 — Thermal samples schema v2 with zone registry integration
 
 | # | Column | Type | Provenance | Note |
 |---|---|---|---|---|
@@ -1717,6 +1755,28 @@ A-LEMS maintains a set of filtered views for analysis. Views prefixed `v_runs_cl
 | 11 | `wasted_energy_uj` | REAL (nullable) |  |  |
 | 12 | `created_at` | TIMESTAMP |  |  |
 
+### `tool_selection_events`
+
+**Rows:** 2
+
+| # | Column | Type | Provenance | Note |
+|---|---|---|---|---|
+| 0 | `id` | INTEGER |  |  |
+| 1 | `run_id` | INTEGER (nullable) | SYSTEM |  |
+| 2 | `selector_type` | TEXT |  |  |
+| 3 | `available_count` | INTEGER |  |  |
+| 4 | `requested_k` | INTEGER |  |  |
+| 5 | `actual_k` | INTEGER |  |  |
+| 6 | `selected_tool_names` | TEXT (nullable) |  |  |
+| 7 | `selector_energy_uj` | INTEGER (nullable) |  |  |
+| 8 | `energy_provenance` | TEXT |  |  |
+| 9 | `duration_ns` | INTEGER (nullable) | MEASURED (application) | System Wall Clock |
+| 10 | `embedding_model` | TEXT (nullable) |  |  |
+| 11 | `embedding_dimensions` | INTEGER (nullable) |  |  |
+| 12 | `cache_hit` | INTEGER |  |  |
+| 13 | `tools_embedded_count` | INTEGER |  |  |
+| 14 | `created_at` | TEXT |  |  |
+
 ---
 
-_Generated 2026-09-13 05:06 from schema version recorded in `migration_history`._
+_Generated 2026-09-16 18:26 from schema version recorded in `migration_history`._

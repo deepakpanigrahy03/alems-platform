@@ -418,6 +418,8 @@ if [ -f "${DB_PATH}" ]; then
     if [ "${HAS_RUNS_TABLE}" = "0" ]; then
         echo "  Partial init detected (no runs table) — resetting DB..."
         rm -f "${DB_PATH}"
+        BASELINE_CACHE=$(python3 -c "from scripts.tools.path_loader import get_baseline_cache_path; print(get_baseline_cache_path())" 2>/dev/null || echo "")
+        [ -n "${BASELINE_CACHE}" ] && rm -f "${BASELINE_CACHE}" && echo "  Baseline cache cleared"
     else
         echo "  Existing DB verified (runs table present)"
     fi
@@ -520,7 +522,11 @@ function alems() {
         dir="$(dirname "$dir")"
         scripts="$dir/scripts/alems"
     done
-    [ -f "$scripts" ] && bash "$scripts" "$@" || echo "Not inside an A-LEMS project"
+    if [ -f "$scripts" ]; then
+        bash "$scripts" "$@"
+    else
+        echo "Not inside an A-LEMS project"
+    fi
 }
 RCEOF
     echo "  ${SHELL_RC} updated with alems shell function"

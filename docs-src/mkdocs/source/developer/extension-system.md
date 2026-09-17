@@ -234,6 +234,33 @@ All extensions live under `extensions/` in the platform repository.
 External plugins packaged for pip have a slightly different layout,
 covered in Section 10.
 
+### 5.2a A Note on Timing: When on_post_run() Isn't Enough
+
+`carbon_tracker` above fits `on_post_run()`'s contract perfectly — it
+only ever needs `energy_uj` from a run that has already completed and
+committed. Not every extension's data is available that late.
+
+Consider an extension that records something that happens *before* a
+run is committed — for example, which choice a pre-run decision made
+(which tool a selector picked, which route a request took). By the
+time `on_post_run()` fires, that decision already happened, and the
+information needed to record it correctly may no longer be available
+in the payload.
+
+For this case, the extension's job is narrower: own the table and the
+activation lifecycle (`get_tables()`, `get_migrations_dir()`,
+`on_activate()`/`on_deactivate()`), while the *code that made the
+decision* writes to that table directly, at decision time, reusing the
+live database connection already open for the run rather than opening
+a second one. `on_post_run()` becomes a documented no-op for this kind
+of extension — say so explicitly in the docstring, so a future reader
+doesn't wonder if something was left unfinished.
+
+This is the exception, not the default — most extensions should use
+`on_post_run()` as `carbon_tracker` does. Reach for the direct-write
+pattern only when the data genuinely doesn't exist yet at post-run
+time.
+
 ### 5.2 The Extension Class
 
 ```python

@@ -53,9 +53,17 @@ between a built-in reader and a pip-installed one.
 | `alems.engines.media` | Speech/audio serving engines |
 | `alems.platforms` | Hardware platform detection and provisioning |
 | `alems.extensions` | Post-run research extensions |
+| `alems.scorers` | Quality evaluation scorers |
+| `alems.tools` | Agentic tool providers |
+| `alems.tool_selectors` | Tool selection strategies (which tools an agent sees) |
+| `alems.frameworks` | Agent framework adapters (LangChain, CrewAI, etc.) |
+| `alems.outputs` | Export/output format adapters |
 
-Database backends, quality scorers, agentic tools, and output/export
-formats are planned for a future release using the same mechanism.
+Database backends discover external plugins the same way, but ship no
+built-in example yet beyond SQLite. Scorers, tools, tool selectors,
+frameworks, and outputs are available today — see the table above,
+and the dedicated [Adding a Tool Provider](adding-a-tool-provider.md)
+guide for a full worked example.
 
 ## Minimal plugin layout
 
@@ -114,6 +122,14 @@ class needs to declare both an identity used for registration and the
 identity used for lookup — check an existing built-in adapter class in
 the same family for the exact attribute names your base class expects.
 
+Scorers, tool providers, tool selectors, frameworks, and outputs all
+follow the engine pattern, not the reader pattern — exact identity-
+string match (`SCORER_TYPE`, `TOOL_PROVIDER_TYPE`, `SELECTOR_TYPE`,
+`FRAMEWORK_TYPE`, `OUTPUT_FORMAT`), never a capability probe. Whatever
+your task configuration names by string is exactly what gets looked
+up — there's no "best adapter for this situation" logic to satisfy in
+these families, only "does something register under this exact name."
+
 ## Testing without hardware
 
 ```bash
@@ -162,6 +178,34 @@ Valid types: `"str"`, `"int"`, `"float"`, `"bool"`.
 message if the key is absent.
 Unknown keys in the YAML section are warned and ignored.
 
+## If Your Plugin Needs New Database Tables
+
+A tool provider, scorer, framework adapter, or output format that
+needs its own table doesn't declare that table itself — it ships as,
+or alongside, an extension (see the [Extension System
+guide](extension-system.md)), since only extensions own migrations
+and activation lifecycle.
+
+`pip install`ing such a plugin never touches a database by itself —
+installation only makes your package's code and metadata visible to
+Python; nothing runs automatically. The next time `alems dev sync`
+runs on a machine, it checks every installed extension's entry point
+against that machine's `[extensions] active` list in
+`app_settings.yaml`. An installed-but-not-yet-activated extension is
+reported plainly:
+
+⚠ New extension detected: 'yourname' (installed, not active)
+Migrations pending: e001_create_yourtable.sql
+To activate: add "yourname" to app_settings.yaml [extensions] active,
+then re-run 'alems dev sync'.
+
+
+This is deliberate, not a missing feature: a research measurement
+platform should never silently change its own schema the moment a
+package lands in `site-packages`. Detection is automatic every time
+you sync; activation is always one explicit, reviewable line you add
+yourself, whenever you're ready to look at the actual migration file
+first.
 ## What A-LEMS guarantees
 
 - Your plugin cannot write to core measurement columns.

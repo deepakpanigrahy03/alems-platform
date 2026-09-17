@@ -77,53 +77,111 @@ JOIN goal_attempt ga ON he.attempt_id = ga.attempt_id
 ---
 
 ## Output Quality Normalization Methodology
-*method_id: `output_quality_normalization_v1` | confidence: 0.90*
+*method_id: `output_quality_normalization_v1` | confidence: 0.88*
 
 ### Architecture
 
 `output_quality` (parent) holds the reconciled verdict. `output_quality_judges` (child) holds one row per judge per attempt. This supports N judges without schema changes.
 
-### Agreement Score
+Since schema version 94, `output_quality` no longer enforces one row per
+attempt. Multiple rows per attempt are expected and correct: a live
+scoring row (`score_method` not `back_scored`) plus zero or more
+retroactive back-scored rows. See Re-Judging below.
 
-For two judges (scores normalized 0–1):
+### Reconciliation: Median-Deviation Bands
 
-$$\text{agreement} = 1 - |s_1 - s_2|$$
+Reconciliation is median-based, not a pairwise agreement formula. Let
+$s_1, \ldots, s_N$ be the N judges' raw scores and $m = \mathrm{median}(s_1,\ldots,s_N)$:
 
-For N judges: normalized standard deviation over child table rows.
+$$
+s_{norm} = \begin{cases}
+s_1 & N = 1 \quad (\texttt{single\_judge}) \\
+\bar{s} & N \geq 2,\ \max_i |s_i - m| \leq 0.20 \quad (\texttt{averaged}) \\
+m & N \geq 2,\ \max_i |s_i - m| \leq 0.40 \quad (\texttt{consensus\_median}) \\
+\mathrm{median}(s_{\text{agreeing}}) & N \geq 2,\ \text{exactly one } i \text{ with } |s_i - m| > 0.20 \quad (\texttt{majority\_median}) \\
+\text{NULL} & \text{otherwise} \quad (\texttt{needs\_review})
+\end{cases}
+$$
 
-### Tie-Break Logic
+`agreement_score` is a separate, simpler diagnostic, not part of the
+reconciliation decision itself: $1 - \min(1, \mathrm{stdev}(s_1,\ldots,s_N))$
+for $N \geq 2$, or $1.0$ for a single judge (trivially self-agreeing).
 
-Application layer computes `score_method` and `normalized_score` at insert time:
+Confidence 0.88, not 1.0: the tight/loose band thresholds (0.20 / 0.40)
+were chosen by design judgment, not calibrated against a labeled
+disagreement dataset. They correctly separate the cases tested this
+session (single clear outlier vs. genuine 3-way split) but have not been
+validated against a larger, independently-labeled sample of judge
+disagreements. To reach 1.0 would require such a calibration study.
 
-| Condition | `score_method` | `normalized_score` |
-|---|---|---|
-| `judge_count = 1` | `single_judge` | that judge's score |
-| `agreement >= 0.8` | `averaged` | mean of judge scores |
-| `agreement >= 0.5` | `conservative_min` | min of judge scores |
-| `agreement < 0.5` | `needs_review` | NULL |
+### Judge Model Selection
+
+Each judge call resolves its model via `task_quality_config.judge_model_set`
+(a JSON array of `{provider, model_id}` pairs, resolved through
+`ModelFactory.get_adapter()` — the same provider-resolution path used for
+every inference call on this platform, not a scorer-private HTTP client).
+Judges are assigned round-robin across the configured set: with 2 judges
+and 1 configured model, the same model is called twice (two independent
+completions, still two audited rows); with 2 judges and 2 configured
+models, each model is called once. A category with no `judge_model_set`
+configured falls back to the scorer's own default, which has no
+guaranteed reachability on every platform (verified: attempting the
+unconfigured default on a platform without a local Ollama installation
+fails outright, since it targets a fixed local endpoint).
 
 ### Analysis Exclusion
 
-Rows with `score_method = 'needs_review'` are excluded from all paper analysis queries:
+Rows with `score_method = 'needs_review'` or `score_method = 'stub_skipped'`
+are excluded from all paper analysis queries:
 
 ```sql
-WHERE score_method != 'needs_review'
+WHERE score_method NOT IN ('needs_review', 'stub_skipped')
 ```
 
-The disagreement rate (proportion of `needs_review` rows) should be reported separately in the paper as a data quality metric.
+`stub_skipped` marks a scorer that is registered but not yet implemented
+(see `ScorerABC.STATUS`) — distinct from a real judgment that failed to
+converge. The disagreement rate (proportion of `needs_review` rows,
+excluding `stub_skipped`) should be reported separately in the paper as
+a data quality metric.
 
 ### Re-Judging
 
-One row per attempt is enforced by `UNIQUE(attempt_id)`. Re-judging requires UPDATE of the existing row plus INSERT of new rows into `output_quality_judges`. Do not DELETE and re-INSERT.
+`output_quality` does not enforce one row per attempt. Live scoring
+inserts one row per attempt with `score_method` reflecting the real-time
+reconciliation outcome. Retroactive back-scoring inserts additional rows
+tagged `score_method = 'back_scored'`, never overwriting or deleting
+prior rows. The current verdict for an attempt is the most recent row:
+
+```sql
+SELECT * FROM output_quality
+WHERE attempt_id = ?
+ORDER BY judged_at DESC, quality_id DESC
+LIMIT 1;
+```
 
 ### Judge Reproducibility Fields
 
-`judge_prompt_hash`, `judge_version`, `judge_temperature`, and `judge_provider` in `output_quality_judges` enable exact reproduction of any judgment across papers. These fields are nullable until the experiment runner implements prompt hashing.
+`judge_prompt_hash`, `judge_version`, `judge_temperature`, and
+`judge_provider` in `output_quality_judges` remain nullable — prompt
+hashing is not yet implemented in the experiment runner. `judge_model`
+is populated (the resolved `model_id`, not a provider/adapter internal
+name).
 
----
+### Known Limitations
+
+- **Reconciliation bands are uncalibrated**: the 0.20/0.40 median-deviation
+  thresholds are a design choice, not derived from a labeled dataset of
+  judge disagreements. Workaround: report the `needs_review` rate
+  alongside any quality claim so a reviewer can judge threshold
+  sensitivity themselves.
+- **Round-robin repetition is not independent replication**: when
+  `judge_model_set` has fewer entries than `n_judges`, the same model is
+  called more than once. This increases judge *count* for reconciliation
+  purposes but does not increase genuine model diversity. Workaround:
+  configure `judge_model_set` with as many distinct models as `n_judges`
+  when independence matters for a specific paper claim.
 
 ## Provenance Summary
-
 | Column | Method | Type |
 |---|---|---|
 | `he.detection_confidence` | `hallucination_detection_v1` | INFERRED |
