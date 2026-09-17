@@ -31,7 +31,7 @@ from core.ontology_registry import (
     validate_hallucination_type,
     validate_detection_method,
 )
-from core.execution.quality_judge import JudgmentResult
+from core.execution.judgment_types import JudgmentResult
 
 logger = logging.getLogger(__name__)
 

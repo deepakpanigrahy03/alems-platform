@@ -320,6 +320,97 @@ def check_gaps_and_extras(applied: set, repo: set):
 # Migration application, Chunk M1 core
 # ---------------------------------------------------------------------------
 
+def _split_sql_statements(script: str) -> list:
+    """
+    Split a multi-statement SQL script into individual statements, so
+    each can be run via conn.execute() inside a real transaction.
+
+    Root cause this exists to fix: sqlite3.Connection.executescript()
+    unconditionally issues an implicit COMMIT before running, and does
+    not wrap its own statements in a transaction either — Python's own
+    docs confirm this. That means a BEGIN IMMEDIATE issued just before
+    executescript() is silently committed away before a single statement
+    of the migration runs, so a mid-script failure leaves whatever ran
+    so far permanently applied instead of rolling back. Found 2026-09-16
+    applying v094: a failed statement partway through left temp tables
+    and a dropped table behind despite the surrounding rollback logic.
+
+    Respects semicolons inside single-quoted strings, double-quoted
+    identifiers, and -- line comments, so a semicolon in a string
+    literal or a comment does not cause an incorrect split.
+    """
+    statements = []
+    current = []
+    in_single_quote = False
+    in_double_quote = False
+    in_line_comment = False
+    i = 0
+    length = len(script)
+    while i < length:
+        ch = script[i]
+        nxt = script[i + 1] if i + 1 < length else ""
+
+        if in_line_comment:
+            current.append(ch)
+            if ch == "\n":
+                in_line_comment = False
+            i += 1
+            continue
+
+        if in_single_quote:
+            current.append(ch)
+            if ch == "'" and nxt == "'":
+                current.append(nxt)
+                i += 2
+                continue
+            if ch == "'":
+                in_single_quote = False
+            i += 1
+            continue
+
+        if in_double_quote:
+            current.append(ch)
+            if ch == '"':
+                in_double_quote = False
+            i += 1
+            continue
+
+        if ch == "-" and nxt == "-":
+            in_line_comment = True
+            current.append(ch)
+            i += 1
+            continue
+
+        if ch == "'":
+            in_single_quote = True
+            current.append(ch)
+            i += 1
+            continue
+
+        if ch == '"':
+            in_double_quote = True
+            current.append(ch)
+            i += 1
+            continue
+
+        if ch == ";":
+            stmt = "".join(current).strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+            i += 1
+            continue
+
+        current.append(ch)
+        i += 1
+
+    tail = "".join(current).strip()
+    if tail:
+        statements.append(tail)
+
+    return statements
+
+
 def apply_one(conn, filepath: Path, version: int, mtype: str,
               hostname: str, machine_id, commit):
     """Applies one schema or seed migration inside one BEGIN IMMEDIATE
@@ -420,7 +511,13 @@ def apply_one(conn, filepath: Path, version: int, mtype: str,
         # will not do it automatically.
         conn.execute("PRAGMA legacy_alter_table = ON")
         conn.execute("BEGIN IMMEDIATE")
-        conn.executescript(filepath.read_text())
+        # Do NOT use conn.executescript() here — it unconditionally
+        # commits before running (see _split_sql_statements docstring),
+        # which silently defeats the BEGIN IMMEDIATE above and every
+        # rollback-on-failure path that depends on it. Run each
+        # statement individually instead, inside the real transaction.
+        for statement in _split_sql_statements(filepath.read_text()):
+            conn.execute(statement)
         duration_ms = (time.monotonic_ns() - start) // 1_000_000
         conn.execute(
             "UPDATE migration_history SET status='applied', duration_ms=? WHERE id=?",
@@ -490,7 +587,13 @@ def apply_machine_setup(conn, filepath: Path, hostname: str, machine_id, commit)
         # will not do it automatically.
         conn.execute("PRAGMA legacy_alter_table = ON")
         conn.execute("BEGIN IMMEDIATE")
-        conn.executescript(filepath.read_text())
+        # Do NOT use conn.executescript() here — it unconditionally
+        # commits before running (see _split_sql_statements docstring),
+        # which silently defeats the BEGIN IMMEDIATE above and every
+        # rollback-on-failure path that depends on it. Run each
+        # statement individually instead, inside the real transaction.
+        for statement in _split_sql_statements(filepath.read_text()):
+            conn.execute(statement)
         duration_ms = (time.monotonic_ns() - start) // 1_000_000
         conn.execute(
             "UPDATE machine_setup_history SET status='applied', duration_ms=? WHERE id=?",
@@ -777,7 +880,13 @@ def _apply_extension_migration(
         # will not do it automatically.
         conn.execute("PRAGMA legacy_alter_table = ON")
         conn.execute("BEGIN IMMEDIATE")
-        conn.executescript(filepath.read_text())
+        # Do NOT use conn.executescript() here — it unconditionally
+        # commits before running (see _split_sql_statements docstring),
+        # which silently defeats the BEGIN IMMEDIATE above and every
+        # rollback-on-failure path that depends on it. Run each
+        # statement individually instead, inside the real transaction.
+        for statement in _split_sql_statements(filepath.read_text()):
+            conn.execute(statement)
         duration_ms = (time.monotonic_ns() - start) // 1_000_000
         conn.execute(
             "UPDATE migration_history SET status='applied', duration_ms=? WHERE id=?",

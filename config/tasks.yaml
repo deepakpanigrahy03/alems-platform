@@ -28,6 +28,10 @@ tasks:
     tool_calls: 0
     prompt: "A train travels 60 miles per hour for 3 hours and then 40 miles per hour for 2 hours. What is the total distance traveled?"
     tags: ["math"]
+    expectation:
+      scorer_type: numeric
+      expected_source: inline
+      answer: "260"
 
   - id: logical_reasoning
     category: reasoning
@@ -36,6 +40,10 @@ tasks:
     level: 2
     tool_calls: 0
     prompt: "All birds can fly. Penguins are birds. Can penguins fly? Explain briefly."
+    expectation:
+      scorer_type: exact
+      expected_source: inline
+      answer: "No"
     tags: ["logic"]
 
   - id: commonsense_reasoning
@@ -45,6 +53,10 @@ tasks:
     level: 1
     tool_calls: 0
     prompt: "If you put ice in the sun for one hour, what will likely happen and why?"
+    expectation:
+      scorer_type: semantic
+      expected_source: inline
+      answer: "The ice will melt because heat from the sun raises its temperature above freezing point."
     tags: ["commonsense"]
 
 
@@ -95,6 +107,10 @@ tasks:
     level: 1
     tool_calls: 0
     prompt: "Who was the first president of the United States?"
+    expectation:
+      scorer_type: exact
+      expected_source: inline
+      answer: "George Washington"
     tags: ["history"]
 
   - id: science_qa
@@ -117,6 +133,10 @@ tasks:
     level: 1
     tool_calls: 0
     prompt: "What is the capital city of Japan?"
+    expectation:
+      scorer_type: exact
+      expected_source: inline
+      answer: "Tokyo"
     tags: ["geography"]
 
 
@@ -135,7 +155,11 @@ tasks:
 
       Artificial intelligence is transforming industries worldwide. Companies are investing heavily in AI systems to automate processes and improve efficiency. Experts believe AI adoption will continue to grow rapidly.
     tags: ["news"]
-
+    expectation:
+      scorer_type: llm_judge
+      expected_source: inline
+      answer: "A concise 3-sentence summary covering: AI is transforming industries globally, companies are investing in AI for automation and efficiency, and experts predict continued rapid AI adoption."
+  
   - id: research_summary
     category: summarization
     name: "Research Abstract Summary"
@@ -147,6 +171,10 @@ tasks:
 
       Recent studies indicate that training large language models requires significant computational resources. Energy consumption has become an important factor in evaluating AI sustainability.
     tags: ["research"]
+    expectation:
+      scorer_type: llm_judge
+      expected_source: inline
+      answer: "A summary noting that training large language models demands significant computational resources, and that energy consumption is now a key factor in assessing AI sustainability."    
 
 
 # =====================================================
@@ -160,6 +188,10 @@ tasks:
     level: 1
     tool_calls: 0
     prompt: "Classify the sentiment (positive, negative, neutral): 'The movie was absolutely fantastic and I loved every moment.'"
+    expectation:
+      scorer_type: exact
+      expected_source: inline
+      answer: "positive"
     tags: ["sentiment"]
 
   - id: topic_classification
@@ -169,6 +201,10 @@ tasks:
     level: 1
     tool_calls: 0
     prompt: "Classify the topic (sports, politics, technology): 'The new smartphone processor offers significant improvements in performance.'"
+    expectation:
+      scorer_type: exact
+      expected_source: inline
+      answer: "technology"
     tags: ["nlp"]
 
 
@@ -182,7 +218,10 @@ tasks:
     description: "Extract entities from text"
     level: 1
     tool_calls: 0
-    prompt: "Extract the person and organization names from this sentence: 'Elon Musk is the CEO of Tesla.'"
+    expectation:
+      scorer_type: semantic
+      expected_source: inline
+      answer: "Person: Elon Musk. Organization: Tesla."
     tags: ["ner"]
 
   - id: keyword_extraction
@@ -192,6 +231,10 @@ tasks:
     level: 1
     tool_calls: 0
     prompt: "Extract the top 5 keywords from this sentence: 'Artificial intelligence and machine learning are transforming healthcare and finance.'"
+    expectation:
+      scorer_type: llm_judge
+      expected_source: inline
+      answer: "artificial intelligence, machine learning, transforming, healthcare, finance"
     tags: ["keywords"]
 
 
@@ -331,7 +374,7 @@ tasks:
     expectation:
       scorer_type: numeric
       expected_source: inline
-      answer: "77.8"
+      answer: "0.778"
 
   - id: tg_sequential_2
     tier: 2

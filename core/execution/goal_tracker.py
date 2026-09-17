@@ -293,9 +293,9 @@ class GoalTracker:
         pass_fail: int,
     ) -> None:
         """
-        UPDATE goal_attempt with quality scores after QualityJudge runs.
+        UPDATE goal_attempt with quality scores after judgment_engine runs.
  
-        Called by experiment_runner after quality_judge.judge() returns.
+        Called by experiment_runner after judgment_engine.judge() returns.
         normalized_score and pass_fail are written to goal_attempt so
         the paper's core query can filter by quality without joining
         output_quality on every query.

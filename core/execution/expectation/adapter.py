@@ -108,6 +108,10 @@ class TaskExpectationAdapter:
         if expected_value is None:
             return ScoreResult.failed("expected_value_is_none")
 
+        # expected_value resolved above — carried through so callers
+        # (judgment_engine) can persist it, instead of it being computed
+        # here and silently discarded (SPEC 35J Bug 2).
+
         # Build execution trace for structural scoring.
         if expectation.requires_execution_trace():
             if agentic_result:
@@ -155,6 +159,13 @@ class TaskExpectationAdapter:
                     rubric=context.rubric,
                 )
                 result = ScoreResult(score=score, confidence=conf, reasoning=reason)
+
+            # SPEC 35J Bug 2 fix: set here, once, regardless of which path
+            # produced result — individual scorers don't know about this
+            # field, so it can't be set inside them without touching every
+            # scorer file. context.expected is the same value already
+            # resolved above and handed to every scorer via context.
+            result.expected_value = str(context.expected)
 
             logger.debug(
                 "TaskExpectationAdapter: scorer_type=%s score=%.3f confidence=%.3f",

@@ -199,6 +199,12 @@ class ScoreResult:
     confidence: float               # [0.0, 1.0]
     reasoning: str                  # human-readable explanation
     scoring_energy_uj: int = 0      # energy cost of this judge call (LLM only)
+    # SPEC 35J Bug 2: the resolved expected value was computed internally
+    # by ExpectedSourceResolver but never returned to the caller, so
+    # output_quality.expected_output was NULL for every row (31% of rows
+    # audited, found 2026-09-16). Added so judgment_engine can populate
+    # it instead of hardcoding None.
+    expected_value: str = ""
 
     @classmethod
     def failed(cls, reason: str = "scorer_failed") -> "ScoreResult":

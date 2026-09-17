@@ -102,6 +102,7 @@ COLUMN_PROVENANCE: Dict[str, Tuple[Optional[str], str]] = {
     "oq.quality_id":             ("system_metadata_v1",                 "SYSTEM"),
     "oq.attempt_id":             ("system_metadata_v1",                 "SYSTEM"),
     "oq.goal_id":                ("system_metadata_v1",                 "SYSTEM"),
+    "oq.task_id":                ("system_metadata_v1",                 "SYSTEM"),  # SPEC 35J: newly populated, Bug 1 fix
     "oq.metric_type":            ("system_metadata_v1",                 "SYSTEM"),
     "oq.judge_method":           ("system_metadata_v1",                 "SYSTEM"),
     "oq.score_method":           ("system_metadata_v1",                 "SYSTEM"),
@@ -111,19 +112,36 @@ COLUMN_PROVENANCE: Dict[str, Tuple[Optional[str], str]] = {
     "oq.raw_score":              ("output_quality_normalization_v1",    "MEASURED"),
     "oq.normalized_score":       ("output_quality_normalization_v1",    "CALCULATED"),
     "oq.agreement_score":        ("output_quality_normalization_v1",    "CALCULATED"),
+    "oq.expected_output":        ("output_quality_normalization_v1",    "SYSTEM"),  # SPEC 35J: newly populated, Bug 2 fix (was always NULL before)
     "oq.energy_uj_at_judgment":  ("goal_execution_rollup_v1",           "CALCULATED"),
+    "oq.scorer_version":         (None,                                 "SYSTEM"),  # SPEC 35J: column added, not yet populated by any code path
+    "oq.scorer_config_hash":     (None,                                 "SYSTEM"),  # SPEC 35J: column added, not yet populated by any code path
  
     # output_quality_judges table
     "oqj.judge_entry_id":        ("system_metadata_v1",                 "SYSTEM"),
     "oqj.quality_id":            ("system_metadata_v1",                 "SYSTEM"),
     "oqj.attempt_id":            ("system_metadata_v1",                 "SYSTEM"),
     "oqj.goal_id":               ("system_metadata_v1",                 "SYSTEM"),
-    "oqj.judge_model":           ("system_metadata_v1",                 "SYSTEM"),
+    "oqj.judge_model":           ("output_quality_normalization_v1",    "SYSTEM"),  # SPEC 35J: now populated via ModelFactory resolution, was always default/empty before
     "oqj.judge_provider":        ("system_metadata_v1",                 "SYSTEM"),
     "oqj.judge_version":         ("system_metadata_v1",                 "SYSTEM"),
     "oqj.judge_prompt_hash":     ("system_metadata_v1",                 "SYSTEM"),
     "oqj.judge_score":           ("output_quality_normalization_v1",    "MEASURED"),
-    "oqj.judge_confidence":      ("output_quality_normalization_v1",    "INFERRED"),  
+    "oqj.judge_confidence":      ("output_quality_normalization_v1",    "INFERRED"),
+
+    # goal_output table (SPEC 35J: new table, Problem 6 — canonical
+    # final-output record for a goal's winning attempt)
+    "go.goal_id":                ("system_metadata_v1",                 "SYSTEM"),
+    "go.run_id":                 ("system_metadata_v1",                 "SYSTEM"),
+    "go.attempt_id":             ("system_metadata_v1",                 "SYSTEM"),
+    "go.output_text":            ("goal_tracking_runtime_v1",           "SYSTEM"),
+    "go.output_type":            ("goal_tracking_runtime_v1",           "SYSTEM"),
+    "go.capture_method":         ("system_metadata_v1",                 "SYSTEM"),
+    "go.step_index":             (None,                                 "SYSTEM"),  # not populated by current write path
+    "go.captured_at":            ("system_metadata_v1",                 "SYSTEM"),
+
+    # task_quality_config table (SPEC 35J: judge_model_set newly meaningful)
+    "tqc.judge_model_set":       ("output_quality_normalization_v1",    "SYSTEM"),
     # tool_failure_events table
     "tfe.failure_id":            ("system_metadata_v1",             "SYSTEM"),
     "tfe.attempt_id":            ("system_metadata_v1",             "SYSTEM"),
@@ -563,7 +581,7 @@ METHOD_CONFIDENCE: Dict[str, float] = {
     "system_metadata_v1":       1.0,    # experiment classification metadata, no computation   
     "goal_execution_rollup_v1": 1.0,    # sum of run energies per goal, deterministic
     "goal_overhead_fraction_v1":1.0,    # overhead/total ratio, deterministic arithmetic  
-    "output_quality_normalization_v1": 0.90,  # stub — seed entry done by chunk 8.3
+    "output_quality_normalization_v1": 0.88,  # SPEC 35J: corrected median-band formula, N-judge reconciliation live for first time
     "output_quality_judge_v2":         0.90,  # N-judge median reconciliation (8.5C)
     "quality_config_seed_v1":          1.0,   # system config seed — deterministic 
     "hallucination_detection_v1":      0.85,  # detection confidence + similarity signals

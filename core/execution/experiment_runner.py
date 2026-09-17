@@ -55,15 +55,23 @@ import scripts.etl.goal_execution_etl as goal_execution_etl
 import scripts.etl.energy_attribution_etl as energy_attribution_etl
 from core.extensions.manager import ExtensionManager
 from core.extensions.abc import PostRunPayload
-from core.execution.quality_judge import QualityJudge
 from core.execution.hallucination_detector import HallucinationDetector
 from core.execution.expectation.schema import Expectation
 from core.execution.expectation.adapter import TaskExpectationAdapter
+from core.execution import judgment_engine
+from core.execution.judgment_types import JudgmentResult
+from extensions.output_quality.extension import OutputQualityExtension
  
 # Module-level singletons — stateless, safe to reuse across attempts.
-_quality_judge = QualityJudge()
+# QualityJudge/quality_judge.py removed (SPEC 35J): confirmed zero live
+# call sites this session — dead code, never actually invoked in
+# production despite its docstring claiming otherwise. The real live
+# scoring path was always TaskExpectationAdapter -> ScorerRegistry,
+# with raw SQL hand-written below (also fixed by this change, see the
+# score_result block further down).
 _hallucination_detector = HallucinationDetector()
 _expectation_adapter = TaskExpectationAdapter()
+_output_quality_extension = OutputQualityExtension()
 from core.execution.retry_coordinator import RetryCoordinator, ExecutionResult
 from core.execution.failure_classifier import FailureClassifier
 from core.execution.failure_injector import FailureInjector
@@ -231,6 +239,7 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
         # Extract task metadata.
         task_meta = result.get("task_meta", {}) or {}
         task_category = task_meta.get("category") or result.get("task_category")
+        task_id_value = task_meta.get("id") or result.get("task_id")
 
         # Resolve expectation — explicit block takes priority, then auto-detect
         # from expected_answer at top level. 42 existing tasks use expected_answer.
@@ -278,96 +287,73 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
  
             # Score via TaskExpectationAdapter.
             try:
-                score_result = _expectation_adapter.score(
+                # SPEC 35J: judgment_engine.judge() wraps TaskExpectationAdapter
+                # (the real live scorer path) with N-judge reconciliation from
+                # task_quality_config.n_judges — previously configured but never
+                # honored anywhere live (TaskExpectationAdapter.score() only
+                # ever made one call). This is the first time n_judges takes
+                # effect. Falls back to n_judges=1 if no config row exists,
+                # matching today's real single-call behavior exactly.
+                computation = judgment_engine.judge(
+                    conn=conn,
+                    task_category=task_category,
+                    task_id_value=task_id_value,
                     expectation=expectation,
                     model_output=actual_output,
                     agentic_result=result if workflow_type == "agentic" else None,
+                    energy_uj=energy_uj,
                 )
-                print(f"DBG score: attempt={attempt_id} score={score_result.score} reason={score_result.reasoning[:80]}")
+                print(f"DBG score: attempt={attempt_id} score={computation.result.normalized_score} method={computation.result.score_method}")
             except Exception as _se:
-
+                logger.error("judgment_engine.judge raised for attempt_id=%d: %s", attempt_id, _se)
                 continue
- 
 
-            # Map scorer_type to DB-allowed judge_method values.
-            # output_quality CHECK: exact_match, semantic, llm_judge, unit_test.
-            _judge_method_map = {
-                "numeric": "exact_match",
-                "exact":   "exact_match",
-                "semantic": "semantic",
-                "rubric":  "llm_judge",
-                "structural": "exact_match",
-            }
-            db_judge_method = _judge_method_map.get(
-                expectation.scorer_type, "exact_match"
-            )
+            pass_fail = computation.result.pass_fail
 
-            # Map ScoreResult to JudgmentResult for DB writes via QualityJudge.
-            from core.execution.quality_judge import JudgmentResult
-            threshold = 0.7  # default acceptance threshold
-            pass_fail = None
-            if score_result.score is not None and score_result.reasoning != "no_expectation_defined":
-                pass_fail = 1 if score_result.score >= threshold else 0
- 
-            # Write to output_quality directly.
-            cur = conn.execute(
-                """
-                INSERT OR REPLACE INTO output_quality
-                    (attempt_id, goal_id, task_category, metric_type,
-                     raw_score, normalized_score, pass_fail,
-                     judge_method, judge_count, score_method,
-                     expected_output, actual_output,
-                     energy_uj_at_judgment, manual_reviewed, judged_at)
-                VALUES (?, ?, ?, 'scalar', ?, ?, ?, ?, 1, 'single_judge',
-                        ?, ?, ?, 0, datetime('now'))
-                """,
-                (
-                    attempt_id, goal_id, task_category,
-                    score_result.score, score_result.score, pass_fail,
-                    db_judge_method,
-                    str(expectation.get_expected_value())[:500] if expectation.get_expected_value() else None,
-                    actual_output[:500] if actual_output else None,
-                    energy_uj,
-                ),
-            )
-            quality_id = cur.lastrowid
-            conn.commit()
- 
-            # Write judge evidence row.
-            conn.execute(
-                """
-                INSERT INTO output_quality_judges
-                    (quality_id, attempt_id, goal_id, judge_model,
-                     judge_score, judge_confidence, judge_reasoning, judged_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                """,
-                (
-                    quality_id, attempt_id, goal_id,
-                    expectation.scorer_type,
-                    score_result.score, score_result.confidence,
-                    score_result.reasoning[:500] if score_result.reasoning else "",
-                ),
-            )
-            conn.commit()
- 
-            # Update goal_attempt quality columns.
+            # SPEC 35J (INV-3 fix): output_quality/output_quality_judges are
+            # extension-owned tables. This used to be hand-written INSERT/UPDATE
+            # SQL directly in this core file — a real architectural violation,
+            # found and fixed this session. OutputQualityExtension.persist()
+            # is now the only code that writes to these two tables.
+            try:
+                quality_id = _output_quality_extension.persist(
+                    conn=conn,
+                    attempt_id=attempt_id,
+                    goal_id=goal_id,
+                    computation=computation,
+                )
+            except Exception as _pe:
+                logger.error("OutputQualityExtension.persist failed for attempt_id=%d: %s", attempt_id, _pe)
+                quality_id = None
+
+            # goal_attempt is core — core still owns this write directly,
+            # unlike output_quality (extension-owned). Unchanged from before.
             conn.execute(
                 "UPDATE goal_attempt SET normalized_score=?, pass_fail=? "
                 "WHERE attempt_id=?",
-                (score_result.score, pass_fail, attempt_id),
+                (computation.result.normalized_score, pass_fail, attempt_id),
             )
             conn.commit()
- 
+
+            # SPEC 35J Bug 3 fix: goal_output had zero rows, ever — designed
+            # but never wired. Write it here, on the winning attempt only,
+            # matching goal_tracker's own is_winning logic (outcome=='success').
+            if outcome == "success":
+                try:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO goal_output "
+                        "(goal_id, run_id, attempt_id, output_text, output_type, capture_method) "
+                        "VALUES (?, ?, ?, ?, 'answer', 'forward')",
+                        (goal_id, run_id, attempt_id, actual_output or ""),
+                    )
+                    conn.commit()
+                except Exception as _ge:
+                    logger.error("goal_output insert failed for attempt_id=%d: %s", attempt_id, _ge)
+
             # Detect hallucination on failed attempts.
             if pass_fail == 0:
-                from core.execution.quality_judge import JudgmentResult
-                judgment = JudgmentResult(
-                    normalized_score=score_result.score,
-                    pass_fail=0,
-                    score_method="single_judge",
-                    quality_id=quality_id,
-                    n_judges_used=1,
-                )
+                judgment = computation.result
+                judgment.quality_id = quality_id
                 _hallucination_detector.detect(
                     conn=conn,
                     attempt_id=attempt_id,
@@ -1994,91 +1980,113 @@ class ExperimentRunner:
                 _pst(run_id, result, db.db.conn)
             except Exception as _e:
                 logger.warning("spbm_telemetry_etl failed single run_id=%d: %s", run_id, _e)
-                if "cpu_samples" in result:
-                    db.insert_cpu_samples(run_id, result["cpu_samples"])
-                if platform.system() == 'Darwin':
-                    _darwin_row = _build_darwin_cpu_sample_row(run_id, result)
-                    if _darwin_row:
-                        _r = db.get_run(run_id)
-                        if _r:
-                            _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
-                            _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
-                            _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
-                            _darwin_row['interval_ns'] = (
-                                (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
-                            )
-                        try:
-                            db.insert_cpu_samples(run_id, [_darwin_row])
-                        except Exception as _e:
-                            logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
-                # SPEC_03A: NIC samples
-                if result.get("nic_samples"):
-                    _insert_nic_samples(db, run_id, result["nic_samples"])
+            if "cpu_samples" in result:
+                db.insert_cpu_samples(run_id, result["cpu_samples"])
+            if platform.system() == 'Darwin':
+                _darwin_row = _build_darwin_cpu_sample_row(run_id, result)
+                if _darwin_row:
+                    _r = db.get_run(run_id)
+                    if _r:
+                        _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
+                        _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
+                        _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
+                        _darwin_row['interval_ns'] = (
+                            (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
+                        )
+                    try:
+                        db.insert_cpu_samples(run_id, [_darwin_row])
+                    except Exception as _e:
+                        logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
+            # SPEC_03A: NIC samples
+            if result.get("nic_samples"):
+                _insert_nic_samples(db, run_id, result["nic_samples"])
 
-                if "interrupt_samples" in result:
-                    db.insert_interrupt_samples(run_id, result["interrupt_samples"])
+            if "interrupt_samples" in result:
+                db.insert_interrupt_samples(run_id, result["interrupt_samples"])
 
-                if "io_samples" in result:
-                    db.insert_io_samples(run_id, result["io_samples"])
+            if "io_samples" in result:
+                db.insert_io_samples(run_id, result["io_samples"])
 
-                if "thermal_samples" in result:
-                    db.insert_thermal_samples(run_id, result["thermal_samples"])
-                    # Aggregate hardware stats after thermal samples inserted — mirrors save_pair()
-                    agg = self.aggregate_run_stats(
-                        run_id,
-                        result.get("cpu_samples", []),
-                        result.get("interrupt_samples", []),
-                        result.get("thermal_samples", []),
-                    )
-                    _ml = result.get("ml_features") or {}
-                    _task_dur_s  = _ml.get("task_duration_sec") or 0
-                    _fw_s        = _ml.get("framework_overhead_sec") or 0
-                    _attr_uj     = _ml.get("attributed_energy_uj") or 0
-                    _spbm_cov    = (_ml.get("spbm_telemetry_coverage") or {}).get(
-                        "spbm_sample_coverage_pct")
-                    _phase_cov   = _ml.get("phase_sample_coverage_pct")
-                    _gpu_dynamic = _ml.get("gpu_dynamic_energy_uj") or 0
-                    _gpu_spbm    = _ml.get("gpu_total_energy_uj") or 0
-                    if _attr_uj and _task_dur_s:
-                        agg["avg_task_power_watts"] = round(
-                            _attr_uj / 1_000_000.0 / _task_dur_s, 4)
-                    agg["energy_sample_coverage_pct"] = (
-                        _spbm_cov if _spbm_cov is not None else _phase_cov)
-                    if agg.get("avg_task_power_watts") and _fw_s:
-                        agg["framework_overhead_energy_uj"] = round(
-                            agg["avg_task_power_watts"] * _fw_s * 1_000_000)
-                    _is_spbm     = _ml.get("spbm_telemetry_coverage") is not None
-                    if _is_spbm and _gpu_dynamic > 0:
-                        agg["gpu_attribution_method"] = "dcgm_field156"
-                    elif _is_spbm and _gpu_spbm > 0:
-                        agg["gpu_attribution_method"] = "spbm_package_v1"
-                    elif _ml.get("reader_method_id") == "iokit_power_reader" and _gpu_spbm > 0:
-                        agg["gpu_attribution_method"] = "iokit_powermetrics"
-                    elif not _is_spbm and _gpu_spbm > 0:
-                        agg["gpu_attribution_method"] = "pp1_msr"
-                    else:
-                        agg["gpu_attribution_method"] = "none"
-                    db.update_run_stats(run_id, agg)
-                    if not agg.get("energy_sample_coverage_pct"):
-                        db.runs.update_energy_sample_coverage(run_id)
-
-                # Orchestration events — present on agentic side
-                if "orchestration_events" in result:
-                    db.insert_orchestration_events(run_id, result["orchestration_events"])
-
-                # LLM interactions — key is pending_interactions, run_id set per interaction
-                if result.get("pending_interactions"):
-                    for interaction in result["pending_interactions"]:
-                        interaction["run_id"] = run_id
-                        db.insert_llm_interaction(interaction)
-
-                # Energy summary — single side has no pair partner, skip tax summary
-                energy_uj        = result["layer3_derived"]["energy_uj"]["workload"]
+            # SPEC 35J: energy_uj computation moved OUT of this block —
+            # it must run unconditionally (save_pair()'s _get_attributed()
+            # is never gated on thermal_samples presence either). Keeping
+            # it inside here caused a real UnboundLocalError crash on
+            # --workflow-mode agentic, the first time this path was ever
+            # exercised, when thermal_samples was absent from result.
+            _ml_energy = result.get("ml_features", {}) or {}
+            energy_uj = int(_ml_energy.get("attributed_energy_uj") or 0)
+            if not energy_uj:
+                _dyn = _ml_energy.get("dynamic_energy_uj") or 0
+                _frac = _ml_energy.get("cpu_fraction") or 0.0
+                energy_uj = int(_dyn * _frac)
+            if not energy_uj:
+                try:
+                    energy_uj = result["layer3_derived"]["energy_uj"]["workload"]
+                except (KeyError, TypeError):
+                    energy_uj = 0
+            orchestration_uj = 0
+            try:
                 orchestration_uj = result["layer3_derived"]["energy_uj"].get(
                     "orchestration_tax", 0
                 )
-                # GPU PP1 energy for this run — None on non-Tiger-Lake
-                _gpu_uj = result.get("ml_features", {}).get("gpu_dynamic_energy_uj")
+            except (KeyError, TypeError):
+                pass
+
+            if "thermal_samples" in result:
+                db.insert_thermal_samples(run_id, result["thermal_samples"])
+                # Aggregate hardware stats after thermal samples inserted — mirrors save_pair()
+                agg = self.aggregate_run_stats(
+                    run_id,
+                    result.get("cpu_samples", []),
+                    result.get("interrupt_samples", []),
+                    result.get("thermal_samples", []),
+                )
+                _ml = result.get("ml_features") or {}
+                _task_dur_s  = _ml.get("task_duration_sec") or 0
+                _fw_s        = _ml.get("framework_overhead_sec") or 0
+                _attr_uj     = _ml.get("attributed_energy_uj") or 0
+                _spbm_cov    = (_ml.get("spbm_telemetry_coverage") or {}).get(
+                    "spbm_sample_coverage_pct")
+                _phase_cov   = _ml.get("phase_sample_coverage_pct")
+                _gpu_dynamic = _ml.get("gpu_dynamic_energy_uj") or 0
+                _gpu_spbm    = _ml.get("gpu_total_energy_uj") or 0
+                if _attr_uj and _task_dur_s:
+                    agg["avg_task_power_watts"] = round(
+                        _attr_uj / 1_000_000.0 / _task_dur_s, 4)
+                agg["energy_sample_coverage_pct"] = (
+                    _spbm_cov if _spbm_cov is not None else _phase_cov)
+                if agg.get("avg_task_power_watts") and _fw_s:
+                    agg["framework_overhead_energy_uj"] = round(
+                        agg["avg_task_power_watts"] * _fw_s * 1_000_000)
+                _is_spbm     = _ml.get("spbm_telemetry_coverage") is not None
+                if _is_spbm and _gpu_dynamic > 0:
+                    agg["gpu_attribution_method"] = "dcgm_field156"
+                elif _is_spbm and _gpu_spbm > 0:
+                    agg["gpu_attribution_method"] = "spbm_package_v1"
+                elif _ml.get("reader_method_id") == "iokit_power_reader" and _gpu_spbm > 0:
+                    agg["gpu_attribution_method"] = "iokit_powermetrics"
+                elif not _is_spbm and _gpu_spbm > 0:
+                    agg["gpu_attribution_method"] = "pp1_msr"
+                else:
+                    agg["gpu_attribution_method"] = "none"
+                db.update_run_stats(run_id, agg)
+                if not agg.get("energy_sample_coverage_pct"):
+                    db.runs.update_energy_sample_coverage(run_id)
+
+            # Orchestration events — present on agentic side
+            if "orchestration_events" in result:
+                db.insert_orchestration_events(run_id, result["orchestration_events"])
+
+            # LLM interactions — key is pending_interactions, run_id set per interaction
+            if result.get("pending_interactions"):
+                for interaction in result["pending_interactions"]:
+                    interaction["run_id"] = run_id
+                    db.insert_llm_interaction(interaction)
+
+            # (energy_uj/orchestration_uj now computed above, unconditionally,
+            # before this thermal_samples check — see SPEC 35J note above)
+            # GPU PP1 energy for this run — None on non-Tiger-Lake
+            _gpu_uj = result.get("ml_features", {}).get("gpu_dynamic_energy_uj")
 
             logger.info("save_single: run_id=%d workflow=%s rep=%d", run_id, workflow_type, rep_num)
 

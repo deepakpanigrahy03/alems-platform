@@ -649,11 +649,15 @@ def _load_derived_methods() -> List[Dict]:
             "name":         "Output Quality Normalization",
             "provenance":   "CALCULATED",
             "layer":        "orchestration",
-            "confidence":   0.90,
-            "description":  "Reconciles N judge scores into a single normalized_score using tie-break logic: agreement>=0.8 averaged, >=0.5 conservative_min, <0.5 needs_review. agreement_score = 1 - ABS(score_a - score_b) for two judges, normalized std for N judges.",
-            "formula_latex": r"\text{agreement} = 1 - |s_1 - s_2|, \quad s_{norm} = \begin{cases} \bar{s} & \text{agreement} \geq 0.8 \\ \min(s) & \text{agreement} \geq 0.5 \\ \text{NULL} & \text{otherwise} \end{cases}",
-            "parameters":   {"child_table": "output_quality_judges", "judge_count_field": "judge_count"},
-            "doc":          "19-hallucination-output-quality-methodology.md",
+            "confidence":   0.88,
+            # NOTE: "description" here is dead — _build_row_from_entry()
+            # always extracts the real description from the .md doc
+            # section (base/doc_file, section), never from this key.
+            # Left unset deliberately so nobody mistakes this for the
+            # live value. See output-quality.md for the actual text.
+            "formula_latex": r"s_{norm} = \begin{cases} s_1 & N=1 \\ \bar{s} & N \geq 2,\ \max_i|s_i - m| \leq 0.20 \\ m & N \geq 2,\ \max_i|s_i - m| \leq 0.40 \\ \mathrm{median}(s_{\text{agreeing}}) & N \geq 2,\ \text{one outlier} \\ \text{NULL} & \text{otherwise} \end{cases}, \quad m = \mathrm{median}(s_1,\ldots,s_N)",
+            "parameters":   {"child_table": "output_quality_judges", "judge_count_field": "judge_count", "tight_band": 0.20, "loose_band": 0.40, "judge_model_source": "task_quality_config.judge_model_set"},
+            "doc":          "output-quality.md",
             "section":      "Output Quality Normalization Methodology",
         },  
         {

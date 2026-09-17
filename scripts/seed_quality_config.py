@@ -1,98 +1,35 @@
 #!/usr/bin/env python3
 """
 ================================================================================
-SEED QUALITY CONFIG — Populate task_quality_config table
+SEED QUALITY CONFIG — DEPRECATED, see migrations/seed/s011_seed_quality_config.sql
 ================================================================================
 PURPOSE:
-    Seeds task_quality_config with judge method, metric type, and threshold
-    for every task category. Category-level config — applies uniformly to
-    EpG, mEpG, and qEpG tasks without per-task overrides.
+    This script used to hardcode the 17-row QUALITY_CONFIG list and insert
+    it manually. As of SPEC 35J, that data now lives in a tracked seed
+    file (migrations/seed/s011_seed_quality_config.sql), applied
+    automatically and consistently across the fleet by
+    `python3 scripts/tools/alems_migrate.py` — checksummed, tracked in
+    migration_history, and visible to `--plan`/`--check`, none of which
+    this standalone script ever was.
 
-    Run ONCE after migration 042. Idempotent — safe to rerun (INSERT OR IGNORE).
+    Keeping the data in two places (here and in s011) risks silent drift.
+    This script no longer inserts anything — it points you to the real
+    source of truth and, optionally, verifies what's already seeded.
 
 USAGE:
-    python scripts/seed_quality_config.py
-    python scripts/seed_quality_config.py --db-path data/experiments.db
+    python scripts/seed_quality_config.py --verify
 
 AUTHOR: Deepak Panigrahy
 ================================================================================
 """
 
 import argparse
-import logging
 import sqlite3
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
-# ============================================================================
-# Quality config — 17 rows covering all categories
-# (task_category, metric_type, judge_method, threshold, dual_judge)
-# dual_judge=1: two independent LLM judges, agreement required
-# threshold: minimum normalized_score for pass_fail=1
-# ============================================================================
-# (task_category, metric_type, judge_method, threshold, dual_judge, n_judges)
-# dual_judge kept for backward compat. n_judges is the authoritative field.
-# dual_judge=1 → n_judges=2; dual_judge=0 → n_judges=1.
-# judge_method uses 'semantic' (DB CHECK constraint) not 'semantic_similarity'.
-QUALITY_CONFIG = [
-    # Original 7 categories
-    ("reasoning",        "scalar",    "llm_judge",  0.80, 1, 2),
-    ("coding",           "testsuite", "unit_test",  0.80, 0, 1),
-    ("qa",               "binary",    "exact_match",1.00, 0, 1),
-    ("summarization",    "scalar",    "llm_judge",  0.75, 1, 2),
-    ("classification",   "binary",    "exact_match",1.00, 0, 1),
-    ("extraction",       "scalar",    "llm_judge",  0.80, 1, 2),
-    ("custom",           "scalar",    "llm_judge",  0.70, 0, 1),
-    # New categories — tool-using and orchestration tasks
-    ("multi_tool",       "binary",    "exact_match",1.00, 0, 1),
-    ("planning",         "scalar",    "llm_judge",  0.80, 1, 2),
-    ("data_analysis",    "scalar",    "llm_judge",  0.80, 1, 2),
-    ("debugging",        "binary",    "exact_match",1.00, 0, 1),
-    ("research",         "scalar",    "llm_judge",  0.75, 1, 2),
-    ("orchestration",    "scalar",    "llm_judge",  0.70, 1, 2),
-    ("translation",      "scalar",    "semantic",   0.85, 1, 2),
-    ("creative_writing", "scalar",    "llm_judge",  0.70, 1, 2),
-    ("web_search",       "binary",    "exact_match",1.00, 0, 1),
-    # Media tasks — TTS/STT/VC quality proxy via semantic similarity
-    ("media",            "scalar",    "semantic",   0.80, 0, 1),
-]
-
-
-def seed(db_path: str) -> None:
-    """
-    Insert quality config rows. Idempotent — INSERT OR IGNORE on unique task_category.
-
-    Args:
-        db_path: Path to experiments.db
-    """
-    conn = sqlite3.connect(db_path)
-    try:
-        inserted = 0
-        skipped = 0
-        for row in QUALITY_CONFIG:
-            task_category, metric_type, judge_method, threshold, dual_judge, n_judges = row
-            cur = conn.execute(
-                """
-                INSERT OR IGNORE INTO task_quality_config
-                    (task_category, metric_type, judge_method, threshold, dual_judge, n_judges)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (task_category, metric_type, judge_method, threshold, dual_judge, n_judges),
-            )
-            if cur.rowcount > 0:
-                inserted += 1
-            else:
-                skipped += 1  # already seeded — idempotent
-        conn.commit()
-        logger.info("seed_quality_config: inserted=%d skipped=%d", inserted, skipped)
-        print(f"Done: inserted={inserted} skipped={skipped} total={inserted+skipped}")
-    finally:
-        conn.close()
-
 
 def verify(db_path: str) -> None:
-    """Print seeded rows for manual verification."""
+    """Print seeded rows for manual verification. Read-only."""
     conn = sqlite3.connect(db_path)
     try:
         rows = conn.execute(
@@ -112,22 +49,22 @@ if __name__ == "__main__":
     import sys
     from pathlib import Path as _Path
     sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
-    logging.basicConfig(level=logging.INFO)
-    parser = argparse.ArgumentParser(description="Seed task_quality_config table")
-    parser.add_argument(
-        "--db-path",
-        default=None,
-        help="Path to experiments.db (default: resolved via get_alems_db_path())",
+
+    parser = argparse.ArgumentParser(
+        description="DEPRECATED: seeding moved to migrations/seed/s011_seed_quality_config.sql"
     )
-    parser.add_argument(
-        "--verify",
-        action="store_true",
-        help="Print seeded rows after insertion",
-    )
+    parser.add_argument("--db-path", default=None, help="Path to experiments.db")
+    parser.add_argument("--verify", action="store_true", help="Print current rows (read-only)")
     args = parser.parse_args()
 
-    from scripts.tools.path_loader import get_alems_db_path
-    db = str(Path(args.db_path or get_alems_db_path()).resolve())
-    seed(db)
+    print(
+        "This script no longer seeds data.\n"
+        "Run 'python3 scripts/tools/alems_migrate.py' instead — it applies "
+        "migrations/seed/s011_seed_quality_config.sql automatically, "
+        "tracked and checksummed, on every machine.\n"
+    )
+
     if args.verify:
+        from scripts.tools.path_loader import get_alems_db_path
+        db = str(Path(args.db_path or get_alems_db_path()).resolve())
         verify(db)

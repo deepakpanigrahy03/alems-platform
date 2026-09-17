@@ -11,7 +11,7 @@ PURPOSE:
 
         # Exact match
         expectation:
-          scorer_type: exact
+          scorer_type: exact_match
           expected_source: inline
           answer: "12"
 
@@ -113,10 +113,13 @@ class Expectation:
             return cls(scorer_type="none")
 
         scorer_type = str(data.get("scorer_type", "none")).lower()
-        if scorer_type not in VALID_SCORER_TYPES:
+        from core.execution.scorers.bootstrap import scorer_registry, register_all_scorers
+        register_all_scorers()
+        valid_types = set(scorer_registry.get_all().keys()) | {"none"}
+        if scorer_type not in valid_types:
             raise ValueError(
                 f"Invalid scorer_type='{scorer_type}' in expectation block. "
-                f"Valid types: {sorted(VALID_SCORER_TYPES)}"
+                f"Valid types: {sorted(valid_types)}"
             )
 
         expected_source = str(data.get("expected_source", "inline")).lower()
@@ -153,8 +156,16 @@ class Expectation:
         """
         if self.scorer_type in ("exact", "numeric", "semantic"):
             return self.answer
-        if self.scorer_type == "rubric":
-            return self.rubric
+        if self.scorer_type == "llm_judge":
+            # SPEC 35J: llm_judge can be configured either way — a
+            # structured rubric dict (multi-criteria scoring) or a plain
+            # answer string (simple reference-answer grading, the same
+            # pattern exact/numeric/semantic already use). Prefer rubric
+            # when both are present; fall back to answer. All 3 tasks
+            # added this session (news_summary, research_summary,
+            # keyword_extraction) use answer:, not rubric:, and were
+            # incorrectly reporting is_scoreable()=False before this fix.
+            return self.rubric if self.rubric is not None else self.answer
         if self.scorer_type == "structural":
             return self.conditions
         return None

@@ -25,6 +25,11 @@ methods:
   llm_energy_sample_v2:
     doc: "llm-energy-sample.md"
     section: "LLM Energy Attribution v2"
+
+  # ── Output Quality (SPEC 35J) ────────────────────────────────────────────
+  output_quality_normalization_v1:
+    doc: "output-quality.md"
+    section: "Output Quality Normalization Methodology"
     
   # ── Energy Readers ──────────────────────────────────────────────────────────
 

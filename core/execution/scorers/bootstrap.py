@@ -74,6 +74,11 @@ def register_all_scorers() -> None:
     except Exception as exc:
         logger.error("scorer_bootstrap: failed to register StructuralScorer: %s", exc)
 
+    try:
+        from core.execution.scorers.unit_test import UnitTestScorer
+        scorer_registry.register(UnitTestScorer)
+    except Exception as exc:
+        logger.error("scorer_bootstrap: failed to register UnitTestScorer: %s", exc)
     logger.info(
         "scorer_bootstrap: registered %d scorers: %s",
         len(scorer_registry.get_all()),

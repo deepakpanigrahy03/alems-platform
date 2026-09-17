@@ -86,3 +86,6 @@ builtin = "core.execution.frameworks.bootstrap:BuiltinFrameworkAdapter"
 [project.entry-points."alems.outputs"]
 csv = "core.execution.outputs.csv_output:CSVOutputAdapter"
 json = "core.execution.outputs.json_output:JSONOutputAdapter"
+
+[project.entry-points."alems.extensions"]
+tool_selection = "extensions.tool_selection.extension:ToolSelectionExtension"

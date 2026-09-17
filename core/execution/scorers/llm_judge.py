@@ -94,7 +94,7 @@ class LLMJudgeScorer(ScorerABC):
         self,
         actual: str,
         expected: str,
-        judge_model: Optional[str] = None,
+        judge_model=None,  # str model_id, or {"provider":..., "model_id":...} dict
         rubric: Optional[dict] = None,
     ) -> Tuple[float, float, str]:
         """
@@ -143,47 +143,43 @@ class LLMJudgeScorer(ScorerABC):
             rubric_section=rubric_section,
         )
 
-    def _call_judge(self, prompt: str, model: str) -> str:
+    def _call_judge(self, prompt: str, model) -> str:
         """
-        Call the judge model via the platform's LLM adapter.
+        Call the judge model via ModelFactory — the platform's single
+        point of truth for provider resolution, same path every other
+        model call in the platform uses. Replaces the old private
+        requests.post() against ALEMS_VLLM_REMOTE_URL/localhost:11434,
+        which had no per-model routing and silently assumed Ollama when
+        that env var was unset (Ollama is not installed on gn100).
 
-        Uses the openai_compat adapter (VLLM remote or local Ollama)
-        to avoid introducing a new API dependency. The adapter is
-        instantiated directly rather than going through the full harness
-        to keep the scorer stateless and fast.
+        Args:
+            model: either a {"provider": ..., "model_id": ...} dict
+                   (from judge_model_set, resolved by judgment_engine),
+                   or a bare model_id string (legacy/default path) —
+                   in which case provider defaults to "vllm_local", the
+                   one confirmed-reachable provider on this platform.
 
         Returns the raw response text from the model.
         Raises on API error — caller handles with (0.0, 0.0, 'scorer_failed').
         """
+        from core.execution.model_factory import ModelFactory
+
+        if isinstance(model, dict):
+            provider = model.get("provider", "vllm_local")
+            model_id = model.get("model_id", _DEFAULT_JUDGE_MODEL)
+        else:
+            provider = "vllm_local"
+            model_id = model or _DEFAULT_JUDGE_MODEL
+
         try:
-            # Import here to avoid circular imports at module level.
-            # The scorer package must not import experiment_runner or harness.
-            import requests
-
-            # Use VLLM remote if configured, otherwise fall back to local.
-            vllm_url = os.environ.get("ALEMS_VLLM_REMOTE_URL", "")
-            if vllm_url:
-                base_url = vllm_url
-            else:
-                base_url = "http://localhost:11434/v1"
-
-            payload = {
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": _JUDGE_TEMPERATURE,
-                "max_tokens": 256,
-            }
-            resp = requests.post(
-                f"{base_url}/chat/completions",
-                json=payload,
-                timeout=30,
+            adapter = ModelFactory.get_adapter(
+                provider,
+                {"model_id": model_id, "temperature": _JUDGE_TEMPERATURE, "max_tokens": 256},
             )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
-
+            result = adapter.call(prompt, temperature=_JUDGE_TEMPERATURE)
+            return result["content"]
         except Exception as exc:
-            logger.warning("LLMJudgeScorer._call_judge failed for model=%s: %s", model, exc)
+            logger.warning("LLMJudgeScorer._call_judge failed for provider=%s model=%s: %s", provider, model_id, exc)
             raise
 
     def _parse_response(self, response_text: str) -> Tuple[float, float, str]:

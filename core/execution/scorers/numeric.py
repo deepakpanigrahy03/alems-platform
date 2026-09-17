@@ -122,9 +122,16 @@ class NumericScorer(ScorerABC):
         # Remove commas from formatted numbers (1,234 → 1234).
         text_clean = text_clean.replace(",", "")
 
-        # Extract first number (integer or float, optionally followed by %).
-        match = re.search(r"-?\d+\.?\d*", text_clean)
+        # Extract first number, checking whether a % immediately follows —
+        # the docstring has always claimed percentage handling, but this
+        # was never actually implemented: "77.78%" extracted as 77.78, not
+        # 0.7778, causing false mismatches against fraction-form expected
+        # values. Found 2026-09-16 via tg_single_calc real production data.
+        match = re.search(r"-?\d+\.?\d*\s*(%)?", text_clean)
         if match:
-            return float(match.group())
+            value = float(re.search(r"-?\d+\.?\d*", match.group()).group())
+            if match.group(1) == "%":
+                return value / 100.0
+            return value
 
         return None

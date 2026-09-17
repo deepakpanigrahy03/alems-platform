@@ -47,6 +47,20 @@ class ScorerABC(ABC):
     # Subclasses must declare these as class attributes.
     SCORER_TYPE: str = ""
     METRIC_TYPES: Tuple[str, ...] = ()
+    # SPEC 35J: "active" (implemented) or "stub" (registered, not
+    # implemented — e.g. UnitTestScorer). Callers route stub scorers to
+    # score_method='stub_skipped' rather than treating a stub call as
+    # a genuine score.
+    STATUS: str = "active"
+
+    def accepts_output_type(self, output_type: str) -> bool:
+        """
+        Whether this scorer can meaningfully score a goal_output row of
+        this output_type. Default: only 'answer' (a real completed
+        response). Override to accept 'failure'/'timeout'/etc. for
+        scorers designed to evaluate negative-test or error-path tasks.
+        """
+        return output_type == "answer"
 
     @abstractmethod
     def score(

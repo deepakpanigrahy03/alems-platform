@@ -335,28 +335,35 @@ CREATE TABLE IF NOT EXISTS output_quality (
     raw_score               REAL,
     normalized_score        REAL,
     pass_fail               INTEGER,
-    judge_method            TEXT NOT NULL CHECK(judge_method IN ('exact_match','semantic','llm_judge','unit_test')),
+    judge_method            TEXT NOT NULL,
     judge_count             INTEGER NOT NULL DEFAULT 1,
     agreement_score         REAL,
     task_category           TEXT,
     score_method            TEXT CHECK(score_method IN (
                                 'averaged','conservative_min','consensus_median',
-                                'majority_median','needs_review','single_judge'
+                                'majority_median','needs_review','single_judge',
+                                'back_scored','stub_skipped'
                             )),
     expected_output         TEXT,
     actual_output           TEXT,
     energy_uj_at_judgment   INTEGER,
     manual_reviewed         INTEGER NOT NULL DEFAULT 0,
     judged_at               TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(attempt_id),
+    scorer_version          TEXT,
+    scorer_config_hash      TEXT,
     FOREIGN KEY (attempt_id) REFERENCES goal_attempt(attempt_id),
     FOREIGN KEY (goal_id)    REFERENCES goal_execution(goal_id)
 );
-CREATE INDEX IF NOT EXISTS idx_output_qual_attempt ON output_quality(attempt_id);
-CREATE INDEX IF NOT EXISTS idx_output_qual_goal    ON output_quality(goal_id);
-CREATE INDEX IF NOT EXISTS idx_output_qual_metric  ON output_quality(metric_type);
-CREATE INDEX IF NOT EXISTS idx_output_qual_score   ON output_quality(normalized_score);
-CREATE INDEX IF NOT EXISTS idx_output_qual_method  ON output_quality(judge_method);
+-- SPEC 35J (v094): judge_method CHECK removed, validated against the live
+-- scorer registry at insert time instead (Fix 1). UNIQUE(attempt_id)
+-- removed so back-scoring can add rows for an already-scored attempt
+-- (Fix 2). scorer_version/scorer_config_hash added for provenance.
+CREATE INDEX IF NOT EXISTS idx_output_qual_attempt       ON output_quality(attempt_id);
+CREATE INDEX IF NOT EXISTS idx_output_qual_goal          ON output_quality(goal_id);
+CREATE INDEX IF NOT EXISTS idx_output_qual_metric        ON output_quality(metric_type);
+CREATE INDEX IF NOT EXISTS idx_output_qual_score         ON output_quality(normalized_score);
+CREATE INDEX IF NOT EXISTS idx_output_qual_method        ON output_quality(judge_method);
+CREATE INDEX IF NOT EXISTS idx_output_qual_task_category ON output_quality(task_category);
 """
 # ========================================================================
 # Table 2g: output_quality_judges
@@ -403,18 +410,54 @@ CREATE TABLE IF NOT EXISTS task_quality_config (
     config_id         INTEGER PRIMARY KEY AUTOINCREMENT,
     task_category     TEXT NOT NULL UNIQUE,
     metric_type       TEXT NOT NULL CHECK(metric_type IN ('binary','scalar','pairwise','testsuite')),
-    judge_method      TEXT NOT NULL CHECK(judge_method IN ('exact_match','semantic_similarity','llm_judge','unit_test')),
+    judge_method      TEXT NOT NULL,
     threshold         REAL NOT NULL DEFAULT 0.80,
     dual_judge        INTEGER NOT NULL DEFAULT 0,
     created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     n_judges          INTEGER NOT NULL DEFAULT 1,
     judge_model_set   TEXT,
     rubric            TEXT,
-    success_threshold REAL,
-    FOREIGN KEY (task_category) REFERENCES task_categories(task_id)
+    success_threshold REAL
 );
+-- SPEC 35J (v094): judge_method CHECK removed (Fix 1, matches
+-- ScorerRegistry's 'semantic' spelling now, not the old
+-- 'semantic_similarity'). FK to task_categories(task_id) removed
+-- (Problem 8) — it was semantically wrong: task_category holds a
+-- bucket ("coding"), task_categories.task_id holds an individual task
+-- name ("code_fibonacci"). All 15 pre-existing rows already violated
+-- it. Category validity is a configuration/seeding-layer concern now.
 CREATE INDEX IF NOT EXISTS idx_tqc_category ON task_quality_config(task_category);
 CREATE INDEX IF NOT EXISTS idx_tqc_method   ON task_quality_config(judge_method);
+"""
+# ========================================================================
+# Table: goal_output
+# SPEC 35J (v094) Problem 6: canonical final-output record for a goal's
+# winning attempt (is_winning=1). Independent of live scoring — every
+# attempt is judged (including losers, for hallucination detection),
+# only the winner's output is captured here for backfill/provenance.
+# ========================================================================
+CREATE_GOAL_OUTPUT = """
+CREATE TABLE IF NOT EXISTS goal_output (
+    goal_id        INTEGER PRIMARY KEY
+                   REFERENCES goal_execution(goal_id),
+    run_id         INTEGER NOT NULL
+                   REFERENCES runs(run_id),
+    attempt_id     INTEGER NOT NULL
+                   REFERENCES goal_attempt(attempt_id),
+    output_text    TEXT,
+    output_type    TEXT NOT NULL DEFAULT 'answer'
+                   CHECK (output_type IN (
+                       'answer','failure','timeout',
+                       'context_overflow','api_error','empty'
+                   )),
+    capture_method TEXT NOT NULL DEFAULT 'forward'
+                   CHECK (capture_method IN (
+                       'forward','backfill_inferred','manual'
+                   )),
+    step_index     INTEGER,
+    captured_at    TEXT NOT NULL
+                   DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
 """
 
 # ── NEW CONSTANT — paste after CREATE_GOAL_ATTEMPT block ─────────────────────
