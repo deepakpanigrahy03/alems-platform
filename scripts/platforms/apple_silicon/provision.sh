@@ -9,24 +9,34 @@ SUBCOMMAND="${1:-all}"
 
 case "$SUBCOMMAND" in
     deps)
-        echo "  Apple Silicon: installing system build dependencies..."
+        echo "  Apple Silicon: installing system dependencies via brew..."
         if command -v brew &>/dev/null; then
-            brew install libjpeg libxml2 libxslt freetype lcms2 webp 2>/dev/null || true
+            brew install \
+                $(grep -v '^#' "${SCRIPT_DIR}/system-requirements.txt" | grep -v '^$' | tr '\n' ' ') \
+                2>/dev/null || true
         else
-            echo "  WARNING: Homebrew not found. Install from https://brew.sh"
-            echo "  Then re-run: bash scripts/platforms/apple_silicon/provision.sh deps"
+            echo "  ❌ Homebrew not found. Install from https://brew.sh"
             exit 1
         fi
 
         echo "  Installing Python dependencies..."
-        pip install --upgrade pip
-        pip install -r "${PROJECT_ROOT}/requirements.txt"
+        REQS_HASH=$(cat "${PROJECT_ROOT}/requirements.txt" "${SCRIPT_DIR}/requirements.txt" 2>/dev/null \
+            | md5 -q)
+        HASH_FILE="${PROJECT_ROOT}/venv/.reqs_hash"
+        if [ -f "${HASH_FILE}" ] && [ "$(cat "${HASH_FILE}")" = "${REQS_HASH}" ]; then
+            echo "  Requirements unchanged, skipping pip install"
+        else
+            pip install --upgrade pip
+            pip install -r "${PROJECT_ROOT}/requirements.txt"
+            [ -s "${SCRIPT_DIR}/requirements.txt" ] && pip install -r "${SCRIPT_DIR}/requirements.txt"
+            echo "${REQS_HASH}" > "${HASH_FILE}"
+        fi
 
         echo "  Installing llama-cpp-python with Metal backend..."
         CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python \
             --force-reinstall --no-cache-dir --quiet 2>&1 | tail -3
         python3 -c "from llama_cpp import Llama; print('  llama_cpp imported OK')" || \
-            echo "  WARNING: llama_cpp import failed, Metal build may need Xcode CLI tools"
+            echo "  ⚠️  llama_cpp import failed — Metal build may need Xcode CLI tools"
         ;;
 
     permissions)

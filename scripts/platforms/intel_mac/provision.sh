@@ -11,17 +11,27 @@ SUBCOMMAND="${1:-all}"
 
 case "$SUBCOMMAND" in
     deps)
-        echo "  Intel Mac: installing system build dependencies..."
+        echo "  Intel Mac: installing system dependencies via brew..."
         if command -v brew &>/dev/null; then
-            brew install libjpeg libxml2 libxslt freetype lcms2 webp 2>/dev/null || true
+            brew install \
+                $(grep -v '^#' "${SCRIPT_DIR}/system-requirements.txt" | grep -v '^$' | tr '\n' ' ') \
+                2>/dev/null || true
         else
-            echo "  WARNING: Homebrew not found. Install from https://brew.sh"
-            exit 1
+            echo "  ⚠️  Homebrew not found — install from https://brew.sh"
         fi
 
         echo "  Installing Python dependencies..."
-        pip install --upgrade pip
-        pip install -r "${PROJECT_ROOT}/requirements.txt"
+        REQS_HASH=$(cat "${PROJECT_ROOT}/requirements.txt" "${SCRIPT_DIR}/requirements.txt" 2>/dev/null \
+            | md5 -q)
+        HASH_FILE="${PROJECT_ROOT}/venv/.reqs_hash"
+        if [ -f "${HASH_FILE}" ] && [ "$(cat "${HASH_FILE}")" = "${REQS_HASH}" ]; then
+            echo "  Requirements unchanged, skipping pip install"
+        else
+            pip install --upgrade pip
+            pip install -r "${PROJECT_ROOT}/requirements.txt"
+            [ -s "${SCRIPT_DIR}/requirements.txt" ] && pip install -r "${SCRIPT_DIR}/requirements.txt"
+            echo "${REQS_HASH}" > "${HASH_FILE}"
+        fi
         ;;
 
     permissions)

@@ -9,27 +9,31 @@ SUBCOMMAND="${1:-all}"
 
 case "$SUBCOMMAND" in
     deps)
-        echo "  GN100 ARM: installing system build dependencies..."
-        sudo apt install -y libjpeg-dev zlib1g-dev libfreetype-dev \
-            liblcms2-dev libwebp-dev libxml2-dev libxslt1-dev \
-            python3-dev build-essential sqlite3 2>/dev/null || true
+        echo "  GN100 ARM: installing system dependencies..."
+        sudo apt install -y \
+            $(grep -v '^#' "${PROJECT_ROOT}/system-requirements-linux-common.txt" | grep -v '^$' | tr '\n' ' ') \
+            $(grep -v '^#' "${SCRIPT_DIR}/system-requirements.txt" | grep -v '^$' | tr '\n' ' ') \
+            2>/dev/null || true
 
         echo "  Installing Python dependencies..."
-        pip install --upgrade pip
-        pip install -r "${PROJECT_ROOT}/requirements.txt"
+        REQS_HASH=$(cat "${PROJECT_ROOT}/requirements.txt" "${SCRIPT_DIR}/requirements.txt" 2>/dev/null \
+            | md5sum | awk '{print $1}')
+        HASH_FILE="${PROJECT_ROOT}/venv/.reqs_hash"
+        if [ -f "${HASH_FILE}" ] && [ "$(cat "${HASH_FILE}")" = "${REQS_HASH}" ]; then
+            echo "  Requirements unchanged, skipping pip install"
+        else
+            pip install --upgrade pip
+            pip install -r "${PROJECT_ROOT}/requirements.txt"
+            [ -s "${SCRIPT_DIR}/requirements.txt" ] && pip install -r "${SCRIPT_DIR}/requirements.txt"
+            echo "${REQS_HASH}" > "${HASH_FILE}"
+        fi
 
         echo "  GN100 ARM: checking CUDA/vLLM dependencies..."
-        # vllm_local is the primary local provider on GN100
         if python3 -c "import vllm" 2>/dev/null; then
             echo "  vLLM already installed"
         else
             echo "  NOTE: vLLM requires CUDA toolkit and GPU drivers."
             echo "  Install manually if needed: pip install vllm"
-        fi
-        # GN100-specific requirements file if it exists
-        if [ -f "${PROJECT_ROOT}/requirements-gn100.txt" ]; then
-            pip install -r "${PROJECT_ROOT}/requirements-gn100.txt"
-            echo "  GN100-specific requirements installed"
         fi
         ;;
 
