@@ -445,7 +445,23 @@ def fix_run_with_pretask(
             """, (run_id,))
             pkg_domain_row = cursor.fetchone()
             if not pkg_domain_row:
-                logger.warning("Run %d: no root energy domain found — skipping", run_id)
+                # Apple IOKit: UNIFIED root has no samples — walk to children.
+                # CPU_APPLE is the primary energy domain on Apple Silicon.
+                cursor.execute("""
+                    SELECT esd.domain_id
+                    FROM energy_sample_domains esd
+                    JOIN energy_domains ed ON ed.domain_id = esd.domain_id
+                    JOIN energy_domains parent ON parent.domain_id = ed.parent_domain_id
+                    WHERE esd.run_id = ?
+                      AND parent.parent_domain_id IS NULL
+                      AND ed.is_cumulative = 1
+                    GROUP BY esd.domain_id
+                    ORDER BY SUM(esd.energy_uj) DESC
+                    LIMIT 1
+                """, (run_id,))
+                pkg_domain_row = cursor.fetchone()
+            if not pkg_domain_row:
+                logger.warning("Run %d: no energy domain found — skipping", run_id)
                 return True
             pkg_domain_id = pkg_domain_row[0]
 
