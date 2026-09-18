@@ -377,9 +377,12 @@ def fix_run_with_pretask(
         return False
 
     if rapl_before_pretask is None:
-        # Non-RAPL platform — pre/post energy stays NULL — PAC compliant
-        logger.debug("Run %d: non-RAPL platform, pre/post energy=NULL", run_id)
-        return True
+        # No point reads available (Mac IOKit, future platforms).
+        # Attempt v2 sample stream path — uses timestamp-based SUM.
+        # Falls through to full computation below with rapl_before_uj=None.
+        # _compute_window_energy returns None when rapl anchors are None,
+        # but v2 path overrides this with direct sample SUM.
+        logger.debug("Run %d: no point reads — attempting v2 sample path", run_id)
  
     conn = sqlite3.connect(str(db_path))
     try:
@@ -497,9 +500,22 @@ def fix_run_with_pretask(
             post_task_raw_uj = int(post_sum_row[0] or 0)
 
             # pre_task raw = total delta - task samples - post_task samples.
-            # Exact: no estimation, no baseline subtraction needed.
-            # Works on GN100 (SPBM), Mac (IOKit), AMD v2 — all platforms.
-            pre_task_raw_uj = max(0, total_pkg_delta - task_raw_uj - post_task_raw_uj)
+            # Exact when point reads available (GN100 SPBM, AMD v2).
+            # Mac IOKit: no point reads, no pre/post samples — use power extrapolation.
+            # avg_power from task window * overhead duration = best available estimate.
+            # Documented as INFERRED in methodology, not MEASURED.
+            if rapl_before_uj is not None and rapl_after_uj is not None:
+                pre_task_raw_uj = max(0, total_pkg_delta - task_raw_uj - post_task_raw_uj)
+            else:
+                # No point reads — extrapolate from task avg power.
+                _task_dur_s = (t1_ns - t0_ns) / 1e9 if t1_ns > t0_ns else 1
+                _avg_power_w = task_raw_uj / _task_dur_s / 1e6
+                pre_task_raw_uj  = int(_avg_power_w * pre_task_duration_sec * 1e6)
+                post_task_raw_uj = int(_avg_power_w * post_task_duration_sec * 1e6)
+                logger.debug(
+                    "Run %d: Mac IOKit — extrapolated pre=%dµJ post=%dµJ from avg_power=%.3fW",
+                    run_id, pre_task_raw_uj, post_task_raw_uj, _avg_power_w
+                )
 
             # Attributed energy for each window — cpu_fraction isolates
             # A-LEMS process share from total pkg delta.
