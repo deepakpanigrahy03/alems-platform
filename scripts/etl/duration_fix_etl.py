@@ -531,8 +531,73 @@ def fix_run_with_pretask(
             )
             return True
         else:
-            rapl_t0_uj   = es_row[0]   # RAPL cumulative at start_measurement()
-            rapl_t1_uj   = es_row[1]   # RAPL cumulative at stop_measurement() proxy
+            # Legacy x86 RAPL path — energy_samples has cumulative counters.
+            # Use timestamp-based window SUM for post_task (same as v2 path).
+            # pre_task: rapl_before → first sample pkg_start (cumulative delta).
+            # post_task: SUM of per-sample deltas after t1.
+            rapl_t0_uj = es_row[0]   # MIN(pkg_start_uj) = first sample start
+
+            # post_task raw = SUM of pkg deltas in samples after t1.
+            cursor.execute("""
+                SELECT COALESCE(SUM(pkg_end_uj - pkg_start_uj), 0)
+                FROM energy_samples es
+                JOIN runs r ON r.run_id = es.run_id
+                WHERE es.run_id = ?
+                  AND es.timestamp_ns > (r.start_time_ns + COALESCE(r.task_duration_ns, 0))
+            """, (run_id,))
+            post_task_raw_legacy = int(cursor.fetchone()[0] or 0)
+
+            # rapl_t1_uj = MAX(pkg_end_uj) = last sample end (task window end anchor).
+            rapl_t1_uj = es_row[1]
+
+            # Override post_task computation directly — bypass _compute_window_energy
+            # which uses cpu_fraction (near-zero for short overhead windows).
+            # Raw sample SUM is the correct energy for framework overhead windows.
+            post_task_duration_ns_legacy = int(post_task_duration_sec * 1e9)
+            post_task_energy_uj_legacy   = post_task_raw_legacy
+            pre_task_duration_ns_legacy  = int(pre_task_duration_sec * 1e9)
+            pre_task_energy_uj_legacy    = max(0, int(
+                (rapl_t0_uj - (rapl_before_uj or 0))
+            ))
+            if pre_task_energy_uj_legacy is not None and post_task_energy_uj_legacy is not None:
+                framework_overhead_energy_uj_legacy = pre_task_energy_uj_legacy + post_task_energy_uj_legacy
+            else:
+                framework_overhead_energy_uj_legacy = None
+            cursor.execute("""
+                UPDATE runs SET
+                    rapl_before_pretask_uj       = ?,
+                    rapl_after_task_uj           = ?,
+                    pre_task_duration_ns         = ?,
+                    pre_task_energy_uj           = ?,
+                    post_task_duration_ns        = ?,
+                    post_task_energy_uj          = ?,
+                    framework_overhead_energy_uj = ?,
+                    framework_overhead_ns        = ?,
+                    total_run_duration_ns        = ?,
+                    duration_includes_overhead   = 0
+                WHERE run_id = ?
+            """, (
+                rapl_before_uj,
+                rapl_after_uj,
+                pre_task_duration_ns_legacy,
+                pre_task_energy_uj_legacy,
+                post_task_duration_ns_legacy,
+                post_task_energy_uj_legacy,
+                framework_overhead_energy_uj_legacy,
+                pre_task_duration_ns_legacy + post_task_duration_ns_legacy,
+                (pre_task_duration_ns_legacy + existing_task_dur_ns + post_task_duration_ns_legacy
+                 if existing_task_dur_ns else None),
+                run_id,
+            ))
+            conn.commit()
+            logger.info(
+                "Run %d (legacy) | pre=%dµJ(%dms) post=%dµJ(%dms) overhead=%dµJ",
+                run_id,
+                pre_task_energy_uj_legacy or 0, pre_task_duration_ns_legacy // 1_000_000,
+                post_task_energy_uj_legacy or 0, post_task_duration_ns_legacy // 1_000_000,
+                framework_overhead_energy_uj_legacy or 0,
+            )
+            return True
  
         # ── Compute pre-task energy ───────────────────────────────────────
         pre_task_duration_ns = int(pre_task_duration_sec * 1e9)
