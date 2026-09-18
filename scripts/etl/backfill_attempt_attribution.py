@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 sys.path.insert(0, str(Path.cwd()))
 
 from scripts.tools.path_loader import get_alems_db_path
-from scripts.etl.duration_fix_etl import fix_run
+from scripts.etl.duration_fix_etl import fix_run, fix_run_with_pretask
 
 DB_PATH = Path(get_alems_db_path())
 
@@ -120,14 +120,30 @@ def backfill_post_task_energy(conn: sqlite3.Connection) -> None:
     Idempotent: fix_run() preserves existing non-NULL values.
     """
     rows = conn.execute("""
-        SELECT run_id FROM runs
-        WHERE post_task_energy_uj IS NULL
-        ORDER BY run_id
+        SELECT r.run_id, r.pre_task_duration_ns, r.post_task_duration_ns,
+               r.cpu_fraction
+        FROM runs r
+        WHERE r.post_task_energy_uj IS NULL
+        ORDER BY r.run_id
     """).fetchall()
     logger.info("Fix 3 — post_task_energy: %d runs with NULL post_task_energy_uj", len(rows))
     fixed = failed = 0
-    for (run_id,) in rows:
-        ok = fix_run(run_id, DB_PATH)
+    for (run_id, pre_dur_ns, post_dur_ns, cpu_frac) in rows:
+        # Use fix_run_with_pretask with None point reads — v2 path handles
+        # platforms without point reads (Mac IOKit) via power extrapolation.
+        pre_dur_sec  = (pre_dur_ns  or 100_000_000) / 1e9
+        post_dur_sec = (post_dur_ns or 300_000_000) / 1e9
+        cpu_frac     = cpu_frac or 0.05
+        ok = fix_run_with_pretask(
+            run_id,
+            rapl_before_pretask=None,
+            rapl_after_task=None,
+            pre_task_duration_sec=pre_dur_sec,
+            post_task_duration_sec=post_dur_sec,
+            cpu_frac_pre=cpu_frac,
+            cpu_frac_post=cpu_frac,
+            db_path=DB_PATH,
+        )
         if ok:
             fixed += 1
         else:
