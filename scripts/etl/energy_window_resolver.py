@@ -455,35 +455,21 @@ class IokitV2Resolver(EnergyWindowResolverABC):
         cpu_frac_pre: float,
     ) -> Optional[WindowEnergyResult]:
         """
-        Pre-task via power extrapolation.
-        Requires start_time_ns and task_duration_ns from runs table.
-        Returns None if timestamps unavailable.
+        Pre-task on Apple IOKit — returns None.
+
+        IOKit powermetrics samples at 10Hz. First sample arrives 600-800ms
+        after start_measurement() — the pre_task window [t_before, t0] has
+        zero samples by definition (sampling not yet started).
+        No point reads available on Mac (read_energy() returns None).
+        Extrapolation from task avg_power is invalid — pre_task power regime
+        is idle (GPU/NPU not yet active), not inference power.
+        Pre_task_energy_uj = NULL on Apple Silicon — documented limitation.
         """
-        cursor.execute(
-            "SELECT start_time_ns, task_duration_ns FROM runs WHERE run_id = ?",
-            (run_id,)
-        )
-        row = cursor.fetchone()
-        if not row or not row[0] or not row[1]:
-            return None
-
-        t0_ns = int(row[0])
-        t1_ns = t0_ns + int(row[1])
-        avg_power_w = self._task_avg_power_watts(cursor, run_id, t0_ns, t1_ns)
-
-        raw_uj = int(avg_power_w * pre_task_duration_sec * 1_000_000)
-        dur_ns = int(pre_task_duration_sec * 1_000_000_000)
-
         logger.debug(
-            "Run %d: IOKit pre-task extrapolated %dµJ from avg_power=%.3fW",
-            run_id, raw_uj, avg_power_w,
+            "Run %d: IOKit pre-task — NULL (no samples in pre_task window, "
+            "10Hz polling starts after t0)", run_id,
         )
-        return WindowEnergyResult(
-            raw_uj=raw_uj,
-            attributed_uj=raw_uj,
-            method="INFERRED_POWER",
-            duration_ns=dur_ns,
-        )
+        return None
 
     def resolve_post_task(
         self,
