@@ -592,6 +592,39 @@ class EnergyWindowResolverFactory:
         row = cursor.fetchone()
         return int(row[0]) if row else None
 
+    # Map platform_class from hw_config.json to resolver family.
+    # Add new platform_class here when new hardware is onboarded.
+    _PLATFORM_CLASS_MAP = {
+        "nvidia_grace":       "spbm",
+        "linux_arm":          "spbm",
+        "apple_silicon":      "iokit",
+        "intel_mac":          "iokit",
+        "intel_x86":          "rapl_legacy",
+        "amd_x86":            "rapl_legacy",
+        "linux_x86_unknown":  "rapl_legacy",
+        "linux_riscv":        "null",
+    }
+
+    @classmethod
+    def _load_platform_class(cls) -> str:
+        """
+        Read platform_class from hw_config.json.
+        Returns 'unknown' if file missing or key absent — factory falls back to DB detection.
+        """
+        import json
+        from pathlib import Path
+        hw_config_path = Path("config/hw_config.json")
+        if not hw_config_path.exists():
+            logger.debug("hw_config.json not found — falling back to DB detection")
+            return "unknown"
+        try:
+            with open(hw_config_path) as f:
+                cfg = json.load(f)
+            return cfg.get("platform_class", "unknown")
+        except Exception as e:
+            logger.warning("hw_config.json read failed: %s — falling back to DB detection", e)
+            return "unknown"
+
     @classmethod
     def detect(
         cls,
@@ -599,6 +632,70 @@ class EnergyWindowResolverFactory:
         run_id: int,
         has_point_reads: bool,
     ) -> EnergyWindowResolverABC:
+        """
+        Detect platform and return the appropriate resolver.
+
+        Primary: reads platform_class from hw_config.json — fast, authoritative.
+        Fallback: infers from DB sample table structure (for historical runs
+        or machines where hw_config is unavailable).
+
+        Args:
+            cursor:          Open DB cursor.
+            run_id:          Target run.
+            has_point_reads: True if rapl_before_pretask dict was non-None.
+
+        Returns:
+            Concrete EnergyWindowResolverABC. Never None.
+        """
+        platform_class = cls._load_platform_class()
+        resolver_family = cls._PLATFORM_CLASS_MAP.get(platform_class, "unknown")
+
+        if resolver_family == "rapl_legacy":
+            logger.debug("Run %d: platform_class=%s → RaplLegacyResolver",
+                         run_id, platform_class)
+            return RaplLegacyResolver()
+
+        if resolver_family == "spbm":
+            pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=True)
+            if pkg_domain_id is not None:
+                logger.debug("Run %d: platform_class=%s → SpbmV2Resolver(domain=%d)",
+                             run_id, platform_class, pkg_domain_id)
+                return SpbmV2Resolver(pkg_domain_id)
+            logger.warning("Run %d: SPBM platform but no root domain found", run_id)
+            return NullResolver()
+
+        if resolver_family == "iokit":
+            pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=False)
+            if pkg_domain_id is not None:
+                logger.debug("Run %d: platform_class=%s → IokitV2Resolver(domain=%d)",
+                             run_id, platform_class, pkg_domain_id)
+                return IokitV2Resolver(pkg_domain_id)
+            logger.warning("Run %d: IOKit platform but no domain found", run_id)
+            return NullResolver()
+
+        if resolver_family == "null":
+            logger.debug("Run %d: platform_class=%s → NullResolver", run_id, platform_class)
+            return NullResolver()
+
+        # Fallback: infer from DB sample structure (unknown platform_class)
+        logger.debug("Run %d: unknown platform_class=%s — inferring from DB",
+                     run_id, platform_class)
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM energy_samples WHERE run_id = ?", (run_id,)
+        )
+        if int(cursor.fetchone()[0] or 0) > 0:
+            return RaplLegacyResolver()
+
+        pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=True)
+        if pkg_domain_id is not None:
+            return SpbmV2Resolver(pkg_domain_id)
+
+        pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=False)
+        if pkg_domain_id is not None:
+            return IokitV2Resolver(pkg_domain_id)
+
+        return NullResolver()
         """
         Detect platform and return the appropriate resolver.
 
