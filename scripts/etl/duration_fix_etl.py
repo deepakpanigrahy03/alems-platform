@@ -392,6 +392,16 @@ def fix_run_with_pretask(
         # Resolve cumulative point-read anchors — None on Mac IOKit.
         rapl_before_uj = _pkg_uj(rapl_before_pretask)
         rapl_after_uj  = _pkg_uj(rapl_after_task)
+        # Backfill path: dicts are None but DB may have values from original run.
+        if rapl_before_uj is None or rapl_after_uj is None:
+            cursor.execute(
+                "SELECT rapl_before_pretask_uj, rapl_after_task_uj FROM runs WHERE run_id = ?",
+                (run_id,)
+            )
+            db_pt = cursor.fetchone()
+            if db_pt:
+                rapl_before_uj = rapl_before_uj or db_pt[0]
+                rapl_after_uj  = rapl_after_uj  or db_pt[1]
         has_point_reads = rapl_before_uj is not None and rapl_after_uj is not None
 
         # Detect platform and get resolver — zero branching here.

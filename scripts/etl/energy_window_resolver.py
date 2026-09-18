@@ -638,8 +638,17 @@ class EnergyWindowResolverFactory:
             return NullResolver()
 
         if resolver_family == "iokit":
-            # If point reads available, use SpbmV2Resolver — same residual formula.
-            # IOKit now supports cumulative counters on newer macOS versions.
+            # If point reads available (from dict or from DB), use SpbmV2Resolver.
+            # Check DB rapl_before_pretask_uj for backfill path where dict is None.
+            if not has_point_reads:
+                cursor.execute(
+                    "SELECT rapl_before_pretask_uj FROM runs WHERE run_id = ?",
+                    (run_id,)
+                )
+                db_row = cursor.fetchone()
+                if db_row and db_row[0]:
+                    has_point_reads = True
+                    logger.debug("Run %d: IOKit — point reads found in DB", run_id)
             if has_point_reads:
                 pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=False)
                 if pkg_domain_id is not None:
