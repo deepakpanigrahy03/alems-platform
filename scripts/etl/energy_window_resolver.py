@@ -638,24 +638,10 @@ class EnergyWindowResolverFactory:
             return NullResolver()
 
         if resolver_family == "iokit":
-            # If point reads available (from dict or from DB), use SpbmV2Resolver.
-            # Check DB rapl_before_pretask_uj for backfill path where dict is None.
-            if not has_point_reads:
-                cursor.execute(
-                    "SELECT rapl_before_pretask_uj FROM runs WHERE run_id = ?",
-                    (run_id,)
-                )
-                db_row = cursor.fetchone()
-                if db_row and db_row[0]:
-                    has_point_reads = True
-                    logger.debug("Run %d: IOKit — point reads found in DB", run_id)
-            if has_point_reads:
-                pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=False)
-                if pkg_domain_id is not None:
-                    logger.debug("Run %d: platform_class=%s + point_reads → SpbmV2Resolver(domain=%d)",
-                                 run_id, platform_class, pkg_domain_id)
-                    return SpbmV2Resolver(pkg_domain_id)
-            # No point reads — fall back to IokitV2Resolver (NULL for pre/post).
+            # IokitV2Resolver always used for Apple Silicon.
+            # Even with point reads, 600-800ms sampling gap means residual
+            # formula would attribute unobserved task energy to pre_task.
+            # Coverage-aware estimation is a separate chunk (F3).
             pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=False)
             if pkg_domain_id is not None:
                 logger.debug("Run %d: platform_class=%s → IokitV2Resolver(domain=%d)",
