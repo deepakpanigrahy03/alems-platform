@@ -289,6 +289,10 @@ class SQLiteAdapter(DatabaseInterface):
         # don't fail on tables missing those columns.
         _col_additions = [
             ("migration_history",    "source",           "TEXT DEFAULT 'core'"),
+            ("orchestration_events", "attempt_id",       "INTEGER REFERENCES goal_attempt(attempt_id)"),
+            ("orchestration_events", "agent_id",         "INTEGER"),
+            ("goal_attempt",         "started_at_ns",    "INTEGER"),
+            ("goal_attempt",         "finished_at_ns",   "INTEGER"),
             ("energy_domains",       "reader_keys",       "TEXT"),
             ("energy_domains",       "legacy_column",     "TEXT"),
             ("output_quality",       "task_category",     "TEXT"),
@@ -819,18 +823,21 @@ class SQLiteAdapter(DatabaseInterface):
             self.conn.execute(
                 """
                 INSERT INTO orchestration_events
-                (run_id, step_index, phase, event_type, start_time_ns, end_time_ns,
+                (run_id, attempt_id, step_index, phase, event_type,
+                 start_time_ns, end_time_ns,
                  duration_ns, power_watts, cpu_util_percent, interrupt_rate,
                  event_energy_uj, tax_contribution_uj, tax_percent,
                  tool_name, io_bytes_read, io_bytes_written,
                  input_payload_hash, output_payload_hash,
                  tool_success, tool_result_rows,
                  tool_cpu_time_ns, tool_memory_delta_kb)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     run_id,
+                    # Bug 7 fix: attempt_id from event dict, NULL for legacy events.
+                    ev.get("attempt_id"),
                     ev.get("step_index"),
                     ev.get("phase"),
                     ev.get("event_type"),
@@ -851,7 +858,7 @@ class SQLiteAdapter(DatabaseInterface):
                     (None if ev.get("metadata", {}).get("success") is None else int(ev.get("metadata", {}).get("success"))),
                     ev.get("metadata", {}).get("result_rows"),
                     ev.get("metadata", {}).get("cpu_time_ns"),
-                    ev.get("metadata", {}).get("memory_delta_kb"),                    
+                    ev.get("metadata", {}).get("memory_delta_kb"),
                 ),
             )
 

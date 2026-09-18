@@ -8,6 +8,7 @@ All methods are sync — no async, no threading.
 
 import logging
 from datetime import datetime, timezone
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -158,14 +159,14 @@ class GoalTracker:
         sql = """
             INSERT INTO goal_attempt (
                 goal_id, run_id, attempt_number, is_winning,
-                outcome, status, started_at, updated_at,
+                outcome, status, started_at, started_at_ns, updated_at,
                 is_retry, retry_of_attempt_id
-            ) VALUES (?, -1, ?, 0, 'failure', 'running', ?, ?, ?, ?)
+            ) VALUES (?, -1, ?, 0, 'failure', 'running', ?, ?, ?, ?, ?)
         """
         # run_id = -1 placeholder; finish_attempt() updates it with real run_id
         try:
             conn.execute("PRAGMA foreign_keys = OFF")
-            cur = conn.execute(sql, (goal_id, attempt_number, now, now,
+            cur = conn.execute(sql, (goal_id, attempt_number, now, time.time_ns(), now,
                                      1 if is_retry else 0, retry_of_attempt_id))
             conn.commit()
             conn.execute("PRAGMA foreign_keys = ON")
@@ -240,13 +241,14 @@ class GoalTracker:
                     failure_type     = ?,
                     gpu_energy_uj    = ?,
                     finished_at      = ?,
+                    finished_at_ns   = ?,
                     updated_at       = ?
                 WHERE attempt_id = ?
             """
             params = (
                 run_id, outcome, status, is_winning,
                 energy_uj, orchestration_uj, compute_uj,
-                failure_cause, failure_type, gpu_energy_uj, now, now,
+                failure_cause, failure_type, gpu_energy_uj, now, time.time_ns(), now,
                 attempt_id,
             )
         else:

@@ -605,6 +605,11 @@ class ExperimentHarness:
                 "duration_sec": task_duration_sec,           # task only (corrected)
                 "duration_ms": task_duration_sec * 1000,
                 "task_duration_sec": task_duration_sec,
+                "task_duration_ns": int(task_duration_sec * 1_000_000_000),
+                "post_task_duration_ns": int(post_task_duration_sec * 1_000_000_000),
+                # Bug 8 fix: direct RAPL delta for post_task window [t1, t2].
+                # None on non-RAPL platforms — PAC compliant.
+                "framework_overhead_ns": int(framework_overhead_sec * 1_000_000_000),
                 "framework_overhead_sec": framework_overhead_sec,
                 "total_run_duration_sec": run_end_perf - _pre_task_start_perf,
                 "pre_task_duration_sec":  pre_task_duration_sec,
@@ -1179,6 +1184,11 @@ class ExperimentHarness:
                 "duration_sec": task_duration_sec,           # task only (corrected)
                 "duration_ms": task_duration_sec * 1000,
                 "task_duration_sec": task_duration_sec,
+                "task_duration_ns": int(task_duration_sec * 1_000_000_000),
+                "post_task_duration_ns": int(post_task_duration_sec * 1_000_000_000),
+                # Bug 8 fix: direct RAPL delta for post_task window [t1, t2].
+                # None on non-RAPL platforms — PAC compliant.
+                "framework_overhead_ns": int(framework_overhead_sec * 1_000_000_000),
                 "framework_overhead_sec": framework_overhead_sec,
                 "total_run_duration_sec": run_end_perf - _pre_task_start_perf,
                 "pre_task_duration_sec": pre_task_duration_sec,

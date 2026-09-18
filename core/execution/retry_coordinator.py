@@ -242,6 +242,15 @@ class RetryCoordinator:
                 )
                 break
 
+            # Bug 7 fix: thread attempt_id into the agentic executor so
+            # _emit_event can tag every orchestration event with the correct
+            # attempt boundary. harness.run() calls executor.execute() which
+            # calls _emit_event. Setting _current_attempt_id here before
+            # harness.run() ensures all events in this attempt carry it.
+            # harness exposes executor via harness.executor (set at init time).
+            if hasattr(harness, "executor") and harness.executor is not None:
+                harness.executor._current_attempt_id = attempt_id
+
             # Run harness — classify exception or result outcome
             result       = None
             failure_type = None

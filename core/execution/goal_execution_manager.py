@@ -195,6 +195,9 @@ def execute_goal(
                     executor.failure_injector = failure_injector
                     executor._current_run_id = rep_num
                     executor._current_attempt = attempt_num
+                # Bug 7 fix: set attempt_id on executor so _emit_event
+                # tags every orchestration event with the correct attempt boundary.
+                executor._current_attempt_id = attempt_id
                 result = harness.run_agentic(
                     executor=executor,
                     task=task_prompt,

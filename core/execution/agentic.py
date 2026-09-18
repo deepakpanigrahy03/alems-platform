@@ -1303,6 +1303,7 @@ You can use tools like calculator or web search if needed.
         start_time: float,
         end_time: float,
         metadata: Dict = None,
+        attempt_id: int = None,
     ) -> None:
         """
         Emit an orchestration event for tax attribution.
@@ -1313,9 +1314,18 @@ You can use tools like calculator or web search if needed.
             start_time: Start timestamp
             end_time: End timestamp
             metadata: Additional event data
+            attempt_id: FK to goal_attempt.attempt_id.
+                Bug 7 fix: None for pre-attempt events (setup, teardown).
+                Set by caller via self._current_attempt_id.
         """
         if not hasattr(self, "_events"):
             self._events = []
+
+        # Bug 7 fix: use instance-level current_attempt_id if caller did not
+        # pass one explicitly. Instance attribute set by harness before execute().
+        resolved_attempt_id = attempt_id if attempt_id is not None else getattr(
+            self, "_current_attempt_id", None
+        )
 
         event = {
             "phase": phase,
@@ -1324,6 +1334,7 @@ You can use tools like calculator or web search if needed.
             "end_time_ns": int(end_time * 1e9),
             "duration_ns": int((end_time - start_time) * 1e9),
             "metadata": metadata or {},
+            "attempt_id": resolved_attempt_id,
         }
         self._events.append(event)
         dprint(f"📝 Event: {phase}.{event_type} ({event['duration_ns']/1e6:.2f}ms)")

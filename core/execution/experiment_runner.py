@@ -1741,6 +1741,29 @@ class ExperimentRunner:
             compute_uj=None,
             gpu_energy_uj=agentic_gpu_uj,
         )
+        # Bug 7 fix: backfill attempt_id on orchestration_events for comparison path.
+        # Also backfill started_at_ns/finished_at_ns from run timestamps — _record_goal_pair
+        # creates attempt post-run so started_at_ns would reflect insert time, not run start.
+        if agentic_goal_id is not None:
+            _agentic_attempt = db.db.conn.execute(
+                "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
+                (agentic_id,)
+            ).fetchone()
+            if _agentic_attempt:
+                _agentic_run_ts = db.db.conn.execute(
+                    "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+                    (agentic_id,)
+                ).fetchone()
+                db.db.conn.execute(
+                    "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
+                    (_agentic_attempt[0], agentic_id)
+                )
+                if _agentic_run_ts:
+                    db.db.conn.execute(
+                        "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
+                        (_agentic_run_ts[0], _agentic_run_ts[1], _agentic_attempt[0])
+                    )
+                db.db.conn.commit()
         # ETL runs sync — after both goals recorded so normalization_factors
         # sees the full picture for this experiment repetition.
         if linear_goal_id is not None:
@@ -2235,6 +2258,27 @@ class ExperimentRunner:
                 _goal_tracker.queue_etl(
                     db.db.conn, "goal_execution", goal_id, "goal_execution_etl",
                 )
+                # Bug 7 fix: backfill attempt_id and ns timestamps for save_single path.
+                if workflow_type == "agentic":
+                    _attempt = db.db.conn.execute(
+                        "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
+                        (run_id,)
+                    ).fetchone()
+                    if _attempt:
+                        _run_ts = db.db.conn.execute(
+                            "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+                            (run_id,)
+                        ).fetchone()
+                        db.db.conn.execute(
+                            "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
+                            (_attempt[0], run_id)
+                        )
+                        if _run_ts:
+                            db.db.conn.execute(
+                                "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
+                                (_run_ts[0], _run_ts[1], _attempt[0])
+                            )
+                        db.db.conn.commit()
 
             # --- Quality scoring (8.5C) ---
             if goal_id is not None:

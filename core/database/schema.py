@@ -200,7 +200,9 @@ CREATE TABLE IF NOT EXISTS goal_attempt (
                                 'cancelled','timeout','crashed'
                             )),
     started_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at_ns           INTEGER,   -- time.time_ns() at attempt start — ns precision
     finished_at             TIMESTAMP,
+    finished_at_ns          INTEGER,   -- time.time_ns() at attempt finish — ns precision
     updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     retry_of_attempt_id     INTEGER,  -- attempt_id this retries, NULL if first attempt
@@ -1208,6 +1210,8 @@ CREATE TABLE IF NOT EXISTS orchestration_events (
     
     tool_cpu_time_ns        INTEGER,             -- Per-tool CPU and memory — closes attribution black-box gap
     tool_memory_delta_kb    INTEGER,
+    attempt_id              INTEGER REFERENCES goal_attempt(attempt_id),  -- Bug 7: per-attempt event attribution
+    agent_id                INTEGER,                                       -- P10 forward compat: multi-agent runs, NULL for all single-agent
     FOREIGN KEY(run_id) REFERENCES runs(run_id)
 );
 """
@@ -1215,6 +1219,7 @@ CREATE TABLE IF NOT EXISTS orchestration_events (
 CREATE_EVENTS_INDEXES = """
 CREATE INDEX IF NOT EXISTS idx_events_run ON orchestration_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_events_phase ON orchestration_events(phase);
+CREATE INDEX IF NOT EXISTS idx_events_attempt ON orchestration_events(attempt_id);
 """
 
 # ========================================================================

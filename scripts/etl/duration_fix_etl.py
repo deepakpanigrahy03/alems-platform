@@ -411,34 +411,128 @@ def fix_run_with_pretask(
         """, (run_id,))
         es_row = cursor.fetchone()
         if not es_row or es_row[0] is None:
-            # Fallback: SPBM platform — use energy_sample_domains domain_id=1
-            # Find the primary energy domain for this run.
-            # domain_id=1 is RAPL CORE on Linux. On Apple, CPU_APPLE is the
-            # primary domain. Use the domain with max cumulative energy.
+            # v2 path (SPBM/GN100, Apple, AMD, all future platforms).
+            # energy_sample_domains stores per-interval deltas — not cumulative counters.
+            # SUM(energy_uj) over the full run gives total task energy for the
+            # PACKAGE domain (domain_id=1, parent_domain_id IS NULL = root domain).
+            # We use timestamp-based windows for pre/post task attribution.
+            # This is platform-agnostic: works on GN100, Apple, AMD, future platforms.
+            cursor.execute("""
+                SELECT r.start_time_ns, r.task_duration_ns
+                FROM runs r WHERE r.run_id = ?
+            """, (run_id,))
+            ts_row = cursor.fetchone()
+            if not ts_row or not ts_row[0] or not ts_row[1]:
+                logger.warning("Run %d: no timestamps — skipping", run_id)
+                return True
+            run_start_ns = ts_row[0]
+            task_dur_ns  = ts_row[1]
+            t0_ns = run_start_ns
+            t1_ns = run_start_ns + task_dur_ns
+
+            # Root PACKAGE domain = domain_id with no parent (parent_domain_id IS NULL)
+            # that has the highest total energy — platform-agnostic root resolution.
             cursor.execute("""
                 SELECT esd.domain_id
                 FROM energy_sample_domains esd
+                JOIN energy_domains ed ON ed.domain_id = esd.domain_id
                 WHERE esd.run_id = ?
+                  AND ed.parent_domain_id IS NULL
+                  AND ed.is_cumulative = 1
                 GROUP BY esd.domain_id
-                ORDER BY MAX(esd.energy_uj) DESC
+                ORDER BY SUM(esd.energy_uj) DESC
                 LIMIT 1
             """, (run_id,))
-            primary_domain_row = cursor.fetchone()
-            primary_domain_id = primary_domain_row[0] if primary_domain_row else 1
-            cursor.execute("""
-                SELECT MIN(esd.energy_uj), MAX(esd.energy_uj)
-                FROM energy_sample_domains esd
-                WHERE esd.run_id = ? AND esd.domain_id = ?
-            """, (run_id, primary_domain_id))
-            spbm_row = cursor.fetchone()
-            if not spbm_row or spbm_row[0] is None:
-                logger.warning("Run %d: no energy_samples or SPBM samples — skipping", run_id)
+            pkg_domain_row = cursor.fetchone()
+            if not pkg_domain_row:
+                logger.warning("Run %d: no root energy domain found — skipping", run_id)
                 return True
-            rapl_t0_uj = int(spbm_row[0])
-            rapl_t1_uj = int(spbm_row[1])
+            pkg_domain_id = pkg_domain_row[0]
+
+            # Total pkg delta from point reads — spans t_before to t2.
+            # This is the ground truth for all three windows combined.
+            total_pkg_delta = (
+                (rapl_after_uj or 0) - (rapl_before_uj or 0)
+            )
+
+            # Task window: all samples in run — sampling covers [t0, t1].
+            # pre_task and post_task have no samples (outside measurement window).
+            cursor.execute("""
+                SELECT SUM(esd.energy_uj)
+                FROM energy_sample_domains esd
+                WHERE esd.run_id = ?
+                  AND esd.domain_id = ?
+            """, (run_id, pkg_domain_id))
+            task_sum_row = cursor.fetchone()
+            task_raw_uj = int(task_sum_row[0] or 0)
+
+            # post_task window: samples after t1 (after stop_measurement).
+            # On GN100 sampling stops at stop_measurement() so this is
+            # typically 0 or 1 sample. Use residual from point reads.
+            cursor.execute("""
+                SELECT SUM(esd.energy_uj)
+                FROM energy_sample_domains esd
+                JOIN energy_samples_v2 esv2 ON esv2.sample_id = esd.sample_id
+                WHERE esd.run_id = ?
+                  AND esd.domain_id = ?
+                  AND esv2.timestamp_ns > ?
+            """, (run_id, pkg_domain_id, t1_ns))
+            post_sum_row = cursor.fetchone()
+            post_task_raw_uj = int(post_sum_row[0] or 0)
+
+            # pre_task raw = total delta - task samples - post_task samples.
+            # Exact: no estimation, no baseline subtraction needed.
+            # Works on GN100 (SPBM), Mac (IOKit), AMD v2 — all platforms.
+            pre_task_raw_uj = max(0, total_pkg_delta - task_raw_uj - post_task_raw_uj)
+
+            # Attributed energy for each window — cpu_fraction isolates
+            # A-LEMS process share from total pkg delta.
+            post_task_duration_ns = int(post_task_duration_sec * 1e9)
+            post_task_energy_uj   = max(0, int(post_task_raw_uj * cpu_frac_post))
+            pre_task_duration_ns  = int(pre_task_duration_sec * 1e9)
+            pre_task_energy_uj    = max(0, int(pre_task_raw_uj * cpu_frac_pre))
+            if pre_task_energy_uj is not None and post_task_energy_uj is not None:
+                framework_overhead_energy_uj = pre_task_energy_uj + post_task_energy_uj
+            else:
+                framework_overhead_energy_uj = None
+            cursor.execute("""
+                UPDATE runs SET
+                    rapl_before_pretask_uj       = ?,
+                    rapl_after_task_uj           = ?,
+                    pre_task_duration_ns         = ?,
+                    pre_task_energy_uj           = ?,
+                    post_task_duration_ns        = ?,
+                    post_task_energy_uj          = ?,
+                    framework_overhead_energy_uj = ?,
+                    framework_overhead_ns        = ?,
+                    total_run_duration_ns        = ?,
+                    duration_includes_overhead   = 0
+                WHERE run_id = ?
+            """, (
+                rapl_before_uj,
+                rapl_after_uj,
+                pre_task_duration_ns,
+                pre_task_energy_uj,
+                post_task_duration_ns,
+                post_task_energy_uj,
+                framework_overhead_energy_uj,
+                pre_task_duration_ns + post_task_duration_ns,
+                (pre_task_duration_ns + existing_task_dur_ns + post_task_duration_ns
+                 if existing_task_dur_ns else None),
+                run_id,
+            ))
+            conn.commit()
+            logger.info(
+                "Run %d (v2) | pre=%dµJ(%dms) post=%dµJ(%dms) overhead=%dµJ",
+                run_id,
+                pre_task_energy_uj or 0, pre_task_duration_ns // 1_000_000,
+                post_task_energy_uj or 0, post_task_duration_ns // 1_000_000,
+                framework_overhead_energy_uj or 0,
+            )
+            return True
         else:
-            rapl_t0_uj   = es_row[0]   # RAPL at start_measurement()
-            rapl_t1_uj   = es_row[1]   # RAPL at stop_measurement() proxy
+            rapl_t0_uj   = es_row[0]   # RAPL cumulative at start_measurement()
+            rapl_t1_uj   = es_row[1]   # RAPL cumulative at stop_measurement() proxy
  
         # ── Compute pre-task energy ───────────────────────────────────────
         pre_task_duration_ns = int(pre_task_duration_sec * 1e9)
