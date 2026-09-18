@@ -44,11 +44,13 @@ CHECKS = [
 
     ("V2_bug8_post_task_null", """
         SELECT COUNT(*) FROM runs r
-        JOIN experiments e ON r.exp_id = e.exp_id
         WHERE r.run_id > (SELECT MAX(run_id) - 100 FROM runs)
           AND r.post_task_energy_uj IS NULL
-          AND (SELECT platform_class FROM environment_config
-               WHERE key = 'platform_class' LIMIT 1) != 'apple_silicon'
+          AND (
+              SELECT ec.os_name FROM experiments e
+              JOIN environment_config ec ON ec.env_id = e.env_id
+              WHERE e.exp_id = r.exp_id LIMIT 1
+          ) != 'Darwin'
     """, 0),
 
     ("V3_bug6_task_duration_null", """
