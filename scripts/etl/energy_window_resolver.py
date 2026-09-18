@@ -638,6 +638,15 @@ class EnergyWindowResolverFactory:
             return NullResolver()
 
         if resolver_family == "iokit":
+            # If point reads available, use SpbmV2Resolver — same residual formula.
+            # IOKit now supports cumulative counters on newer macOS versions.
+            if has_point_reads:
+                pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=False)
+                if pkg_domain_id is not None:
+                    logger.debug("Run %d: platform_class=%s + point_reads → SpbmV2Resolver(domain=%d)",
+                                 run_id, platform_class, pkg_domain_id)
+                    return SpbmV2Resolver(pkg_domain_id)
+            # No point reads — fall back to IokitV2Resolver (NULL for pre/post).
             pkg_domain_id = cls._find_pkg_domain(cursor, run_id, require_root=False)
             if pkg_domain_id is not None:
                 logger.debug("Run %d: platform_class=%s → IokitV2Resolver(domain=%d)",
