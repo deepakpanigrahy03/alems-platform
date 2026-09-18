@@ -47,6 +47,8 @@ import threading
 logger = logging.getLogger(__name__)
 
 from scripts.tools.path_loader import get_alems_db_path
+from scripts.etl.energy_window_resolver import EnergyWindowResolverFactory, SpbmV2Resolver
+
 DEFAULT_DB = Path(get_alems_db_path())
 
 # Coverage quality thresholds
@@ -349,312 +351,111 @@ def fix_run_with_pretask(
     cpu_frac_post: float,
     db_path: Path = DEFAULT_DB,
 ) -> bool:
-
     """
-    Called by experiment_runner for NEW runs (post-v9).
-    Stores pre_task_energy_uj from live RAPL capture.
+    Compute and store pre/post task energy for a single run.
 
-    The rapl_start value is read from energy_attribution table
-    (stored there by the attribution ETL from raw_energy.rapl_start).
+    Called by experiment_runner after each run (online path) and by
+    backfill_attempt_attribution.py for historical runs (offline path).
+
+    Platform detection is delegated to EnergyWindowResolverFactory — this
+    function has zero platform branching. Adding a new platform requires
+    only a new resolver class and a factory detection step.
 
     Args:
-        run_id:               Target run_id.
-        rapl_before_pretask:  Dict from rapl.read_energy() before pre-task reads.
-                              None on non-RAPL platforms.
-        pre_task_duration_sec: Seconds from _pre_task_start_perf to run_start_perf.
+        run_id:               Target run.
+        rapl_before_pretask:  Dict from read_energy() before pre-task reads.
+                              None on platforms without point reads (Mac IOKit).
+        rapl_after_task:      Dict from read_energy() after stop_measurement().
+                              None on platforms without point reads.
+        pre_task_duration_sec:  Duration of pre-task window in seconds.
+        post_task_duration_sec: Duration of post-task window in seconds.
+        cpu_frac_pre:         A-LEMS process CPU share during pre-task.
+        cpu_frac_post:        A-LEMS process CPU share during post-task.
         db_path:              Path to SQLite DB.
 
     Returns:
-        True on success, False on failure.
+        True on success or graceful skip, False on error.
     """
     if not db_path.exists():
-        logger.error("DB not found: %s", db_path)
+        logger.error("fix_run_with_pretask: DB not found: %s", db_path)
         return False
 
-    # First run the standard backfill for task/framework duration
+    # Standard duration/coverage backfill first — always runs regardless of platform.
     ok = fix_run(run_id, db_path)
     if not ok:
         return False
 
-    if rapl_before_pretask is None:
-        # No point reads available (Mac IOKit, future platforms).
-        # Attempt v2 sample stream path — uses timestamp-based SUM.
-        # Falls through to full computation below with rapl_before_uj=None.
-        # _compute_window_energy returns None when rapl anchors are None,
-        # but v2 path overrides this with direct sample SUM.
-        logger.debug("Run %d: no point reads — attempting v2 sample path", run_id)
- 
     conn = sqlite3.connect(str(db_path))
     try:
         cursor = conn.cursor()
- 
-        # ── Get baseline power for this run ───────────────────────────────
-        cursor.execute("""
-            SELECT avg_task_power_watts, baseline_energy_uj, task_duration_ns
-            FROM runs WHERE run_id = ?
-        """, (run_id,))
-        run_row = cursor.fetchone()
-        existing_task_dur_ns = run_row[2] if run_row else None
-        baseline_power_watts = None
-        if run_row and run_row[1] and run_row[2] and run_row[2] > 0:
-            baseline_power_watts = (
-                run_row[1] / 1e6 / (run_row[2] / 1e9)
-            )
- 
-        # ── RAPL anchors ──────────────────────────────────────────────────
+
+        # Resolve cumulative point-read anchors — None on Mac IOKit.
         rapl_before_uj = _pkg_uj(rapl_before_pretask)
         rapl_after_uj  = _pkg_uj(rapl_after_task)
-        logger.info("Run %d: rapl_before=%s rapl_after=%s before_uj=%s after_uj=%s cpu_pre=%s cpu_post=%s post_dur=%s",
-                    run_id, rapl_before_pretask, rapl_after_task,
-                    rapl_before_uj, rapl_after_uj, cpu_frac_pre, cpu_frac_post, post_task_duration_sec)
-        # rapl_t0 = first energy_sample pkg_start_uj (start_measurement anchor)
-        cursor.execute("""
-            SELECT MIN(pkg_start_uj), MAX(pkg_end_uj)
-            FROM energy_samples WHERE run_id = ?
-        """, (run_id,))
-        es_row = cursor.fetchone()
-        if not es_row or es_row[0] is None:
-            # v2 path (SPBM/GN100, Apple, AMD, all future platforms).
-            # energy_sample_domains stores per-interval deltas — not cumulative counters.
-            # SUM(energy_uj) over the full run gives total task energy for the
-            # PACKAGE domain (domain_id=1, parent_domain_id IS NULL = root domain).
-            # We use timestamp-based windows for pre/post task attribution.
-            # This is platform-agnostic: works on GN100, Apple, AMD, future platforms.
-            cursor.execute("""
-                SELECT r.start_time_ns, r.task_duration_ns
-                FROM runs r WHERE r.run_id = ?
-            """, (run_id,))
-            ts_row = cursor.fetchone()
-            if not ts_row or not ts_row[0] or not ts_row[1]:
-                logger.warning("Run %d: no timestamps — skipping", run_id)
-                return True
-            run_start_ns = ts_row[0]
-            task_dur_ns  = ts_row[1]
-            t0_ns = run_start_ns
-            t1_ns = run_start_ns + task_dur_ns
+        has_point_reads = rapl_before_uj is not None and rapl_after_uj is not None
 
-            # Root PACKAGE domain = domain_id with no parent (parent_domain_id IS NULL)
-            # that has the highest total energy — platform-agnostic root resolution.
-            cursor.execute("""
-                SELECT esd.domain_id
-                FROM energy_sample_domains esd
-                JOIN energy_domains ed ON ed.domain_id = esd.domain_id
-                WHERE esd.run_id = ?
-                  AND ed.parent_domain_id IS NULL
-                  AND ed.is_cumulative = 1
-                GROUP BY esd.domain_id
-                ORDER BY SUM(esd.energy_uj) DESC
-                LIMIT 1
-            """, (run_id,))
-            pkg_domain_row = cursor.fetchone()
-            if not pkg_domain_row:
-                # Apple IOKit: UNIFIED root has no samples — walk to children.
-                # CPU_APPLE is the primary energy domain on Apple Silicon.
-                cursor.execute("""
-                    SELECT esd.domain_id
-                    FROM energy_sample_domains esd
-                    JOIN energy_domains ed ON ed.domain_id = esd.domain_id
-                    JOIN energy_domains parent ON parent.domain_id = ed.parent_domain_id
-                    WHERE esd.run_id = ?
-                      AND parent.parent_domain_id IS NULL
-                      AND ed.is_cumulative = 1
-                    GROUP BY esd.domain_id
-                    ORDER BY SUM(esd.energy_uj) DESC
-                    LIMIT 1
-                """, (run_id,))
-                pkg_domain_row = cursor.fetchone()
-            if not pkg_domain_row:
-                logger.warning("Run %d: no energy domain found — skipping", run_id)
-                return True
-            pkg_domain_id = pkg_domain_row[0]
+        # Detect platform and get resolver — zero branching here.
+        resolver = EnergyWindowResolverFactory.detect(cursor, run_id, has_point_reads)
+        logger.debug("Run %d: using %s", run_id, resolver.name())
 
-            # Total pkg delta from point reads — spans t_before to t2.
-            # This is the ground truth for all three windows combined.
-            total_pkg_delta = (
-                (rapl_after_uj or 0) - (rapl_before_uj or 0)
-            )
-
-            # Task window: all samples in run — sampling covers [t0, t1].
-            # pre_task and post_task have no samples (outside measurement window).
-            cursor.execute("""
-                SELECT SUM(esd.energy_uj)
-                FROM energy_sample_domains esd
-                WHERE esd.run_id = ?
-                  AND esd.domain_id = ?
-            """, (run_id, pkg_domain_id))
-            task_sum_row = cursor.fetchone()
-            task_raw_uj = int(task_sum_row[0] or 0)
-
-            # post_task window: samples after t1 (after stop_measurement).
-            # On GN100 sampling stops at stop_measurement() so this is
-            # typically 0 or 1 sample. Use residual from point reads.
-            cursor.execute("""
-                SELECT SUM(esd.energy_uj)
-                FROM energy_sample_domains esd
-                JOIN energy_samples_v2 esv2 ON esv2.sample_id = esd.sample_id
-                WHERE esd.run_id = ?
-                  AND esd.domain_id = ?
-                  AND esv2.timestamp_ns > ?
-            """, (run_id, pkg_domain_id, t1_ns))
-            post_sum_row = cursor.fetchone()
-            post_task_raw_uj = int(post_sum_row[0] or 0)
-
-            # pre_task raw = total delta - task samples - post_task samples.
-            # Exact when point reads available (GN100 SPBM, AMD v2).
-            # Mac IOKit: no point reads, no pre/post samples — use power extrapolation.
-            # avg_power from task window * overhead duration = best available estimate.
-            # Documented as INFERRED in methodology, not MEASURED.
-            if rapl_before_uj is not None and rapl_after_uj is not None:
-                pre_task_raw_uj = max(0, total_pkg_delta - task_raw_uj - post_task_raw_uj)
-            else:
-                # No point reads — extrapolate from task avg power.
-                _task_dur_s = (t1_ns - t0_ns) / 1e9 if t1_ns > t0_ns else 1
-                _avg_power_w = task_raw_uj / _task_dur_s / 1e6
-                pre_task_raw_uj  = int(_avg_power_w * pre_task_duration_sec * 1e6)
-                post_task_raw_uj = int(_avg_power_w * post_task_duration_sec * 1e6)
-                logger.debug(
-                    "Run %d: Mac IOKit — extrapolated pre=%dµJ post=%dµJ from avg_power=%.3fW",
-                    run_id, pre_task_raw_uj, post_task_raw_uj, _avg_power_w
-                )
-
-            # Attributed energy for each window — cpu_fraction isolates
-            # A-LEMS process share from total pkg delta.
-            post_task_duration_ns = int(post_task_duration_sec * 1e9)
-            post_task_energy_uj   = max(0, int(post_task_raw_uj * cpu_frac_post))
-            pre_task_duration_ns  = int(pre_task_duration_sec * 1e9)
-            pre_task_energy_uj    = max(0, int(pre_task_raw_uj * cpu_frac_pre))
-            if pre_task_energy_uj is not None and post_task_energy_uj is not None:
-                framework_overhead_energy_uj = pre_task_energy_uj + post_task_energy_uj
-            else:
-                framework_overhead_energy_uj = None
-            cursor.execute("""
-                UPDATE runs SET
-                    rapl_before_pretask_uj       = ?,
-                    rapl_after_task_uj           = ?,
-                    pre_task_duration_ns         = ?,
-                    pre_task_energy_uj           = ?,
-                    post_task_duration_ns        = ?,
-                    post_task_energy_uj          = ?,
-                    framework_overhead_energy_uj = ?,
-                    framework_overhead_ns        = ?,
-                    total_run_duration_ns        = ?,
-                    duration_includes_overhead   = 0
-                WHERE run_id = ?
-            """, (
-                rapl_before_uj,
-                rapl_after_uj,
-                pre_task_duration_ns,
-                pre_task_energy_uj,
-                post_task_duration_ns,
-                post_task_energy_uj,
-                framework_overhead_energy_uj,
-                pre_task_duration_ns + post_task_duration_ns,
-                (pre_task_duration_ns + existing_task_dur_ns + post_task_duration_ns
-                 if existing_task_dur_ns else None),
-                run_id,
-            ))
-            conn.commit()
-            logger.info(
-                "Run %d (v2) | pre=%dµJ(%dms) post=%dµJ(%dms) overhead=%dµJ",
-                run_id,
-                pre_task_energy_uj or 0, pre_task_duration_ns // 1_000_000,
-                post_task_energy_uj or 0, post_task_duration_ns // 1_000_000,
-                framework_overhead_energy_uj or 0,
-            )
-            return True
-        else:
-            # Legacy x86 RAPL path — energy_samples has cumulative counters.
-            # Use timestamp-based window SUM for post_task (same as v2 path).
-            # pre_task: rapl_before → first sample pkg_start (cumulative delta).
-            # post_task: SUM of per-sample deltas after t1.
-            rapl_t0_uj = es_row[0]   # MIN(pkg_start_uj) = first sample start
-
-            # post_task raw = SUM of pkg deltas in samples after t1.
-            cursor.execute("""
-                SELECT COALESCE(SUM(pkg_end_uj - pkg_start_uj), 0)
-                FROM energy_samples es
-                JOIN runs r ON r.run_id = es.run_id
-                WHERE es.run_id = ?
-                  AND es.timestamp_ns > (r.start_time_ns + COALESCE(r.task_duration_ns, 0))
-            """, (run_id,))
-            post_task_raw_legacy = int(cursor.fetchone()[0] or 0)
-
-            # rapl_t1_uj = MAX(pkg_end_uj) = last sample end (task window end anchor).
-            rapl_t1_uj = es_row[1]
-
-            # Override post_task computation directly — bypass _compute_window_energy
-            # which uses cpu_fraction (near-zero for short overhead windows).
-            # Raw sample SUM is the correct energy for framework overhead windows.
-            post_task_duration_ns_legacy = int(post_task_duration_sec * 1e9)
-            post_task_energy_uj_legacy   = post_task_raw_legacy
-            pre_task_duration_ns_legacy  = int(pre_task_duration_sec * 1e9)
-            pre_task_energy_uj_legacy    = max(0, int(
-                (rapl_t0_uj - (rapl_before_uj or 0))
-            ))
-            if pre_task_energy_uj_legacy is not None and post_task_energy_uj_legacy is not None:
-                framework_overhead_energy_uj_legacy = pre_task_energy_uj_legacy + post_task_energy_uj_legacy
-            else:
-                framework_overhead_energy_uj_legacy = None
-            cursor.execute("""
-                UPDATE runs SET
-                    rapl_before_pretask_uj       = ?,
-                    rapl_after_task_uj           = ?,
-                    pre_task_duration_ns         = ?,
-                    pre_task_energy_uj           = ?,
-                    post_task_duration_ns        = ?,
-                    post_task_energy_uj          = ?,
-                    framework_overhead_energy_uj = ?,
-                    framework_overhead_ns        = ?,
-                    total_run_duration_ns        = ?,
-                    duration_includes_overhead   = 0
-                WHERE run_id = ?
-            """, (
-                rapl_before_uj,
-                rapl_after_uj,
-                pre_task_duration_ns_legacy,
-                pre_task_energy_uj_legacy,
-                post_task_duration_ns_legacy,
-                post_task_energy_uj_legacy,
-                framework_overhead_energy_uj_legacy,
-                pre_task_duration_ns_legacy + post_task_duration_ns_legacy,
-                (pre_task_duration_ns_legacy + existing_task_dur_ns + post_task_duration_ns_legacy
-                 if existing_task_dur_ns else None),
-                run_id,
-            ))
-            conn.commit()
-            logger.info(
-                "Run %d (legacy) | pre=%dµJ(%dms) post=%dµJ(%dms) overhead=%dµJ",
-                run_id,
-                pre_task_energy_uj_legacy or 0, pre_task_duration_ns_legacy // 1_000_000,
-                post_task_energy_uj_legacy or 0, post_task_duration_ns_legacy // 1_000_000,
-                framework_overhead_energy_uj_legacy or 0,
-            )
-            return True
- 
-        # ── Compute pre-task energy ───────────────────────────────────────
-        pre_task_duration_ns = int(pre_task_duration_sec * 1e9)
-        pre_task_energy_uj   = _compute_window_energy(
-            rapl_before_uj, rapl_t0_uj,
-            baseline_power_watts,
-            pre_task_duration_ns,
-            cpu_frac_pre,
+        # Fetch task timing for t1 computation.
+        cursor.execute(
+            "SELECT start_time_ns, task_duration_ns FROM runs WHERE run_id = ?",
+            (run_id,)
         )
- 
-        # ── Compute post-task energy ──────────────────────────────────────
-        post_task_duration_ns = int(post_task_duration_sec * 1e9)
-        post_task_energy_uj   = _compute_window_energy(
-            rapl_t1_uj, rapl_after_uj,
-            baseline_power_watts,
-            post_task_duration_ns,
-            cpu_frac_post,
+        ts_row = cursor.fetchone()
+        if not ts_row or not ts_row[0] or not ts_row[1]:
+            logger.warning("Run %d: no timestamps — skipping pre/post task energy", run_id)
+            return True
+        t1_ns = int(ts_row[0]) + int(ts_row[1])
+
+        # Existing task duration from DB — needed for total_run_duration_ns.
+        cursor.execute("SELECT task_duration_ns FROM runs WHERE run_id = ?", (run_id,))
+        dur_row = cursor.fetchone()
+        existing_task_dur_ns = int(dur_row[0]) if dur_row and dur_row[0] else None
+
+        # ── Post-task first (needed by SpbmV2Resolver.resolve_pre_task_with_context)
+        post_result = resolver.resolve_post_task(
+            cursor=cursor,
+            run_id=run_id,
+            rapl_after_uj=rapl_after_uj,
+            t1_ns=t1_ns,
+            post_task_duration_sec=post_task_duration_sec,
+            cpu_frac_post=cpu_frac_post,
         )
- 
-        # ── Framework overhead energy = pre + post ────────────────────────
-        if pre_task_energy_uj is not None and post_task_energy_uj is not None:
-            framework_overhead_energy_uj = pre_task_energy_uj + post_task_energy_uj
+
+        # ── Pre-task — SPBM needs post_task_raw for residual computation.
+        if isinstance(resolver, SpbmV2Resolver):
+            pre_result = resolver.resolve_pre_task_with_context(
+                cursor=cursor,
+                run_id=run_id,
+                rapl_before_uj=rapl_before_uj,
+                rapl_after_uj=rapl_after_uj,
+                post_task_raw_uj=post_result.raw_uj if post_result else 0,
+                pre_task_duration_sec=pre_task_duration_sec,
+            )
         else:
-            framework_overhead_energy_uj = None
- 
+            pre_result = resolver.resolve_pre_task(
+                cursor=cursor,
+                run_id=run_id,
+                rapl_before_uj=rapl_before_uj,
+                pre_task_duration_sec=pre_task_duration_sec,
+                cpu_frac_pre=cpu_frac_pre,
+            )
+
+        # ── Extract values — None when resolver could not compute.
+        pre_task_energy_uj   = pre_result.attributed_uj  if pre_result  else None
+        post_task_energy_uj  = post_result.attributed_uj if post_result else None
+        pre_task_duration_ns = pre_result.duration_ns    if pre_result  else int(pre_task_duration_sec * 1e9)
+        post_task_duration_ns = post_result.duration_ns  if post_result else int(post_task_duration_sec * 1e9)
+
+        framework_overhead_energy_uj = (
+            pre_task_energy_uj + post_task_energy_uj
+            if pre_task_energy_uj is not None and post_task_energy_uj is not None
+            else None
+        )
+
+        # ── Write to DB.
         cursor.execute("""
             UPDATE runs SET
                 rapl_before_pretask_uj       = ?,
@@ -677,22 +478,26 @@ def fix_run_with_pretask(
             post_task_energy_uj,
             framework_overhead_energy_uj,
             pre_task_duration_ns + post_task_duration_ns,
-            (pre_task_duration_ns + existing_task_dur_ns + post_task_duration_ns
-             if existing_task_dur_ns else None),
+            (
+                pre_task_duration_ns + existing_task_dur_ns + post_task_duration_ns
+                if existing_task_dur_ns else None
+            ),
             run_id,
         ))
         conn.commit()
+
         logger.info(
-            "Run %d | pre=%dµJ(%dms) post=%dµJ(%dms) overhead=%dµJ",
+            "Run %d (%s) | pre=%s post=%s overhead=%s",
             run_id,
-            pre_task_energy_uj  or 0, pre_task_duration_ns  // 1_000_000,
-            post_task_energy_uj or 0, post_task_duration_ns // 1_000_000,
-            framework_overhead_energy_uj or 0,
+            resolver.name(),
+            f"{pre_task_energy_uj}µJ" if pre_task_energy_uj is not None else "NULL",
+            f"{post_task_energy_uj}µJ" if post_task_energy_uj is not None else "NULL",
+            f"{framework_overhead_energy_uj}µJ" if framework_overhead_energy_uj is not None else "NULL",
         )
         return True
- 
+
     except Exception as exc:
-        logger.error("Pre/post task energy fix failed for run %d: %s", run_id, exc)
+        logger.error("fix_run_with_pretask: run %d failed: %s", run_id, exc)
         conn.rollback()
         return False
     finally:
