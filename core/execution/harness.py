@@ -344,6 +344,9 @@ class ExperimentHarness:
         run_start_dt = datetime.now()  # Human-readable start time
         run_start_perf = time.perf_counter()  # High-precision for duration
         self.energy_engine.start_measurement()
+        # F3: t0 anchor — read immediately after start_measurement() before any task work.
+        # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
+        _rapl_at_t0 = self.energy_engine.rapl.read_energy()
         _pid               = os.getpid()
         _total_ticks_start = read_total_cpu_ticks()
         _pid_ticks_start   = read_process_cpu_ticks(_pid)
@@ -615,6 +618,7 @@ class ExperimentHarness:
                 "pre_task_duration_sec":  pre_task_duration_sec,
                 "post_task_duration_sec": post_task_duration_sec,
                 "rapl_before_pretask":    _rapl_before_pretask,   # Dict or None
+                "rapl_at_t0":             _rapl_at_t0,             # Dict or None — t0 anchor
                 "rapl_after_task":        _rapl_after_task,        # Dict or None
                 "gpu_before_pretask":     _gpu_before_pretask,    # µJ or None
                 "gpu_after_task":         _gpu_after_task,         # µJ or None
@@ -883,6 +887,9 @@ class ExperimentHarness:
         run_start_dt = datetime.now()  # Human-readable start time
         run_start_perf = time.perf_counter()  # High-precision for duration
         self.energy_engine.start_measurement()
+        # F3: t0 anchor — read immediately after start_measurement() before any task work.
+        # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
+        _rapl_at_t0 = self.energy_engine.rapl.read_energy()
         _pid               = os.getpid()
         _total_ticks_start = read_total_cpu_ticks()
         _pid_ticks_start   = read_process_cpu_ticks(_pid)
@@ -1194,6 +1201,7 @@ class ExperimentHarness:
                 "pre_task_duration_sec": pre_task_duration_sec,
                 "post_task_duration_sec":  post_task_duration_sec,
                 "rapl_before_pretask":     _rapl_before_pretask,   # Dict or None
+                "rapl_at_t0":              _rapl_at_t0,             # Dict or None — t0 anchor
                 "rapl_after_task":         _rapl_after_task,        # Dict or None
                 "gpu_before_pretask":      _gpu_before_pretask,    # µJ or None
                 "gpu_after_task":          _gpu_after_task,         # µJ or None

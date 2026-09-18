@@ -293,6 +293,7 @@ class SQLiteAdapter(DatabaseInterface):
             ("orchestration_events", "agent_id",         "INTEGER"),
             ("goal_attempt",         "started_at_ns",    "INTEGER"),
             ("goal_attempt",         "finished_at_ns",   "INTEGER"),
+            ("runs",                 "rapl_at_t0_uj",    "INTEGER"),
             ("energy_domains",       "reader_keys",       "TEXT"),
             ("energy_domains",       "legacy_column",     "TEXT"),
             ("output_quality",       "task_category",     "TEXT"),

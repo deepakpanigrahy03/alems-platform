@@ -1112,6 +1112,7 @@ CREATE TABLE IF NOT EXISTS runs (
 
     -- ── Pre-task window (t_before → t0) ──────────────────────────────────────
     rapl_before_pretask_uj        INTEGER,  -- raw RAPL pkg before instrumentation reads
+    rapl_at_t0_uj                 INTEGER,  -- raw RAPL pkg at start_measurement() — t0 anchor
     pre_task_energy_uj            INTEGER,  -- attributed: (delta - baseline) * cpu_frac
     pre_task_duration_ns          INTEGER,  -- t0 - t_before
 

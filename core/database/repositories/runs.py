@@ -279,6 +279,10 @@ class RunsRepository:
             _rapl_before = _rapl_before or {}
             rapl_before_pretask_uj = (_rapl_before.get("package-0") or _rapl_before.get("package")
                                       or _rapl_before.get("pkg") or _rapl_before.get("cpu"))
+        # F3: t0 anchor
+        _rapl_t0 = ml.get("rapl_at_t0") or {}
+        rapl_at_t0_uj = (_rapl_t0.get("package-0") or _rapl_t0.get("package")
+                         or _rapl_t0.get("pkg") or _rapl_t0.get("cpu")) if _rapl_t0 else None
         if hasattr(_rapl_after, 'pkg_uj'):
             rapl_after_task_uj = _rapl_after.pkg_uj
         else:
@@ -352,7 +356,7 @@ class RunsRepository:
                 voltage_vcore_avg,
                 task_duration_ns, framework_overhead_ns, total_run_duration_ns,
                 duration_includes_overhead, pre_task_energy_uj, pre_task_duration_ns,
-                rapl_before_pretask_uj, rapl_after_task_uj,
+                rapl_before_pretask_uj, rapl_at_t0_uj, rapl_after_task_uj,
                 post_task_duration_ns, post_task_energy_uj,
                 framework_overhead_energy_uj,gpu_total_energy_uj, gpu_baseline_energy_uj,
                 gpu_dynamic_energy_uj, gpu_pct_of_pkg,gpu_dynamic_method, gpu_idle_power_w_used
@@ -388,7 +392,7 @@ class RunsRepository:
                 ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?,
                 ? , ?, ?, ?, ?, ?,
-                ?, ?,
+                ?, ?, ?,
                 ?, ?, ?,
                 ?, ?, ?, ?, ?, ?
             )
@@ -515,6 +519,7 @@ class RunsRepository:
             pre_task_energy_uj,             # diagnostic — NOT in attribution
             pre_task_duration_ns,           # pre-task context reads time  
             rapl_before_pretask_uj,             # raw RAPL pkg at t_before
+            rapl_at_t0_uj,                      # raw RAPL pkg at t0 — F3 anchor
             rapl_after_task_uj,                 # raw RAPL pkg at t1
             post_task_duration_ns,              # t2 - t1
             None,   # post_task_energy_uj — ETL owned by fix_run_with_pretask()

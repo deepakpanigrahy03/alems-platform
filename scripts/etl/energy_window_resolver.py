@@ -337,21 +337,21 @@ class SpbmV2Resolver(EnergyWindowResolverABC):
             rapl_after_uj:    Cumulative pkg at t2 (after post-task).
             post_task_raw_uj: Already-computed post-task raw energy.
         """
-        if rapl_before_uj is None or rapl_after_uj is None:
+        if rapl_before_uj is None:
             return None
-
-        # task_sum = SUM of all samples for this run on PACKAGE domain.
-        cursor.execute("""
-            SELECT COALESCE(SUM(esd.energy_uj), 0)
-            FROM energy_sample_domains esd
-            WHERE esd.run_id = ? AND esd.domain_id = ?
-        """, (run_id, self._pkg_domain_id))
-        task_sum_uj = int(cursor.fetchone()[0] or 0)
-
-        total_delta = rapl_after_uj - rapl_before_uj
-        raw_uj = max(0, total_delta - task_sum_uj - post_task_raw_uj)
+        # F3: use rapl_at_t0_uj for exact pre_task delta — no residual needed.
+        # rapl_at_t0 is read immediately after start_measurement() at t0.
+        # pre_task_raw = rapl_at_t0 - rapl_before = exact counter delta for [t_before, t0].
+        cursor.execute(
+            "SELECT rapl_at_t0_uj FROM runs WHERE run_id = ?", (run_id,)
+        )
+        t0_row = cursor.fetchone()
+        rapl_at_t0_uj = t0_row[0] if t0_row and t0_row[0] else None
+        if rapl_at_t0_uj is None:
+            logger.debug("Run %d: SpbmV2 pre_task — NULL (no t0 anchor, historical run)", run_id)
+            return None
+        raw_uj = max(0, rapl_at_t0_uj - rapl_before_uj)
         dur_ns = int(pre_task_duration_sec * 1_000_000_000)
-
         return WindowEnergyResult(
             raw_uj=raw_uj,
             attributed_uj=raw_uj,
