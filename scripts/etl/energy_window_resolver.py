@@ -495,33 +495,20 @@ class IokitV2Resolver(EnergyWindowResolverABC):
         cpu_frac_post: float,
     ) -> Optional[WindowEnergyResult]:
         """
-        Post-task via power extrapolation.
-        Same avg_power used as pre-task — IOKit has no post-task samples.
+        Post-task on Apple IOKit — returns None.
+
+        IOKit post_task window is 2-5s (stop_measurement blocks longer than
+        other platforms). Extrapolating with task inference power (25-35W)
+        would massively overcount — the SoC is not doing inference post_task.
+        No baseline power is available on Mac to use as alternative.
+        Post_task_energy_uj = NULL on Apple Silicon — documented limitation.
+        Pre_task extrapolation is kept (short ~100ms, near task start power).
         """
-        cursor.execute(
-            "SELECT start_time_ns, task_duration_ns FROM runs WHERE run_id = ?",
-            (run_id,)
-        )
-        row = cursor.fetchone()
-        if not row or not row[0] or not row[1]:
-            return None
-
-        t0_ns = int(row[0])
-        avg_power_w = self._task_avg_power_watts(cursor, run_id, t0_ns, t1_ns)
-
-        raw_uj = int(avg_power_w * post_task_duration_sec * 1_000_000)
-        dur_ns = int(post_task_duration_sec * 1_000_000_000)
-
         logger.debug(
-            "Run %d: IOKit post-task extrapolated %dµJ from avg_power=%.3fW",
-            run_id, raw_uj, avg_power_w,
+            "Run %d: IOKit post-task — NULL (cannot extrapolate, window too long)",
+            run_id,
         )
-        return WindowEnergyResult(
-            raw_uj=raw_uj,
-            attributed_uj=raw_uj,
-            method="INFERRED_POWER",
-            duration_ns=dur_ns,
-        )
+        return None
 
     def name(self) -> str:
         return f"IokitV2Resolver(domain={self._pkg_domain_id})"
