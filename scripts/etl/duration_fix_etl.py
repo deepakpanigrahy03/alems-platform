@@ -209,7 +209,7 @@ def _fix_run(cursor: sqlite3.Cursor, run_id: int) -> dict | None:
         """, (run_id,))
         spbm_es = cursor.fetchone()
         if not spbm_es or spbm_es[2] == 0:
-            logger.warning("Run %d has no energy_samples or SPBM samples — skipping", run_id)
+            logger.warning("Run %d: no energy samples on any platform — skipping (pre-measurement run)", run_id)
             return None
         first_sample_ns = spbm_es[0]
         last_sample_ns  = spbm_es[1]

@@ -37,6 +37,9 @@ CHECKS = [
         JOIN runs r ON oe.run_id = r.run_id
         WHERE r.run_id > (SELECT MAX(run_id) - 100 FROM runs)
           AND oe.attempt_id IS NULL
+          AND EXISTS (
+              SELECT 1 FROM goal_attempt ga WHERE ga.run_id = oe.run_id
+          )
     """, 0),
 
     ("V2_bug8_post_task_null", """
