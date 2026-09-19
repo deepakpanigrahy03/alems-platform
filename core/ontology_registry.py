@@ -72,6 +72,11 @@ ONTOLOGY_VERSION: str = "1.0.0"
 # other                — use when none above fits; document in actual_output
 # ─────────────────────────────────────────────
 HALLUCINATION_TYPES: FrozenSet[str] = frozenset({
+    # Taxonomy-aligned types (SPEC 8.6-A1) — primary classification
+    "hallucination",        # LLM confidently fabricated content (score < 0.3)
+    "semantic_error",       # LLM output syntactically valid but wrong (0.3-0.5)
+    "capability_error",     # LLM attempted task beyond its capability (score=0)
+    # Legacy types — kept for backward compat with existing hallucination_events rows
     "factual_error",
     "reasoning_error",
     "tool_misread",
