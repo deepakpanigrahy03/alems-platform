@@ -77,6 +77,7 @@ nav:
     - Tool Failure: research/tool-failure.md
     - Tool Instrumentation: research/tool-instrumentation.md
     - Retry Methodology: research/retry-methodology.md
+    - Failure Taxonomy: research/failure-taxonomy.md
     - Network Wait Energy: research/network-wait-energy.md
     - GPU Energy: research/gpu-energy.md
     - Power Rail Schema: research/power-rail-schema.md

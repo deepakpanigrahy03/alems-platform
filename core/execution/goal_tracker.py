@@ -364,7 +364,12 @@ class GoalTracker:
             UPDATE goal_execution SET
                 status         = ?,
                 success        = ?,
-                winning_run_id = ?,
+                winning_run_id     = ?,
+                winning_attempt_id = (
+                    SELECT attempt_id FROM goal_attempt
+                    WHERE goal_id = ? AND is_winning = 1
+                    LIMIT 1
+                ),
                 first_run_id   = ?,
                 total_attempts = ?,
                 finished_at    = ?,
@@ -377,7 +382,7 @@ class GoalTracker:
                 # FK enforcement off for this update only — same pattern as start_goal().
                 conn.execute("PRAGMA foreign_keys = OFF")
             conn.execute(sql, (
-                status, success_int, winning_run_id,
+                status, success_int, winning_run_id, goal_id,
                 first_run_id, total_attempts,
                 now, now,
                 goal_id,

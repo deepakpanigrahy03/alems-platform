@@ -53,7 +53,7 @@ from .schema import (CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALI
                      CREATE_POWER_RAILS, CREATE_POWER_LIMITS,
                      CREATE_POWER_RAIL_SAMPLES, CREATE_RUN_POWER_LIMITS,
                      CREATE_POWER_LIMIT_EVENTS,                     
-                     CREATE_ENVIRONMENT_CONFIG, CREATE_EVENTS_INDEXES,
+                     CREATE_ENVIRONMENT_CONFIG, CREATE_EVENTS_INDEXES, CREATE_FAILURE_TAXONOMY, CREATE_RECOVERY_TAXONOMY,
                      CREATE_EXPERIMENTS, CREATE_EXPERIMENT_TYPE_TRIGGERS,CREATE_HARDWARE_CONFIG,
                      CREATE_GOAL_EXECUTION, CREATE_GOAL_ATTEMPT,CREATE_ETL_QUEUE,
                      CREATE_RETRY_POLICY, CREATE_TASK_RETRY_OVERRIDE,
@@ -301,6 +301,8 @@ class SQLiteAdapter(DatabaseInterface):
             ("task_quality_config",  "judge_model_set",   "TEXT"),
             ("task_quality_config",  "rubric",            "TEXT"),
             ("task_quality_config",  "success_threshold", "REAL"),
+            ("goal_execution",       "winning_attempt_id",
+             "INTEGER REFERENCES goal_attempt(attempt_id)"),
         ]
         for table, column, typedef in _col_additions:
             existing = [r[1] for r in
@@ -314,6 +316,8 @@ class SQLiteAdapter(DatabaseInterface):
         # Execute each CREATE statement in order - NO transaction wrapper
         self.conn.execute(CREATE_EXPERIMENTS)
         self.conn.executescript(CREATE_EXPERIMENT_TYPE_TRIGGERS)
+        self.conn.executescript(CREATE_FAILURE_TAXONOMY)
+        self.conn.executescript(CREATE_RECOVERY_TAXONOMY)
         self.conn.executescript(CREATE_GOAL_EXECUTION)
         self.conn.executescript(CREATE_GOAL_ATTEMPT)
         self.conn.executescript(CREATE_ETL_QUEUE)

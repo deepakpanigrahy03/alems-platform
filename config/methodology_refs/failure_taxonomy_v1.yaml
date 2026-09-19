@@ -1,0 +1,30 @@
+# config/methodology_refs/failure_taxonomy_v1.yaml
+# MPC-3: methodology reference file for failure_taxonomy_v1.
+# This covers the taxonomy classification method, not a hardware reader.
+# Max 50 lines. No prose, no query examples (those go in failure-taxonomy.md).
+method_id: failure_taxonomy_v1
+references:
+  - title: "Failure-Class-Aware Retry Policies for Agentic AI"
+    authors: "Panigrahy, D. et al."
+    year: 2026
+    ref_type: "internal"
+    relevance: >
+      Paper 8 defines the eight failure classes this taxonomy implements.
+      The taxonomy is the schema artifact that makes Paper 8's per-class
+      cost profiling and EAR policy experiments reproducible.
+  - title: "A Taxonomy of Failures in Machine Learning Systems"
+    authors: "Sculley, D. et al."
+    year: 2015
+    ref_type: "paper"
+    relevance: >
+      Establishes precedent for domain-grouped failure classification in
+      ML systems. The six domain groupings in failure_taxonomy follow a
+      similar coarse-to-fine structure.
+  - title: "Agentic AI Failure Modes: A Systematic Survey"
+    authors: "Various"
+    year: 2024
+    ref_type: "paper"
+    relevance: >
+      Survey of failure modes in LLM tool-use agents. Informs the
+      reasoning domain entries (hallucination, semantic_error,
+      capability_error) and their typical recovery cost ordering.

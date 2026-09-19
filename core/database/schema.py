@@ -102,6 +102,51 @@ BEGIN
 END;
 """
 # ========================================================================
+# Table: failure_taxonomy
+# SPEC 8.6-A1: Extensible lookup table for failure type classification.
+# Enforcement: application layer (tool_failure_recorder.py) validates
+# failure_type against this table. No DB-level FK on tool_failure_events
+# or goal_attempt — avoids reconstruction risk across machine histories.
+# Adding a new failure type = one INSERT here, zero migrations, zero code.
+# domain CHECK is a structural invariant (6 families, stable forever).
+# ========================================================================
+CREATE_FAILURE_TAXONOMY = """
+CREATE TABLE IF NOT EXISTS failure_taxonomy (
+    failure_type_id         TEXT PRIMARY KEY,
+    domain                  TEXT NOT NULL CHECK(domain IN (
+                                'reasoning', 'execution', 'communication',
+                                'resource', 'validation', 'platform_specific'
+                            )),
+    description             TEXT,
+    default_retryable       INTEGER NOT NULL DEFAULT 1
+                            CHECK(default_retryable IN (0, 1)),
+    default_recovery_strategy TEXT,
+    typical_cost_rank       INTEGER,
+    created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_failure_taxonomy_domain
+    ON failure_taxonomy(domain);
+"""
+ 
+# ========================================================================
+# Table: recovery_taxonomy
+# SPEC 8.6-A1: Extensible lookup table for recovery strategy classification.
+# requires_state_preservation = 1 means orchestration state must be held
+# in memory across the recovery boundary.
+# typical_rollback_depth: 0 = no rollback, N = N turns, -1 = full restart.
+# ========================================================================
+CREATE_RECOVERY_TAXONOMY = """
+CREATE TABLE IF NOT EXISTS recovery_taxonomy (
+    strategy_id                 TEXT PRIMARY KEY,
+    description                 TEXT,
+    requires_state_preservation INTEGER DEFAULT 0
+                                CHECK(requires_state_preservation IN (0, 1)),
+    typical_rollback_depth      INTEGER,
+    created_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+# ========================================================================
 # Table 2b: goal_execution
 # Paper's fundamental unit of analysis — energy per successful goal
 # workflow_type set by application layer explicitly — never derived from
@@ -147,7 +192,9 @@ CREATE TABLE IF NOT EXISTS goal_execution (
     updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (exp_id)         REFERENCES experiments(exp_id),
-    FOREIGN KEY (winning_run_id) REFERENCES runs(run_id)
+    winning_attempt_id      INTEGER,  -- FK to winning attempt; backfilled by v099
+    FOREIGN KEY (winning_run_id)      REFERENCES runs(run_id),
+    FOREIGN KEY (winning_attempt_id)  REFERENCES goal_attempt(attempt_id)
 );
 CREATE INDEX IF NOT EXISTS idx_goal_exec_exp_id       ON goal_execution(exp_id);
 CREATE INDEX IF NOT EXISTS idx_goal_exec_workflow      ON goal_execution(workflow_type, success);
@@ -155,8 +202,10 @@ CREATE INDEX IF NOT EXISTS idx_goal_exec_type          ON goal_execution(goal_ty
 CREATE INDEX IF NOT EXISTS idx_goal_exec_difficulty    ON goal_execution(difficulty_level, success);
 CREATE INDEX IF NOT EXISTS idx_goal_exec_success       ON goal_execution(success, exp_id);
 CREATE INDEX IF NOT EXISTS idx_goal_exec_task_id       ON goal_execution(task_id);
-CREATE INDEX IF NOT EXISTS idx_goal_exec_status        ON goal_execution(status);
+CREATE INDEX IF NOT EXISTS idx_goal_exec_status           ON goal_execution(status);
+CREATE INDEX IF NOT EXISTS idx_goal_exec_winning_attempt  ON goal_execution(winning_attempt_id);
 """
+
 
 # ========================================================================
 # Table 2c: goal_attempt

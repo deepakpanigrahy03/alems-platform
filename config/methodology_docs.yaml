@@ -30,6 +30,7 @@ methods:
   output_quality_normalization_v1:
     doc: "output-quality.md"
     section: "Output Quality Normalization Methodology"
+
     
   # ── Energy Readers ──────────────────────────────────────────────────────────
 
