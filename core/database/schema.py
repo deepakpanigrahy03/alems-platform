@@ -191,8 +191,8 @@ CREATE TABLE IF NOT EXISTS goal_execution (
     finished_at             TIMESTAMP,
     updated_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (exp_id)         REFERENCES experiments(exp_id),
-    winning_attempt_id      INTEGER,  -- FK to winning attempt; backfilled by v099
+    winning_attempt_id      INTEGER,  -- direct FK to winning attempt; backfilled by v099
+    FOREIGN KEY (exp_id)              REFERENCES experiments(exp_id),
     FOREIGN KEY (winning_run_id)      REFERENCES runs(run_id),
     FOREIGN KEY (winning_attempt_id)  REFERENCES goal_attempt(attempt_id)
 );
