@@ -146,6 +146,50 @@ CREATE TABLE IF NOT EXISTS recovery_taxonomy (
 );
 """
 
+
+# ========================================================================
+# Table: failure_injection_log
+# SPEC 8.6-A2: Core schema — injection decisions are run provenance.
+# One row per injection decision (injected/skipped/suppressed/eligible/
+# target_not_reached). Written by _flush_injection_log() in
+# goal_execution_manager.py after finish_attempt().
+# run_id is NULL at insert; ETL backfills after runs row is created.
+# injected_type FK references failure_taxonomy (requires v098/A1).
+# ========================================================================
+CREATE_FAILURE_INJECTION_LOG = """
+CREATE TABLE IF NOT EXISTS failure_injection_log (
+    injection_id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id                      INTEGER REFERENCES runs(run_id),
+    attempt_id                  INTEGER REFERENCES goal_attempt(attempt_id),
+    goal_id                     INTEGER REFERENCES goal_execution(goal_id),
+    scenario_id                 TEXT NOT NULL,
+    rule_index                  INTEGER NOT NULL,
+    injected_type               TEXT REFERENCES failure_taxonomy(failure_type_id),
+    target_step                 INTEGER,
+    target_phase                TEXT,
+    target_tool                 TEXT,
+    injection_time_ns           INTEGER,
+    draw_number                 INTEGER NOT NULL DEFAULT 0,
+    random_seed                 TEXT NOT NULL DEFAULT '',
+    injection_algorithm_version TEXT NOT NULL DEFAULT 'v1',
+    status                      TEXT NOT NULL CHECK(status IN (
+                                    'eligible', 'selected', 'injected',
+                                    'skipped', 'target_not_reached', 'suppressed'
+                                )),
+    skip_reason                 TEXT,
+    created_at                  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_injection_log_attempt
+    ON failure_injection_log(attempt_id);
+CREATE INDEX IF NOT EXISTS idx_injection_log_run
+    ON failure_injection_log(run_id);
+CREATE INDEX IF NOT EXISTS idx_injection_log_scenario
+    ON failure_injection_log(scenario_id);
+CREATE INDEX IF NOT EXISTS idx_injection_log_type
+    ON failure_injection_log(injected_type);
+CREATE INDEX IF NOT EXISTS idx_injection_log_status
+    ON failure_injection_log(status);
+"""
 # ========================================================================
 # Table 2b: goal_execution
 # Paper's fundamental unit of analysis — energy per successful goal

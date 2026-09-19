@@ -1,0 +1,47 @@
+# config/experiment_configs/examples/example_inject_api_error.yaml
+# =============================================================================
+# EXAMPLE: api_error injection
+# Verifies: tool_failure_events.failure_type=api_error, retry fires,
+#           FailureClassifier Layer 3 catches "api error" in error_message.
+# Task: tg_single_calc — tool dispatch path.
+# =============================================================================
+study:
+  name: "Example: api_error injection"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify api_error injection and classifier detection"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  max_retries: 3
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "default"
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "example_api_error_v1"
+  scenarios:
+    - type: api_error
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any
+      max_injections: 1
+
+quality:
+  enabled: false

@@ -67,19 +67,31 @@ EXECUTION_STATUS_PARTIAL_FAILURE = "partial_failure"  # some steps failed, synth
  
 def _detect_error_type(msg: str) -> str:
     """
-    Classify a provider error message into a canonical failure type.
+    Classify an error message into a canonical failure type.
     Used by agentic.execute() to populate execution.error_type.
-    Order matters — more specific patterns checked first.
+
+    Injected failures carry structured prefix INJECTED[type_id]: — type
+    extracted via regex, zero prose pattern matching needed.
+    Real provider errors use keyword scan below.
     """
+    import re as _re
+    _match = _re.search(r"INJECTED\[([a-z_]+)\]", msg)
+    if _match:
+        return _match.group(1)
+
     m = msg.lower()
     if "429" in m or "too many requests" in m or "rate_limit" in m or "rate limit" in m:
         return "rate_limit"
-    if "context window" in m or "exceed context" in m or "context_length" in m or "context window" in m:
-        return "context_overflow"
+    if "context window" in m or "exceed context" in m or "context_length" in m:
+        return "capability_error"
     if "timeout" in m or "timed out" in m:
         return "timeout"
+    if "unauthorized" in m or "401" in m:
+        return "auth_error"
+    if "not found" in m or "404" in m:
+        return "not_found"
     if "connection" in m or "connection refused" in m or "network" in m:
-        return "api_error"
+        return "network_error"
     return "api_error"
 
 class AgenticExecutor:
@@ -585,12 +597,14 @@ class AgenticExecutor:
         # Harness always completes so energy is captured regardless of LLM errors.
         # Sets execution.status and error_type so goal_execution_manager and
         # classifier can route correctly without relying on exception path.
+        
         step_errors = [
             sr.get("result", "")
             for sr in step_results
             if isinstance(sr.get("result", ""), str)
             and sr.get("result", "").startswith("Error:")
         ]
+        
         failed_steps  = len(step_errors)
         total_steps   = len(step_results)
  
@@ -921,8 +935,16 @@ You can use tools like calculator or web search if needed.
                 "error":                result.error,
             })
  
-        # Return raw result on success, None on failure so caller can handle
-        return result.result if result.success else None
+        # Return raw result on success.
+        # On failure: return error string prefixed with INJECTED: so
+        # step_results carry the failure signal into synthesis and classifier.
+        if result.success:
+            return result.result
+        if result.error and ("INJECTED[" in result.error or result.error.startswith("INJECTED:")):
+            # Mark injection on self so synthesis can set execution.status=failure
+            self._last_injection_error = result.error
+            return f"Error: {result.error}"
+        return None
  
     def _dispatch_tool(self, name: str, args: Dict) -> ToolResult:
         """
@@ -939,6 +961,53 @@ You can use tools like calculator or web search if needed.
         db_path passed via ToolExecutionContext (CR-1) so DatabaseQueryTool
         queries the live experiments DB.
         """
+        # ── Failure injection — MUST run before registry/tool dispatch ────────
+        # ScenarioInjector.should_inject() returns (inject, failure_type_id).
+        # Registry check below returns early — injection must intercept first.
+        _injector = getattr(self, "failure_injector", None)
+        if _injector and _injector.is_active():
+            if hasattr(_injector, "should_inject"):
+                _draw = getattr(self, "_draw_counter", 0) + 1
+                self._draw_counter = _draw
+                _si_args = dict(
+                    step_index=getattr(self, "_current_step", 0),
+                    phase="execution",
+                    tool_name=name,
+                    draw_number=_draw,
+                    attempt_id=getattr(self, "_current_attempt_id", 0),
+                    goal_id=getattr(self, "_current_goal_id", 0),
+                )
+                _inject, _ftype = _injector.should_inject(**_si_args)
+                if _inject:
+                    from core.injection.failure_simulator import (
+                        simulate_tool_failure, NON_INJECTABLE_TYPES
+                    )
+                    if _ftype in NON_INJECTABLE_TYPES:
+                        logger.error(
+                            "ScenarioInjector: %r is non-injectable "
+                            "(reasoning domain) — skipping injection at tool=%s",
+                            _ftype, name,
+                        )
+                    else:
+                        logger.info(
+                            "ScenarioInjector: INJECT type=%s tool=%s", _ftype, name
+                        )
+                        return simulate_tool_failure(_ftype, name)
+            else:
+                # Legacy FailureInjector path — backward compat
+                if _injector.maybe_inject_tool_failure(
+                    tool_name=name,
+                    rep_num=getattr(self, "_current_run_id", 1),
+                    attempt_num=getattr(self, "_current_attempt", 1),
+                ):
+                    logger.info("FailureInjector: tool failure injected for %s", name)
+                    return ToolResult(
+                        success=False, result=None,
+                        tool_name=name, duration_ns=0,
+                        error=f"INJECTED: simulated tool failure for {name}",
+                    )
+        # ─────────────────────────────────────────────────────────────────────
+
         db_path = getattr(self, "db_path", "data/experiments.db")
 
         from core.execution.tools.abc import ToolExecutionContext
@@ -996,24 +1065,6 @@ You can use tools like calculator or web search if needed.
                 tool_name=name, duration_ns=0,
                 error=f"Unknown tool: {name}",
             )
- 
-        # Tool failure injection — fires after harness starts so energy is captured.
-        # failure_injector is passed into AgenticExecutor at construction time
-        # when experiment_type is failure_injection or retry_study.
-        # maybe_inject_tool_failure() requires tool_name for deterministic seeding.
-        _injector = getattr(self, "failure_injector", None)
-        if _injector and _injector.is_active():
-            if _injector.maybe_inject_tool_failure(
-                tool_name=name,
-                rep_num=getattr(self, "_current_run_id", 1),
-                attempt_num=getattr(self, "_current_attempt", 1),
-            ):
-                logger.info("FailureInjector: tool failure injected for %s", name)
-                return ToolResult(
-                    success=False, result=None,
-                    tool_name=name, duration_ns=0,
-                    error=f"INJECTED: simulated tool failure for {name}",
-                )
  
         try:
             return tool.execute(**args)

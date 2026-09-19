@@ -153,28 +153,43 @@ class HallucinationDetector:
         judgment: JudgmentResult,
     ):
         """
-        Classify hallucination type and detection method from judgment.
+        Classify reasoning failure type and detection method from judgment.
+        Output types are taxonomy-aligned (failure_taxonomy.failure_type_id).
 
-        Returns (hallucination_type, detection_method, confidence) or
+        Three taxonomy types produced here (reasoning domain only):
+            hallucination   — LLM confidently fabricated content (score < 0.3)
+            semantic_error  — LLM output syntactically valid but wrong (0.3-0.5)
+            capability_error— LLM attempted task beyond its capability (exact_match=0)
+
+        These types are DETECTED, never injected.
+        ScenarioInjector refuses to inject reasoning-domain types.
+
+        Returns (failure_type_id, detection_method, confidence) or
         (None, None, None) if inconclusive.
         """
         score = judgment.normalized_score
         method = judgment.score_method
 
-        # exact_match failure → definitive factual error.
+        # exact_match score=0 → model attempted but produced entirely wrong
+        # answer type — capability_error (attempted beyond capability).
+        # Distinct from hallucination: model understood the question but
+        # produced a categorically wrong output (wrong format, wrong domain).
         if method == "single_judge" and score == 0.0:
-            # Likely came from exact_match scorer.
-            return ("factual_error", "exact_match", 1.0)
+            return ("capability_error", "exact_match", 1.0)
 
-        # llm_judge score very low → fabrication.
+        # llm_judge or semantic score very low → hallucination.
+        # Model confidently produced fabricated content.
+        # Previously 'fabrication' — renamed to taxonomy type.
         if score is not None and score < _FABRICATION_THRESHOLD:
-            return ("fabrication", "llm_judge", 0.85)
+            return ("hallucination", "llm_judge", 0.85)
 
-        # Score low but not extreme → factual error via semantic.
+        # Score low but not extreme → semantic_error.
+        # Model output is syntactically valid but semantically wrong.
+        # Previously 'factual_error' — renamed to taxonomy type.
         if score is not None and score < _SEMANTIC_ERROR_THRESHOLD:
-            return ("factual_error", "semantic", 0.75)
+            return ("semantic_error", "semantic", 0.75)
 
-        # Score between threshold and pass mark → low confidence, skip.
+        # Score between semantic threshold and pass mark → inconclusive.
         return (None, None, None)
 
     def _compute_severity(self, normalized_score: Optional[float]) -> str:

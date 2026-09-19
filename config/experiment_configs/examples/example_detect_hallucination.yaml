@@ -1,0 +1,43 @@
+# config/experiment_configs/examples/example_detect_hallucination.yaml
+# =============================================================================
+# EXAMPLE: hallucination detection (NOT injection)
+# Verifies: HallucinationDetector fires on failed quality judgments,
+#           hallucination_events row with hallucination_type=hallucination,
+#           failure_type=hallucination in goal_attempt.
+#
+# IMPORTANT: hallucination CANNOT be injected. The LLM runs for real.
+# HallucinationDetector classifies the output via QualityJudge score.
+# A hallucination row appears when normalized_score < 0.3 (fabrication threshold).
+#
+# Task: factual_qa — has expected_answer, quality judging can fire.
+# Provider: llama_cpp (tinyllama) — small model more likely to hallucinate,
+#           giving natural hallucination samples for energy measurement.
+# Quality: enabled with llm_judge or exact_match so detector has scores to act on.
+# Reps: 20 — need enough runs to collect natural hallucination samples.
+# =============================================================================
+study:
+  name: "Example: hallucination detection"
+  experiment_type: "normal"
+  experiment_goal: "Collect natural hallucination samples via HallucinationDetector"
+  workflow_modes: ["linear"]
+
+tasks:
+  - id: factual_qa
+  - id: science_qa
+  - id: geography_qa
+
+providers:
+  - name: llama_cpp
+    model_id: tinyllama-1b-gguf
+
+execution:
+  repetitions: 20
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  name: "no_retry"
+
+quality:
+  enabled: true
+  judge_method: exact_match

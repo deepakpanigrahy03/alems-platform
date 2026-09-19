@@ -1,0 +1,17 @@
+# config/scenarios/examples/single_type_step_target.yaml
+# =============================================================================
+# Reference template: single failure type, specific step target.
+# Injects at a specific step in the trajectory (step_index: 1).
+# Use for: recovery depth measurement (B1), location-varied sweeps.
+# Run one config per target step to sweep injection location.
+# =============================================================================
+# USAGE: Copy to your experiment workspace. Change step_index per sweep point.
+# =============================================================================
+scenarios:
+  - type: tool_error          # replace with failure type to inject
+    rate: 1.0
+    location:
+      phase: execution
+      step_index: 1           # replace with target step (0-indexed)
+      tool_name: any
+    max_injections: 1

@@ -176,12 +176,28 @@ class RetryCoordinator:
             return False
 
         mapping = {
+            # execution domain
             "timeout":          policy.retry_on_timeout,
-            "api_error":        policy.retry_on_api_error,
-            "rate_limit":       policy.retry_on_api_error,   # rate_limit treated as api_error
             "tool_error":       policy.retry_on_tool_error,
+            "malformed_input":  policy.retry_on_tool_error,
+            "crashed":          False,
+            # communication domain
+            "api_error":        policy.retry_on_api_error,
+            "rate_limit":       policy.retry_on_api_error,
+            "network_error":    policy.retry_on_api_error,
+            # validation domain
+            "malformed_output": policy.retry_on_tool_error,
+            "json_parse":       policy.retry_on_tool_error,
+            # communication — non-retryable
+            "not_found":        False,
+            "auth_error":       False,
+            # reasoning domain — map to wrong_answer policy flag
+            "semantic_error":   policy.retry_on_wrong_answer,
+            "hallucination":    policy.retry_on_wrong_answer,
+            "capability_error": False,  # context limit — won't improve on retry
+            # legacy — keep for backward compat
             "wrong_answer":     policy.retry_on_wrong_answer,
-            "context_overflow": False,  # never retry — prompt won't shrink on its own
+            "context_overflow": False,
         }
         return mapping.get(failure_type, False)
 

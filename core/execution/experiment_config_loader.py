@@ -75,15 +75,17 @@ def _apply_failure_injection_section(args, fi: dict) -> None:
         return
  
     try:
-        from core.execution.failure_injector import FailureInjector
+        from core.injection.scenario_loader import build_injector
         experiment_type = getattr(args, "experiment_type", "normal")
-        args.failure_injector = FailureInjector(fi, experiment_type)
-        logger.info(
-            "_apply_failure_injection_section: FailureInjector active "
-            "tool_rate=%.2f timeout_rate=%.2f",
-            fi.get("tool_failure_rate", 0.0),
-            fi.get("timeout_rate", 0.0),
-        )
+        # build_injector routes mode=scenario to ScenarioInjector,
+        # all other modes to existing FailureInjector (backward compat).
+        args.failure_injector = build_injector(fi, experiment_type)
+        if args.failure_injector is not None:
+            logger.info(
+                "_apply_failure_injection_section: injector active "
+                "mode=%s experiment_type=%s",
+                fi.get("mode", "statistical"), experiment_type,
+            )
     except Exception as e:
         # Never block experiment startup over injector construction failure
         logger.warning("_apply_failure_injection_section: failed to build injector: %s", e)
@@ -215,5 +217,13 @@ def _apply_retry_section(args, retry: dict) -> None:
     if "backoff_seconds" in retry:
         args.backoff_seconds = float(retry["backoff_seconds"])
     if "name" in retry:
-        # policy_name used by RetryCoordinator.load_policy() in test_harness/run_experiment
         args.policy_name = str(retry["name"])
+    # YAML retry flags override DB policy values — stored on args for load_policy merge
+    if "retry_on_timeout" in retry:
+        args.retry_on_timeout = bool(retry["retry_on_timeout"])
+    if "retry_on_tool_error" in retry:
+        args.retry_on_tool_error = bool(retry["retry_on_tool_error"])
+    if "retry_on_api_error" in retry:
+        args.retry_on_api_error = bool(retry["retry_on_api_error"])
+    if "retry_on_wrong_answer" in retry:
+        args.retry_on_wrong_answer = bool(retry["retry_on_wrong_answer"])

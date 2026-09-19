@@ -75,6 +75,7 @@ nav:
     - Goal Execution: research/goal-execution.md
     - Output Quality: research/output-quality.md
     - Tool Failure: research/tool-failure.md
+    - Failure Injection Guide: research/failure-injection-guide.md
     - Tool Instrumentation: research/tool-instrumentation.md
     - Retry Methodology: research/retry-methodology.md
     - Failure Taxonomy: research/failure-taxonomy.md

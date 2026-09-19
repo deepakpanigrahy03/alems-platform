@@ -1,0 +1,24 @@
+# config/scenarios/examples/single_type_rate1.yaml
+# =============================================================================
+# Reference template: single failure type, deterministic injection.
+# rate: 1.0 = inject on every eligible draw at any location.
+# max_injections: 1 = at most one injection per goal (isolates one failure event).
+# Use for: per-type energy cost profiling (A3), Paper 8 single-class studies.
+# =============================================================================
+# USAGE: Copy to your experiment workspace. Set type to the failure class
+# you want to profile. Reference via scenario_file in your experiment YAML:
+#
+#   failure_injection:
+#     enabled: true
+#     mode: scenario
+#     scenario_id: "your_study_id_v1"
+#     scenario_file: "path/to/your_copy.yaml"
+# =============================================================================
+scenarios:
+  - type: tool_error          # replace with any failure_taxonomy.failure_type_id
+    rate: 1.0
+    location:
+      phase: execution        # planning | execution | synthesis | any
+      step_index: any         # integer | "N-M" range | any
+      tool_name: any          # specific tool name | any
+    max_injections: 1         # integer | unlimited

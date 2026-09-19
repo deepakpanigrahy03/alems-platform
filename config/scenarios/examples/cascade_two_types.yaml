@@ -1,0 +1,25 @@
+# config/scenarios/examples/cascade_two_types.yaml
+# =============================================================================
+# Reference template: compound cascading failure — two rules, two steps.
+# Rule 1 fires at step 2, rule 2 fires at step 4.
+# If goal aborts at step 2, rule 2 logs status=target_not_reached.
+# Use for: cascading failure behavior studies, recovery chain analysis.
+# =============================================================================
+# USAGE: Copy to your experiment workspace. Adjust types and step targets.
+# =============================================================================
+scenarios:
+  - type: hallucination       # first failure — reasoning class
+    rate: 1.0
+    location:
+      phase: execution
+      step_index: 2
+      tool_name: any
+    max_injections: 1
+
+  - type: tool_error          # second failure — execution class
+    rate: 1.0
+    location:
+      phase: execution
+      step_index: 4
+      tool_name: any
+    max_injections: 1

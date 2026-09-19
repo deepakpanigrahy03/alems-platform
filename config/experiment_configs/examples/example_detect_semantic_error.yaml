@@ -1,0 +1,43 @@
+# config/experiment_configs/examples/example_detect_semantic_error.yaml
+# =============================================================================
+# EXAMPLE: semantic_error detection (NOT injection)
+# Verifies: HallucinationDetector fires with hallucination_type=semantic_error,
+#           normalized_score between 0.3 and 0.5 (semantic threshold band).
+#
+# semantic_error = LLM output syntactically valid but semantically wrong.
+# The model understood the question but produced an incorrect answer.
+# Distinct from hallucination (score < 0.3, fabricated content).
+#
+# Task: gsm8k_basic — math task where partial credit is possible.
+#        Semantic scorer gives 0.3-0.5 for wrong-but-structured answers.
+# Provider: llama_cpp (tinyllama) — small model produces semantic errors
+#           on multi-step math without complete fabrication.
+# Quality: semantic scorer gives graded scores (not binary exact_match).
+# Reps: 20 — collect enough samples in the 0.3-0.5 score band.
+# =============================================================================
+study:
+  name: "Example: semantic_error detection"
+  experiment_type: "normal"
+  experiment_goal: "Collect semantic_error samples — wrong but structured answers"
+  workflow_modes: ["linear"]
+
+tasks:
+  - id: gsm8k_basic
+  - id: gsm8k_multi_step
+  - id: logical_reasoning
+
+providers:
+  - name: llama_cpp
+    model_id: tinyllama-1b-gguf
+
+execution:
+  repetitions: 20
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  name: "no_retry"
+
+quality:
+  enabled: true
+  judge_method: semantic

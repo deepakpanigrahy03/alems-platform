@@ -31,7 +31,8 @@ import logging
 import time
 from typing import Optional
 
-from scripts.etl import goal_execution_etl, energy_attribution_etl
+from scripts.etl import goal_execution_etl, energy_attribution_etl, phase_attribution_etl
+from scripts.tools.path_loader import get_alems_db_path
 from core.execution.retry_coordinator import RetryCoordinator, RetryPolicy
 from core.execution.failure_classifier import FailureClassifier
 from core.database.tool_failure_recorder import record_tool_failure
@@ -217,25 +218,58 @@ def execute_goal(
             _record_attempt_failure(conn, attempt_id, goal_id, failure_type, str(exc))
 
         if result is not None:
-            # Post-harness injection — result exists, energy captured, now inject failure
+            # Post-harness injection — result exists, energy captured, now inject failure.
+            # ScenarioInjector: should_inject() with phase='post_harness'.
+            # Legacy FailureInjector: maybe_inject_timeout() path (backward compat).
             if failure_injector and workflow_type == "agentic" and failure_injector.is_active():
-                if failure_injector.maybe_inject_timeout(
-                    rep_num=rep_num, attempt_num=attempt_num
-                ):
-                    logger.info(
-                        "FailureInjector: timeout injected post-harness goal=%d attempt=%d",
-                        goal_id, attempt_num,
+                _inject_post = False
+                _ftype_post  = None
+                if hasattr(failure_injector, "should_inject"):
+                    # ScenarioInjector path
+                    _draw_post = getattr(failure_injector, "_draw_counter", 0) + 1
+                    failure_injector._draw_counter = _draw_post
+                    _inject_post, _ftype_post = failure_injector.should_inject(
+                        step_index=0,
+                        phase="post_harness",
+                        tool_name=None,
+                        draw_number=_draw_post,
+                        attempt_id=attempt_id,
+                        goal_id=goal_id,
                     )
-                    result["execution"] = {
-                        "status":        "failure",
-                        "error_type":    "timeout",
-                        "completed":     True,
-                        "error_message": "INJECTED: simulated timeout",
-                        "failed_steps":  0,
-                        "total_steps":   0,
-                    }
+                else:
+                    # Legacy FailureInjector path
+                    _inject_post = failure_injector.maybe_inject_timeout(
+                        rep_num=rep_num, attempt_num=attempt_num
+                    )
+                    _ftype_post = "timeout"
 
-            exec_dict = result.get("execution", {}) or {}
+                if _inject_post and _ftype_post:
+                    from core.injection.failure_simulator import (
+                        simulate_post_harness_failure, NON_INJECTABLE_TYPES
+                    )
+                    if _ftype_post in NON_INJECTABLE_TYPES:
+                        logger.error(
+                            "ScenarioInjector: %r is non-injectable "
+                            "(reasoning domain) — skipping post-harness injection",
+                            _ftype_post,
+                        )
+                    else:
+                        logger.info(
+                            "ScenarioInjector: post-harness INJECT type=%s "
+                            "goal=%d attempt=%d",
+                            _ftype_post, goal_id, attempt_num,
+                        )
+                        result["execution"] = simulate_post_harness_failure(_ftype_post)
+
+            # result["execution"] is the full executor output dict.
+            # The structured failure metadata lives one level deeper at
+            # result["execution"]["execution"] (set by agentic.execute()).
+            # result["execution"] is the full executor output dict.
+            # The actual failure metadata is always at ["execution"]["execution"].
+            # Never fall back to _outer — it has status="success" at top level
+            # from pending_interactions which would mask injection failures.
+            _outer = result.get("execution", {}) or {}
+            exec_dict = _outer.get("execution", {}) or {}
             # A5: agentic success path never sets status key — absent = success.
             # "failure"/"failed"/"partial_failure" are explicit failure signals.
             # Default to "success" so agentic retry attempts are not silently
@@ -301,6 +335,15 @@ def execute_goal(
             compute_uj=None,
             failure_type=failure_type,
         )
+ 
+        # Flush ScenarioInjector pending log to failure_injection_log.
+        # Batch INSERT after finish_attempt() — attempt_id is now committed.
+        # run_id is NULL here; ETL backfills it after runs row is created.
+        # Crash before this point loses audit rows for this attempt — documented
+        # tradeoff (A2 design decision: hot-path latency vs persistence).
+        if failure_injector is not None and hasattr(failure_injector, "get_pending_log"):
+            _flush_injection_log(conn, failure_injector, attempt_id, goal_id)
+ 
         prev_attempt_id = attempt_id
         if result is not None:
             last_result = result
@@ -426,9 +469,61 @@ def execute_goal(
     # Paper thesis: overhead_energy_uj sums across all failed attempts per goal
     for rid in all_run_ids:
         energy_attribution_etl.populate_attribution_stubs(rid, conn)
+        try:
+            phase_attribution_etl.compute_phase_attribution(rid, get_alems_db_path())
+        except Exception as _e:
+            logger.warning("phase_attribution_etl failed for run=%d: %s", rid, _e)
 
     return goal_id
 
+def _flush_injection_log(
+    conn,
+    injector,
+    attempt_id: int,
+    goal_id: int,
+) -> None:
+    """
+    Batch INSERT pending ScenarioInjector decisions to failure_injection_log.
+ 
+    Called after finish_attempt() — attempt_id is committed at this point.
+    run_id is NULL; ETL backfills after runs row is created.
+    Existing FailureInjector has no get_pending_log() — guarded by hasattr above.
+ 
+    Persistence contract: a process crash before this call loses audit rows
+    for the current attempt. Injection behavior already fired — only log is lost.
+    """
+    try:
+        pending = injector.get_pending_log()
+        if not pending:
+            return
+        conn.executemany(
+            """
+            INSERT INTO failure_injection_log (
+                run_id, attempt_id, goal_id,
+                scenario_id, rule_index, injected_type,
+                target_step, target_phase, target_tool,
+                injection_time_ns, draw_number, random_seed,
+                injection_algorithm_version, status, skip_reason
+            ) VALUES (
+                :run_id, :attempt_id, :goal_id,
+                :scenario_id, :rule_index, :injected_type,
+                :target_step, :target_phase, :target_tool,
+                :injection_time_ns, :draw_number, :random_seed,
+                :injection_algorithm_version, :status, :skip_reason
+            )
+            """,
+            [{**row, "attempt_id": attempt_id, "goal_id": goal_id} for row in pending],
+        )
+        conn.commit()
+        logger.debug(
+            "_flush_injection_log: flushed %d rows attempt=%d goal=%d",
+            len(pending), attempt_id, goal_id,
+        )
+    except Exception as exc:
+        # Never crash the experiment over audit log failure.
+        logger.error(
+            "_flush_injection_log: failed attempt=%d: %s", attempt_id, exc
+        )
 
 def _record_attempt_failure(
     conn,

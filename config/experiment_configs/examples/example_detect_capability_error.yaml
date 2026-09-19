@@ -1,0 +1,44 @@
+# config/experiment_configs/examples/example_detect_capability_error.yaml
+# =============================================================================
+# EXAMPLE: capability_error detection (NOT injection)
+# Verifies: HallucinationDetector fires with hallucination_type=capability_error,
+#           exact_match score=0.0 (model attempted but produced entirely wrong
+#           answer type — wrong domain, wrong format, wrong units).
+#
+# capability_error = LLM attempted task beyond its capability.
+# Distinct from hallucination (fabricated) and semantic_error (wrong value).
+# capability_error = wrong category of answer entirely.
+#
+# Task: code_fibonacci — tinyllama fails completely on code generation,
+#       producing prose instead of code (exact_match=0, capability limit).
+# Provider: llama_cpp (tinyllama 1B) — known to fail completely on
+#           structured output tasks, producing capability_error naturally.
+# Quality: exact_match — binary, score=0 triggers capability_error path.
+# Reps: 10 — tinyllama fails consistently on code tasks.
+# =============================================================================
+study:
+  name: "Example: capability_error detection"
+  experiment_type: "normal"
+  experiment_goal: "Collect capability_error samples — model attempted beyond its capability"
+  workflow_modes: ["linear"]
+
+tasks:
+  - id: code_fibonacci
+  - id: code_sorting
+  - id: bug_fixing
+
+providers:
+  - name: llama_cpp
+    model_id: tinyllama-1b-gguf
+
+execution:
+  repetitions: 10
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  name: "no_retry"
+
+quality:
+  enabled: true
+  judge_method: exact_match

@@ -1,0 +1,51 @@
+# config/experiment_configs/examples/example_inject_malformed_output.yaml
+# =============================================================================
+# EXAMPLE: malformed_output injection
+# Verifies: ToolResult(success=True, broken_json_result) written,
+#           downstream parser fails, tool_failure_events row with
+#           failure_type=malformed_output, retry fires.
+# Note: success=True because tool call itself succeeded — output is corrupt.
+#       This is the scientifically interesting case: energy was consumed for
+#       a "successful" tool call that produced unusable output.
+# Task: tg_single_calc — tool with structured output expected.
+# =============================================================================
+study:
+  name: "Example: malformed_output injection"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify malformed_output injection — tool succeeds but output unusable"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  max_retries: 3
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "default"
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "example_malformed_output_v1"
+  scenarios:
+    - type: malformed_output
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any
+      max_injections: 1
+
+quality:
+  enabled: false

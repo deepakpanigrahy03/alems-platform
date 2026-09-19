@@ -1,0 +1,50 @@
+# config/experiment_configs/examples/example_inject_auth_error.yaml
+# =============================================================================
+# EXAMPLE: auth_error injection
+# Verifies: ToolResult(success=False, 401_error) written,
+#           goal_attempt.failure_type=auth_error,
+#           NO retry fired (default_retryable=0, strategy=abort).
+# Non-retryable: auth failures require credential fix, not retry.
+# Energy measurement: single attempt only — lowest wasted energy of all types.
+# Task: tg_single_calc — tool dispatch path.
+# =============================================================================
+study:
+  name: "Example: auth_error injection"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify auth_error is non-retryable — abort on first failure"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  max_retries: 3
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "no_retry"
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "example_auth_error_v1"
+  scenarios:
+    - type: auth_error
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any
+      max_injections: 1
+
+quality:
+  enabled: false

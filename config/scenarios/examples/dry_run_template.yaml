@@ -1,0 +1,19 @@
+# config/scenarios/examples/dry_run_template.yaml
+# =============================================================================
+# Reference template: dry_run mode for scenario design validation.
+# dry_run: true — rules are evaluated and logged but no failure is triggered.
+# Use to validate: location matching, seed determinism, rule ordering.
+# Check failure_injection_log after run — status='selected' confirms rules fire.
+# No actual injection occurs — safe to run on production experiment configs.
+# =============================================================================
+# USAGE: Copy your real scenario here, set dry_run: true in experiment YAML,
+# run against a small experiment, inspect failure_injection_log.
+# =============================================================================
+scenarios:
+  - type: tool_error
+    rate: 0.5
+    location:
+      phase: execution
+      step_index: any
+      tool_name: any
+    max_injections: unlimited

@@ -235,11 +235,31 @@ def run_provider_task(
                 # Two paths intentionally separate — never merge them.
                 if args.save_db and db:
                     max_retries = getattr(args, "max_retries", 0)
-                    if max_retries > 0:
+                    _has_injector = getattr(args, "failure_injector", None) is not None
+                    if max_retries > 0 or _has_injector:
                         # Retry path — execute_goal() drives harness + persistence + goal tracking
                         policy = _retry_coordinator.load_policy(
                             db.db.conn, getattr(args, "policy_name", "default")
                         )
+                        # Override DB policy with YAML retry flags if explicitly set.
+                        # This lets experiment configs tune retry behavior without
+                        # requiring DB migrations for new policy variants.
+                        from dataclasses import replace as _dc_replace
+                        _overrides = {}
+                        if hasattr(args, "retry_on_timeout"):
+                            _overrides["retry_on_timeout"] = args.retry_on_timeout
+                        if hasattr(args, "retry_on_tool_error"):
+                            _overrides["retry_on_tool_error"] = args.retry_on_tool_error
+                        if hasattr(args, "retry_on_api_error"):
+                            _overrides["retry_on_api_error"] = args.retry_on_api_error
+                        if hasattr(args, "retry_on_wrong_answer"):
+                            _overrides["retry_on_wrong_answer"] = args.retry_on_wrong_answer
+                        if hasattr(args, "max_retries"):
+                            _overrides["max_retries"] = args.max_retries
+                        if hasattr(args, "backoff_seconds"):
+                            _overrides["backoff_seconds"] = args.backoff_seconds
+                        if _overrides:
+                            policy = _dc_replace(policy, **_overrides)
                         task_dict = {
                             "id":     task.get("id"),
                             "name":   task.get("name"),
@@ -339,8 +359,58 @@ def run_provider_task(
         # ========================================================================
         # Calculate statistics for this provider-task
         # ========================================================================
-        linear_energies = [r["ml_features"]["energy_j"] for r in linear_results]
-        agentic_energies = [r["ml_features"]["energy_j"] for r in agentic_results]
+        # When execute_goal path ran (max_retries>0 or injection active),
+        # linear_results/agentic_results are empty — pull energy from DB.
+        # energy_uj in goal_attempt is in microjoules — convert to joules.
+        _used_execute_goal = getattr(args, "max_retries", 0) > 0 or \
+                             getattr(args, "failure_injector", None) is not None
+        if _used_execute_goal and exp_id and db:
+            try:
+                rows = db.db.conn.execute("""
+                    SELECT ge.workflow_type,
+                           SUM(ga.energy_uj) / 1e6  AS energy_j
+                    FROM goal_execution ge
+                    JOIN goal_attempt ga
+                      ON ga.goal_id = ge.goal_id
+                    WHERE ge.exp_id = ?
+                      AND (ga.is_winning = 1
+                           OR (ge.success = 0
+                               AND ga.attempt_number = (
+                                   SELECT MAX(ga2.attempt_number)
+                                   FROM goal_attempt ga2
+                                   WHERE ga2.goal_id = ge.goal_id
+                               )))
+                    GROUP BY ge.goal_id, ge.workflow_type
+                """, (exp_id,)).fetchall()
+                _lin, _agt = [], []
+                for wf, ej in rows:
+                    if wf == "linear":
+                        _lin.append(ej or 0.0)
+                    elif wf == "agentic":
+                        _agt.append(ej or 0.0)
+                if _lin:
+                    linear_energies = _lin
+                else:
+                    linear_energies = [r["ml_features"]["energy_j"]
+                                       for r in linear_results]
+                if _agt:
+                    agentic_energies = _agt
+                else:
+                    agentic_energies = [r["ml_features"]["energy_j"]
+                                        for r in agentic_results]
+                # Recompute taxes from DB values
+                if _lin and _agt and len(_lin) == len(_agt):
+                    taxes = [a / l if l > 0 else 0
+                             for a, l in zip(_agt, _lin)]
+            except Exception as _e:
+                logger.warning("run_provider_task: DB energy fallback failed: %s", _e)
+                linear_energies = [r["ml_features"]["energy_j"]
+                                   for r in linear_results]
+                agentic_energies = [r["ml_features"]["energy_j"]
+                                    for r in agentic_results]
+        else:
+            linear_energies = [r["ml_features"]["energy_j"] for r in linear_results]
+            agentic_energies = [r["ml_features"]["energy_j"] for r in agentic_results]
 
         stats = {
             "provider": provider,

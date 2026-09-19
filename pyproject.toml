@@ -89,3 +89,9 @@ json = "core.execution.outputs.json_output:JSONOutputAdapter"
 
 [project.entry-points."alems.extensions"]
 tool_selection = "extensions.tool_selection.extension:ToolSelectionExtension"
+
+# Injection engines — discovered by scenario_loader.build_injector().
+# Register custom injection engines here with their mode name as the key.
+# Example: my_engine = "mypackage.my_engine:MyInjectionEngine"
+[project.entry-points."alems.injection_engines"]
+scenario = "core.injection.scenario_injector:ScenarioInjector"

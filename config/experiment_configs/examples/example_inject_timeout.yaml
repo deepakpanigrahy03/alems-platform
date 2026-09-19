@@ -1,0 +1,49 @@
+# config/experiment_configs/examples/example_inject_timeout.yaml
+# =============================================================================
+# EXAMPLE: timeout injection
+# Verifies: goal_attempt.failure_type=timeout, status=timeout,
+#           retry fires (default_retryable=1), full attempt energy captured.
+# Mechanism: post-harness — harness runs fully, then result overwritten.
+# Task: gsm8k_basic — pure LLM, no tools needed for post-harness injection.
+# Provider: llama_cpp — local, always available.
+# =============================================================================
+study:
+  name: "Example: timeout injection"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify timeout injection post-harness and measure full attempt energy"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: gsm8k_basic
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  max_retries: 3
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "default"
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "example_timeout_v1"
+  scenarios:
+    - type: timeout
+      rate: 1.0
+      location:
+        phase: post_harness
+        step_index: any
+        tool_name: any
+      max_injections: 1
+
+quality:
+  enabled: false
