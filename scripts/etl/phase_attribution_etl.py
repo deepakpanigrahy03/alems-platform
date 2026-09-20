@@ -161,6 +161,13 @@ def _direct_phase_energy(conn, run_id, start_ns, end_ns):
     This is direct measurement — no allocation, no normalization.
     A sample is included if its measurement window falls within the phase window.
 
+    Bug 14 fix: proportional bracketing for sub-sample phases.
+    When no samples fall entirely inside the phase window (phase shorter than
+    sample interval), find the bracketing sample that overlaps the window and
+    allocate energy proportional to the overlap fraction.
+    Provenance: energy value is MEASURED; time-slice fraction is CALCULATED.
+    Accuracy bound: assumes flat power draw within the 100ms bracketing interval.
+
     Args:
         conn:     DB connection
         run_id:   run to query
@@ -182,12 +189,55 @@ def _direct_phase_energy(conn, run_id, start_ns, end_ns):
           AND pkg_start_uj IS NOT NULL
     """, (run_id, start_ns, end_ns)).fetchone()
 
-    if not row or row["interval_sum"] is None:
+    if row and row["interval_sum"] is not None and row["n_samples"] > 0:
+        # At least one full sample inside the window — direct measurement path.
+        energy = max(0, row["interval_sum"])
+        return energy, row["n_samples"]
+
+    # Bug 14 fix: no full samples inside window — find the bracketing interval.
+    # The bracketing sample is the one whose window overlaps [start_ns, end_ns].
+    # We take the sample with the largest overlap with the phase window.
+    bracket = conn.execute("""
+        SELECT
+            pkg_start_uj,
+            pkg_end_uj,
+            sample_start_ns,
+            sample_end_ns
+        FROM energy_samples
+        WHERE run_id        = ?
+          AND sample_start_ns < ?
+          AND sample_end_ns   > ?
+          AND pkg_end_uj IS NOT NULL
+          AND pkg_start_uj IS NOT NULL
+        ORDER BY
+            MIN(sample_end_ns, ?) - MAX(sample_start_ns, ?) DESC
+        LIMIT 1
+    """, (run_id, end_ns, start_ns, end_ns, start_ns)).fetchone()
+
+    if not bracket:
         return 0, 0
 
-    # Guard against negative deltas (RAPL counter wrap — rare but possible)
-    energy = max(0, row["interval_sum"])
-    return energy, row["n_samples"]
+    interval_ns   = bracket["sample_end_ns"] - bracket["sample_start_ns"]
+    if interval_ns <= 0:
+        return 0, 0
+
+    # Overlap of phase window with bracketing sample interval.
+    overlap_ns    = min(bracket["sample_end_ns"], end_ns) - max(bracket["sample_start_ns"], start_ns)
+    overlap_frac  = overlap_ns / interval_ns
+
+    interval_energy_uj = max(0, bracket["pkg_end_uj"] - bracket["pkg_start_uj"])
+    # Proportional slice: phase gets its time-fraction of the interval energy.
+    energy = int(interval_energy_uj * overlap_frac)
+
+    logger.debug(
+        "_direct_phase_energy: proportional bracket run=%d "
+        "phase=[%d,%d] bracket=[%d,%d] overlap_frac=%.4f energy_uj=%d",
+        run_id, start_ns, end_ns,
+        bracket["sample_start_ns"], bracket["sample_end_ns"],
+        overlap_frac, energy,
+    )
+    # Return sample_count=0 so caller quality score stays conservative (0.5).
+    return energy, 0
 
 
 def _direct_phase_energy_spbm(conn, run_id, start_ns, end_ns, cpu_domain_id):
@@ -229,14 +279,59 @@ def _direct_phase_energy_spbm(conn, run_id, start_ns, end_ns, cpu_domain_id):
           AND esv.timestamp_ns <= ?
     """, (run_id, cpu_domain_id, start_ns, end_ns)).fetchone()
 
-    if not row or row["interval_sum"] is None:
+    if row and row["n_samples"] > 0:
+        # At least one SPBM sample inside the window — direct measurement path.
+        energy = max(0, int(row["interval_sum"]))
+        return energy, row["n_samples"]
+
+    # Bug 14 fix: no SPBM samples inside window — proportional bracketing.
+    # energy_samples_v2.timestamp_ns is the sample midpoint (SPBM convention).
+    # interval_ns gives the sample duration — used to reconstruct the window.
+    # We find the sample whose window [t - interval/2, t + interval/2] overlaps
+    # the phase window, then allocate its energy proportional to overlap fraction.
+    bracket = conn.execute("""
+        SELECT
+            esd.energy_uj         AS sample_energy_uj,
+            esv.timestamp_ns      AS ts,
+            esv.interval_ns       AS interval_ns
+        FROM energy_sample_domains esd
+        JOIN energy_samples_v2 esv ON esv.sample_id = esd.sample_id
+        WHERE esd.run_id    = ?
+          AND esd.domain_id = ?
+          AND esv.timestamp_ns - (esv.interval_ns / 2) < ?
+          AND esv.timestamp_ns + (esv.interval_ns / 2) > ?
+          AND esd.energy_uj IS NOT NULL
+          AND esd.energy_uj > 0
+        ORDER BY
+            MIN(esv.timestamp_ns + (esv.interval_ns / 2), ?)
+            - MAX(esv.timestamp_ns - (esv.interval_ns / 2), ?) DESC
+        LIMIT 1
+    """, (run_id, cpu_domain_id, end_ns, start_ns, end_ns, start_ns)).fetchone()
+
+    if not bracket or not bracket["interval_ns"]:
         return 0, 0
 
-    # Guard against negative values — SPBM accumulators should not go negative
-    # but defensive clamping prevents downstream conservation violations.
-    energy = max(0, int(row["interval_sum"]))
-    return energy, row["n_samples"]
+    half_ns      = bracket["interval_ns"] // 2
+    sample_start = bracket["ts"] - half_ns
+    sample_end   = bracket["ts"] + half_ns
+    interval_ns  = sample_end - sample_start
+    if interval_ns <= 0:
+        return 0, 0
 
+    overlap_ns   = min(sample_end, end_ns) - max(sample_start, start_ns)
+    overlap_frac = overlap_ns / interval_ns
+
+    energy = int(max(0, bracket["sample_energy_uj"]) * overlap_frac)
+
+    logger.debug(
+        "_direct_phase_energy_spbm: proportional bracket run=%d "
+        "phase=[%d,%d] sample_ts=%d interval_ns=%d overlap_frac=%.4f energy_uj=%d",
+        run_id, start_ns, end_ns,
+        bracket["ts"], bracket["interval_ns"],
+        overlap_frac, energy,
+    )
+    # Return sample_count=0 so caller quality score stays conservative (0.5).
+    return energy, 0
 
 def _phase_cpu_fraction(conn, run_id, start_ns, end_ns):
     # type: (sqlite3.Connection, int, int, int) -> Tuple[Optional[float], int, int, int]

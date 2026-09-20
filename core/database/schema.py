@@ -315,15 +315,12 @@ CREATE INDEX IF NOT EXISTS idx_goal_attempt_status          ON goal_attempt(stat
 """
 # ========================================================================
 # Table 2d: tool_failure_events
-# tool_failure_events
 # One row per failed tool call within one attempt.
-# failure_phase records where in the orchestration pipeline failure occurred:
-#   selection → agent chose wrong tool
-#   execution → tool call failed during execution
-#   parsing → tool output could not be parsed
-#   post_processing → downstream processing of tool result failed
+# failure_type, failure_phase, recovery_strategy: free text — no DB CHECK.
+# Domain vocabulary enforced at application layer (tool_failure_recorder.py)
+# against failure_taxonomy and recovery_taxonomy dimension tables.
+# Fact tables never carry domain CHECK constraints — dimension tables own vocabulary.
 # wasted_energy_uj (REAL) populated by energy_attribution_etl.py. NULL at insert.
-# recovery_strategy records what the orchestration layer did after failure.
 # FK anchor: attempt_id → goal_attempt, goal_id → goal_execution
 # ========================================================================
 CREATE_TOOL_FAILURE_EVENTS = """
@@ -333,21 +330,12 @@ CREATE TABLE IF NOT EXISTS tool_failure_events (
     goal_id                 INTEGER NOT NULL,
     orchestration_event_id  INTEGER,
     tool_name               TEXT NOT NULL,
-    failure_type            TEXT NOT NULL CHECK(failure_type IN (
-                                'timeout','api_error','malformed_input',
-                                'malformed_output','rate_limit',
-                                'auth_error','not_found','other'
-                            )),
-    failure_phase           TEXT CHECK(failure_phase IS NULL OR failure_phase IN (
-                                'selection','execution','parsing','post_processing'
-                            )),
+    failure_type            TEXT NOT NULL,
+    failure_phase           TEXT,
     error_message           TEXT,
     retry_attempted         INTEGER NOT NULL DEFAULT 0,
     retry_success           INTEGER NOT NULL DEFAULT 0,
-    recovery_strategy       TEXT CHECK(recovery_strategy IS NULL OR recovery_strategy IN (
-                                'immediate_retry','backoff_retry',
-                                'fallback_tool','skip','abort'
-                            )),
+    recovery_strategy       TEXT,
     wasted_energy_uj        REAL,
     created_at              TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (attempt_id)             REFERENCES goal_attempt(attempt_id),

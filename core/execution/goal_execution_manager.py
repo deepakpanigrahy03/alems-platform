@@ -31,7 +31,8 @@ import logging
 import time
 from typing import Optional
 
-from scripts.etl import goal_execution_etl, energy_attribution_etl, phase_attribution_etl
+from pathlib import Path
+from scripts.etl import goal_execution_etl, energy_attribution_etl, phase_attribution_etl, duration_fix_etl
 from scripts.tools.path_loader import get_alems_db_path
 from core.execution.retry_coordinator import RetryCoordinator, RetryPolicy
 from core.execution.failure_classifier import FailureClassifier
@@ -315,7 +316,9 @@ def execute_goal(
         # Safety net — outcome=failure must always have failure_type populated.
         # Prevents NULL failure_type in goal_attempt for any failure path.
         if outcome != "success" and failure_type is None:
-            failure_type = "other"
+            # "other" removed from taxonomy in A1 — tool_error is the
+            # correct structural catch-all for unclassified failures.
+            failure_type = "tool_error"
 
         # Accumulate per-attempt energy into running total
         if result is not None:
@@ -469,10 +472,33 @@ def execute_goal(
     # Paper thesis: overhead_energy_uj sums across all failed attempts per goal
     for rid in all_run_ids:
         energy_attribution_etl.populate_attribution_stubs(rid, conn)
+        # Bug 10 + 11 fix: run full attribution computation on execute_goal path.
+        try:
+            energy_attribution_etl.compute_energy_attribution(rid, get_alems_db_path())
+        except Exception as _e:
+            logger.warning("energy_attribution_etl failed for run=%d: %s", rid, _e)
         try:
             phase_attribution_etl.compute_phase_attribution(rid, get_alems_db_path())
         except Exception as _e:
             logger.warning("phase_attribution_etl failed for run=%d: %s", rid, _e)
+        # Bug 11 fix: pre/post task energy populated by duration_fix_etl, not
+        # energy_attribution_etl. Values captured by harness live in final_result
+        # ml_features — extract and call fix_run_with_pretask here.
+        try:
+            if final_result is not None:
+                _ml = final_result.get("ml_features", {}) or {}
+                duration_fix_etl.fix_run_with_pretask(
+                    run_id=rid,
+                    rapl_before_pretask=_ml.get("rapl_before_pretask"),
+                    rapl_after_task=_ml.get("rapl_after_task"),
+                    pre_task_duration_sec=_ml.get("pre_task_duration_sec") or 0.0,
+                    post_task_duration_sec=_ml.get("post_task_duration_sec") or 0.0,
+                    cpu_frac_pre=_ml.get("cpu_frac_pre") or 0.0,
+                    cpu_frac_post=_ml.get("cpu_frac_post") or 0.0,
+                    db_path=Path(get_alems_db_path()),
+                )
+        except Exception as _e:
+            logger.warning("duration_fix_etl failed for run=%d: %s", rid, _e)
 
     return goal_id
 
@@ -519,6 +545,31 @@ def _flush_injection_log(
             "_flush_injection_log: flushed %d rows attempt=%d goal=%d",
             len(pending), attempt_id, goal_id,
         )
+        # Bug 13 fix: write tool_failure_events for injected rows.
+        # failure_injection_log alone is not sufficient — cost profiling
+        # (A3) reads tool_failure_events for wasted_energy_uj attribution.
+        # Only status=injected rows produced real failures; status=skipped
+        # rows fired no injection and must not create failure event rows.
+        for row in pending:
+            if row.get("status") != "injected":
+                continue
+            injected_type = row.get("injected_type") or "tool_error"
+            target_tool = row.get("target_tool") or "harness"
+            # injected_type is already a taxonomy-valid string (ScenarioInjector
+            # validates against failure_taxonomy at load time). Do NOT pass through
+            # _TOOL_FAILURE_TYPE_MAP — that map predates A1 and maps tool_error→other
+            # which is no longer in the taxonomy.
+            record_tool_failure(
+                conn=conn,
+                attempt_id=attempt_id,
+                goal_id=goal_id,
+                tool_name=target_tool,
+                failure_type=injected_type,
+                failure_phase="execution",
+                error_message=f"INJECTED[{injected_type}]: scenario {row.get('scenario_id')} rule {row.get('rule_index')}",
+                retry_attempted=0,
+                retry_success=0,
+            )
     except Exception as exc:
         # Never crash the experiment over audit log failure.
         logger.error(

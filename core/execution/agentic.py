@@ -1008,7 +1008,10 @@ You can use tools like calculator or web search if needed.
                     )
         # ─────────────────────────────────────────────────────────────────────
 
-        db_path = getattr(self, "db_path", "data/experiments.db")
+        # Bug 12 fix: use get_alems_db_path() so DatabaseQueryTool opens
+        # the correct DB on all machines, not a hardcoded relative path.
+        from scripts.tools.path_loader import get_alems_db_path as _get_db
+        db_path = getattr(self, "db_path", None) or _get_db()
 
         from core.execution.tools.abc import ToolExecutionContext
         from core.execution.tools.bootstrap import (
