@@ -190,6 +190,36 @@ CREATE INDEX IF NOT EXISTS idx_injection_log_type
 CREATE INDEX IF NOT EXISTS idx_injection_log_status
     ON failure_injection_log(status);
 """
+
+# ========================================================================
+# Table: failure_cost_profile
+# Extension data promoted to core schema (applied via v90002 on all machines).
+# Populated by scripts/etl/failure_cost_profile_etl.py — never by runtime hot path.
+# One row per (failure_type_id, experiment_group) pair.
+# Feeds A4 EAR engine calibration.
+CREATE_FAILURE_COST_PROFILE = """
+CREATE TABLE IF NOT EXISTS failure_cost_profile (
+    profile_id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    failure_type_id             TEXT NOT NULL,
+    experiment_group            TEXT NOT NULL,
+    sample_count                INTEGER NOT NULL CHECK(sample_count >= 0),
+    recovery_cost_uj_mean       REAL CHECK(recovery_cost_uj_mean   IS NULL OR recovery_cost_uj_mean   >= 0),
+    recovery_cost_uj_median     REAL CHECK(recovery_cost_uj_median IS NULL OR recovery_cost_uj_median >= 0),
+    recovery_cost_uj_p25        REAL,
+    recovery_cost_uj_p75        REAL,
+    recovery_cost_uj_std        REAL CHECK(recovery_cost_uj_std    IS NULL OR recovery_cost_uj_std    >= 0),
+    recovery_success_rate       REAL CHECK(recovery_success_rate   IS NULL OR recovery_success_rate   BETWEEN 0 AND 1),
+    recovery_success_count      INTEGER CHECK(recovery_success_count IS NULL OR recovery_success_count >= 0),
+    recovery_attempts_mean      REAL,
+    recovery_latency_ms_mean    REAL,
+    cost_per_recovery_success   REAL,
+    computed_at                 TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(failure_type_id, experiment_group)
+);
+CREATE INDEX IF NOT EXISTS idx_fcp_type  ON failure_cost_profile(failure_type_id);
+CREATE INDEX IF NOT EXISTS idx_fcp_group ON failure_cost_profile(experiment_group);
+"""
+
 # ========================================================================
 # Table 2b: goal_execution
 # Paper's fundamental unit of analysis — energy per successful goal
