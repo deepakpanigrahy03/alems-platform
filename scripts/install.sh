@@ -386,11 +386,8 @@ if [ ! -f "$ALEMSRC" ] || ! grep -q "ALEMS_DATA_ROOT" "$ALEMSRC"; then
 fi
 
 # Create all required directories — mkdir -p is safe on existing dirs
-if [ "${ALEMS_ENV}" = "prod" ]; then
-    DB_DIR="${DATA_ROOT}/${HOSTNAME_LOWER}/envs/prod"
-else
-    DB_DIR="${DATA_ROOT}/${HOSTNAME_LOWER}/envs/${USER_LOWER}/${ALEMS_ENV}/${PROJECT_NAME}"
-fi
+DB_DIR="${DATA_ROOT}/${HOSTNAME_LOWER}/envs/${USER_LOWER}/${ALEMS_ENV}/${PROJECT_NAME}"
+
 # Create data directories — use sudo if permission denied
 mkdir -p "${DB_DIR}" 2>/dev/null || sudo mkdir -p "${DB_DIR}"
 mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/baselines" 2>/dev/null || sudo mkdir -p "${DATA_ROOT}/${HOSTNAME_LOWER}/baselines"
@@ -407,6 +404,28 @@ echo "  DB path: ${DB_PATH}"
 
 # ── Step 6: Database init ────────────────────────────────────────────
 echo "[6/12] Database initialization..."
+
+# Guard: DB exists from a different project clone — same resolved path, different repo
+if [ -f "${DB_PATH}" ]; then
+    HAS_RUNS=$(sqlite3 "${DB_PATH}" \
+        "SELECT COUNT(*) FROM runs;" \
+        2>/dev/null || echo "0")
+    DB_PROJECT="$(basename "$(dirname "${DB_PATH}")")"
+    if [ "${HAS_RUNS}" != "0" ] && [ "${DB_PROJECT}" != "${PROJECT_NAME}" ]; then
+        echo ""
+        echo "ERROR: A database already exists at:"
+        echo "  ${DB_PATH}"
+        echo ""
+        echo "  It belongs to project '${DB_PROJECT}', not '${PROJECT_NAME}'."
+        echo "  Two clones of A-LEMS are resolving to the same DB path."
+        echo ""
+        echo "  Options:"
+        echo "  1. Set ALEMS_DB_NAME=<name> in ~/.alemsrc and rerun install"
+        echo "  2. Set ALEMS_DATA_ROOT to a different path and rerun install"
+        echo ""
+        exit 1
+    fi
+fi
 
 # Guard: if DB exists but lacks the runs table, it is a partial init
 # from a previously failed install — no experiment data can exist yet.

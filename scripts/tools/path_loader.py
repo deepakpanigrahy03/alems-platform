@@ -102,8 +102,6 @@ def get_alems_db_path():
                 _project = _repo_root.name
                 _db_name = os.environ.get("ALEMS_DB_NAME", "experiments.db")
                 # prod env: no user/project suffix for backward compat
-                if _env == "prod":
-                    return f"{_base}/{_host}/envs/{_env}/{_db_name}"
                 return f"{_base}/{_host}/envs/{_user}/{_env}/{_project}/{_db_name}"
     except ValueError:
         raise
