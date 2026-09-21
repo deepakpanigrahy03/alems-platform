@@ -221,6 +221,52 @@ CREATE INDEX IF NOT EXISTS idx_fcp_group ON failure_cost_profile(experiment_grou
 """
 
 # ========================================================================
+# Tables: ear_policy, ear_policy_rules, ear_decision_log
+# Core schema — code in core/retry/ writes to ear_decision_log on hot path.
+# Calibration (ear_policy, ear_policy_rules) populated by ear_calibrator.py.
+# Applied via v105_ear_engine.sql on existing machines.
+CREATE_EAR_TABLES = """
+CREATE TABLE IF NOT EXISTS ear_policy (
+    ear_policy_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    policy_name         TEXT NOT NULL UNIQUE,
+    description         TEXT,
+    calibration_scope   TEXT NOT NULL DEFAULT 'experiment_group',
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+ 
+CREATE TABLE IF NOT EXISTS ear_policy_rules (
+    rule_id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ear_policy_id                   INTEGER NOT NULL REFERENCES ear_policy(ear_policy_id),
+    failure_type_id                 TEXT NOT NULL,
+    max_attempts                    INTEGER NOT NULL CHECK(max_attempts >= 0),
+    cost_threshold_uj               REAL CHECK(cost_threshold_uj IS NULL OR cost_threshold_uj >= 0),
+    calibrated_success_prob         REAL CHECK(calibrated_success_prob IS NULL OR calibrated_success_prob BETWEEN 0 AND 1),
+    success_probability_threshold   REAL CHECK(success_probability_threshold IS NULL OR success_probability_threshold BETWEEN 0 AND 1),
+    action                          TEXT NOT NULL CHECK(action IN ('retry', 'abort', 'fallback')),
+    priority                        INTEGER NOT NULL DEFAULT 0,
+    created_at                      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(ear_policy_id, failure_type_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ear_rules_policy ON ear_policy_rules(ear_policy_id);
+CREATE INDEX IF NOT EXISTS idx_ear_rules_type   ON ear_policy_rules(failure_type_id);
+ 
+CREATE TABLE IF NOT EXISTS ear_decision_log (
+    decision_id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id                  INTEGER REFERENCES runs(run_id),
+    attempt_id              INTEGER REFERENCES goal_attempt(attempt_id),
+    failure_type_id         TEXT,
+    attempt_number          INTEGER,
+    budget_remaining_uj     REAL,
+    action                  TEXT NOT NULL,
+    reason                  TEXT,
+    calibration_cost_uj     REAL,
+    calibration_success_prob REAL CHECK(calibration_success_prob IS NULL OR calibration_success_prob BETWEEN 0 AND 1),
+    decided_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ear_log_run     ON ear_decision_log(run_id);
+CREATE INDEX IF NOT EXISTS idx_ear_log_attempt ON ear_decision_log(attempt_id);
+"""
+# ========================================================================
 # Table 2b: goal_execution
 # Paper's fundamental unit of analysis — energy per successful goal
 # workflow_type set by application layer explicitly — never derived from

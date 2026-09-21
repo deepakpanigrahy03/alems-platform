@@ -1,0 +1,38 @@
+# config/experiment_configs/organic_failure_test.yaml
+# =============================================================================
+# TEST: organic failure classification (A4-1 verification)
+# Purpose: verify failure_type is correctly classified WITHOUT injection.
+#          Bad model_id forces a real provider error (api_error or network_error).
+#          Safety net must NOT fire — classifier must set failure_type directly.
+# Expected: failure_type = api_error (not tool_error from safety net)
+# =============================================================================
+study:
+  name: "Organic failure classification test"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify organic failure_type classification without injection"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: vllm_remote
+    model_id: nonexistent-model-organic-test
+
+execution:
+  repetitions: 3
+  cool_down_seconds: 2
+  save_db: true
+
+retry_policy:
+  max_retries: 1
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "default"
+
+failure_injection:
+  enabled: false
+
+quality:
+  enabled: false

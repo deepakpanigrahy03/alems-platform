@@ -16,7 +16,8 @@ from pathlib import Path
 
 import numpy as np
 from dotenv import load_dotenv
-
+import logging
+logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Add project root to path
@@ -267,6 +268,10 @@ def run_provider_task(
                             "meta":   task.get("meta", {}),
                             "tool_graph": task.get("tool_graph"),
                         }
+                        # A4: initialize retry adapter once per rep — args in scope here.
+                        from core.retry.retry_adapter import get_retry_adapter
+                        _retry_adapter = get_retry_adapter(args)
+                        print(f"DEBUG injector={getattr(args, 'failure_injector', None)} adapter={type(_retry_adapter).__name__}")
                         if workflow_mode in ("linear", "comparison"):
                             execute_goal(
                                 db=db, exp_id=exp_id, hw_id=hw_id,
@@ -275,6 +280,7 @@ def run_provider_task(
                                 rep_num=rep + 1, goal_tracker=_goal_tracker,
                                 policy=policy, failure_injector=getattr(args, "failure_injector", None),
                                 repetitions=repetitions,
+                                retry_adapter=_retry_adapter,
                             )
                             runs_completed += 1
                         if workflow_mode in ("agentic", "comparison"):
@@ -285,6 +291,7 @@ def run_provider_task(
                                 rep_num=rep + 1, goal_tracker=_goal_tracker,
                                 policy=policy, failure_injector=getattr(args, "failure_injector", None),
                                 repetitions=repetitions,
+                                retry_adapter=_retry_adapter,
                             )
                             runs_completed += 1
                     else:
@@ -610,6 +617,47 @@ def main():
     if args.list_tasks:
         tasks = load_tasks()
         list_task_summary(tasks)
+        return 0
+
+    # A5: retry_policies list — run one experiment group per policy, then compare.
+    retry_policies_list = getattr(args, "retry_policies", None)
+    if retry_policies_list:
+        from itertools import combinations
+        from scripts.etl.policy_comparison_etl import compare_policies
+        import sqlite3
+        from scripts.tools.path_loader import get_alems_db_path
+        all_group_ids = []
+        for policy_entry in retry_policies_list:
+            import copy
+            policy_args = copy.copy(args)
+            policy_args.retry_policies = None  # prevent re-entry
+            policy_args.retry_engine = policy_entry.get("engine", "flat")
+            policy_args.ear_policy_name = policy_entry.get("ear_policy_name", None)
+            policy_args.policy_name = policy_entry.get("name", policy_entry.get("group_suffix", ""))
+            suffix = policy_entry.get("group_suffix", policy_args.retry_engine)
+            policy_args.group_suffix = suffix
+            run_all_experiments(policy_args)
+            # Fetch most recent group_id from DB for this policy run.
+            try:
+                _conn = sqlite3.connect(get_alems_db_path())
+                _row = _conn.execute(
+                    "SELECT group_id FROM experiments ORDER BY exp_id DESC LIMIT 1"
+                ).fetchone()
+                _conn.close()
+                if _row:
+                    all_group_ids.append((_row[0], policy_entry.get("name", suffix)))
+            except Exception as _ge:
+                logger.warning("Could not fetch group_id after policy run: %s", _ge)
+        if len(all_group_ids) >= 2:
+            conn = sqlite3.connect(get_alems_db_path())
+            try:
+                for (g_a, p_a), (g_b, p_b) in combinations(all_group_ids, 2):
+                    try:
+                        compare_policies(conn, g_a, g_b, p_a, p_b)
+                    except Exception as _ce:
+                        logger.warning("compare_policies failed %s vs %s: %s", g_a, g_b, _ce)
+            finally:
+                conn.close()
         return 0
 
     all_results, config, args = run_all_experiments(args)

@@ -1,0 +1,43 @@
+# config/experiment_configs/ear_study_ear_conservative.yaml
+# =============================================================================
+# EAR study: ear_conservative policy
+# Policy: high success probability threshold (0.60), tight cost ceiling (1.5x)
+# Only retries when recovery is highly likely and cheap.
+# Prerequisite: run ear_study_flat_default.yaml first, then calibrate:
+#   python scripts/etl/failure_cost_profile_etl.py --group <flat_group_id>
+#   python core/retry/ear_calibrator.py --group <flat_group_id> --policy ear_conservative
+# =============================================================================
+study:
+  name: "EAR Study: ear_conservative policy"
+  experiment_type: "failure_injection"
+  experiment_goal: "Conservative EAR policy — high threshold, low wasted energy"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: gsm8k_basic
+  - id: logical_reasoning
+  - id: tg_sequential_2
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 30
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  engine: ear
+  ear_policy_name: ear_conservative
+  max_retries: 5
+  backoff_seconds: 1.0
+
+failure_injection:
+  enabled: true
+  mode: controlled_retry
+  target_goal_pct: 0.40
+  per_goal_attempts: 2
+
+quality:
+  enabled: false

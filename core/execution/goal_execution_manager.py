@@ -71,6 +71,7 @@ def execute_goal(
     policy: RetryPolicy,
     failure_injector=None,
     repetitions: int = 1,
+    retry_adapter=None,
 ) -> Optional[int]:
     """
     Execute one goal (one workflow side) with full retry support.
@@ -135,6 +136,9 @@ def execute_goal(
         failure_injector.set_exp_id(exp_id, total_draws=exact_draws * repetitions)
 
     max_attempts    = policy.max_retries + 1
+    # A4: use passed-in adapter or fall back to FlatRetryAdapter.
+    from core.retry.retry_adapter import FlatRetryAdapter
+    _retry_adapter = retry_adapter if retry_adapter is not None else FlatRetryAdapter()
     prev_attempt_id = None
     winning_run_id  = None
     all_run_ids     = []
@@ -270,7 +274,7 @@ def execute_goal(
             # Never fall back to _outer — it has status="success" at top level
             # from pending_interactions which would mask injection failures.
             _outer = result.get("execution", {}) or {}
-            exec_dict = _outer.get("execution", {}) or {}
+            exec_dict = _outer.get("execution", _outer) or {}
             # A5: agentic success path never sets status key — absent = success.
             # "failure"/"failed"/"partial_failure" are explicit failure signals.
             # Default to "success" so agentic retry attempts are not silently
@@ -359,12 +363,28 @@ def execute_goal(
             break
 
         # Non-retryable — stop immediately, preserve energy for next goal
-        if failure_type and not _retry_coordinator.is_retryable(failure_type, policy):
-            logger.info(
-                "execute_goal: goal=%d non-retryable=%s after attempt=%d",
-                goal_id, failure_type, attempt_num,
+        # A4: adapter decision replaces flat is_retryable check.
+        if failure_type:
+            _run_context = {
+                "policy":              policy,
+                "conn":                conn,
+                "run_id":              run_id,
+                "attempt_id":          attempt_id,
+                "budget_remaining_uj": None,
+            }
+            _retry_decision = _retry_adapter.should_retry(
+                failure_type, attempt_num, goal_id, _run_context,
             )
-            break
+            # Flush EAR decision log after attempt (Option B flush pattern).
+            if hasattr(_retry_adapter, "flush_decision_log"):
+                _retry_adapter.flush_decision_log(conn)
+            if _retry_decision["action"] != "retry":
+                logger.info(
+                    "execute_goal: goal=%d adapter=%s action=%s reason=%s attempt=%d",
+                    goal_id, type(_retry_adapter).__name__,
+                    _retry_decision["action"], _retry_decision["reason"], attempt_num,
+                )
+                break
 
         if attempt_num >= max_attempts:
             logger.info(
@@ -474,7 +494,7 @@ def execute_goal(
         energy_attribution_etl.populate_attribution_stubs(rid, conn)
         # Bug 10 + 11 fix: run full attribution computation on execute_goal path.
         try:
-            energy_attribution_etl.compute_energy_attribution(rid, get_alems_db_path())
+            energy_attribution_etl.compute_energy_attribution(rid, Path(get_alems_db_path()))
         except Exception as _e:
             logger.warning("energy_attribution_etl failed for run=%d: %s", rid, _e)
         try:
@@ -597,7 +617,7 @@ def _record_attempt_failure(
         attempt_id=attempt_id,
         goal_id=goal_id,
         tool_name=(tools_used[0] if tools_used else "harness"),
-        failure_type=_TOOL_FAILURE_TYPE_MAP.get(failure_type, "other"),
+        failure_type=failure_type,
         failure_phase="execution",
         error_message=error_message,
         retry_attempted=retry_attempted,

@@ -57,6 +57,11 @@ def apply_config(args) -> None:
     _apply_providers_section(args, cfg.get("providers", []))
     _apply_failure_injection_section(args, cfg.get("failure_injection", {}))  # reads experiment_type after study
 
+    # A5: retry_policies list — multiple policies on same workload
+    retry_policies = cfg.get("retry_policies", None)
+    if retry_policies:
+        args.retry_policies = retry_policies
+
 def _apply_failure_injection_section(args, fi: dict) -> None:
     """
     Build FailureInjector from failure_injection YAML section and store on args.
@@ -227,3 +232,14 @@ def _apply_retry_section(args, retry: dict) -> None:
         args.retry_on_api_error = bool(retry["retry_on_api_error"])
     if "retry_on_wrong_answer" in retry:
         args.retry_on_wrong_answer = bool(retry["retry_on_wrong_answer"])
+    # A4: EAR adapter selection — 'flat' (default, backward compat) or 'ear'
+    if "engine" in retry:
+        args.retry_engine = str(retry["engine"])
+    # A4: EAR policy name — must match ear_policy.policy_name in DB
+    if "ear_policy_name" in retry:
+        args.ear_policy_name = str(retry["ear_policy_name"])
+    # A4: optional per-goal energy budget in µJ
+    if "budget_uj" in retry:
+        args.budget_uj = float(retry["budget_uj"])
+
+

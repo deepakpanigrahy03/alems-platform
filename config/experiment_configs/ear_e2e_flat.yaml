@@ -1,0 +1,37 @@
+# ear_e2e_flat.yaml — Stage 1: flat baseline + profiling data
+# 10 reps x agentic = 10 injections expected (rate=1.0, no max_injections cap)
+study:
+  name: "EAR E2E: flat baseline"
+  experiment_type: "failure_injection"
+  experiment_goal: "Flat retry baseline for EAR comparison"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 10
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  name: "default"
+  max_retries: 3
+  retry_on_tool_error: true
+  backoff_seconds: 1.0
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "ear_e2e_v1"
+  scenarios:
+    - type: tool_error
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any

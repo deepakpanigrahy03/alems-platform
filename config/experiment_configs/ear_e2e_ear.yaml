@@ -1,0 +1,36 @@
+study:
+  name: "EAR E2E: EAR policy test"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify EAR adapter fires and logs decisions"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_db
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  engine: ear
+  ear_policy_name: ear_v1
+  max_retries: 3
+  retry_on_tool_error: true
+  backoff_seconds: 1.0
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "ear_e2e_v1"
+  scenarios:
+    - type: tool_error
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any

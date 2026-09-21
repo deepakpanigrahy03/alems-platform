@@ -1,0 +1,60 @@
+# config/experiment_configs/ear_study_paired_all.yaml
+# =============================================================================
+# EAR paired study: all four policies on the same workload
+# Runs flat_default, ear_conservative, ear_v1, ear_aggressive sequentially.
+# After all runs complete, compare_policies is called for each pair automatically.
+# Results written to policy_comparison_results.
+#
+# Prerequisite: run ear_study_flat_default.yaml first to build cost profiles,
+# then calibrate all three EAR policies:
+#   python scripts/etl/failure_cost_profile_etl.py --group <flat_group_id>
+#   python core/retry/ear_calibrator.py --group <flat_group_id> --policy ear_v1
+#   python core/retry/ear_calibrator.py --group <flat_group_id> --policy ear_conservative
+#   python core/retry/ear_calibrator.py --group <flat_group_id> --policy ear_aggressive
+#
+# Query results after run:
+#   sqlite3 $DB "SELECT policy_a, policy_b, ratio FROM policy_comparison_results
+#     ORDER BY computed_at DESC LIMIT 10;"
+# =============================================================================
+study:
+  name: "EAR Paired Study: all policies"
+  experiment_type: "retry_study"
+  experiment_goal: "Compare all four retry policies on E_waste/N_success"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: gsm8k_basic
+  - id: logical_reasoning
+  - id: tg_sequential_2
+
+providers:
+  - name: vllm_remote
+    model_id: Mistrat-7B-Instruct-v0.3
+
+execution:
+  repetitions: 30
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policies:
+  - engine: flat
+    name: "flat_default"
+    group_suffix: "flat_default"
+  - engine: ear
+    ear_policy_name: ear_conservative
+    group_suffix: "ear_conservative"
+  - engine: ear
+    ear_policy_name: ear_v1
+    group_suffix: "ear_v1"
+  - engine: ear
+    ear_policy_name: ear_aggressive
+    group_suffix: "ear_aggressive"
+
+failure_injection:
+  enabled: true
+  mode: controlled_retry
+  target_goal_pct: 0.40
+  per_goal_attempts: 2
+
+quality:
+  enabled: false
