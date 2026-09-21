@@ -180,6 +180,72 @@ class GoalTracker:
             logger.warning("start_attempt: INSERT failed goal_id=%d: %s", goal_id, e)
             return None
 
+    def record_recovery_event(
+        self,
+        conn,
+        attempt_id: int,
+        goal_id: int,
+        failure_type_id: str,
+        recovery_strategy: str,
+        rollback_depth_turns: int,
+        total_trajectory_steps,
+        replayed_steps,
+        replay_fraction,
+        recovery_point_step: int,
+        recovery_point_phase,
+        recovery_start_ns: int,
+    ) -> None:
+        """
+        Insert a recovery_events row BEFORE the next attempt starts.
+        recovery_end_ns and recovery_success backfilled after recovery completes.
+        Never raises — telemetry must not break the retry loop.
+        """
+        try:
+            conn.execute(
+                """
+                INSERT INTO recovery_events (
+                    attempt_id, goal_id, failure_type_id,
+                    recovery_strategy, rollback_depth_turns,
+                    total_trajectory_steps, replayed_steps, replay_fraction,
+                    recovery_point_step, recovery_point_phase,
+                    recovery_start_ns
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    attempt_id, goal_id, failure_type_id,
+                    recovery_strategy, rollback_depth_turns,
+                    total_trajectory_steps, replayed_steps, replay_fraction,
+                    recovery_point_step, recovery_point_phase,
+                    recovery_start_ns,
+                ),
+            )
+            conn.commit()
+        except Exception as exc:
+            logger.warning("record_recovery_event INSERT failed: %s", exc)
+
+    def get_trajectory(self, conn, goal_id: int) -> list:
+        """
+        Return orchestration_event dicts for this goal ordered by step_index.
+        Used by RecoveryPolicyAdapter.decide() to compute rollback depth.
+        Returns empty list if no events found or query fails.
+        """
+        try:
+            rows = conn.execute(
+                """
+                SELECT oe.event_id, oe.step_index, oe.phase,
+                       oe.event_type, oe.tool_name, oe.tool_success
+                FROM orchestration_events oe
+                JOIN goal_attempt ga ON oe.attempt_id = ga.attempt_id
+                WHERE ga.goal_id = ?
+                ORDER BY oe.step_index
+                """,
+                (goal_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception as exc:
+            logger.warning("get_trajectory failed for goal %d: %s", goal_id, exc)
+            return []
+
     def finish_attempt(
         self,
         conn,

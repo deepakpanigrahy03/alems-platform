@@ -37,8 +37,8 @@ from core.utils.preflight import preflight
 from core.execution.experiment_config_loader import apply_config
 from core.execution.goal_execution_manager import execute_goal
 from core.execution.goal_tracker import GoalTracker
-from core.execution.retry_coordinator import RetryCoordinator
- 
+from core.execution.retry_coordinator import RetryCoordinator, ExecutionResult
+
 _goal_tracker = GoalTracker()       # stateless singleton
 _retry_coordinator = RetryCoordinator()
 
@@ -281,6 +281,7 @@ def run_provider_task(
                                 policy=policy, failure_injector=getattr(args, "failure_injector", None),
                                 repetitions=repetitions,
                                 retry_adapter=_retry_adapter,
+                                recovery_policy_id=getattr(args, "recovery_policy_strategy", "full_restart"),
                             )
                             runs_completed += 1
                         if workflow_mode in ("agentic", "comparison"):
@@ -292,6 +293,7 @@ def run_provider_task(
                                 policy=policy, failure_injector=getattr(args, "failure_injector", None),
                                 repetitions=repetitions,
                                 retry_adapter=_retry_adapter,
+                                recovery_policy_id=getattr(args, "recovery_policy_strategy", "full_restart"),
                             )
                             runs_completed += 1
                     else:

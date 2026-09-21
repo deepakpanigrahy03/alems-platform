@@ -604,7 +604,7 @@ class AgenticExecutor:
             if isinstance(sr.get("result", ""), str)
             and sr.get("result", "").startswith("Error:")
         ]
-        print(f"DEBUG step_results={[sr.get('result','')[:50] for sr in step_results]}")
+
         print(f"DEBUG step_errors={step_errors}")        
         failed_steps  = len(step_errors)
         total_steps   = len(step_results)

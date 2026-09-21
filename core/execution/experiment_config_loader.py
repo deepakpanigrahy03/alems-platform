@@ -53,6 +53,7 @@ def apply_config(args) -> None:
     _apply_study_section(args, cfg.get("study", {}))        # sets experiment_type first
     _apply_execution_section(args, cfg.get("execution", {}))
     _apply_retry_section(args, cfg.get("retry_policy", {}))
+    _apply_recovery_section(args, cfg.get("recovery_policy", {}))
     _apply_tasks_section(args, cfg.get("tasks", []))
     _apply_providers_section(args, cfg.get("providers", []))
     _apply_failure_injection_section(args, cfg.get("failure_injection", {}))  # reads experiment_type after study
@@ -241,5 +242,14 @@ def _apply_retry_section(args, retry: dict) -> None:
     # A4: optional per-goal energy budget in µJ
     if "budget_uj" in retry:
         args.budget_uj = float(retry["budget_uj"])
+
+
+def _apply_recovery_section(args, recovery: dict) -> None:
+    """
+    Parse recovery_policy section from experiment YAML.
+    B1: sets recovery_policy_strategy on args for execute_goal to consume.
+    """
+    if "strategy" in recovery:
+        args.recovery_policy_strategy = str(recovery["strategy"])
 
 

@@ -18,6 +18,11 @@ from core.execution.failure_classifier import FailureClassifier
 
 logger = logging.getLogger(__name__)
 
+# B1: recovery policy adapter — decides WHERE to resume after failure.
+# Instantiated once at coordinator construction from YAML config.
+# Default is FullRestartPolicy (backward compat, B1.6).
+from core.recovery import RecoveryPolicyRegistry, RecoveryDecision
+
 # Policy name used when DB lookup fails — safe minimum behaviour
 DEFAULT_POLICY_NAME = "default"
 
@@ -57,8 +62,20 @@ class RetryCoordinator:
     Never implements energy measurement or DB writes directly.
     """
 
-    def __init__(self):
+    def __init__(self, recovery_policy_id: str = "full_restart"):
+        """
+        Args:
+            recovery_policy_id: YAML recovery_policy.strategy value.
+                                Defaults to full_restart (backward compat, B1.6).
+        """
         self._classifier = FailureClassifier()
+        # B1: instantiate once — adapter is stateless, safe to reuse across goals.
+        from core.recovery import RecoveryPolicyRegistry
+        self._recovery_policy = RecoveryPolicyRegistry.get(recovery_policy_id)
+        logger.info(
+            "RetryCoordinator: recovery_policy = %s",
+            self._recovery_policy.POLICY_ID,
+        )
 
     # ── Policy loading ────────────────────────────────────────────────────────
 
@@ -159,6 +176,19 @@ class RetryCoordinator:
         return policy
 
     # ── Retry decision ────────────────────────────────────────────────────────
+
+    def __init__(self, recovery_policy_id: str = "full_restart"):
+        """
+        Args:
+            recovery_policy_id: YAML recovery_policy.strategy value.
+                                Defaults to full_restart (backward compat).
+        """
+        # Instantiate once — adapter is stateless, safe to reuse across goals.
+        self._recovery_policy = RecoveryPolicyRegistry.get(recovery_policy_id)
+        logger.info(
+            "RetryCoordinator: recovery policy = %s",
+            self._recovery_policy.POLICY_ID,
+        )
 
     def is_retryable(self, failure_type: str, policy: RetryPolicy) -> bool:
         """
@@ -348,6 +378,49 @@ class RetryCoordinator:
             # Decide whether to retry
             if failure_type and self.is_retryable(failure_type, policy):
                 if attempt_num < attempt_number_start + max_attempts - 1:
+
+                    # B1: decide recovery depth before next attempt starts.
+                    trajectory = goal_tracker.get_trajectory(conn, goal_id)
+                    total_steps = len(trajectory)
+
+                    recovery_decision = self._recovery_policy.decide(
+                        failure_type=failure_type,
+                        failure_step=total_steps,
+                        trajectory=trajectory,
+                        attempt_context={
+                            "attempt_id": attempt_id,
+                            "goal_id": goal_id,
+                            "attempt_number": attempt_num,
+                        },
+                    )
+
+                    # Record recovery_events row BEFORE next attempt starts.
+                    # recovery_end_ns and recovery_success are NULL until
+                    # the next attempt completes (two-phase write, B1 spec).
+                    replayed = (
+                        total_steps - recovery_decision.rollback_target_step
+                        if total_steps > 0 else None
+                    )
+                    replay_frac = (
+                        replayed / total_steps
+                        if (total_steps > 0 and replayed is not None)
+                        else None
+                    )
+                    goal_tracker.record_recovery_event(
+                        conn=conn,
+                        attempt_id=attempt_id,
+                        goal_id=goal_id,
+                        failure_type_id=failure_type,
+                        recovery_strategy=recovery_decision.strategy,
+                        rollback_depth_turns=recovery_decision.rollback_depth_turns,
+                        total_trajectory_steps=total_steps or None,
+                        replayed_steps=replayed,
+                        replay_fraction=replay_frac,
+                        recovery_point_step=recovery_decision.rollback_target_step,
+                        recovery_point_phase=recovery_decision.recovery_point_phase,
+                        recovery_start_ns=time.time_ns(),
+                    )
+
                     if policy.backoff_seconds > 0:
                         logger.debug(
                             "execute_with_policy: backing off %.1fs before retry",

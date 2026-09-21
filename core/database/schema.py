@@ -266,6 +266,84 @@ CREATE TABLE IF NOT EXISTS ear_decision_log (
 CREATE INDEX IF NOT EXISTS idx_ear_log_run     ON ear_decision_log(run_id);
 CREATE INDEX IF NOT EXISTS idx_ear_log_attempt ON ear_decision_log(attempt_id);
 """
+
+# ============================================================================
+# B1: recovery_events + v_recovery_cost_by_depth
+# SPEC 8.6-B1: Recovery depth and rollback tracking for Stephen's MLSys paper.
+# Joins to goal_attempt via attempt_id (P5 attribution path).
+# rollback_depth_turns semantics per P6 (measured in turns):
+#   0 = tool-only retry, -1 = full restart, N = N turns back.
+# replay_fraction = replayed_steps / total_trajectory_steps (measured in steps).
+# Median not in view: SQLite has no native MEDIAN.
+# Use scripts/analysis/recovery_depth_stats.py for full distribution.
+# ============================================================================
+CREATE_RECOVERY_EVENTS = """
+CREATE TABLE IF NOT EXISTS recovery_events (
+    recovery_id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    attempt_id              INTEGER NOT NULL
+                                REFERENCES goal_attempt(attempt_id),
+    goal_id                 INTEGER NOT NULL
+                                REFERENCES goal_execution(goal_id),
+    agent_id                INTEGER,
+    failure_type_id         TEXT
+                                REFERENCES failure_taxonomy(failure_type_id),
+    recovery_strategy       TEXT
+                                REFERENCES recovery_taxonomy(strategy_id),
+    rollback_depth_turns    INTEGER NOT NULL DEFAULT 0,
+    total_trajectory_steps  INTEGER
+                                CHECK(total_trajectory_steps IS NULL
+                                      OR total_trajectory_steps >= 0),
+    replayed_steps          INTEGER
+                                CHECK(replayed_steps IS NULL
+                                      OR replayed_steps >= 0),
+    replay_fraction         REAL
+                                CHECK(replay_fraction IS NULL
+                                      OR (replay_fraction >= 0
+                                          AND replay_fraction <= 1)),
+    preserved_state_bytes   INTEGER
+                                CHECK(preserved_state_bytes IS NULL
+                                      OR preserved_state_bytes >= 0),
+    recovery_point_step     INTEGER,
+    recovery_point_phase    TEXT
+                                CHECK(recovery_point_phase IS NULL
+                                      OR recovery_point_phase IN
+                                         ('planning','execution','synthesis')),
+    recovery_start_ns       INTEGER,
+    recovery_end_ns         INTEGER,
+    recovery_energy_uj      REAL
+                                CHECK(recovery_energy_uj IS NULL
+                                      OR recovery_energy_uj >= 0),
+    recovery_success        INTEGER
+                                CHECK(recovery_success IS NULL
+                                      OR recovery_success IN (0, 1)),
+    created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_recovery_attempt
+    ON recovery_events(attempt_id);
+CREATE INDEX IF NOT EXISTS idx_recovery_goal
+    ON recovery_events(goal_id);
+CREATE INDEX IF NOT EXISTS idx_recovery_type
+    ON recovery_events(failure_type_id);
+CREATE INDEX IF NOT EXISTS idx_recovery_depth
+    ON recovery_events(rollback_depth_turns);
+
+CREATE VIEW IF NOT EXISTS v_recovery_cost_by_depth AS
+SELECT
+    rollback_depth_turns,
+    recovery_strategy,
+    COUNT(*)                                                AS sample_count,
+    AVG(recovery_energy_uj) / 1e6                          AS recovery_cost_j_mean,
+    AVG(replay_fraction)                                   AS avg_replay_fraction,
+    SUM(CASE WHEN recovery_success = 1 THEN 1 ELSE 0 END) AS success_count,
+    ROUND(
+        SUM(CASE WHEN recovery_success = 1 THEN 1 ELSE 0 END) * 100.0
+        / NULLIF(COUNT(*), 0),
+    2)                                                     AS success_rate_pct
+FROM recovery_events
+GROUP BY rollback_depth_turns, recovery_strategy
+ORDER BY rollback_depth_turns;
+"""
 # ========================================================================
 # Table 2b: goal_execution
 # Paper's fundamental unit of analysis — energy per successful goal

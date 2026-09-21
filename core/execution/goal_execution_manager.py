@@ -42,6 +42,9 @@ from core.execution.run_persistence import insert_one_run
 logger = logging.getLogger(__name__)
 
 # Module-level singletons — stateless, safe to share across calls
+# B1: recovery_policy_id read from experiment config at runtime.
+# Module-level default uses full_restart for backward compat (B1.6).
+# execute_goal() passes recovery_policy_id from args when available.
 _retry_coordinator = RetryCoordinator()
 _failure_classifier = FailureClassifier()
 
@@ -72,6 +75,7 @@ def execute_goal(
     failure_injector=None,
     repetitions: int = 1,
     retry_adapter=None,
+    recovery_policy_id: str = "full_restart",
 ) -> Optional[int]:
     """
     Execute one goal (one workflow side) with full retry support.
@@ -393,6 +397,60 @@ def execute_goal(
             )
             break
 
+        # B1: record recovery event before next attempt starts.
+        # All variables in scope: conn, attempt_id, goal_id, failure_type.
+        try:
+            import time as _time_b1
+            # Read from in-memory result buffer — DB insert happens after loop.
+            # get_trajectory() would return empty at this point (timing gap).
+            _trajectory = []
+            if result is not None:
+                _trajectory = (
+                    result.get("orchestration_events") or
+                    result.get("execution", {}).get("events") or
+                    result.get("events") or
+                    []
+                )
+            _total_steps = len(_trajectory)
+            # Read recovery policy from args if available, else use module default.
+            from core.recovery import RecoveryPolicyRegistry
+            _recovery_policy = RecoveryPolicyRegistry.get(recovery_policy_id)
+            _recovery_decision = _recovery_policy.decide(
+                failure_type=failure_type or "tool_error",
+                failure_step=_total_steps,
+                trajectory=_trajectory,
+                attempt_context={
+                    "attempt_id": attempt_id,
+                    "goal_id": goal_id,
+                    "attempt_number": attempt_num,
+                },
+            )
+            _replayed = (
+                _total_steps - _recovery_decision.rollback_target_step
+                if _total_steps > 0 else None
+            )
+            _replay_frac = (
+                _replayed / _total_steps
+                if (_total_steps > 0 and _replayed is not None) else None
+            )
+            goal_tracker.record_recovery_event(
+                conn=conn,
+                attempt_id=attempt_id,
+                goal_id=goal_id,
+                failure_type_id=failure_type or "tool_error",
+                recovery_strategy=_recovery_decision.strategy,
+                rollback_depth_turns=_recovery_decision.rollback_depth_turns,
+                total_trajectory_steps=_total_steps or None,
+                replayed_steps=_replayed,
+                replay_fraction=_replay_frac,
+                recovery_point_step=_recovery_decision.rollback_target_step,
+                recovery_point_phase=_recovery_decision.recovery_point_phase,
+                recovery_start_ns=_time_b1.time_ns(),
+            )
+        except Exception as _b1_exc:
+            # Never let telemetry break the retry loop.
+            logger.warning("B1: record_recovery_event failed: %s", _b1_exc)
+
         # Backoff only when another attempt will follow — never sleep at loop end
         if policy.backoff_seconds > 0:
             logger.debug(
@@ -445,6 +503,29 @@ def execute_goal(
         except Exception as exc:
             logger.warning("execute_goal: failed to backfill run_id on attempts: %s", exc)
 
+        # B1: backfill attempt_id on orchestration_events for execute_goal path.
+        # Bug 7 fix sets _current_attempt_id before run_agentic() so events are
+        # emitted with attempt_id in memory, but the DB write uses run_id as FK
+        # and attempt_id is backfilled here after run_id exists.
+        try:
+            conn.execute(
+                """
+                UPDATE orchestration_events
+                SET attempt_id = (
+                    SELECT attempt_id FROM goal_attempt
+                    WHERE goal_id = ? AND run_id = ?
+                    LIMIT 1
+                )
+                WHERE run_id = ? AND attempt_id IS NULL
+                """,
+                (goal_id, run_id, run_id),
+            )
+            conn.commit()
+        except Exception as exc:
+            logger.warning(
+                "execute_goal: failed to backfill attempt_id on orchestration_events: %s", exc
+            )
+
 # Write energy samples and network ETL — mirrors save_pair() path
     if run_id is not None and final_result is not None:
         try:
@@ -459,7 +540,35 @@ def execute_goal(
             if final_result.get("legacy_samples"):
                 db.insert_energy_samples(run_id, final_result["legacy_samples"])
         except Exception as _e:
-            logger.warning("execute_goal: legacy_samples insert failed run=%d: %s", run_id, _e)            
+            logger.warning("execute_goal: legacy_samples insert failed run=%d: %s", run_id, _e)
+
+        # B1: insert orchestration_events for execute_goal path.
+        # experiment_runner.py does this for save_pair/save_single paths.
+        # execute_goal path was missing this — trajectory always empty without it.
+        try:
+            _orch_events = final_result.get("orchestration_events") or \
+                           final_result.get("execution", {}).get("events") or \
+                           final_result.get("events", [])
+            if _orch_events:
+                db.insert_orchestration_events(run_id, _orch_events)
+                # Backfill attempt_id now that events are in DB.
+                conn.execute(
+                    """
+                    UPDATE orchestration_events
+                    SET attempt_id = (
+                        SELECT attempt_id FROM goal_attempt
+                        WHERE goal_id = ? AND run_id = ?
+                        LIMIT 1
+                    )
+                    WHERE run_id = ? AND attempt_id IS NULL
+                    """,
+                    (goal_id, run_id, run_id),
+                )
+                conn.commit()
+        except Exception as _e:
+            logger.warning(
+                "execute_goal: orchestration_events insert failed run=%d: %s", run_id, _e
+            )            
         try:
             if final_result.get("pending_interactions"):
                 for interaction in final_result["pending_interactions"]:

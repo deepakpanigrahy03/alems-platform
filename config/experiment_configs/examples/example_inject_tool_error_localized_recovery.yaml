@@ -1,0 +1,53 @@
+# config/experiment_configs/examples/example_inject_tool_error.yaml
+# =============================================================================
+# EXAMPLE: tool_error injection
+# Verifies: tool_failure_events row written, failure_type=tool_error,
+#           retry fires (default_retryable=1), wasted_energy_uj populated by ETL.
+# Task: tg_single_calc — has tool dispatch, triggers _dispatch_tool injection.
+# Provider: llama_cpp — local, no network dependency, always available.
+# Reps: 5 — enough to see retry pattern and energy distribution.
+# Copy to your workspace and set scenario_id to your study name before use.
+# =============================================================================
+study:
+  name: "Example: tool_error injection"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify tool_error injection path and measure retry energy"
+  workflow_modes: ["agentic", "linear"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  max_retries: 3
+
+recovery_policy:
+  strategy: localized
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "default"
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "example_tool_error_v1"
+  scenarios:
+    - type: tool_error
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any
+      max_injections: 1
+
+quality:
+  enabled: false
