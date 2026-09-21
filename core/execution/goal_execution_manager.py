@@ -433,7 +433,7 @@ def execute_goal(
                 _replayed / _total_steps
                 if (_total_steps > 0 and _replayed is not None) else None
             )
-            goal_tracker.record_recovery_event(
+            _recovery_id = goal_tracker.record_recovery_event(
                 conn=conn,
                 attempt_id=attempt_id,
                 goal_id=goal_id,
@@ -447,9 +447,51 @@ def execute_goal(
                 recovery_point_phase=_recovery_decision.recovery_point_phase,
                 recovery_start_ns=_time_b1.time_ns(),
             )
+            # B2: collect cache telemetry for this recovery.
+            # NoOpCollector returns ([], []) on all current platforms — correct per B2.5.
+            # Runner inserts returned rows; collector never writes DB (INV-2).
+            from core.telemetry.cache_collector import CacheTelemetryRegistry
+            _collector = CacheTelemetryRegistry.get(None)
+            _reuse_events, _cache_snapshots = _collector.collect(
+                run_id=None,
+                attempt_id=attempt_id,
+                recovery_id=_recovery_id,
+                request_context={},
+            )
+            for _sre in _reuse_events:
+                _sre.run_id = None
+                _sre.attempt_id = attempt_id
+                _sre.recovery_id = _recovery_id
+                conn.execute(
+                    """INSERT INTO state_reuse_events
+                       (recovery_id, attempt_id, run_id, reuse_type, reuse_source,
+                        tokens_reused, tokens_recomputed, reuse_fraction,
+                        cache_hit, cache_query_time_ns, state_size_bytes)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                    (_sre.recovery_id, _sre.attempt_id, _sre.run_id,
+                     _sre.reuse_type, _sre.reuse_source, _sre.tokens_reused,
+                     _sre.tokens_recomputed, _sre.reuse_fraction,
+                     _sre.cache_hit, _sre.cache_query_time_ns, _sre.state_size_bytes),
+                )
+            for _css in _cache_snapshots:
+                _css.run_id = None
+                _css.attempt_id = attempt_id
+                conn.execute(
+                    """INSERT INTO cache_state_snapshots
+                       (run_id, attempt_id, timestamp_ns, engine_name, cache_type,
+                        capacity_tokens, occupied_tokens, occupancy_fraction,
+                        hit_rate_aggregate)
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (_css.run_id, _css.attempt_id, _css.timestamp_ns,
+                     _css.engine_name, _css.cache_type, _css.capacity_tokens,
+                     _css.occupied_tokens, _css.occupancy_fraction,
+                     _css.hit_rate_aggregate),
+                )
+            if _reuse_events or _cache_snapshots:
+                conn.commit()
         except Exception as _b1_exc:
             # Never let telemetry break the retry loop.
-            logger.warning("B1: record_recovery_event failed: %s", _b1_exc)
+            logger.warning("B1/B2: recovery telemetry failed: %s", _b1_exc)
 
         # Backoff only when another attempt will follow — never sleep at loop end
         if policy.backoff_seconds > 0:

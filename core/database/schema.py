@@ -3463,3 +3463,74 @@ CREATE INDEX IF NOT EXISTS idx_nic_samples_run_ns
 CREATE INDEX IF NOT EXISTS idx_nic_samples_interval
     ON nic_samples(run_id, sample_start_ns, sample_end_ns);
 """
+
+# B2: state_reuse_taxonomy, state_reuse_events, cache_state_snapshots, v_state_reuse_impact
+CREATE_STATE_REUSE = """
+CREATE TABLE IF NOT EXISTS state_reuse_taxonomy (
+    reuse_type_id   TEXT PRIMARY KEY,
+    description     TEXT,
+    layer           TEXT NOT NULL CHECK(layer IN ('serving', 'framework', 'application'))
+);
+
+CREATE TABLE IF NOT EXISTS state_reuse_events (
+    reuse_id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    recovery_id           INTEGER REFERENCES recovery_events(recovery_id),
+    attempt_id            INTEGER REFERENCES goal_attempt(attempt_id),
+    run_id                INTEGER REFERENCES runs(run_id),
+    reuse_type            TEXT NOT NULL REFERENCES state_reuse_taxonomy(reuse_type_id),
+    reuse_source          TEXT,
+    tokens_reused         INTEGER CHECK(tokens_reused IS NULL OR tokens_reused >= 0),
+    tokens_recomputed     INTEGER CHECK(tokens_recomputed IS NULL OR tokens_recomputed >= 0),
+    reuse_fraction        REAL CHECK(reuse_fraction IS NULL OR reuse_fraction BETWEEN 0 AND 1),
+    cache_hit             INTEGER CHECK(cache_hit IS NULL OR cache_hit IN (0, 1)),
+    cache_query_time_ns   INTEGER,
+    state_size_bytes      INTEGER CHECK(state_size_bytes IS NULL OR state_size_bytes >= 0),
+    created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_sre_recovery  ON state_reuse_events(recovery_id);
+CREATE INDEX IF NOT EXISTS idx_sre_attempt   ON state_reuse_events(attempt_id);
+CREATE INDEX IF NOT EXISTS idx_sre_run       ON state_reuse_events(run_id);
+CREATE INDEX IF NOT EXISTS idx_sre_type      ON state_reuse_events(reuse_type);
+
+CREATE TABLE IF NOT EXISTS cache_state_snapshots (
+    snapshot_id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id                INTEGER REFERENCES runs(run_id),
+    attempt_id            INTEGER REFERENCES goal_attempt(attempt_id),
+    timestamp_ns          INTEGER,
+    engine_name           TEXT,
+    cache_type            TEXT,
+    capacity_tokens       INTEGER CHECK(capacity_tokens IS NULL OR capacity_tokens >= 0),
+    occupied_tokens       INTEGER CHECK(occupied_tokens IS NULL OR occupied_tokens >= 0),
+    occupancy_fraction    REAL CHECK(occupancy_fraction IS NULL OR occupancy_fraction BETWEEN 0 AND 1),
+    hit_rate_aggregate    REAL CHECK(hit_rate_aggregate IS NULL OR hit_rate_aggregate BETWEEN 0 AND 1),
+    created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_css_run      ON cache_state_snapshots(run_id);
+CREATE INDEX IF NOT EXISTS idx_css_attempt  ON cache_state_snapshots(attempt_id);
+
+CREATE VIEW IF NOT EXISTS v_state_reuse_impact AS
+SELECT
+    re.recovery_id,
+    re.attempt_id,
+    re.rollback_depth_turns,
+    re.recovery_strategy,
+    re.replay_fraction,
+    re.recovery_energy_uj / 1e6          AS recovery_energy_j,
+    sre.reuse_id,
+    sre.reuse_type,
+    sre.reuse_source,
+    sre.tokens_reused,
+    sre.tokens_recomputed,
+    sre.reuse_fraction                   AS state_reuse_fraction,
+    sre.cache_hit,
+    sre.cache_query_time_ns,
+    sre.state_size_bytes
+FROM recovery_events re
+LEFT JOIN state_reuse_events sre
+    ON re.recovery_id = sre.recovery_id
+ORDER BY
+    re.rollback_depth_turns,
+    sre.reuse_type;
+"""

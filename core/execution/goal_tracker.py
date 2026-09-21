@@ -220,8 +220,11 @@ class GoalTracker:
                 ),
             )
             conn.commit()
+            # Return recovery_id for B2 collector wire-up in goal_execution_manager.
+            return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         except Exception as exc:
             logger.warning("record_recovery_event INSERT failed: %s", exc)
+            return None
 
     def get_trajectory(self, conn, goal_id: int) -> list:
         """
