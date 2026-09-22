@@ -95,3 +95,10 @@ tool_selection = "extensions.tool_selection.extension:ToolSelectionExtension"
 # Example: my_engine = "mypackage.my_engine:MyInjectionEngine"
 [project.entry-points."alems.injection_engines"]
 scenario = "core.injection.scenario_injector:ScenarioInjector"
+
+# Serving engine telemetry adapters.
+# Core defines the discovery contract for this group.
+# Core does NOT register engine-specific implementations here.
+# Optional engine packages (alems-plugin-vllm etc.) register into this group.
+[project.entry-points."alems.engines.serving"]
+remote_api = "core.serving.remote_api_adapter:RemoteAPIAdapter"

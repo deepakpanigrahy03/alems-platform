@@ -1,0 +1,20 @@
+[project]
+name = "alems-plugin-tensorrt-llm"
+version = "0.1.0"
+description = "NVIDIA TensorRT-LLM telemetry adapter for A-LEMS"
+requires-python = ">=3.9"
+dependencies = [
+    "alems-platform>=1.0,<2.0",
+    "requests>=2.31.0",
+]
+# Does NOT install TensorRT-LLM.
+# TRT-LLM requires NVIDIA CUDA stack and model compilation.
+# This package installs only the HTTP client needed to talk to
+# an already-running trtllm-serve or Dynamo-fronted TRT-LLM instance.
+
+[project.entry-points."alems.engines.serving"]
+tensorrt_llm = "alems_plugin_tensorrt_llm.adapter:TensorRTLLMAdapter"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

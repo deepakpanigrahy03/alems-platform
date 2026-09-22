@@ -61,7 +61,9 @@ from core.execution.expectation.adapter import TaskExpectationAdapter
 from core.execution import judgment_engine
 from core.execution.judgment_types import JudgmentResult
 from extensions.output_quality.extension import OutputQualityExtension
- 
+import core.execution.adapters.bootstrap  # noqa: F401
+import core.serving.bootstrap  # noqa: F401 — registers RemoteAPIAdapter + VLLMAdapter
+import core.telemetry.engine_backed_collector  # noqa: F401 — registers EngineBackedCollector
 # Module-level singletons — stateless, safe to reuse across attempts.
 # QualityJudge/quality_judge.py removed (SPEC 35J): confirmed zero live
 # call sites this session — dead code, never actually invoked in
@@ -447,6 +449,16 @@ class ExperimentRunner:
     def validate_experiment(self, executor, provider):
         """Run pre-flight checks before experiment."""
         preflight(executor, provider)
+
+        # B3: instantiate serving engine adapter from YAML config.
+        # No serving_engine section = RemoteAPIAdapter (backward compat).
+        from core.serving.registry import ServingEngineRegistry
+        from core.telemetry.engine_backed_collector import EngineBackedCollector
+        _serving_cfg = self.config.get("serving_engine", None)
+        self._serving_adapter = ServingEngineRegistry.from_config(_serving_cfg)
+        self._cache_collector = EngineBackedCollector(self._serving_adapter)
+
+
         
     # ========================================================================
     # DUPLICATE CODE 1: Hardware info collection (identical in both scripts)

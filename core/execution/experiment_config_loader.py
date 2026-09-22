@@ -63,6 +63,11 @@ def apply_config(args) -> None:
     if retry_policies:
         args.retry_policies = retry_policies
 
+    # B3: serving engine config — passed to EngineBackedCollector at startup.
+    serving_engine = cfg.get("serving_engine", None)
+    if serving_engine:
+        args.serving_engine = serving_engine
+
 def _apply_failure_injection_section(args, fi: dict) -> None:
     """
     Build FailureInjector from failure_injection YAML section and store on args.

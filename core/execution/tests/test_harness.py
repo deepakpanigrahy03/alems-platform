@@ -275,6 +275,17 @@ def _setup_experiment(args):
     print("🔧 Creating harness...")
     harness          = ExperimentHarness(config)
     runner           = ExperimentRunner(config, args)
+
+    # B3: build serving engine adapter and cache collector from YAML config.
+    import core.serving.bootstrap  # noqa: F401
+    import core.telemetry.engine_backed_collector  # noqa: F401
+    from core.serving.registry import ServingEngineRegistry
+    from core.telemetry.engine_backed_collector import EngineBackedCollector
+    _serving_cfg = getattr(args, "serving_engine", None)
+    args.cache_collector = EngineBackedCollector(
+        ServingEngineRegistry.from_config(_serving_cfg)
+    )
+
     baseline         = runner.ensure_baseline(harness)
     harness.baseline = baseline
  
@@ -427,6 +438,7 @@ def _run_experiment(setup: dict, args) -> tuple:
                             rep_num=rep + 1, goal_tracker=_goal_tracker,
                             policy=policy, failure_injector=failure_injector,
                             repetitions=repetitions,
+                            cache_collector=getattr(args, "cache_collector", None),
                         )
                         runs_completed += 1
                     if workflow_mode in ("agentic", "comparison"):
@@ -437,6 +449,7 @@ def _run_experiment(setup: dict, args) -> tuple:
                             rep_num=rep + 1, goal_tracker=_goal_tracker,
                             policy=policy, failure_injector=failure_injector,
                             repetitions=repetitions,
+                            cache_collector=getattr(args, "cache_collector", None),
                         )
                         runs_completed += 1
                 else:

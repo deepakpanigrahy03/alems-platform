@@ -1,0 +1,67 @@
+# =============================================================================
+# A-LEMS Serving Engine Adapter Defaults
+# config/adapters.yaml
+#
+# Fleet-level defaults for all serving engine plugins.
+# Resolution order (highest → lowest priority):
+#   1. experiment YAML serving_engine: block  (per-run override)
+#   2. this file                               (fleet defaults)
+#   3. env vars  ALEMS_<ENGINE>_URL            (.alems-env)
+#   4. None sentinel — adapter degrades to RemoteAPIAdapter
+#
+# Keys under each engine type are merged with the experiment YAML block.
+# Experiment YAML wins on any key collision.
+#
+# ENDPOINT RESOLUTION:
+#   Each adapter calls AdapterConfig.resolve(config, engine_type) at __init__.
+#   It returns a fully resolved dict with 'endpoint' and optional
+#   'metrics_endpoint', 'health_endpoint' populated from this file,
+#   env vars, or the experiment YAML block — never from hardcoded strings.
+#
+# ADDING A NEW ENGINE:
+#   1. Add a section here with type: and endpoint:.
+#   2. Set env var ALEMS_<ENGINE_TYPE_UPPER>_URL in .alems-env for per-machine
+#      override without touching this file.
+#   3. Create the plugin package. Zero core changes required.
+# =============================================================================
+
+engines:
+
+  vllm:
+    # Default endpoint. Override per-machine via ALEMS_VLLM_URL in .alems-env
+    # or via serving_engine.endpoint in experiment YAML.
+    endpoint: null                          # null = must come from env or YAML
+    metrics_path: /metrics
+    models_path: /v1/models
+    probe_timeout_s: 3
+    request_level_correlation: false        # set true only when vLLM logging enabled
+
+  sglang:
+    endpoint: null
+    metrics_path: /metrics
+    models_path: /v1/models
+    probe_timeout_s: 3
+    request_level_correlation: false
+
+  llama_cpp:
+    endpoint: null
+    # llama-cpp-python server: /metrics and /health do NOT exist.
+    # Only /v1/models and /v1/chat/completions respond.
+    # For Prometheus metrics, switch to C++ llama-server binary with --metrics.
+    # Adapter auto-discovers this at startup — no flag needed here.
+    models_path: /v1/models
+    probe_timeout_s: 3
+
+  tensorrt_llm:
+    endpoint: null
+    # TRT-LLM uses non-standard Prometheus path.
+    metrics_path: /prometheus/metrics
+    models_path: /v1/models
+    probe_timeout_s: 5
+
+  colibri:
+    endpoint: null
+    # Colibri: /health returns JSON queue counters. No /metrics.
+    health_path: /health
+    models_path: /v1/models
+    probe_timeout_s: 3

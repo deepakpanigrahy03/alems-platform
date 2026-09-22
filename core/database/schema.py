@@ -3509,6 +3509,52 @@ CREATE TABLE IF NOT EXISTS cache_state_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_css_run      ON cache_state_snapshots(run_id);
 CREATE INDEX IF NOT EXISTS idx_css_attempt  ON cache_state_snapshots(attempt_id);
+"""
+
+# B3: serving_runtime_snapshots — generic engine telemetry table.
+# Holds KV cache aggregate, expert tier (Colibri), queue state, token rate.
+# Expert tier (Colibri VRAM/RAM/NVMe) MUST NOT go into cache_state_snapshots.
+# See v110_serving_runtime_snapshots.sql and review note 2026-09-22.
+CREATE_SERVING_RUNTIME_SNAPSHOTS = """
+CREATE TABLE IF NOT EXISTS serving_runtime_snapshots (
+    snapshot_id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id                INTEGER REFERENCES runs(run_id),
+    attempt_id            INTEGER REFERENCES goal_attempt(attempt_id),
+    timestamp_ns          INTEGER NOT NULL,
+    engine_name           TEXT NOT NULL,
+    engine_type           TEXT NOT NULL,
+    snapshot_type         TEXT NOT NULL CHECK(snapshot_type IN (
+                              'kv_cache','expert_tier','queue','token_rate'
+                          )),
+    telemetry_scope       TEXT NOT NULL CHECK(telemetry_scope IN (
+                              'request','interval','process','unavailable'
+                          )),
+    kv_capacity_tokens    INTEGER CHECK(kv_capacity_tokens IS NULL OR kv_capacity_tokens >= 0),
+    kv_occupied_tokens    INTEGER CHECK(kv_occupied_tokens IS NULL OR kv_occupied_tokens >= 0),
+    kv_occupancy_fraction REAL    CHECK(kv_occupancy_fraction IS NULL OR kv_occupancy_fraction BETWEEN 0 AND 1),
+    kv_hit_rate_aggregate REAL    CHECK(kv_hit_rate_aggregate IS NULL OR kv_hit_rate_aggregate BETWEEN 0 AND 1),
+    kv_num_evictions      INTEGER CHECK(kv_num_evictions IS NULL OR kv_num_evictions >= 0),
+    tier_vram_bytes       INTEGER CHECK(tier_vram_bytes IS NULL OR tier_vram_bytes >= 0),
+    tier_ram_bytes        INTEGER CHECK(tier_ram_bytes IS NULL OR tier_ram_bytes >= 0),
+    tier_disk_bytes       INTEGER CHECK(tier_disk_bytes IS NULL OR tier_disk_bytes >= 0),
+    tier_vram_fraction    REAL    CHECK(tier_vram_fraction IS NULL OR tier_vram_fraction BETWEEN 0 AND 1),
+    tier_ram_fraction     REAL    CHECK(tier_ram_fraction IS NULL OR tier_ram_fraction BETWEEN 0 AND 1),
+    tier_disk_fraction    REAL    CHECK(tier_disk_fraction IS NULL OR tier_disk_fraction BETWEEN 0 AND 1),
+    queue_active          INTEGER CHECK(queue_active IS NULL OR queue_active >= 0),
+    queue_waiting         INTEGER CHECK(queue_waiting IS NULL OR queue_waiting >= 0),
+    queue_completed       INTEGER CHECK(queue_completed IS NULL OR queue_completed >= 0),
+    queue_rejected        INTEGER CHECK(queue_rejected IS NULL OR queue_rejected >= 0),
+    tokens_per_second     REAL    CHECK(tokens_per_second IS NULL OR tokens_per_second >= 0),
+    ttft_ms               REAL    CHECK(ttft_ms IS NULL OR ttft_ms >= 0),
+    prompt_tokens_total   INTEGER CHECK(prompt_tokens_total IS NULL OR prompt_tokens_total >= 0),
+    generation_tokens_total INTEGER CHECK(generation_tokens_total IS NULL OR generation_tokens_total >= 0),
+    extra_json            TEXT,
+    created_at            TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_srs_run       ON serving_runtime_snapshots(run_id);
+CREATE INDEX IF NOT EXISTS idx_srs_attempt   ON serving_runtime_snapshots(attempt_id);
+CREATE INDEX IF NOT EXISTS idx_srs_engine    ON serving_runtime_snapshots(engine_type, snapshot_type);
+CREATE INDEX IF NOT EXISTS idx_srs_timestamp ON serving_runtime_snapshots(timestamp_ns);
 
 CREATE VIEW IF NOT EXISTS v_state_reuse_impact AS
 SELECT

@@ -57,7 +57,7 @@ from .schema import (CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALI
                      CREATE_EXPERIMENTS, CREATE_EXPERIMENT_TYPE_TRIGGERS,CREATE_HARDWARE_CONFIG, CREATE_FAILURE_INJECTION_LOG,
                      CREATE_FAILURE_COST_PROFILE, CREATE_EAR_TABLES,
                      CREATE_RECOVERY_EVENTS,
-                     CREATE_STATE_REUSE,
+                     CREATE_STATE_REUSE,  CREATE_SERVING_RUNTIME_SNAPSHOTS,
                      CREATE_GOAL_EXECUTION, CREATE_GOAL_ATTEMPT,CREATE_ETL_QUEUE,
                      CREATE_RETRY_POLICY, CREATE_TASK_RETRY_OVERRIDE,
                      CREATE_HALLUCINATION_EVENTS, CREATE_OUTPUT_QUALITY, CREATE_OUTPUT_QUALITY_JUDGES, CREATE_GOAL_OUTPUT,
@@ -326,6 +326,7 @@ class SQLiteAdapter(DatabaseInterface):
         self.conn.executescript(CREATE_EAR_TABLES)
         self.conn.executescript(CREATE_RECOVERY_EVENTS)
         self.conn.executescript(CREATE_STATE_REUSE)
+        self.conn.executescript(CREATE_SERVING_RUNTIME_SNAPSHOTS)
         self.conn.executescript(CREATE_GOAL_EXECUTION)
         self.conn.executescript(CREATE_GOAL_ATTEMPT)
         self.conn.executescript(CREATE_ETL_QUEUE)

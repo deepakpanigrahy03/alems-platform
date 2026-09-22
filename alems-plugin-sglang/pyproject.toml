@@ -1,0 +1,19 @@
+[project]
+name = "alems-plugin-sglang"
+version = "0.1.0"
+description = "SGLang serving engine telemetry adapter for A-LEMS"
+requires-python = ">=3.9"
+dependencies = [
+    "alems-platform>=1.0,<2.0",
+    "requests>=2.31.0",
+]
+# Does NOT install SGLang itself.
+# SGLang requires CUDA and a large dependency tree — manage separately.
+# Launch with: python -m sglang.launch_server --model <model> --enable-metrics
+
+[project.entry-points."alems.engines.serving"]
+sglang = "alems_plugin_sglang.adapter:SGLangAdapter"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

@@ -76,6 +76,7 @@ def execute_goal(
     repetitions: int = 1,
     retry_adapter=None,
     recovery_policy_id: str = "full_restart",
+    cache_collector=None,
 ) -> Optional[int]:
     """
     Execute one goal (one workflow side) with full retry support.
@@ -450,14 +451,22 @@ def execute_goal(
             # B2: collect cache telemetry for this recovery.
             # NoOpCollector returns ([], []) on all current platforms — correct per B2.5.
             # Runner inserts returned rows; collector never writes DB (INV-2).
-            from core.telemetry.cache_collector import CacheTelemetryRegistry
-            _collector = CacheTelemetryRegistry.get(None)
-            _reuse_events, _cache_snapshots = _collector.collect(
+            # B3: use EngineBackedCollector if runner wired one, else NoOp.
+            _collector = cache_collector
+            if _collector is None:
+                from core.telemetry.cache_collector import CacheTelemetryRegistry
+                _collector = CacheTelemetryRegistry.get(None)
+            _collect_result = _collector.collect(
                 run_id=None,
                 attempt_id=attempt_id,
                 recovery_id=_recovery_id,
                 request_context={},
             )
+            if len(_collect_result) == 3:
+                _reuse_events, _cache_snapshots, _rt_snapshots = _collect_result
+            else:
+                _reuse_events, _cache_snapshots = _collect_result
+                _rt_snapshots = []
             for _sre in _reuse_events:
                 _sre.run_id = None
                 _sre.attempt_id = attempt_id
@@ -487,7 +496,36 @@ def execute_goal(
                      _css.occupied_tokens, _css.occupancy_fraction,
                      _css.hit_rate_aggregate),
                 )
-            if _reuse_events or _cache_snapshots:
+            for _srs in _rt_snapshots:
+                conn.execute(
+                    """INSERT INTO serving_runtime_snapshots
+                       (run_id, attempt_id, timestamp_ns, engine_name, engine_type,
+                        snapshot_type, telemetry_scope,
+                        kv_capacity_tokens, kv_occupied_tokens,
+                        kv_occupancy_fraction, kv_hit_rate_aggregate,
+                        kv_num_evictions,
+                        tier_vram_bytes, tier_ram_bytes, tier_disk_bytes,
+                        tier_vram_fraction, tier_ram_fraction, tier_disk_fraction,
+                        queue_active, queue_waiting, queue_completed, queue_rejected,
+                        tokens_per_second, ttft_ms,
+                        prompt_tokens_total, generation_tokens_total,
+                        extra_json)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (_srs.run_id, _srs.attempt_id, _srs.timestamp_ns,
+                     _srs.engine_name, _srs.engine_type,
+                     _srs.snapshot_type, _srs.telemetry_scope,
+                     _srs.kv_capacity_tokens, _srs.kv_occupied_tokens,
+                     _srs.kv_occupancy_fraction, _srs.kv_hit_rate_aggregate,
+                     _srs.kv_num_evictions,
+                     _srs.tier_vram_bytes, _srs.tier_ram_bytes, _srs.tier_disk_bytes,
+                     _srs.tier_vram_fraction, _srs.tier_ram_fraction, _srs.tier_disk_fraction,
+                     _srs.queue_active, _srs.queue_waiting,
+                     _srs.queue_completed, _srs.queue_rejected,
+                     _srs.tokens_per_second, _srs.ttft_ms,
+                     _srs.prompt_tokens_total, _srs.generation_tokens_total,
+                     _srs.extra_json),
+                )
+            if _reuse_events or _cache_snapshots or _rt_snapshots:
                 conn.commit()
         except Exception as _b1_exc:
             # Never let telemetry break the retry loop.

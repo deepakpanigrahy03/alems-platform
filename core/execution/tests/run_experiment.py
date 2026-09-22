@@ -282,6 +282,7 @@ def run_provider_task(
                                 repetitions=repetitions,
                                 retry_adapter=_retry_adapter,
                                 recovery_policy_id=getattr(args, "recovery_policy_strategy", "full_restart"),
+                                cache_collector=getattr(args, "cache_collector", None),
                             )
                             runs_completed += 1
                         if workflow_mode in ("agentic", "comparison"):
@@ -294,6 +295,7 @@ def run_provider_task(
                                 repetitions=repetitions,
                                 retry_adapter=_retry_adapter,
                                 recovery_policy_id=getattr(args, "recovery_policy_strategy", "full_restart"),
+                                cache_collector=getattr(args, "cache_collector", None),
                             )
                             runs_completed += 1
                     else:
@@ -548,6 +550,17 @@ def run_all_experiments(args):
     # Create harness and runner
     harness = ExperimentHarness(config)
     runner = ExperimentRunner(config, args)
+
+    # B3: build serving engine adapter and cache collector from YAML config.
+    # serving_engine section optional — RemoteAPIAdapter used if absent (INV-7).
+    import core.serving.bootstrap  # noqa: F401
+    import core.telemetry.engine_backed_collector  # noqa: F401
+    from core.serving.registry import ServingEngineRegistry
+    from core.telemetry.engine_backed_collector import EngineBackedCollector
+    _serving_cfg = getattr(args, "serving_engine", None)
+    args.cache_collector = EngineBackedCollector(
+        ServingEngineRegistry.from_config(_serving_cfg)
+    )
 
     # Ensure baseline (once per session)
     baseline = runner.ensure_baseline(harness)

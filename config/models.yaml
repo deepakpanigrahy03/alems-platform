@@ -127,7 +127,7 @@ providers:
     captures_network_io: true
     energy_side: client_only
     openai_compat: true
-    base_url: $ALEMS_VLLM_REMOTE_URL
+    base_url: $ALEMS_VLLM_API_URL
     api_key_env: null
     cost_class: free
     priority: 2
@@ -140,6 +140,45 @@ providers:
         name: Mistral 7B (GN100 vLLM remote)
       - id: Qwen3-32B-AWQ
         name: Qwen3 32B AWQ (GN100 vLLM remote)
+  # ---------------------------------------------------------------------------
+  sglang_remote:
+    is_local: false
+    access_method: api_http
+    network_type: lan
+    captures_network_io: true
+    energy_side: client_only
+    openai_compat: true
+    base_url: $ALEMS_SGLANG_API_URL
+    api_key_env: null
+    cost_class: free
+    priority: 2
+    rate_limit_tpm: null
+    execution_site: lan_server
+    transport: lan_http
+    remote_energy_available: true
+    models:
+      - id: Mistral-7B-Instruct-v0.3
+        name: Mistral 7B (GN100 SGLang)
+  # ---------------------------------------------------------------------------
+  llamacpp_remote:
+    is_local: false
+    access_method: api_http
+    network_type: lan
+    captures_network_io: true
+    energy_side: client_only
+    openai_compat: true
+    base_url: $ALEMS_LLAMA_CPP_API_URL
+    api_key_env: null
+    cost_class: free
+    priority: 2
+    rate_limit_tpm: null
+    execution_site: lan_server
+    transport: lan_http
+    remote_energy_available: true
+    models:
+      - id: tinyllama
+        name: TinyLlama (GN100 llama-cpp-python)
+
   # ---------------------------------------------------------------------------
   ollama_remote:
     is_local: false

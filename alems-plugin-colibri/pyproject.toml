@@ -1,0 +1,23 @@
+[project]
+name = "alems-plugin-colibri"
+version = "0.1.0"
+description = "Colibri MoE inference engine telemetry adapter for A-LEMS"
+requires-python = ">=3.9"
+dependencies = [
+    "alems-platform>=1.0,<2.0",
+    "requests>=2.31.0",
+]
+# Does NOT install Colibrì.
+# Build from source: https://github.com/JustVugg/colibri
+# Launch with: ./coli serve --model /path/to/model
+#
+# Telemetry available: queue counters via GET /health.
+# Expert tier metrics (VRAM/RAM/NVMe placement) will be added when
+# Colibrì exposes a stable /v1/stats or /metrics JSON endpoint.
+
+[project.entry-points."alems.engines.serving"]
+colibri = "alems_plugin_colibri.adapter:ColibriAdapter"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

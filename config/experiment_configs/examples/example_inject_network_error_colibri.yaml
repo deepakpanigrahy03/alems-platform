@@ -1,0 +1,53 @@
+# config/experiment_configs/examples/example_inject_network_error_colibri.yaml
+# =============================================================================
+# B4 END-TO-END: network_error injection — Colibri backend
+# Prerequisite: Colibri binary built at /opt/ai-stack/envs/colibri/coli
+# Expected: queue_metrics=True from /health JSON, queue row in snapshots.
+# expert_tier_metrics=False until stable /v1/stats API available.
+# Endpoint resolved from ALEMS_COLIBRI_URL in .alems-env via AdapterConfig.
+# =============================================================================
+study:
+  name: "B4: network_error injection — Colibri"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify Colibri adapter /health queue polling and snapshots write"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: colibri_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  max_retries: 3
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "default"
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "example_network_error_v1"
+  scenarios:
+    - type: network_error
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any
+      max_injections: 1
+
+quality:
+  enabled: true
+
+serving_engine:
+  name: colibri_gn100
+  type: colibri
+  telemetry: true

@@ -1,0 +1,53 @@
+# config/experiment_configs/examples/example_inject_network_error_sglang.yaml
+# =============================================================================
+# B4 END-TO-END: network_error injection — SGLang backend
+# Verifies: serving_runtime_snapshots populated (kv_cache + queue rows).
+# Dynamic discovery: /metrics → sglang: prefixes → kv+queue caps set.
+# Endpoint resolved from ALEMS_SGLANG_URL in .alems-env via AdapterConfig.
+# SGLang 0.5.20, Mistral-7B-Instruct-v0.3.
+# =============================================================================
+study:
+  name: "B4: network_error injection — SGLang"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify SGLang adapter dynamic discovery and serving_runtime_snapshots write"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: sglang_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  max_retries: 3
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "default"
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "example_network_error_v1"
+  scenarios:
+    - type: network_error
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any
+      max_injections: 1
+
+quality:
+  enabled: true
+
+serving_engine:
+  name: sglang_gn100
+  type: sglang
+  telemetry: true

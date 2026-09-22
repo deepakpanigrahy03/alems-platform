@@ -1,0 +1,25 @@
+[project]
+name = "alems-plugin-vllm"
+version = "0.1.0"
+description = "vLLM serving engine telemetry adapter for A-LEMS"
+requires-python = ">=3.9"
+dependencies = [
+    "alems-platform>=1.0,<2.0",
+    "requests>=2.31.0",
+    # prometheus_client for parsing /metrics text format (optional at import)
+    # install manually when testbed is live:
+    #   pip install prometheus_client
+]
+
+# Does NOT install vLLM itself.
+# Manage the vLLM server separately:
+#   pip install vllm  (requires CUDA, large dependency tree)
+# This package installs only the HTTP/Prometheus client dependencies
+# needed to communicate with an already-running vLLM instance.
+
+[project.entry-points."alems.engines.serving"]
+vllm = "alems_plugin_vllm.adapter:VLLMAdapter"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

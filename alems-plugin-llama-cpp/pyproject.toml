@@ -1,0 +1,19 @@
+[project]
+name = "alems-plugin-llama-cpp"
+version = "0.1.0"
+description = "llama.cpp server telemetry adapter for A-LEMS"
+requires-python = ">=3.9"
+dependencies = [
+    "alems-platform>=1.0,<2.0",
+    "requests>=2.31.0",
+]
+# Does NOT install llama.cpp binary.
+# Build llama.cpp separately: https://github.com/ggml-org/llama.cpp
+# Launch with: llama-server --metrics --port 8080 -m <model.gguf>
+
+[project.entry-points."alems.engines.serving"]
+llama_cpp = "alems_plugin_llama_cpp.adapter:LlamaCppAdapter"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

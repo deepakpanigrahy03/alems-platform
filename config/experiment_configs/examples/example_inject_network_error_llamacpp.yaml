@@ -1,0 +1,53 @@
+# config/experiment_configs/examples/example_inject_network_error_llamacpp.yaml
+# =============================================================================
+# B4 END-TO-END: network_error injection — llama-cpp-python backend
+# Expected: telemetry_scope=unavailable, zero rows in serving_runtime_snapshots.
+# Dynamic discovery: /metrics 404, /health 404 → honest unavailable caps.
+# Experiment still runs via RemoteAPIAdapter inference path.
+# Endpoint resolved from ALEMS_LLAMA_CPP_URL in .alems-env via AdapterConfig.
+# =============================================================================
+study:
+  name: "B4: network_error injection — llama-cpp-python"
+  experiment_type: "failure_injection"
+  experiment_goal: "Verify llama-cpp adapter reports unavailable caps honestly"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: llamacpp_remote
+    model_id: tinyllama
+
+execution:
+  repetitions: 1
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  max_retries: 3
+  retry_on_tool_error: true
+  retry_on_api_error: true
+  backoff_seconds: 1.0
+  name: "default"
+
+failure_injection:
+  enabled: true
+  mode: scenario
+  scenario_id: "example_network_error_v1"
+  scenarios:
+    - type: network_error
+      rate: 1.0
+      location:
+        phase: execution
+        step_index: any
+        tool_name: any
+      max_injections: 1
+
+quality:
+  enabled: true
+
+serving_engine:
+  name: llamacpp_gn100
+  type: llama_cpp
+  telemetry: true
