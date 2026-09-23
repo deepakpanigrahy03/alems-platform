@@ -1121,6 +1121,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../developer/adding-a-tool-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Tool Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../developer/model-factory/" class="md-nav__link">
         
   
@@ -1269,6 +1297,118 @@
     
   
     Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/extension-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extenstion System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/plugin-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/serving-engine-adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving Engine Adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/quality-scoring-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Scoring System
   
 
     
@@ -1950,10 +2090,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#agreement-score" class="md-nav__link">
+  <a href="#reconciliation-median-deviation-bands" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Agreement Score
+        Reconciliation: Median-Deviation Bands
       
     </span>
   </a>
@@ -1961,10 +2101,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#tie-break-logic" class="md-nav__link">
+  <a href="#judge-model-selection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Tie-Break Logic
+        Judge Model Selection
       
     </span>
   </a>
@@ -1998,6 +2138,17 @@
     <span class="md-ellipsis">
       
         Judge Reproducibility Fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known Limitations
       
     </span>
   </a>
@@ -2075,6 +2226,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../failure-injection-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Injection Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../tool-instrumentation/" class="md-nav__link">
         
   
@@ -2111,6 +2290,34 @@
     
   
     Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../failure-taxonomy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Taxonomy
   
 
     
@@ -3039,56 +3246,88 @@
 </code></pre></div>
 <hr />
 <h2 id="output-quality-normalization-methodology">Output Quality Normalization Methodology<a class="headerlink" href="#output-quality-normalization-methodology" title="Permanent link">&para;</a></h2>
-<p><em>method_id: <code>output_quality_normalization_v1</code> | confidence: 0.90</em></p>
+<p><em>method_id: <code>output_quality_normalization_v1</code> | confidence: 0.88</em></p>
 <h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
 <p><code>output_quality</code> (parent) holds the reconciled verdict. <code>output_quality_judges</code> (child) holds one row per judge per attempt. This supports N judges without schema changes.</p>
-<h3 id="agreement-score">Agreement Score<a class="headerlink" href="#agreement-score" title="Permanent link">&para;</a></h3>
-<p>For two judges (scores normalized 0–1):</p>
-<div class="arithmatex">\[\text{agreement} = 1 - |s_1 - s_2|\]</div>
-<p>For N judges: normalized standard deviation over child table rows.</p>
-<h3 id="tie-break-logic">Tie-Break Logic<a class="headerlink" href="#tie-break-logic" title="Permanent link">&para;</a></h3>
-<p>Application layer computes <code>score_method</code> and <code>normalized_score</code> at insert time:</p>
-<table>
-<thead>
-<tr>
-<th>Condition</th>
-<th><code>score_method</code></th>
-<th><code>normalized_score</code></th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>judge_count = 1</code></td>
-<td><code>single_judge</code></td>
-<td>that judge's score</td>
-</tr>
-<tr>
-<td><code>agreement &gt;= 0.8</code></td>
-<td><code>averaged</code></td>
-<td>mean of judge scores</td>
-</tr>
-<tr>
-<td><code>agreement &gt;= 0.5</code></td>
-<td><code>conservative_min</code></td>
-<td>min of judge scores</td>
-</tr>
-<tr>
-<td><code>agreement &lt; 0.5</code></td>
-<td><code>needs_review</code></td>
-<td>NULL</td>
-</tr>
-</tbody>
-</table>
+<p>Since schema version 94, <code>output_quality</code> no longer enforces one row per
+attempt. Multiple rows per attempt are expected and correct: a live
+scoring row (<code>score_method</code> not <code>back_scored</code>) plus zero or more
+retroactive back-scored rows. See Re-Judging below.</p>
+<h3 id="reconciliation-median-deviation-bands">Reconciliation: Median-Deviation Bands<a class="headerlink" href="#reconciliation-median-deviation-bands" title="Permanent link">&para;</a></h3>
+<p>Reconciliation is median-based, not a pairwise agreement formula. Let
+<span class="arithmatex">\(s_1, \ldots, s_N\)</span> be the N judges' raw scores and <span class="arithmatex">\(m = \mathrm{median}(s_1,\ldots,s_N)\)</span>:</p>
+<div class="arithmatex">\[
+s_{norm} = \begin{cases}
+s_1 &amp; N = 1 \quad (\texttt{single\_judge}) \\
+\bar{s} &amp; N \geq 2,\ \max_i |s_i - m| \leq 0.20 \quad (\texttt{averaged}) \\
+m &amp; N \geq 2,\ \max_i |s_i - m| \leq 0.40 \quad (\texttt{consensus\_median}) \\
+\mathrm{median}(s_{\text{agreeing}}) &amp; N \geq 2,\ \text{exactly one } i \text{ with } |s_i - m| &gt; 0.20 \quad (\texttt{majority\_median}) \\
+\text{NULL} &amp; \text{otherwise} \quad (\texttt{needs\_review})
+\end{cases}
+\]</div>
+<p><code>agreement_score</code> is a separate, simpler diagnostic, not part of the
+reconciliation decision itself: <span class="arithmatex">\(1 - \min(1, \mathrm{stdev}(s_1,\ldots,s_N))\)</span>
+for <span class="arithmatex">\(N \geq 2\)</span>, or <span class="arithmatex">\(1.0\)</span> for a single judge (trivially self-agreeing).</p>
+<p>Confidence 0.88, not 1.0: the tight/loose band thresholds (0.20 / 0.40)
+were chosen by design judgment, not calibrated against a labeled
+disagreement dataset. They correctly separate the cases tested this
+session (single clear outlier vs. genuine 3-way split) but have not been
+validated against a larger, independently-labeled sample of judge
+disagreements. To reach 1.0 would require such a calibration study.</p>
+<h3 id="judge-model-selection">Judge Model Selection<a class="headerlink" href="#judge-model-selection" title="Permanent link">&para;</a></h3>
+<p>Each judge call resolves its model via <code>task_quality_config.judge_model_set</code>
+(a JSON array of <code>{provider, model_id}</code> pairs, resolved through
+<code>ModelFactory.get_adapter()</code> — the same provider-resolution path used for
+every inference call on this platform, not a scorer-private HTTP client).
+Judges are assigned round-robin across the configured set: with 2 judges
+and 1 configured model, the same model is called twice (two independent
+completions, still two audited rows); with 2 judges and 2 configured
+models, each model is called once. A category with no <code>judge_model_set</code>
+configured falls back to the scorer's own default, which has no
+guaranteed reachability on every platform (verified: attempting the
+unconfigured default on a platform without a local Ollama installation
+fails outright, since it targets a fixed local endpoint).</p>
 <h3 id="analysis-exclusion">Analysis Exclusion<a class="headerlink" href="#analysis-exclusion" title="Permanent link">&para;</a></h3>
-<p>Rows with <code>score_method = 'needs_review'</code> are excluded from all paper analysis queries:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">score_method</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s1">&#39;needs_review&#39;</span>
+<p>Rows with <code>score_method = 'needs_review'</code> or <code>score_method = 'stub_skipped'</code>
+are excluded from all paper analysis queries:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">score_method</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;needs_review&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;stub_skipped&#39;</span><span class="p">)</span>
 </code></pre></div>
-<p>The disagreement rate (proportion of <code>needs_review</code> rows) should be reported separately in the paper as a data quality metric.</p>
+<p><code>stub_skipped</code> marks a scorer that is registered but not yet implemented
+(see <code>ScorerABC.STATUS</code>) — distinct from a real judgment that failed to
+converge. The disagreement rate (proportion of <code>needs_review</code> rows,
+excluding <code>stub_skipped</code>) should be reported separately in the paper as
+a data quality metric.</p>
 <h3 id="re-judging">Re-Judging<a class="headerlink" href="#re-judging" title="Permanent link">&para;</a></h3>
-<p>One row per attempt is enforced by <code>UNIQUE(attempt_id)</code>. Re-judging requires UPDATE of the existing row plus INSERT of new rows into <code>output_quality_judges</code>. Do not DELETE and re-INSERT.</p>
+<p><code>output_quality</code> does not enforce one row per attempt. Live scoring
+inserts one row per attempt with <code>score_method</code> reflecting the real-time
+reconciliation outcome. Retroactive back-scoring inserts additional rows
+tagged <code>score_method = 'back_scored'</code>, never overwriting or deleting
+prior rows. The current verdict for an attempt is the most recent row:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="k">FROM</span><span class="w"> </span><span class="n">output_quality</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">attempt_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">?</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">judged_at</span><span class="w"> </span><span class="k">DESC</span><span class="p">,</span><span class="w"> </span><span class="n">quality_id</span><span class="w"> </span><span class="k">DESC</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+</code></pre></div>
 <h3 id="judge-reproducibility-fields">Judge Reproducibility Fields<a class="headerlink" href="#judge-reproducibility-fields" title="Permanent link">&para;</a></h3>
-<p><code>judge_prompt_hash</code>, <code>judge_version</code>, <code>judge_temperature</code>, and <code>judge_provider</code> in <code>output_quality_judges</code> enable exact reproduction of any judgment across papers. These fields are nullable until the experiment runner implements prompt hashing.</p>
-<hr />
+<p><code>judge_prompt_hash</code>, <code>judge_version</code>, <code>judge_temperature</code>, and
+<code>judge_provider</code> in <code>output_quality_judges</code> remain nullable — prompt
+hashing is not yet implemented in the experiment runner. <code>judge_model</code>
+is populated (the resolved <code>model_id</code>, not a provider/adapter internal
+name).</p>
+<h3 id="known-limitations">Known Limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Reconciliation bands are uncalibrated</strong>: the 0.20/0.40 median-deviation
+  thresholds are a design choice, not derived from a labeled dataset of
+  judge disagreements. Workaround: report the <code>needs_review</code> rate
+  alongside any quality claim so a reviewer can judge threshold
+  sensitivity themselves.</li>
+<li><strong>Round-robin repetition is not independent replication</strong>: when
+  <code>judge_model_set</code> has fewer entries than <code>n_judges</code>, the same model is
+  called more than once. This increases judge <em>count</em> for reconciliation
+  purposes but does not increase genuine model diversity. Workaround:
+  configure <code>judge_model_set</code> with as many distinct models as <code>n_judges</code>
+  when independence matters for a specific paper claim.</li>
+</ul>
 <h2 id="provenance-summary">Provenance Summary<a class="headerlink" href="#provenance-summary" title="Permanent link">&para;</a></h2>
 <table>
 <thead>

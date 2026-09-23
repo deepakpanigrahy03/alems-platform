@@ -18,7 +18,7 @@
         <link rel="prev" href="../tool-instrumentation/">
       
       
-        <link rel="next" href="../network-wait-energy/">
+        <link rel="next" href="../failure-taxonomy/">
       
       
         
@@ -1121,6 +1121,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../developer/adding-a-tool-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Tool Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../developer/model-factory/" class="md-nav__link">
         
   
@@ -1269,6 +1297,118 @@
     
   
     Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/extension-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extenstion System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/plugin-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/serving-engine-adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving Engine Adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/quality-scoring-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Scoring System
   
 
     
@@ -1801,6 +1941,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../failure-injection-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Injection Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../tool-instrumentation/" class="md-nav__link">
         
   
@@ -2231,10 +2399,232 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#ear-policy-v1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Energy-Aware Retry (EAR)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Energy-Aware Retry (EAR)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#platform-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Platform Coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Schema">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-tables-schema-v105-present-on-all-machines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core tables (schema v105, present on all machines)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#extension-table-schema-v90002-present-on-all-machines-via-core-track" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extension table (schema v90002, present on all machines via core track)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#method-provenance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Method Provenance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#designing-an-ear-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Designing an EAR Experiment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Designing an EAR Experiment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stage-1-failure-profiling-a3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 1: Failure profiling (A3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-2-cost-profiling-etl-a3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2: Cost profiling ETL (A3)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-3-ear-calibration-a4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 3: EAR calibration (A4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stage-4-run-ear-experiment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 4: Run EAR experiment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reason-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reason Codes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#query-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Query Reference
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known Limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../failure-taxonomy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Taxonomy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -3444,6 +3834,785 @@ Expected: rate_limit most expensive (backoff wait), timeout cheapest (fails fast
 llama_cpp (local): organic context overflow at 512-token TinyLlama limit.
 Expected: different failure type distributions, comparable overhead_fraction.
 Use <code>scenario_id</code> to ensure identical injection schedules across providers.</p>
+<hr />
+<p><strong>Method ID:</strong> ear_policy_v1
+<strong>Schema version:</strong> v105 (ear_policy, ear_policy_rules, ear_decision_log), v90002 (failure_cost_profile)
+<strong>Platforms verified:</strong> NVIDIA Grace GB10 (aarch64)
+<strong>Status:</strong> PRODUCTION
+<strong>Last updated:</strong> 2026-09-20</p>
+<hr />
+<hr />
+<h2 id="ear-policy-v1">Energy-Aware Retry (EAR)<a class="headerlink" href="#ear-policy-v1" title="Permanent link">&para;</a></h2>
+<h3 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h3>
+<p>Standard retry policies repeat failed attempts unconditionally up to a fixed
+maximum count. This is energy-wasteful: a failure type with a 5% recovery rate
+spends 20x the single-attempt energy budget on average to reach one success.</p>
+<p>Energy-Aware Retry (EAR) conditions each retry decision on three calibrated
+signals derived from historical experiment data:</p>
+<ul>
+<li><strong>Recovery cost</strong> (<code>recovery_cost_uj_mean</code>) — how much energy a recovery
+  attempt for this failure type typically consumes</li>
+<li><strong>Recovery success rate</strong> (<code>recovery_success_rate</code>) — fraction of failures
+  of this type where the next attempt succeeded</li>
+<li><strong>Cost per successful recovery</strong> (<code>cost_per_recovery_success</code>) — expected
+  energy investment to obtain one successful recovery</li>
+</ul>
+<p>EAR aborts retry when the expected cost exceeds the available budget or when
+the calibrated success probability falls below a researcher-defined threshold.
+The flat retry policy (always retry up to max) remains the default and is
+unchanged for all existing experiments.</p>
+<hr />
+<h3 id="platform-coverage">Platform Coverage<a class="headerlink" href="#platform-coverage" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Architecture</th>
+<th>Measurement Source</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NVIDIA Grace GB10</td>
+<td>aarch64</td>
+<td>SPBM + goal_attempt.energy_uj</td>
+<td>VERIFIED</td>
+</tr>
+<tr>
+<td>Intel x86</td>
+<td>x86_64</td>
+<td>RAPL + goal_attempt.energy_uj</td>
+<td>PENDING</td>
+</tr>
+<tr>
+<td>AMD Ryzen</td>
+<td>x86_64</td>
+<td>RAPL + goal_attempt.energy_uj</td>
+<td>PENDING</td>
+</tr>
+<tr>
+<td>Apple M1 Pro</td>
+<td>arm64</td>
+<td>IOKit + goal_attempt.energy_uj</td>
+<td>PLANNED</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="schema">Schema<a class="headerlink" href="#schema" title="Permanent link">&para;</a></h3>
+<h4 id="core-tables-schema-v105-present-on-all-machines">Core tables (schema v105, present on all machines)<a class="headerlink" href="#core-tables-schema-v105-present-on-all-machines" title="Permanent link">&para;</a></h4>
+<p><strong>ear_policy</strong> — one named EAR policy per row</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ear_policy_id</td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td>policy_name</td>
+<td>TEXT</td>
+<td>Unique name, referenced from YAML</td>
+</tr>
+<tr>
+<td>description</td>
+<td>TEXT</td>
+<td>Human description</td>
+</tr>
+<tr>
+<td>calibration_scope</td>
+<td>TEXT</td>
+<td><code>experiment_group</code> (EAR v1)</td>
+</tr>
+<tr>
+<td>created_at</td>
+<td>TIMESTAMP</td>
+<td>Creation time</td>
+</tr>
+</tbody>
+</table>
+<p><strong>ear_policy_rules</strong> — one row per (policy, failure_type) pair</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rule_id</td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td>ear_policy_id</td>
+<td>INTEGER</td>
+<td>FK to ear_policy</td>
+</tr>
+<tr>
+<td>failure_type_id</td>
+<td>TEXT</td>
+<td>Failure type from failure_taxonomy</td>
+</tr>
+<tr>
+<td>max_attempts</td>
+<td>INTEGER</td>
+<td>Maximum retry attempts for this type</td>
+</tr>
+<tr>
+<td>cost_threshold_uj</td>
+<td>REAL</td>
+<td>Budget must exceed this to allow retry (µJ)</td>
+</tr>
+<tr>
+<td>calibrated_success_prob</td>
+<td>REAL</td>
+<td>Success probability from A3 profiling</td>
+</tr>
+<tr>
+<td>success_probability_threshold</td>
+<td>REAL</td>
+<td>Minimum probability to allow retry</td>
+</tr>
+<tr>
+<td>action</td>
+<td>TEXT</td>
+<td><code>retry</code>, <code>abort</code>, or <code>fallback</code></td>
+</tr>
+<tr>
+<td>priority</td>
+<td>INTEGER</td>
+<td>Higher = evaluated first</td>
+</tr>
+</tbody>
+</table>
+<p><strong>ear_decision_log</strong> — one row per runtime retry decision</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>decision_id</td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td>run_id</td>
+<td>INTEGER</td>
+<td>FK to runs</td>
+</tr>
+<tr>
+<td>attempt_id</td>
+<td>INTEGER</td>
+<td>FK to goal_attempt</td>
+</tr>
+<tr>
+<td>failure_type_id</td>
+<td>TEXT</td>
+<td>Failure type that triggered decision</td>
+</tr>
+<tr>
+<td>attempt_number</td>
+<td>INTEGER</td>
+<td>Attempt number (1-indexed)</td>
+</tr>
+<tr>
+<td>budget_remaining_uj</td>
+<td>REAL</td>
+<td>Energy budget at decision time (µJ)</td>
+</tr>
+<tr>
+<td>action</td>
+<td>TEXT</td>
+<td>Decision: <code>retry</code>, <code>abort</code>, <code>fallback</code></td>
+</tr>
+<tr>
+<td>reason</td>
+<td>TEXT</td>
+<td>Reason code (see Reason Codes below)</td>
+</tr>
+<tr>
+<td>calibration_cost_uj</td>
+<td>REAL</td>
+<td>Cost threshold used at decision time</td>
+</tr>
+<tr>
+<td>calibration_success_prob</td>
+<td>REAL</td>
+<td>Success probability used at decision time</td>
+</tr>
+<tr>
+<td>decided_at</td>
+<td>TIMESTAMP</td>
+<td>Decision timestamp</td>
+</tr>
+</tbody>
+</table>
+<h4 id="extension-table-schema-v90002-present-on-all-machines-via-core-track">Extension table (schema v90002, present on all machines via core track)<a class="headerlink" href="#extension-table-schema-v90002-present-on-all-machines-via-core-track" title="Permanent link">&para;</a></h4>
+<p><strong>failure_cost_profile</strong> — aggregated cost statistics per (failure_type, experiment_group)</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>profile_id</td>
+<td>INTEGER</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td>failure_type_id</td>
+<td>TEXT</td>
+<td>Failure type from failure_taxonomy</td>
+</tr>
+<tr>
+<td>experiment_group</td>
+<td>TEXT</td>
+<td>experiments.group_id</td>
+</tr>
+<tr>
+<td>sample_count</td>
+<td>INTEGER</td>
+<td>Number of failure events</td>
+</tr>
+<tr>
+<td>recovery_cost_uj_mean</td>
+<td>REAL</td>
+<td>Mean recovery energy (µJ)</td>
+</tr>
+<tr>
+<td>recovery_cost_uj_median</td>
+<td>REAL</td>
+<td>Median recovery energy (µJ)</td>
+</tr>
+<tr>
+<td>recovery_cost_uj_p25</td>
+<td>REAL</td>
+<td>25th percentile</td>
+</tr>
+<tr>
+<td>recovery_cost_uj_p75</td>
+<td>REAL</td>
+<td>75th percentile</td>
+</tr>
+<tr>
+<td>recovery_cost_uj_std</td>
+<td>REAL</td>
+<td>Standard deviation</td>
+</tr>
+<tr>
+<td>recovery_success_rate</td>
+<td>REAL</td>
+<td>Fraction where next attempt succeeded</td>
+</tr>
+<tr>
+<td>recovery_success_count</td>
+<td>INTEGER</td>
+<td>Raw count of successful recoveries</td>
+</tr>
+<tr>
+<td>cost_per_recovery_success</td>
+<td>REAL</td>
+<td>E[cost] / P[success] (µJ)</td>
+</tr>
+<tr>
+<td>computed_at</td>
+<td>TIMESTAMP</td>
+<td>ETL run time</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="method-provenance">Method Provenance<a class="headerlink" href="#method-provenance" title="Permanent link">&para;</a></h3>
+<p><strong>failure_cost_profile ETL</strong>
+- method_id: <code>failure_cost_profile_etl_v1</code>
+- provenance: CALCULATED
+- layer: orchestration
+- confidence: 0.90
+- formula: <code>cost_per_recovery_success = E[recovery_cost_uj] / P[recovery_success]</code>
+- confidence justification: 0.90 because EAR v1 uses experiment-group-level
+  aggregation. Recovery costs vary by task category and model — the aggregate
+  masks this variance. Conditional calibration (per-model, per-task) would
+  reach 1.0 but is deferred to Paper 8 future work.</p>
+<p><strong>EAR policy engine</strong>
+- method_id: <code>ear_policy_v1</code>
+- provenance: CALCULATED
+- layer: orchestration
+- confidence: 0.90 (same calibration scope limitation as above)</p>
+<hr />
+<h3 id="designing-an-ear-experiment">Designing an EAR Experiment<a class="headerlink" href="#designing-an-ear-experiment" title="Permanent link">&para;</a></h3>
+<p>EAR requires three sequential stages. Each stage depends on data from the previous.</p>
+<h4 id="stage-1-failure-profiling-a3">Stage 1: Failure profiling (A3)<a class="headerlink" href="#stage-1-failure-profiling-a3" title="Permanent link">&para;</a></h4>
+<p>Run a failure injection experiment to collect recovery cost data.
+The experiment must use <code>experiment_type: failure_injection</code> and enough
+repetitions to produce statistically meaningful profiles (minimum 10 per failure type,
+recommended 20+).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># profiling_experiment.yaml</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">study</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Failure</span><span class="nv"> </span><span class="s">profiling</span><span class="nv"> </span><span class="s">—</span><span class="nv"> </span><span class="s">tool_error</span><span class="nv"> </span><span class="s">baseline&quot;</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">experiment_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;failure_injection&quot;</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">experiment_goal</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Collect</span><span class="nv"> </span><span class="s">recovery</span><span class="nv"> </span><span class="s">cost</span><span class="nv"> </span><span class="s">data</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">EAR</span><span class="nv"> </span><span class="s">calibration&quot;</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">workflow_modes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;agentic&quot;</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="nt">tasks</span><span class="p">:</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tg_single_db</span><span class="w">          </span><span class="c1"># must have tool_calls &gt;= 1</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vllm_remote</span>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">    </span><span class="nt">model_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Mistral-7B-Instruct-v0.3</span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a>
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="nt">execution</span><span class="p">:</span>
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">  </span><span class="nt">repetitions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="w">  </span><span class="nt">cool_down_seconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="w">  </span><span class="nt">save_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-5-19" name="__codelineno-5-19" href="#__codelineno-5-19"></a>
+<a id="__codelineno-5-20" name="__codelineno-5-20" href="#__codelineno-5-20"></a><span class="nt">retry_policy</span><span class="p">:</span>
+<a id="__codelineno-5-21" name="__codelineno-5-21" href="#__codelineno-5-21"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;default&quot;</span>
+<a id="__codelineno-5-22" name="__codelineno-5-22" href="#__codelineno-5-22"></a><span class="w">  </span><span class="nt">max_retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-5-23" name="__codelineno-5-23" href="#__codelineno-5-23"></a><span class="w">  </span><span class="nt">retry_on_tool_error</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-5-24" name="__codelineno-5-24" href="#__codelineno-5-24"></a><span class="w">  </span><span class="nt">backoff_seconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<a id="__codelineno-5-25" name="__codelineno-5-25" href="#__codelineno-5-25"></a>
+<a id="__codelineno-5-26" name="__codelineno-5-26" href="#__codelineno-5-26"></a><span class="nt">failure_injection</span><span class="p">:</span>
+<a id="__codelineno-5-27" name="__codelineno-5-27" href="#__codelineno-5-27"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-5-28" name="__codelineno-5-28" href="#__codelineno-5-28"></a><span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scenario</span>
+<a id="__codelineno-5-29" name="__codelineno-5-29" href="#__codelineno-5-29"></a><span class="w">  </span><span class="nt">scenario_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;profiling_v1&quot;</span>
+<a id="__codelineno-5-30" name="__codelineno-5-30" href="#__codelineno-5-30"></a><span class="w">  </span><span class="nt">scenarios</span><span class="p">:</span>
+<a id="__codelineno-5-31" name="__codelineno-5-31" href="#__codelineno-5-31"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool_error</span>
+<a id="__codelineno-5-32" name="__codelineno-5-32" href="#__codelineno-5-32"></a><span class="w">      </span><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">           </span><span class="c1"># inject on every tool call</span>
+<a id="__codelineno-5-33" name="__codelineno-5-33" href="#__codelineno-5-33"></a><span class="w">      </span><span class="nt">location</span><span class="p">:</span>
+<a id="__codelineno-5-34" name="__codelineno-5-34" href="#__codelineno-5-34"></a><span class="w">        </span><span class="nt">phase</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">execution</span>
+<a id="__codelineno-5-35" name="__codelineno-5-35" href="#__codelineno-5-35"></a><span class="w">        </span><span class="nt">step_index</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">any</span>
+<a id="__codelineno-5-36" name="__codelineno-5-36" href="#__codelineno-5-36"></a><span class="w">        </span><span class="nt">tool_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">any</span>
+<a id="__codelineno-5-37" name="__codelineno-5-37" href="#__codelineno-5-37"></a><span class="w">      </span><span class="c1"># No max_injections — unlimited per rule (default)</span>
+</code></pre></div>
+<p><strong>Critical YAML options for failure_injection:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td>bool</td>
+<td>Must be <code>true</code> to activate injection</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>string</td>
+<td><code>scenario</code> (recommended) or <code>statistical</code></td>
+</tr>
+<tr>
+<td><code>scenario_id</code></td>
+<td>string</td>
+<td>Provenance label stored in every log row</td>
+</tr>
+<tr>
+<td><code>scenarios[].type</code></td>
+<td>string</td>
+<td>Failure type from failure_taxonomy</td>
+</tr>
+<tr>
+<td><code>scenarios[].rate</code></td>
+<td>float</td>
+<td>Bernoulli draw probability (0.0–1.0)</td>
+</tr>
+<tr>
+<td><code>scenarios[].location.phase</code></td>
+<td>string</td>
+<td><code>planning</code>, <code>execution</code>, <code>synthesis</code>, <code>any</code></td>
+</tr>
+<tr>
+<td><code>scenarios[].location.step_index</code></td>
+<td>int or <code>any</code></td>
+<td>Target step in trajectory</td>
+</tr>
+<tr>
+<td><code>scenarios[].location.tool_name</code></td>
+<td>string or <code>any</code></td>
+<td>Target tool name</td>
+</tr>
+<tr>
+<td><code>max_injections</code></td>
+<td>int</td>
+<td>Global cap across all reps (omit for unlimited)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Injection status codes</strong> (in <code>failure_injection_log.status</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>eligible</code></td>
+<td>Rule matched this tool call — draw was made</td>
+</tr>
+<tr>
+<td><code>injected</code></td>
+<td>Draw passed rate threshold — failure fired</td>
+</tr>
+<tr>
+<td><code>skipped</code></td>
+<td>Draw did not pass rate threshold — normal execution</td>
+</tr>
+<tr>
+<td><code>suppressed</code></td>
+<td>Draw passed but <code>max_injections</code> global cap was reached</td>
+</tr>
+<tr>
+<td><code>target_not_reached</code></td>
+<td>Targeted step/phase/tool was never reached in trajectory</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Common mistake:</strong> setting <code>max_injections: 1</code> with <code>repetitions: 10</code> produces
+only 1 injection total across all 10 reps. The cap is global per rule, not per goal.
+Omit <code>max_injections</code> for profiling experiments.</p>
+<p><strong>Task selection:</strong> injection only fires when the task has tool dispatch
+(<code>tool_calls &gt;= 1</code> in tasks.yaml). Tasks with <code>tool_calls: 0</code> produce
+<code>status=eligible</code> but injection never reaches <code>_dispatch_tool</code>. Use <code>tg_single_db</code>,
+<code>tg_sequential_2</code>, or any task with real tool calls.</p>
+<p>Run the experiment, then get the group_id:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>sqlite3<span class="w"> </span><span class="nv">$DB</span><span class="w"> </span><span class="s2">&quot;SELECT group_id FROM experiments ORDER BY exp_id DESC LIMIT 1;&quot;</span>
+</code></pre></div>
+<h4 id="stage-2-cost-profiling-etl-a3">Stage 2: Cost profiling ETL (A3)<a class="headerlink" href="#stage-2-cost-profiling-etl-a3" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>python<span class="w"> </span>scripts/etl/failure_cost_profile_etl.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>--group<span class="w"> </span>&lt;group_id&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--verbose
+</code></pre></div>
+<p>Verify profiles were written:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>sqlite3<span class="w"> </span><span class="nv">$DB</span><span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="s2">SELECT failure_type_id,</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="s2">       sample_count,</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="s2">       ROUND(recovery_cost_uj_mean/1e6, 4) AS cost_j_mean,</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="s2">       ROUND(recovery_success_rate, 4)     AS success_rate,</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="s2">       ROUND(cost_per_recovery_success/1e6, 4) AS cost_per_success_j</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="s2">FROM failure_cost_profile</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="s2">WHERE experiment_group = &#39;&lt;group_id&gt;&#39;</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="s2">ORDER BY cost_per_recovery_success DESC;&quot;</span>
+</code></pre></div>
+<p>Minimum viable profile: <code>sample_count &gt;= 10</code> per failure type.
+Profiles with <code>sample_count &lt; 5</code> should not be used for calibration.</p>
+<h4 id="stage-3-ear-calibration-a4">Stage 3: EAR calibration (A4)<a class="headerlink" href="#stage-3-ear-calibration-a4" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python<span class="w"> </span>core/retry/ear_calibrator.py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span>--group<span class="w"> </span>&lt;group_id&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span>--policy<span class="w"> </span>ear_v1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>--verbose
+</code></pre></div>
+<p>Optional calibration parameters:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--success-threshold</code></td>
+<td>0.10</td>
+<td>Minimum success probability to allow retry</td>
+</tr>
+<tr>
+<td><code>--budget-multiplier</code></td>
+<td>2.0</td>
+<td><code>cost_threshold = mean_cost * multiplier</code></td>
+</tr>
+<tr>
+<td><code>--dry-run</code></td>
+<td>false</td>
+<td>Log rules without writing to DB</td>
+</tr>
+</tbody>
+</table>
+<p>Verify rules were written:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>sqlite3<span class="w"> </span><span class="nv">$DB</span><span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="s2">SELECT epr.failure_type_id,</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="s2">       epr.action,</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="s2">       epr.max_attempts,</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="s2">       ROUND(epr.cost_threshold_uj/1e6, 4) AS cost_threshold_j,</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="s2">       ROUND(epr.calibrated_success_prob, 4) AS success_prob</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="s2">FROM ear_policy_rules epr</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="s2">JOIN ear_policy ep ON epr.ear_policy_id = ep.ear_policy_id</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="s2">WHERE ep.policy_name = &#39;ear_v1&#39;</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="s2">ORDER BY epr.failure_type_id;&quot;</span>
+</code></pre></div>
+<h4 id="stage-4-run-ear-experiment">Stage 4: Run EAR experiment<a class="headerlink" href="#stage-4-run-ear-experiment" title="Permanent link">&para;</a></h4>
+<p>Create a new experiment YAML with <code>engine: ear</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># ear_experiment.yaml</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nt">study</span><span class="p">:</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;EAR</span><span class="nv"> </span><span class="s">policy</span><span class="nv"> </span><span class="s">evaluation&quot;</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">  </span><span class="nt">experiment_type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;failure_injection&quot;</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nt">experiment_goal</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Compare</span><span class="nv"> </span><span class="s">EAR</span><span class="nv"> </span><span class="s">vs</span><span class="nv"> </span><span class="s">flat</span><span class="nv"> </span><span class="s">retry</span><span class="nv"> </span><span class="s">energy</span><span class="nv"> </span><span class="s">efficiency&quot;</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="nt">workflow_modes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;agentic&quot;</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="nt">tasks</span><span class="p">:</span>
+<a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tg_single_db</span>
+<a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
+<a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vllm_remote</span>
+<a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="w">    </span><span class="nt">model_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Mistral-7B-Instruct-v0.3</span>
+<a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>
+<a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="nt">execution</span><span class="p">:</span>
+<a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a><span class="w">  </span><span class="nt">repetitions</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a><span class="w">  </span><span class="nt">cool_down_seconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="w">  </span><span class="nt">save_db</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a>
+<a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a><span class="nt">retry_policy</span><span class="p">:</span>
+<a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a><span class="w">  </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ear</span><span class="w">                     </span><span class="c1"># activates EARAdapter</span>
+<a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a><span class="w">  </span><span class="nt">ear_policy_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ear_v1</span><span class="w">         </span><span class="c1"># must match ear_policy.policy_name in DB</span>
+<a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a><span class="w">  </span><span class="nt">max_retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a><span class="w">  </span><span class="nt">retry_on_tool_error</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a><span class="w">  </span><span class="nt">backoff_seconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a><span class="w">  </span><span class="c1"># budget_uj: 50000000           # optional per-goal energy budget (50 J)</span>
+<a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a>
+<a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a><span class="nt">failure_injection</span><span class="p">:</span>
+<a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a><span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scenario</span>
+<a id="__codelineno-11-31" name="__codelineno-11-31" href="#__codelineno-11-31"></a><span class="w">  </span><span class="nt">scenario_id</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ear_eval_v1&quot;</span>
+<a id="__codelineno-11-32" name="__codelineno-11-32" href="#__codelineno-11-32"></a><span class="w">  </span><span class="nt">scenarios</span><span class="p">:</span>
+<a id="__codelineno-11-33" name="__codelineno-11-33" href="#__codelineno-11-33"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool_error</span>
+<a id="__codelineno-11-34" name="__codelineno-11-34" href="#__codelineno-11-34"></a><span class="w">      </span><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<a id="__codelineno-11-35" name="__codelineno-11-35" href="#__codelineno-11-35"></a><span class="w">      </span><span class="nt">location</span><span class="p">:</span>
+<a id="__codelineno-11-36" name="__codelineno-11-36" href="#__codelineno-11-36"></a><span class="w">        </span><span class="nt">phase</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">execution</span>
+<a id="__codelineno-11-37" name="__codelineno-11-37" href="#__codelineno-11-37"></a><span class="w">        </span><span class="nt">step_index</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">any</span>
+<a id="__codelineno-11-38" name="__codelineno-11-38" href="#__codelineno-11-38"></a><span class="w">        </span><span class="nt">tool_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">any</span>
+</code></pre></div>
+<p><strong>retry_policy YAML keys for EAR:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>engine</code></td>
+<td>string</td>
+<td><code>flat</code> (default) or <code>ear</code></td>
+</tr>
+<tr>
+<td><code>ear_policy_name</code></td>
+<td>string</td>
+<td>Policy name in <code>ear_policy</code> table</td>
+</tr>
+<tr>
+<td><code>budget_uj</code></td>
+<td>float</td>
+<td>Optional per-goal energy budget in µJ</td>
+</tr>
+<tr>
+<td><code>max_retries</code></td>
+<td>int</td>
+<td>Maximum retries (passed to flat policy fallback)</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Flat policy name (used when <code>engine: flat</code>)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="reason-codes">Reason Codes<a class="headerlink" href="#reason-codes" title="Permanent link">&para;</a></h3>
+<p>Every <code>ear_decision_log</code> row carries a <code>reason</code> field explaining the decision:</p>
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ear_allows</code></td>
+<td>All checks passed — retry permitted</td>
+</tr>
+<tr>
+<td><code>no_ear_rule_for_type</code></td>
+<td>No rule exists for this failure type — abort</td>
+</tr>
+<tr>
+<td><code>ear_max_attempts_exceeded</code></td>
+<td><code>attempt_number &gt;= rule.max_attempts</code> — abort</td>
+</tr>
+<tr>
+<td><code>ear_budget_exhausted</code></td>
+<td><code>budget_remaining &lt; cost_threshold_uj</code> — abort</td>
+</tr>
+<tr>
+<td><code>ear_success_prob_too_low</code></td>
+<td><code>calibrated_success_prob &lt; threshold</code> — abort</td>
+</tr>
+<tr>
+<td><code>flat_policy_allows</code></td>
+<td>FlatRetryAdapter: policy permits retry</td>
+</tr>
+<tr>
+<td><code>flat_policy_not_retryable</code></td>
+<td>FlatRetryAdapter: failure type not retryable</td>
+</tr>
+<tr>
+<td><code>flat_max_retries_exceeded</code></td>
+<td>FlatRetryAdapter: attempt count exceeded</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="query-reference">Query Reference<a class="headerlink" href="#query-reference" title="Permanent link">&para;</a></h3>
+<p><strong>Q1: What did EAR decide for each failure type in an experiment?</strong></p>
+<p>Applies to: all platforms. Replace <code>&lt;run_id_min&gt;</code> with the first run_id of your experiment.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">edl</span><span class="p">.</span><span class="n">failure_type_id</span><span class="p">,</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">       </span><span class="n">edl</span><span class="p">.</span><span class="n">action</span><span class="p">,</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">       </span><span class="n">edl</span><span class="p">.</span><span class="n">reason</span><span class="p">,</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">       </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w">                                         </span><span class="k">AS</span><span class="w"> </span><span class="n">decisions</span><span class="p">,</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="k">AVG</span><span class="p">(</span><span class="n">edl</span><span class="p">.</span><span class="n">calibration_success_prob</span><span class="p">),</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w">     </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_calib_prob</span><span class="p">,</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="k">AVG</span><span class="p">(</span><span class="n">edl</span><span class="p">.</span><span class="n">calibration_cost_uj</span><span class="p">)</span><span class="o">/</span><span class="mi">1</span><span class="n">e6</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_cost_threshold_j</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="k">FROM</span><span class="w"> </span><span class="n">ear_decision_log</span><span class="w"> </span><span class="n">edl</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">edl</span><span class="p">.</span><span class="n">run_id</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="o">&lt;</span><span class="n">run_id_min</span><span class="o">&gt;</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">edl</span><span class="p">.</span><span class="n">failure_type_id</span><span class="p">,</span><span class="w"> </span><span class="n">edl</span><span class="p">.</span><span class="n">action</span><span class="p">,</span><span class="w"> </span><span class="n">edl</span><span class="p">.</span><span class="n">reason</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">edl</span><span class="p">.</span><span class="n">failure_type_id</span><span class="p">,</span><span class="w"> </span><span class="n">decisions</span><span class="w"> </span><span class="k">DESC</span><span class="p">;</span>
+</code></pre></div>
+<p>Expected output: one row per (failure_type, action, reason) combination.
+Typical values: <code>abort|ear_max_attempts_exceeded</code> when attempt count is exhausted.</p>
+<p><strong>Q2: Cost profile ranking — which failure types are most expensive to recover from?</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">failure_type_id</span><span class="p">,</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">       </span><span class="n">experiment_group</span><span class="p">,</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">       </span><span class="n">sample_count</span><span class="p">,</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="n">recovery_cost_uj_mean</span><span class="o">/</span><span class="mi">1</span><span class="n">e6</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w">      </span><span class="k">AS</span><span class="w"> </span><span class="n">cost_j_mean</span><span class="p">,</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="n">recovery_success_rate</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">)</span><span class="w">           </span><span class="k">AS</span><span class="w"> </span><span class="n">success_rate</span><span class="p">,</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="n">cost_per_recovery_success</span><span class="o">/</span><span class="mi">1</span><span class="n">e6</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w">  </span><span class="k">AS</span><span class="w"> </span><span class="n">cost_per_success_j</span><span class="p">,</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">       </span><span class="n">DENSE_RANK</span><span class="p">()</span><span class="w"> </span><span class="n">OVER</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">           </span><span class="n">PARTITION</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">experiment_group</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">           </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">cost_per_recovery_success</span><span class="w"> </span><span class="k">DESC</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">       </span><span class="p">)</span><span class="w">                                         </span><span class="k">AS</span><span class="w"> </span><span class="n">cost_rank</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="k">FROM</span><span class="w"> </span><span class="n">failure_cost_profile</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">experiment_group</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;&lt;group_id&gt;&#39;</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">cost_rank</span><span class="p">;</span>
+</code></pre></div>
+<p>Expected output: one row per failure type, ranked by cost efficiency.
+Rank 1 = most expensive recovery type.</p>
+<p><strong>Q3: EAR vs flat energy comparison across experiment groups</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">workflow_type</span><span class="p">,</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">       </span><span class="n">e</span><span class="p">.</span><span class="n">group_id</span><span class="p">,</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">       </span><span class="k">COUNT</span><span class="p">(</span><span class="k">DISTINCT</span><span class="w"> </span><span class="n">ga</span><span class="p">.</span><span class="n">goal_id</span><span class="p">)</span><span class="w">               </span><span class="k">AS</span><span class="w"> </span><span class="n">goals</span><span class="p">,</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="k">SUM</span><span class="p">(</span><span class="n">ga</span><span class="p">.</span><span class="n">energy_uj</span><span class="p">)</span><span class="o">/</span><span class="mi">1</span><span class="n">e6</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">total_energy_j</span><span class="p">,</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">       </span><span class="n">ROUND</span><span class="p">(</span><span class="k">AVG</span><span class="p">(</span><span class="n">ga</span><span class="p">.</span><span class="n">energy_uj</span><span class="p">)</span><span class="o">/</span><span class="mi">1</span><span class="n">e6</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w">          </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_energy_per_attempt_j</span><span class="p">,</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">       </span><span class="k">SUM</span><span class="p">(</span><span class="k">CASE</span><span class="w"> </span><span class="k">WHEN</span><span class="w"> </span><span class="n">ga</span><span class="p">.</span><span class="n">outcome</span><span class="o">=</span><span class="s1">&#39;success&#39;</span><span class="w"> </span><span class="k">THEN</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">ELSE</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="k">END</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">successes</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="k">FROM</span><span class="w"> </span><span class="n">goal_attempt</span><span class="w"> </span><span class="n">ga</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="n">r</span><span class="w">     </span><span class="k">ON</span><span class="w"> </span><span class="n">ga</span><span class="p">.</span><span class="n">run_id</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">experiments</span><span class="w"> </span><span class="n">e</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">exp_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">exp_id</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">group_id</span><span class="w"> </span><span class="k">IN</span><span class="w"> </span><span class="p">(</span><span class="s1">&#39;&lt;flat_group_id&gt;&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;&lt;ear_group_id&gt;&#39;</span><span class="p">)</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">workflow_type</span><span class="p">,</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">group_id</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">group_id</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">workflow_type</span><span class="p">;</span>
+</code></pre></div>
+<p>Expected output: two rows per workflow type — one for flat, one for EAR.
+Compare <code>total_energy_j</code> and <code>successes</code> to quantify EAR benefit.</p>
+<p><strong>Q4: Injection audit — verify injection fired as expected</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">fil</span><span class="p">.</span><span class="n">status</span><span class="p">,</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">       </span><span class="n">fil</span><span class="p">.</span><span class="n">injected_type</span><span class="p">,</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">       </span><span class="k">COUNT</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w">                                  </span><span class="k">AS</span><span class="w"> </span><span class="k">count</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="k">FROM</span><span class="w"> </span><span class="n">failure_injection_log</span><span class="w"> </span><span class="n">fil</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">goal_attempt</span><span class="w"> </span><span class="n">ga</span><span class="w"> </span><span class="k">ON</span><span class="w"> </span><span class="n">fil</span><span class="p">.</span><span class="n">attempt_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ga</span><span class="p">.</span><span class="n">attempt_id</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="n">r</span><span class="w">          </span><span class="k">ON</span><span class="w"> </span><span class="n">ga</span><span class="p">.</span><span class="n">run_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">run_id</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">experiments</span><span class="w"> </span><span class="n">e</span><span class="w">   </span><span class="k">ON</span><span class="w"> </span><span class="n">r</span><span class="p">.</span><span class="n">exp_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">exp_id</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">group_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;&lt;group_id&gt;&#39;</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="k">GROUP</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">fil</span><span class="p">.</span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">fil</span><span class="p">.</span><span class="n">injected_type</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">fil</span><span class="p">.</span><span class="n">status</span><span class="p">;</span>
+</code></pre></div>
+<p>Expected output: <code>injected|tool_error|N</code> where N matches repetitions.
+If <code>suppressed</code> count is high, check <code>max_injections</code> setting in YAML.
+If <code>eligible</code> count is high but <code>injected</code> is 0, check that <code>rate &gt; 0</code>.</p>
+<hr />
+<h3 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h3>
+<p>Run after completing Stages 1 through 4 to confirm the full pipeline is working:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="c1"># 1. Profiles exist</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a>sqlite3<span class="w"> </span><span class="nv">$DB</span><span class="w"> </span><span class="s2">&quot;SELECT failure_type_id, sample_count FROM failure_cost_profile \</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="s2">  WHERE experiment_group = &#39;&lt;group_id&gt;&#39;;&quot;</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="c1"># Expected: one row per injected failure type with sample_count &gt; 0</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="c1"># 2. Rules calibrated</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>sqlite3<span class="w"> </span><span class="nv">$DB</span><span class="w"> </span><span class="s2">&quot;SELECT failure_type_id, action, max_attempts \</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="s2">  FROM ear_policy_rules epr \</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="s2">  JOIN ear_policy ep ON epr.ear_policy_id = ep.ear_policy_id \</span>
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="s2">  WHERE ep.policy_name = &#39;ear_v1&#39;;&quot;</span>
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="c1"># Expected: one row per failure type in profiles</span>
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a>
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a><span class="c1"># 3. EAR decisions logged</span>
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a>sqlite3<span class="w"> </span><span class="nv">$DB</span><span class="w"> </span><span class="s2">&quot;SELECT action, reason, COUNT(*) FROM ear_decision_log \</span>
+<a id="__codelineno-16-15" name="__codelineno-16-15" href="#__codelineno-16-15"></a><span class="s2">  GROUP BY action, reason;&quot;</span>
+<a id="__codelineno-16-16" name="__codelineno-16-16" href="#__codelineno-16-16"></a><span class="c1"># Expected: rows with action in (retry, abort, fallback)</span>
+<a id="__codelineno-16-17" name="__codelineno-16-17" href="#__codelineno-16-17"></a>
+<a id="__codelineno-16-18" name="__codelineno-16-18" href="#__codelineno-16-18"></a><span class="c1"># 4. Validation suite</span>
+<a id="__codelineno-16-19" name="__codelineno-16-19" href="#__codelineno-16-19"></a>sqlite3<span class="w"> </span><span class="nv">$DB</span><span class="w"> </span>&lt;<span class="w"> </span>scripts/validation/validate_a3_cost_profiling.sql
+<a id="__codelineno-16-20" name="__codelineno-16-20" href="#__codelineno-16-20"></a>sqlite3<span class="w"> </span><span class="nv">$DB</span><span class="w"> </span>&lt;<span class="w"> </span>scripts/validation/validate_a4_ear.sql
+<a id="__codelineno-16-21" name="__codelineno-16-21" href="#__codelineno-16-21"></a><span class="c1"># Expected: V1-V8 pass with 0 rows on error checks</span>
+</code></pre></div>
+<hr />
+<h3 id="known-limitations">Known Limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h3>
+<ul>
+<li>
+<p><strong>Aggregate calibration scope:</strong> EAR v1 calibrates at experiment-group level,
+  aggregating across all task categories and models in the group. If <code>tool_error</code>
+  recovery costs 50 J on math tasks and 200 J on coding tasks, EAR v1 uses the
+  aggregate (e.g. 125 J). This is a finding about EAR v1 design, not a defect.
+  Conditional calibration (per-model, per-task, per-provider) is stated as future
+  work in Paper 8.</p>
+</li>
+<li>
+<p><strong>Minimum sample requirement:</strong> profiles with <code>sample_count &lt; 10</code> produce
+  unreliable percentile estimates (p25/p75/std). Do not use for calibration.
+  Run at least 10 repetitions per failure type before profiling.</p>
+</li>
+<li>
+<p><strong>Hallucination profiles require:</strong> <code>hallucination_events</code> is populated
+  by the quality judge pipeline (<code>quality.enabled: true</code> in experiment YAML).
+  Until at least one quality-enabled experiment runs, hallucination type is
+  excluded from cost profiles. The ETL logs a warning when this occurs.</p>
+</li>
+<li>
+<p><strong>Budget tracking:</strong> <code>budget_remaining_uj</code> is <code>NULL</code> in the current
+  implementation (per-goal budget tracking not yet wired). The
+  <code>ear_budget_exhausted</code> reason code will not fire until budget tracking
+  is implemented. All other reason codes are active.</p>
+</li>
+<li>
+<p><strong>Non-injectable failure types:</strong> <code>hallucination</code>, <code>semantic_error</code>,
+  <code>capability_error</code> cannot be injected via <code>ScenarioInjector</code>. These types
+  are detected by the quality judge path. Cost profiles for these types
+  require detection experiments, not injection experiments.</p>
+</li>
+</ul>
 
 
 

@@ -1156,6 +1156,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#fragment-based-providers-serving-engine-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fragment-based providers (serving engine plugins)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Fragment-based providers (serving engine plugins)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-the-fragment-supplies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the fragment supplies
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-you-write-in-modelsyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What you write in models.yaml
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-override-precedence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The override precedence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verifying-fragment-registration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying fragment registration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1208,6 +1269,34 @@
     
   
     Adding a Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adding-a-tool-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Tool Provider
   
 
     
@@ -1376,6 +1465,118 @@
     
   
     Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../extension-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extenstion System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plugin-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../serving-engine-adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving Engine Adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quality-scoring-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Scoring System
   
 
     
@@ -1903,6 +2104,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../research/failure-injection-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Injection Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../research/tool-instrumentation/" class="md-nav__link">
         
   
@@ -1939,6 +2168,34 @@
     
   
     Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/failure-taxonomy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Taxonomy
   
 
     
@@ -2895,6 +3152,65 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bash<span class="w"> </span>scripts/test_provenance.sh
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>bash<span class="w"> </span>scripts/test_runs_regression.sh<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>FAIL
 </code></pre></div>
+<h2 id="fragment-based-providers-serving-engine-plugins">Fragment-based providers (serving engine plugins)<a class="headerlink" href="#fragment-based-providers-serving-engine-plugins" title="Permanent link">&para;</a></h2>
+<p>The steps above describe adding a cloud or API provider manually.
+For local serving engine providers (vLLM, SGLang, llama.cpp, Colibri,
+TRT-LLM), a different path applies — the plugin owns the provider
+defaults and registers them automatically via the
+<code>alems.models.fragments</code> entry point group.</p>
+<p>You do not write a provider block in models.yaml for these engines.
+The fragment supplies all structural defaults at startup.
+You only write what differs from the fragment defaults.</p>
+<h3 id="what-the-fragment-supplies">What the fragment supplies<a class="headerlink" href="#what-the-fragment-supplies" title="Permanent link">&para;</a></h3>
+<p>When <code>alems-plugin-sglang</code> is installed and <code>models_loader._load()</code>
+runs, the fragment fills these keys automatically:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>is_local, access_method, network_type, captures_network_io,
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>energy_side, openai_compat, base_url (from ALEMS_SGLANG_API_URL),
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>api_key_env, cost_class, priority, rate_limit_tpm,
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>execution_site, transport, remote_energy_available,
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>serving_engine_defaults
+</code></pre></div>
+<h3 id="what-you-write-in-modelsyaml">What you write in models.yaml<a class="headerlink" href="#what-you-write-in-modelsyaml" title="Permanent link">&para;</a></h3>
+<p>Only the model list and any researcher overrides:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">sglang_remote</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">models</span><span class="p">:</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Mistral-7B-Instruct-v0.3</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Mistral 7B (GN100 SGLang)</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Llama-3.2-3B-Instruct</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Llama 3.2 3B (GN100 SGLang)</span>
+</code></pre></div>
+<p>If you need to override <code>base_url</code> for a specific lab setup, add it
+and it beats the fragment value:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">providers</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">sglang_remote</span><span class="p">:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">base_url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http://my-custom-host:30000/v1</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nt">models</span><span class="p">:</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Mistral-7B-Instruct-v0.3</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Mistral 7B</span>
+</code></pre></div>
+<h3 id="the-override-precedence">The override precedence<a class="headerlink" href="#the-override-precedence" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>fragment default &lt; models.yaml value &lt; ~/.alemsrc env var resolution &lt; experiment YAML
+</code></pre></div>
+<p>models.yaml always beats the fragment.
+<code>~/.alemsrc</code> beats models.yaml only through the fragment's
+<code>base_url_env</code> directive — which is resolved before the merge, so
+models.yaml still wins if it has an explicit value.</p>
+<h3 id="verifying-fragment-registration">Verifying fragment registration<a class="headerlink" href="#verifying-fragment-registration" title="Permanent link">&para;</a></h3>
+<p>After installing a plugin, confirm the fragment loaded:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="s2">import logging; logging.basicConfig(level=logging.INFO)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="s2">from core.models_loader import get_provider</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="s2">p = get_provider(&#39;sglang_remote&#39;)</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="s2">print(p[&#39;provider_meta&#39;][&#39;is_local&#39;])</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="s2">print(p[&#39;provider_meta&#39;][&#39;openai_compat&#39;])</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="s2">&quot;</span>
+</code></pre></div>
+<p>The INFO log will show which entry point supplied each provider.
+If <code>get_provider</code> returns None, the plugin is not installed in the
+active venv — install with <code>venv/bin/pip install -e alems-plugin-sglang/</code>.</p>
+<p>See <code>developer/serving-engine-adapters.md</code> for the full plugin
+architecture including adapter, fragment, and preflight entry points.</p>
 
 
 

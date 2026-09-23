@@ -1121,6 +1121,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../developer/adding-a-tool-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Tool Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../developer/model-factory/" class="md-nav__link">
         
   
@@ -1269,6 +1297,118 @@
     
   
     Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/extension-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extenstion System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/plugin-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/serving-engine-adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving Engine Adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/quality-scoring-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Scoring System
   
 
     
@@ -1801,6 +1941,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../failure-injection-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Injection Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../tool-instrumentation/" class="md-nav__link">
         
   
@@ -1837,6 +2005,34 @@
     
   
     Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../failure-taxonomy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Taxonomy
   
 
     
@@ -2167,6 +2363,67 @@
       
     </span>
   </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serving-engine-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serving Engine Telemetry
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Serving Engine Telemetry">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-is-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is measured
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#telemetry-availability-by-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Telemetry availability by engine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metric-name-differences-across-engines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metric name differences across engines
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#joining-energy-and-telemetry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Joining energy and telemetry
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -3382,6 +3639,116 @@ Confidence inherits the minimum of CPU and GPU confidence for the run.</p>
 </tr>
 </tbody>
 </table>
+<h2 id="serving-engine-telemetry">Serving Engine Telemetry<a class="headerlink" href="#serving-engine-telemetry" title="Permanent link">&para;</a></h2>
+<p>GPU energy measurement tells you how much power the GPU drew during a
+run.
+Serving engine telemetry tells you what the engine was doing during
+that same window — KV cache state, request queue depth, token
+throughput.
+The two measurement streams are complementary and stored separately.</p>
+<p>GPU energy rows land in <code>energy_samples</code> and <code>gpu_samples</code>.
+Serving engine telemetry rows land in <code>serving_runtime_snapshots</code>.
+Both are keyed by <code>run_id</code> and <code>attempt_id</code> so they can be joined for
+per-run analysis.</p>
+<h3 id="what-is-measured">What is measured<a class="headerlink" href="#what-is-measured" title="Permanent link">&para;</a></h3>
+<p>Each snapshot captures two logical groups:</p>
+<p><strong>KV cache state</strong> — sampled at the adapter polling interval:</p>
+<p>kv_capacity_tokens — total KV cache capacity in tokens
+kv_occupied_tokens — tokens currently occupying the cache
+kv_occupancy_fraction — occupied / capacity
+kv_hit_rate_aggregate — fraction of requests served from cache
+kv_num_evictions — evictions since server start</p>
+<p><strong>Queue state</strong> — sampled at the same interval:</p>
+<p>queue_active — requests currently being processed
+queue_waiting — requests waiting for a free slot
+queue_completed — total requests completed since server start
+queue_rejected — requests rejected due to queue overflow</p>
+<h3 id="telemetry-availability-by-engine">Telemetry availability by engine<a class="headerlink" href="#telemetry-availability-by-engine" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>KV cache</th>
+<th>Queue</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vLLM</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>GET /metrics (Prometheus)</td>
+</tr>
+<tr>
+<td>SGLang</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>GET /metrics (Prometheus)</td>
+</tr>
+<tr>
+<td>llama-server C++</td>
+<td>Yes</td>
+<td>Partial</td>
+<td>GET /metrics (Prometheus)</td>
+</tr>
+<tr>
+<td>llama-cpp-python</td>
+<td>No</td>
+<td>No</td>
+<td>/metrics returns 404</td>
+</tr>
+<tr>
+<td>Colibri</td>
+<td>No</td>
+<td>Yes</td>
+<td>GET /health (JSON)</td>
+</tr>
+<tr>
+<td>TRT-LLM</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>GET /prometheus/metrics</td>
+</tr>
+</tbody>
+</table>
+<p>Availability is discovered dynamically at adapter startup — never
+assumed from engine type.
+If <code>/metrics</code> returns 404, both groups are set to unavailable and no
+rows are written.
+This is correct behavior, not an error.</p>
+<h3 id="metric-name-differences-across-engines">Metric name differences across engines<a class="headerlink" href="#metric-name-differences-across-engines" title="Permanent link">&para;</a></h3>
+<p>SGLang 0.5.20 uses non-standard metric names that differ from the
+Prometheus exposition format vLLM uses.
+The adapter maps them explicitly:</p>
+<p>sglang:cache_hit_rate → kv_hit_rate_aggregate
+sglang:token_usage → kv_occupancy_fraction
+sglang:num_running_reqs → queue_active
+sglang:num_waiting_reqs → queue_waiting
+sglang:num_requests_total → queue_completed</p>
+<p>These mappings are inside <code>alems-plugin-sglang</code> and are versioned with
+the plugin.
+When SGLang changes metric names in a future release, only the plugin
+needs updating — core schema is unchanged.</p>
+<h3 id="joining-energy-and-telemetry">Joining energy and telemetry<a class="headerlink" href="#joining-energy-and-telemetry" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="k">SELECT</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="n">e</span><span class="p">.</span><span class="n">run_id</span><span class="p">,</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="n">e</span><span class="p">.</span><span class="n">total_energy_uj</span><span class="p">,</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="n">s</span><span class="p">.</span><span class="n">kv_hit_rate_aggregate</span><span class="p">,</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">  </span><span class="n">s</span><span class="p">.</span><span class="n">queue_completed</span><span class="p">,</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">  </span><span class="n">s</span><span class="p">.</span><span class="n">tokens_per_second</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="k">FROM</span><span class="w"> </span><span class="n">runs</span><span class="w"> </span><span class="n">e</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="k">JOIN</span><span class="w"> </span><span class="n">serving_runtime_snapshots</span><span class="w"> </span><span class="n">s</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">  </span><span class="k">ON</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">run_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">run_id</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="k">WHERE</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">provider</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s1">&#39;vllm_remote&#39;</span>
+<a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">e</span><span class="p">.</span><span class="n">created_at</span><span class="w"> </span><span class="k">DESC</span>
+<a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="k">LIMIT</span><span class="w"> </span><span class="mi">20</span><span class="p">;</span>
+</code></pre></div>
+<p>A high <code>kv_hit_rate_aggregate</code> with low <code>total_energy_uj</code> confirms the
+cache was warm — the engine served tokens from memory rather than
+recomputing attention.
+A low hit rate with high energy is the cold-cache penalty that
+researchers should control for across experiment repetitions.</p>
 <hr />
 <h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Permanent link">&para;</a></h2>
 <ol>

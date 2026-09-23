@@ -1121,6 +1121,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../developer/adding-a-tool-provider/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Adding a Tool Provider
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../developer/model-factory/" class="md-nav__link">
         
   
@@ -1269,6 +1297,118 @@
     
   
     Developer Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/extension-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extenstion System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/plugin-packaging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/serving-engine-adapters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Serving Engine Adapters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../developer/quality-scoring-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Scoring System
   
 
     
@@ -1796,6 +1936,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../research/failure-injection-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Injection Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../research/tool-instrumentation/" class="md-nav__link">
         
   
@@ -1832,6 +2000,34 @@
     
   
     Retry Methodology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../research/failure-taxonomy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failure Taxonomy
   
 
     
@@ -2682,6 +2878,67 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#serving-engine-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serving Engine Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Serving Engine Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-two-url-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two URL variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete-alemsrc-reference-for-gn100" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete ~/.alemsrc reference for GN100
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#port-assignments-lab-convention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Port assignments (lab convention)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adding-a-new-machine_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a new machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -3010,6 +3267,104 @@ session:</p>
 Both happen together. See
 <a href="../../contributing/adding-documentation/">Contributing Documentation</a>
 for the full documentation protocol.</p>
+<h2 id="serving-engine-configuration">Serving Engine Configuration<a class="headerlink" href="#serving-engine-configuration" title="Permanent link">&para;</a></h2>
+<p>Each serving engine plugin requires two env vars per engine in
+<code>~/.alemsrc</code> on every machine that runs experiments against that engine.
+These are the only machine-specific configuration A-LEMS requires for
+serving engine telemetry.</p>
+<h3 id="the-two-url-variables">The two URL variables<a class="headerlink" href="#the-two-url-variables" title="Permanent link">&para;</a></h3>
+<p>Every engine has exactly two variables:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>ALEMS_&lt;ENGINE&gt;_API_URL     — OpenAI-compatible inference base URL.
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>                              Includes /v1 suffix.
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>                              Used by models_loader as provider base_url.
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>                              Used by the inference client for chat completions.
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>ALEMS_&lt;ENGINE&gt;_ENGINE_URL  — Serving engine root URL.
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>                              No /v1 suffix, no trailing slash.
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>                              Used by the adapter for telemetry probes
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>                              (/metrics, /health, /v1/models).
+</code></pre></div>
+<p>These are different variables pointing to the same host and port but
+serving different purposes.
+Never alias them, never strip <code>/v1</code> in code — the distinction is
+intentional.</p>
+<h3 id="complete-alemsrc-reference-for-gn100">Complete ~/.alemsrc reference for GN100<a class="headerlink" href="#complete-alemsrc-reference-for-gn100" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_DATA_ROOT</span><span class="o">=</span>/mnt/alems-data
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_MODELS_DIR</span><span class="o">=</span>/home/dpani/mydrive/models
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="c1"># Inference API base URLs (OpenAI-compat, include /v1)</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_VLLM_API_URL</span><span class="o">=</span>http://100.84.85.2:8000/v1
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_SGLANG_API_URL</span><span class="o">=</span>http://100.84.85.2:30000/v1
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_LLAMA_CPP_API_URL</span><span class="o">=</span>http://100.84.85.2:8080/v1
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_COLIBRI_API_URL</span><span class="o">=</span>http://100.84.85.2:8001/v1
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_TRT_LLM_API_URL</span><span class="o">=</span>http://100.84.85.2:8003/v1
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="c1"># Serving engine root URLs (no /v1, for adapter telemetry probes)</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_VLLM_ENGINE_URL</span><span class="o">=</span>http://100.84.85.2:8000
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_SGLANG_ENGINE_URL</span><span class="o">=</span>http://100.84.85.2:30000
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_LLAMA_CPP_ENGINE_URL</span><span class="o">=</span>http://100.84.85.2:8080
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_COLIBRI_ENGINE_URL</span><span class="o">=</span>http://100.84.85.2:8001
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="nb">export</span><span class="w"> </span><span class="nv">ALEMS_TRT_LLM_ENGINE_URL</span><span class="o">=</span>http://100.84.85.2:8003
+</code></pre></div>
+<p>Replace the IP address with the machine's LAN address.
+Port assignments are lab convention — do not change them across machines
+or experiment YAML files will need updating.</p>
+<h3 id="port-assignments-lab-convention">Port assignments (lab convention)<a class="headerlink" href="#port-assignments-lab-convention" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Engine</th>
+<th>API port</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vLLM</td>
+<td>8000</td>
+<td>Primary inference engine</td>
+</tr>
+<tr>
+<td>SGLang</td>
+<td>30000</td>
+<td>SGLang default</td>
+</tr>
+<tr>
+<td>llama.cpp</td>
+<td>8080</td>
+<td>llama-server or llama-cpp-python</td>
+</tr>
+<tr>
+<td>Colibri</td>
+<td>8001</td>
+<td>MoE specialist engine</td>
+</tr>
+<tr>
+<td>TRT-LLM</td>
+<td>8003</td>
+<td>NGC container, mapped to 8003 externally</td>
+</tr>
+</tbody>
+</table>
+<h3 id="adding-a-new-machine_1">Adding a new machine<a class="headerlink" href="#adding-a-new-machine_1" title="Permanent link">&para;</a></h3>
+<p>When a new machine joins the lab fleet:</p>
+<ol>
+<li>Install A-LEMS core and plugins per the installation guide.</li>
+<li>Create <code>~/.alemsrc</code> with the machine's IP in place of <code>100.84.85.2</code>.</li>
+<li>Source it: <code>source ~/.alemsrc</code></li>
+<li>Add <code>source ~/.alemsrc</code> to <code>~/.bashrc</code> so it persists across sessions.</li>
+<li>Verify fragment discovery:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>venv/bin/python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="s2">from importlib.metadata import entry_points</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="s2">for g in [&#39;alems.engines.serving&#39;,&#39;alems.models.fragments&#39;,&#39;alems.preflight.checks&#39;]:</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="s2">    print(g, &#39;-&gt;&#39;, [ep.name for ep in entry_points(group=g)])</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="s2">&quot;</span>
+</code></pre></div>
+<p>All three groups must show all five engine names.
+If a group is empty, the plugin was not installed via <code>venv/bin/pip</code>.
+Never use system pip for A-LEMS plugins — <code>alems-platform</code> is only
+visible inside the venv.</p>
 
 
 
