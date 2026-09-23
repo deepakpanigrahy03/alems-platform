@@ -10,6 +10,12 @@ dependencies = [
 [tool.setuptools]
 packages = ["core", "alems"]
 
+[project.scripts]
+alems = "core.cli.main:main"
+ 
+# Plugin CLI extension point: declared now, unused until after Gate F (section 8a rule 6).
+[project.entry-points."alems.cli.commands"]
+
 [project.entry-points."alems.readers.energy"]
 rapl = "core.readers.rapl_reader:RAPLReader"
 spbm = "core.readers.spbm_energy_reader:SPBMEnergyReader"

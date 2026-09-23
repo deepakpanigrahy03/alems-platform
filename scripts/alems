@@ -30,6 +30,14 @@ print(json.load(open(p)).get('platform_class','unknown') if os.path.exists(p) el
 " 2>/dev/null || echo "unknown"
 }
 
+# ── Python CLI delegation ─────────────────────────────────────────────
+# Commands implemented in core/cli/ are delegated to the Python entry point.
+# Bash subcommands above take priority; unknown commands fall through here.
+_python_cli() {
+    python3 -m core.cli.main "$@"
+    return $?
+}
+
 _db() {
     python3 -c "from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())" \
         2>/dev/null || echo "unknown"
@@ -149,7 +157,7 @@ db.create_tables()
         TASK="${1:-gsm8k_basic}"
         shift || true
         echo "  Running experiment: ${TASK}"
-        python3 -m core.execution.tests.test_harness --task-id "$TASK" "$@"
+        python3 -m core.execution.tests.run_experiment --task-id "$TASK" "$@"
         ;;
 
     measure)
@@ -162,6 +170,11 @@ db.create_tables()
         echo "  Generating report..."
         python3 scripts/generate_report.py "$@" 2>/dev/null || \
             echo "  generate_report.py not yet implemented — coming in next chunk"
+        ;;
+
+    # ── PYTHON CLI COMMANDS (delegated to core/cli) ───────────────────
+    lock)
+        python3 -m core.cli.main lock "$@"
         ;;
 
     # ── HELP ──────────────────────────────────────────────────────────

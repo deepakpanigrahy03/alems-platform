@@ -25,7 +25,9 @@ from core.execution.scorers.abc import ScorerABC
 from core.execution.scorers.registry import ScorerRegistry, DuplicateScorerError, NoScorerError
 from core.execution.scorers.exact_match import ExactMatchScorer
 from core.execution.scorers.semantic import SemanticScorer
-from core.execution.quality_judge import QualityJudge, JudgmentResult, ACCEPTANCE_THRESHOLD
+from core.execution.judgment_types import JudgmentResult
+from core.execution.judgment_engine import ACCEPTANCE_THRESHOLD
+from core.execution.judgment_types import JudgmentResult
 
 
 # ---------------------------------------------------------------------------

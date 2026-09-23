@@ -47,6 +47,14 @@ LIMITED   = hardware unavailable, returns zeros
 ```
 No other modes. No DERIVED mode.
 
+PAC-3 Extension (chunk 39): the SDK Fidelity enum reuses this vocabulary, never a new one.
+Reader outputs: MEASURED, INFERRED, LIMITED.
+Computed values: CALCULATED (as in MPC-1).
+Energy estimators (VM, remote, ML) are INFERRED with a mandatory error bound.
+Agent structure inferred from call graphs (retry, recovery) is INFERRED with an inference rule version.
+Coverage states (filled, empty, unavailable, not_applicable) describe tables, not values, and are a separate axis.
+
+
 ### Rule PAC-4: Graceful Degradation Chain
 Every reader must have implementations for:
 ```
@@ -262,9 +270,11 @@ Migration creates table → schema.py adds CREATE TABLE
 
 ### Rule SC-3: Migration Naming
 ```
-scripts/migrations/NNN_description.sql
+migrations/schema/vNNN_description.sql      DDL only
+migrations/seed/sNNN_description.sql        data only
+migrations/extensions/<namespace>/eNNN_description.sql   namespace owned tables (from chunk 39.5)
 ```
-Where NNN is sequential (015, 016, 017...). Never reuse numbers.
+Where NNN is sequential per folder. Never reuse numbers. See MSC-1 to MSC-6.
 
 ### Rule SC-4: ETL-Populated Columns Insert as NULL
 Columns populated by ETL (not at INSERT time) must:
@@ -737,6 +747,13 @@ Never open sqlite3.connect() directly outside of sqlite_adapter.py.
 Opening a second connection on the same SQLite file causes database locked
 errors that are silent and hard to diagnose.
 
+EEI-2 Extension (chunk 39.2 onward):
+All writes go through the writer session (one logical writer per store, INV-21).
+Runtime and runtime invoked ETL receive a storage handle; they never open their own write connection.
+Direct read only connections in GUI pages, analysis and validation scripts are a documented transitional exception until the storage cleanup chunk after Gate F.
+New code must not add direct connections of any kind.
+Store paths come only from the store resolver (never a literal path, never data/experiments.db).
+
 ### Rule EEI-3: Writers Are Buffers Only
 NormalizedWriter and LegacyWriter buffer samples during measurement.
 They never open DB connections. They return buffers via flush().
@@ -921,7 +938,6 @@ Status values: DRAFT, REVIEW, PRODUCTION, DEPRECATED.
 ## Migration Source Control (MSC)
 ```
 
-Apply this to `compliance/COMPLIANCE.md`, then commit. After that I produce the thermal methodology document correctly following all 10 PDS rules.
 
 MSC-1: Every file in migrations/schema/ and migrations/seed/ is immutable
        after first commit. Fix forward with a new file. No exceptions.
@@ -945,6 +961,9 @@ MSC-5: Adding a column to any table in schema.py requires two changes:
        2. Entry in _col_additions block in create_tables() in sqlite_adapter.py
        Missing step 1 breaks existing DBs. Missing step 2 breaks fresh installs.
        Neither step alone is sufficient.
+       From chunk 39.5, namespace owned tables follow the same two step rule inside
+       their namespace (extension migration plus the namespace create path).
+       Fresh install schema must equal migrated schema (golden check).
 
 MSC-6: Data migrations must never use SELECT * when copying between tables.
        Always use explicit column lists.
@@ -955,6 +974,18 @@ MSC-6: Data migrations must never use SELECT * when copying between tables.
 Any DB schema change MUST follow compliance/MIGRATION_GUIDE.md before touching any migration file.
  
 ---
+ 
+## 18. Chunk 39 Platform Compliance (CH39)
+ 
+CH39-1: During chunk 39, specs/SPEC_39_00_COMMON.md is binding together with this file.
+        Where they conflict, the stricter rule wins; stop and report the conflict.
+CH39-2: Plugins import only alems_sdk (INV-14). No new imports of core from plugin packages.
+CH39-3: Core never imports scripts.
+CH39-4: Registration only through entry points and the registry service. No hardcoded register calls.
+CH39-5: Research features never add core tables. They add namespace tables (extension migrations).
+CH39-6: Every phase 39.1 to 39.5 change must pass golden replay exactly (Rule S).
+CH39-7: One Sonnet session does one work package and ends with a handover file.
+CH39-8: Project content (configs, profiles, datasets, stores) never lives in the install folder.
  
 ## 17. Documentation Protocol
  
