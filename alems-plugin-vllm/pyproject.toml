@@ -20,6 +20,16 @@ dependencies = [
 [project.entry-points."alems.engines.serving"]
 vllm = "alems_plugin_vllm.adapter:VLLMAdapter"
 
+# 8.6-B5: models fragment — declares vllm_remote provider defaults.
+# models_loader._load_fragments() discovers this at startup.
+# models.yaml always wins on collision.
+[project.entry-points."alems.models.fragments"]
+vllm = "alems_plugin_vllm.models_fragment:fragment"
+
+# 8.6-B5: preflight check — config-driven, base_url already resolved from ~/.alemsrc
+[project.entry-points."alems.preflight.checks"]
+vllm_remote = "alems_plugin_vllm.preflight:check"
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"

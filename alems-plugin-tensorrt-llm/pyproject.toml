@@ -15,6 +15,18 @@ dependencies = [
 [project.entry-points."alems.engines.serving"]
 tensorrt_llm = "alems_plugin_tensorrt_llm.adapter:TensorRTLLMAdapter"
 
+# 8.6-B5: models fragment — declares tensorrt_llm_remote provider defaults.
+# models_loader._load_fragments() discovers this at startup.
+# models.yaml always wins on collision.
+# Status: deferred (TRT-LLM ABI mismatch on GN100). Fragment activates
+# automatically once ABI is resolved and plugin is pip-installed.
+[project.entry-points."alems.models.fragments"]
+tensorrt_llm = "alems_plugin_tensorrt_llm.models_fragment:fragment"
+
+# 8.6-B5: preflight check — config-driven, base_url already resolved from ~/.alemsrc
+[project.entry-points."alems.preflight.checks"]
+tensorrt_llm_remote = "alems_plugin_tensorrt_llm.preflight:check"
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"

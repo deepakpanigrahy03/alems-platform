@@ -381,6 +381,27 @@ class DCGMBackend:
             logger.debug("DCGMBackend init failed: %s", e)
             self._handle = None
  
+    def cleanup(self):
+        # type: () -> None
+        """
+        Explicitly release DCGM resources before process exit.
+        Prevents DcgmFieldGroup.__del__ firing during Python shutdown
+        when the handle is already gone — eliminates DCGMError_Badparam
+        on stderr. Safe to call multiple times.
+        """
+        if self._handle is None:
+            return
+        try:
+            self._field_group.Delete()
+        except Exception:
+            pass
+        try:
+            self._handle.Disconnect()
+        except Exception:
+            pass
+        self._handle = None
+        logger.debug("DCGMBackend: cleanup complete")
+
     def is_available(self):
         # type: () -> bool
         return self._handle is not None
@@ -735,6 +756,11 @@ class GPUCollector:
 
         logger.info("GPUCollector stopped: %d samples taken, %d dropped",
                     self._samples_taken, self._samples_dropped)
+
+        # Explicit DCGM cleanup — prevents shutdown-time BadParam traceback
+        if hasattr(self.backend, "cleanup"):
+            self.backend.cleanup()
+
         return samples
 
     def get_sample_count(self):

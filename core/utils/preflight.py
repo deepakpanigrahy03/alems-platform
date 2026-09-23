@@ -122,6 +122,25 @@ def check_groq(config):
     print("✅ Groq API key: OK")
 
 
+def _run_plugin_preflight(provider, config):
+    # type: (str, dict) -> bool
+    """
+    Discover and run plugin-owned preflight check via alems.preflight.checks
+    entry point group. Returns True if a plugin check ran, False if none
+    registered. Never raises — broken plugin is logged and skipped.
+    """
+    try:
+        from importlib.metadata import entry_points
+        for ep in entry_points(group="alems.preflight.checks"):
+            if ep.name == provider:
+                check_fn = ep.load()
+                check_fn(config)
+                return True
+    except Exception as e:
+        print(f"⚠️  Plugin preflight check for '{provider}' failed to load: {e}")
+    return False
+
+
 def preflight(executor, provider):
     """Run checks."""
     print("\n🔍 Pre-flight checks:\n")
@@ -141,6 +160,7 @@ def preflight(executor, provider):
     else:
         check_msr()
     if provider in ("vllm_local", "vllm_remote"):
+        # vllm_local/vllm_remote use built-in check for backward compat
         base_url = executor.config.get("base_url", "http://localhost:8000/v1")
         check_vllm(base_url)
     elif provider == "groq":
@@ -150,7 +170,11 @@ def preflight(executor, provider):
     elif provider == "llama_cpp":
         check_local(executor.config)
     else:
-        print(f"ℹ️  No specific health check for provider '{provider}' — skipping")
+        # Plugin-owned preflight — any installed plugin registers
+        # alems.preflight.checks.<provider_name> entry point.
+        # base_url is already resolved from ~/.alemsrc by models_loader.
+        if not _run_plugin_preflight(provider, executor.config):
+            print(f"ℹ️  No health check registered for provider '{provider}' — skipping")
     print("\n✅ All checks passed! Ready to run experiments.\n")
 
 

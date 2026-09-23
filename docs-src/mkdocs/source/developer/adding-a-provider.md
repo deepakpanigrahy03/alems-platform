@@ -110,3 +110,86 @@ print('error:', result.get('error'))
 bash scripts/test_provenance.sh
 bash scripts/test_runs_regression.sh 2>&1 | grep FAIL
 ```
+
+## Fragment-based providers (serving engine plugins)
+
+The steps above describe adding a cloud or API provider manually.
+For local serving engine providers (vLLM, SGLang, llama.cpp, Colibri,
+TRT-LLM), a different path applies — the plugin owns the provider
+defaults and registers them automatically via the
+`alems.models.fragments` entry point group.
+
+You do not write a provider block in models.yaml for these engines.
+The fragment supplies all structural defaults at startup.
+You only write what differs from the fragment defaults.
+
+### What the fragment supplies
+
+When `alems-plugin-sglang` is installed and `models_loader._load()`
+runs, the fragment fills these keys automatically:
+
+```
+is_local, access_method, network_type, captures_network_io,
+energy_side, openai_compat, base_url (from ALEMS_SGLANG_API_URL),
+api_key_env, cost_class, priority, rate_limit_tpm,
+execution_site, transport, remote_energy_available,
+serving_engine_defaults
+```
+
+### What you write in models.yaml
+
+Only the model list and any researcher overrides:
+
+```yaml
+providers:
+  sglang_remote:
+    models:
+      - id: Mistral-7B-Instruct-v0.3
+        name: Mistral 7B (GN100 SGLang)
+      - id: Llama-3.2-3B-Instruct
+        name: Llama 3.2 3B (GN100 SGLang)
+```
+
+If you need to override `base_url` for a specific lab setup, add it
+and it beats the fragment value:
+
+```yaml
+providers:
+  sglang_remote:
+    base_url: http://my-custom-host:30000/v1
+    models:
+      - id: Mistral-7B-Instruct-v0.3
+        name: Mistral 7B
+```
+
+### The override precedence
+
+```
+fragment default < models.yaml value < ~/.alemsrc env var resolution < experiment YAML
+```
+
+models.yaml always beats the fragment.
+`~/.alemsrc` beats models.yaml only through the fragment's
+`base_url_env` directive — which is resolved before the merge, so
+models.yaml still wins if it has an explicit value.
+
+### Verifying fragment registration
+
+After installing a plugin, confirm the fragment loaded:
+
+```bash
+python3 -c "
+import logging; logging.basicConfig(level=logging.INFO)
+from core.models_loader import get_provider
+p = get_provider('sglang_remote')
+print(p['provider_meta']['is_local'])
+print(p['provider_meta']['openai_compat'])
+"
+```
+
+The INFO log will show which entry point supplied each provider.
+If `get_provider` returns None, the plugin is not installed in the
+active venv — install with `venv/bin/pip install -e alems-plugin-sglang/`.
+
+See `developer/serving-engine-adapters.md` for the full plugin
+architecture including adapter, fragment, and preflight entry points.

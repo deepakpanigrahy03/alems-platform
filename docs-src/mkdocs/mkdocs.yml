@@ -56,6 +56,7 @@ nav:
     - Developer Tools: developer/developer-tools.md
     - Extenstion System : developer/extension-system.md
     - Plugin Architecture: developer/plugin-packaging.md
+    - Serving Engine Adapters: developer/serving-engine-adapters.md
     - Quality Scoring System: developer/quality-scoring-system.md
 
   - Research:

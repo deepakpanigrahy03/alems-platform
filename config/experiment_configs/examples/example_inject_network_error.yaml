@@ -47,3 +47,9 @@ failure_injection:
 
 quality:
   enabled: false
+
+serving_engine:
+  name: vllm_gn100
+  type: vllm
+  endpoint: "http://localhost:8000"
+  telemetry: true

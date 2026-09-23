@@ -14,6 +14,18 @@ dependencies = [
 [project.entry-points."alems.engines.serving"]
 sglang = "alems_plugin_sglang.adapter:SGLangAdapter"
 
+# 8.6-B5: models fragment — declares sglang_remote provider defaults.
+# models_loader._load_fragments() discovers this at startup.
+# models.yaml always wins on collision.
+# NOTE: after B5 is pip-installed, remove the manually added sglang_remote
+# block from models.yaml — the fragment becomes the authoritative source.
+[project.entry-points."alems.models.fragments"]
+sglang = "alems_plugin_sglang.models_fragment:fragment"
+
+# 8.6-B5: preflight check — config-driven, base_url already resolved from ~/.alemsrc
+[project.entry-points."alems.preflight.checks"]
+sglang_remote = "alems_plugin_sglang.preflight:check"
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"

@@ -256,3 +256,89 @@ bash scripts/build-docs.sh --deploy
 Both happen together. See
 [Contributing Documentation](../contributing/adding-documentation.md)
 for the full documentation protocol.
+
+## Serving Engine Configuration
+
+Each serving engine plugin requires two env vars per engine in
+`~/.alemsrc` on every machine that runs experiments against that engine.
+These are the only machine-specific configuration A-LEMS requires for
+serving engine telemetry.
+
+### The two URL variables
+
+Every engine has exactly two variables:
+
+```
+ALEMS_<ENGINE>_API_URL     — OpenAI-compatible inference base URL.
+                              Includes /v1 suffix.
+                              Used by models_loader as provider base_url.
+                              Used by the inference client for chat completions.
+
+ALEMS_<ENGINE>_ENGINE_URL  — Serving engine root URL.
+                              No /v1 suffix, no trailing slash.
+                              Used by the adapter for telemetry probes
+                              (/metrics, /health, /v1/models).
+```
+
+These are different variables pointing to the same host and port but
+serving different purposes.
+Never alias them, never strip `/v1` in code — the distinction is
+intentional.
+
+### Complete ~/.alemsrc reference for GN100
+
+```bash
+export ALEMS_DATA_ROOT=/mnt/alems-data
+export ALEMS_MODELS_DIR=/home/dpani/mydrive/models
+
+# Inference API base URLs (OpenAI-compat, include /v1)
+export ALEMS_VLLM_API_URL=http://100.84.85.2:8000/v1
+export ALEMS_SGLANG_API_URL=http://100.84.85.2:30000/v1
+export ALEMS_LLAMA_CPP_API_URL=http://100.84.85.2:8080/v1
+export ALEMS_COLIBRI_API_URL=http://100.84.85.2:8001/v1
+export ALEMS_TRT_LLM_API_URL=http://100.84.85.2:8003/v1
+
+# Serving engine root URLs (no /v1, for adapter telemetry probes)
+export ALEMS_VLLM_ENGINE_URL=http://100.84.85.2:8000
+export ALEMS_SGLANG_ENGINE_URL=http://100.84.85.2:30000
+export ALEMS_LLAMA_CPP_ENGINE_URL=http://100.84.85.2:8080
+export ALEMS_COLIBRI_ENGINE_URL=http://100.84.85.2:8001
+export ALEMS_TRT_LLM_ENGINE_URL=http://100.84.85.2:8003
+```
+
+Replace the IP address with the machine's LAN address.
+Port assignments are lab convention — do not change them across machines
+or experiment YAML files will need updating.
+
+### Port assignments (lab convention)
+
+| Engine | API port | Notes |
+|---|---|---|
+| vLLM | 8000 | Primary inference engine |
+| SGLang | 30000 | SGLang default |
+| llama.cpp | 8080 | llama-server or llama-cpp-python |
+| Colibri | 8001 | MoE specialist engine |
+| TRT-LLM | 8003 | NGC container, mapped to 8003 externally |
+
+### Adding a new machine
+
+When a new machine joins the lab fleet:
+
+1. Install A-LEMS core and plugins per the installation guide.
+2. Create `~/.alemsrc` with the machine's IP in place of `100.84.85.2`.
+3. Source it: `source ~/.alemsrc`
+4. Add `source ~/.alemsrc` to `~/.bashrc` so it persists across sessions.
+5. Verify fragment discovery:
+
+```bash
+venv/bin/python3 -c "
+from importlib.metadata import entry_points
+for g in ['alems.engines.serving','alems.models.fragments','alems.preflight.checks']:
+    print(g, '->', [ep.name for ep in entry_points(group=g)])
+"
+```
+
+All three groups must show all five engine names.
+If a group is empty, the plugin was not installed via `venv/bin/pip`.
+Never use system pip for A-LEMS plugins — `alems-platform` is only
+visible inside the venv.

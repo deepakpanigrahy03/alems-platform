@@ -223,3 +223,83 @@ first.
 Open an issue describing what adapter family your plugin targets, test
 it against the synthetic platform, then publish to PyPI and submit a
 pull request adding it to the plugin catalog.
+
+## Serving engine plugins
+
+Serving engine plugins are a specific adapter family that differs from
+reader and execution plugins in one important way: they register three
+entry point groups instead of one.
+Each group has a distinct responsibility and a distinct discovery path.
+
+### The three entry point groups
+
+```toml
+[project.entry-points."alems.engines.serving"]
+vllm = "alems_plugin_vllm.adapter:VLLMAdapter"
+
+[project.entry-points."alems.models.fragments"]
+vllm = "alems_plugin_vllm.models_fragment:fragment"
+
+[project.entry-points."alems.preflight.checks"]
+vllm_remote = "alems_plugin_vllm.preflight:check"
+```
+
+Note the naming convention: `alems.engines.serving` and
+`alems.models.fragments` use the engine short name (`vllm`).
+`alems.preflight.checks` uses the provider name (`vllm_remote`) because
+preflight lookup is keyed by provider name at experiment time, not
+engine name.
+
+### Installing and verifying
+
+Always install serving engine plugins via `venv/bin/pip`:
+
+```bash
+venv/bin/pip install -e alems-plugin-vllm/
+```
+
+System pip will fail because `alems-platform` is only visible inside
+the venv.
+Verify all three groups after install:
+
+```bash
+venv/bin/python3 -c "
+from importlib.metadata import entry_points
+for g in ['alems.engines.serving','alems.models.fragments','alems.preflight.checks']:
+    print(g, '->', [ep.name for ep in entry_points(group=g)])
+"
+```
+
+### What happens at startup
+
+When `models_loader._load()` runs for the first time in a process:
+
+1. `models.yaml` is read into `raw_providers`.
+2. `_load_fragments()` calls `entry_points(group='alems.models.fragments')` and loads each fragment dict.
+3. `_resolve_fragment_env_vars()` consumes `<key>_env` directives — reads env vars and sets base values.
+4. `_deep_merge_missing()` fills keys absent from `raw_providers` with fragment values. `models.yaml` wins on every collision.
+5. `_log_provenance()` logs which entry point supplied each fragment-sourced provider at INFO level.
+6. The expanded provider dict is cached for the process lifetime.
+
+When the serving registry initialises:
+
+1. `entry_points(group='alems.engines.serving')` discovers all adapter classes.
+2. Each adapter calls `AdapterConfig.resolve()` to get its endpoint.
+3. `CapabilityDiscoveryMixin` probes the live engine and sets `self._caps`.
+4. Adapters with no reachable engine set `scope=unavailable` and write no rows.
+
+When preflight runs before an experiment:
+
+1. `_run_plugin_preflight(provider, config)` calls `entry_points(group='alems.preflight.checks')`.
+2. It matches `ep.name == provider` and calls `ep.load()(config)`.
+3. The check function receives the fully resolved config dict — `base_url` is already env-expanded.
+4. On failure, it prints an actionable error with the exact start command and calls `sys.exit()`.
+5. No experiment runs against an unreachable engine.
+
+### Duplicate provider guard
+
+If two installed plugins declare the same provider name in their
+fragments, first-discovered wins and a WARNING is logged.
+This is intentional — silent collisions are worse than loud ones.
+The warning names both plugins so the conflict is immediately
+actionable.

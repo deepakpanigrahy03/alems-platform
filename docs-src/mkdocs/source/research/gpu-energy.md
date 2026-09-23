@@ -314,7 +314,100 @@ ALTER TABLE run_quality ADD COLUMN gpu_rejection_reason TEXT;
 | `nvml_power_integration_v1` | MEASURED | 0.85 | NVML fallback |
 | `dcgm_energy_v1` | MEASURED | 1.0 | DCGM |
 | `iokit_gpu_energy_v1` | MEASURED | 0.90 | IOKit |
-| `rocm_smi_energy_v1` | MEASURED | 0.85 | ROCm |
+| `rocm_smi_energy_v1` | MEASURED | 0.85 | ROCm |---
+
+## Serving Engine Telemetry
+
+GPU energy measurement tells you how much power the GPU drew during a
+run.
+Serving engine telemetry tells you what the engine was doing during
+that same window — KV cache state, request queue depth, token
+throughput.
+The two measurement streams are complementary and stored separately.
+
+GPU energy rows land in `energy_samples` and `gpu_samples`.
+Serving engine telemetry rows land in `serving_runtime_snapshots`.
+Both are keyed by `run_id` and `attempt_id` so they can be joined for
+per-run analysis.
+
+### What is measured
+
+Each snapshot captures two logical groups:
+
+**KV cache state** — sampled at the adapter polling interval:
+
+kv_capacity_tokens — total KV cache capacity in tokens
+kv_occupied_tokens — tokens currently occupying the cache
+kv_occupancy_fraction — occupied / capacity
+kv_hit_rate_aggregate — fraction of requests served from cache
+kv_num_evictions — evictions since server start
+
+
+**Queue state** — sampled at the same interval:
+
+queue_active — requests currently being processed
+queue_waiting — requests waiting for a free slot
+queue_completed — total requests completed since server start
+queue_rejected — requests rejected due to queue overflow
+
+
+### Telemetry availability by engine
+
+| Engine | KV cache | Queue | Source |
+|---|---|---|---|
+| vLLM | Yes | Yes | GET /metrics (Prometheus) |
+| SGLang | Yes | Yes | GET /metrics (Prometheus) |
+| llama-server C++ | Yes | Partial | GET /metrics (Prometheus) |
+| llama-cpp-python | No | No | /metrics returns 404 |
+| Colibri | No | Yes | GET /health (JSON) |
+| TRT-LLM | Yes | Yes | GET /prometheus/metrics |
+
+Availability is discovered dynamically at adapter startup — never
+assumed from engine type.
+If `/metrics` returns 404, both groups are set to unavailable and no
+rows are written.
+This is correct behavior, not an error.
+
+### Metric name differences across engines
+
+SGLang 0.5.20 uses non-standard metric names that differ from the
+Prometheus exposition format vLLM uses.
+The adapter maps them explicitly:
+
+sglang:cache_hit_rate → kv_hit_rate_aggregate
+sglang:token_usage → kv_occupancy_fraction
+sglang:num_running_reqs → queue_active
+sglang:num_waiting_reqs → queue_waiting
+sglang:num_requests_total → queue_completed
+
+
+These mappings are inside `alems-plugin-sglang` and are versioned with
+the plugin.
+When SGLang changes metric names in a future release, only the plugin
+needs updating — core schema is unchanged.
+
+### Joining energy and telemetry
+
+```sql
+SELECT
+  e.run_id,
+  e.total_energy_uj,
+  s.kv_hit_rate_aggregate,
+  s.queue_completed,
+  s.tokens_per_second
+FROM runs e
+JOIN serving_runtime_snapshots s
+  ON e.run_id = s.run_id
+WHERE e.provider = 'vllm_remote'
+ORDER BY e.created_at DESC
+LIMIT 20;
+```
+
+A high `kv_hit_rate_aggregate` with low `total_energy_uj` confirms the
+cache was warm — the engine served tokens from memory rather than
+recomputing attention.
+A low hit rate with high energy is the cold-cache penalty that
+researchers should control for across experiment repetitions.
 
 ---
 

@@ -18,6 +18,18 @@ dependencies = [
 [project.entry-points."alems.engines.serving"]
 colibri = "alems_plugin_colibri.adapter:ColibriAdapter"
 
+# 8.6-B5: models fragment — declares colibri_remote provider defaults.
+# models_loader._load_fragments() discovers this at startup.
+# models.yaml always wins on collision.
+# Status: deferred (no supported model on GN100). Fragment activates
+# automatically once a supported model (GLM-5.2, Kimi K3) is downloaded.
+[project.entry-points."alems.models.fragments"]
+colibri = "alems_plugin_colibri.models_fragment:fragment"
+
+# 8.6-B5: preflight check — config-driven, base_url already resolved from ~/.alemsrc
+[project.entry-points."alems.preflight.checks"]
+colibri_remote = "alems_plugin_colibri.preflight:check"
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
