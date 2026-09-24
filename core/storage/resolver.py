@@ -10,11 +10,10 @@ resolve_store() instead of constructing paths themselves.
 Resolution order (first match wins):
   1. explicit argument passed by the caller (--project or --store flag)
   2. ALEMS_STORE env var
-  3. ALEMS_PROJECT env var (path to a project directory; store is
-     <project>/data/experiments.db as declared in alems.project manifest)
-  4. alems.project manifest found by walking up from cwd
-  5. active project set by 'alems project use' stored in
-     $ALEMS_DATA_ROOT/<host>/.alems_active_project
+  3. ALEMS_SANDBOX env var (path to sandbox directory; ALEMS_PROJECT accepted with deprecation warning)
+  4. alems-sandbox.yaml manifest found by walking up from cwd (alems.project accepted with deprecation warning)
+  5. active sandbox set by 'alems sandbox use' stored in
+     $ALEMS_DATA_ROOT/<host>/users/<user>/active-sandbox
   6. existing path_loader layers (ALEMS_DATA_ROOT + hostname + env)
   7. hardcoded fallback data/experiments.db with a deprecation warning
 
@@ -75,14 +74,20 @@ def resolve_store(explicit: Optional[str] = None) -> str:
     if store_env:
         return str(Path(store_env).resolve())
 
-    # Layer 3: ALEMS_PROJECT env var — project directory, store inside it.
-    project_env = os.environ.get("ALEMS_PROJECT")
+    # Layer 3: ALEMS_SANDBOX env var — sandbox directory, store derived from manifest.
+    # ALEMS_PROJECT accepted with a deprecation warning for one release.
+    project_env = os.environ.get("ALEMS_SANDBOX") or os.environ.get("ALEMS_PROJECT")
+    if not os.environ.get("ALEMS_SANDBOX") and os.environ.get("ALEMS_PROJECT"):
+        logger.warning(
+            "ALEMS_PROJECT is deprecated; rename to ALEMS_SANDBOX."
+        )
     if project_env:
         store = _store_from_project_dir(Path(project_env))
         if store:
             return store
 
-    # Layer 4: walk up from cwd looking for alems.project manifest.
+    # Layer 4: walk up from cwd looking for alems-sandbox.yaml manifest.
+    # alems.project accepted with a deprecation warning for one release.
     manifest_store = _walk_for_manifest()
     if manifest_store:
         return manifest_store
@@ -132,7 +137,7 @@ def resolve_store(explicit: Optional[str] = None) -> str:
     if not _fallback_warned:
         logger.warning(
             "resolve_store: falling back to data/experiments.db — "
-            "set ALEMS_DATA_ROOT in ~/.alemsrc or run 'alems project create'."
+            "set ALEMS_DATA_ROOT in ~/.alemsrc or run 'alems sandbox create'."
         )
         _fallback_warned = True
     return str(Path("data/experiments.db").resolve())
@@ -143,7 +148,13 @@ def _store_from_project_dir(project_dir: Path) -> Optional[str]:
     Read alems.project manifest in project_dir and return the store path.
     Falls back to <project_dir>/data/experiments.db if manifest is absent.
     """
-    manifest = project_dir / "alems.project"
+    manifest = project_dir / "alems-sandbox.yaml"
+    if not manifest.exists():
+        manifest = project_dir / "alems.project"
+        if manifest.exists():
+            logger.warning(
+                "alems.project is deprecated; rename to alems-sandbox.yaml."
+            )
     if manifest.exists():
         try:
             import yaml  # type: ignore
@@ -169,7 +180,9 @@ def _walk_for_manifest() -> Optional[str]:
     """Walk from cwd upward looking for an alems.project file."""
     current = Path.cwd()
     for parent in [current, *current.parents]:
-        candidate = parent / "alems.project"
+        candidate = parent / "alems-sandbox.yaml"
+        if not candidate.exists():
+            candidate = parent / "alems.project"
         if candidate.exists():
             store = _store_from_project_dir(parent)
             if store:
@@ -183,17 +196,27 @@ def _walk_for_manifest() -> Optional[str]:
 
 def _read_active_project() -> Optional[str]:
     """
-    Read the active project path written by 'alems project use'.
+    Read the active sandbox path written by 'alems sandbox use'.
 
-    Stored at $ALEMS_DATA_ROOT/<host>/.alems_active_project (Option A
-    agreed 2026-09-24 — machine config lives under ALEMS_DATA_ROOT, never
-    ~/.config, so prod and dev environments stay isolated).
+    Stored at $ALEMS_DATA_ROOT/<host>/users/<user>/active-sandbox.
+    Legacy path $ALEMS_DATA_ROOT/<host>/.alems_active_project accepted
+    with a deprecation warning for one release.
     """
     base = os.environ.get("ALEMS_DATA_ROOT")
     if not base:
         return None
     host = socket.gethostname().lower()
-    pointer = Path(base) / host / ".alems_active_project"
+    user = os.environ.get("USER", "unknown")
+    pointer = Path(base) / host / "users" / user / "active-sandbox"
+    if not pointer.exists():
+        # Legacy fallback.
+        legacy = Path(base) / host / ".alems_active_project"
+        if legacy.exists():
+            logger.warning(
+                ".alems_active_project is deprecated; "
+                "run 'alems sandbox use <dir>' to migrate."
+            )
+            pointer = legacy
     if not pointer.exists():
         return None
     try:

@@ -131,12 +131,12 @@ def cmd_capture(argv: List[str]) -> int:
     try:
         violations = check_coverage(conn, ownership)
         if violations:
-            print(f"[audit] AUTO-REGISTERING {len(violations)} unlisted tables/views:")
+            print(f"[audit] FAIL: {len(violations)} unlisted tables/views in DB:")
             for v in violations:
                 print(f"  {v}")
-            auto_register_unknown(violations)
-            ownership = load_ownership()
-            print(f"[audit] Review and correct owner/golden_class in table_ownership.yaml")
+            print("[audit] Add each to config/schema/table_ownership.yaml and re-run.")
+            print("[audit] Do NOT use auto_register_unknown; edit the file manually.")
+            return 1
 
         print("[audit] reading reference runs from live DB ...")
         dump = dump_all(conn, ownership, ref_run_ids, nondeterministic)

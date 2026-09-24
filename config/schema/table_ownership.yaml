@@ -1,1000 +1,1036 @@
-# config/schema/table_ownership.yaml
-# Table ownership map for A-LEMS chunk 39 (SPEC_39_1 section 6).
-# Authority: DESIGN_CHUNK39_v3.md D5.1, D5.2, D5.3.
-#
-# Fields per entry:
-#   owner:       core | <namespace>  (namespace names match extension_registry.name)
-#   kind:        table | view
-#   evidence:    how ownership was determined
-#   golden_class:
-#     raw:       written once by readers/ingestion; checked by row count and content hash
-#     derived:   recomputed by ETL; replayed and diffed exactly
-#     config:    seeded or registry data; checked by whole-table hash
-#     gui:       GUI configuration; checked by whole-table hash
-#     meta:      schema/migration bookkeeping; checked by whole-table hash
-#   natural_key: columns that uniquely identify a row without the autoincrement id
-#   run_linkage: column path from this table to a run/goal/attempt/experiment, or none
-#
-# 86 tables, 35 views.  Coverage enforced by golden check (SPEC_39_1 section 7.2a rule 3).
-
 tables:
-
   analysis_domain_config:
-    owner: gui
-    kind: table
     evidence: no run_id; drives GUI analysis page layout; seeded by GUI migrations
     golden_class: gui
-    natural_key: [domain_name]
-    run_linkage: none
-
-  analysis_view_config:
-    owner: gui
     kind: table
+    natural_key:
+    - domain_name
+    owner: gui
+    run_linkage: none
+  analysis_view_config:
     evidence: no run_id; drives GUI view configuration
     golden_class: gui
-    natural_key: [view_name]
-    run_linkage: none
-
-  audit_log:
-    owner: core
     kind: table
+    natural_key:
+    - view_name
+    owner: gui
+    run_linkage: none
+  audit_log:
     evidence: platform-level audit trail; written by core on schema changes
     golden_class: meta
-    natural_key: [id]
-    run_linkage: none
-
-  cache_state_snapshots:
-    owner: telemetry
     kind: table
+    natural_key:
+    - id
+    owner: core
+    run_linkage: none
+  cache_state_snapshots:
     evidence: extension_registry name=telemetry; cache telemetry collector output
     golden_class: raw
-    natural_key: [run_id, snapshot_time]
-    run_linkage: run_id
-
-  component_registry:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - snapshot_time
+    owner: telemetry
+    run_linkage: run_id
+  component_registry:
     evidence: seeded by core migrations; lists registered harness components
     golden_class: config
-    natural_key: [component_name, component_type]
-    run_linkage: none
-
-  cooling_devices:
-    owner: core
     kind: table
+    natural_key:
+    - component_name
+    - component_type
+    owner: core
+    run_linkage: none
+  cooling_devices:
     evidence: hardware topology; written by detect_hardware at setup
     golden_class: config
-    natural_key: [machine_id, device_name]
-    run_linkage: none
-
-  cooling_samples:
-    owner: core
     kind: table
+    natural_key:
+    - machine_id
+    - device_name
+    owner: core
+    run_linkage: none
+  cooling_samples:
     evidence: written by cooling reader during runs
     golden_class: raw
-    natural_key: [run_id, sample_time, device_id]
-    run_linkage: run_id
-
-  cpu_idle_states:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - device_id
+    owner: core
+    run_linkage: run_id
+  cpu_idle_states:
     evidence: hardware topology; written by detect_hardware at setup
     golden_class: config
-    natural_key: [machine_id, cpu_id, state_name]
-    run_linkage: none
-
-  cpu_samples:
-    owner: core
     kind: table
+    natural_key:
+    - machine_id
+    - cpu_id
+    - state_name
+    owner: core
+    run_linkage: none
+  cpu_samples:
     evidence: written by turbostat/cpu reader during runs (INV-1)
     golden_class: raw
-    natural_key: [run_id, sample_time]
-    run_linkage: run_id
-
-  device_telemetry:
-    owner: telemetry
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    owner: core
+    run_linkage: run_id
+  device_telemetry:
     evidence: extension_registry name=telemetry
     golden_class: raw
-    natural_key: [run_id, device_id, sample_time]
+    kind: table
+    natural_key:
+    - run_id
+    - device_id
+    - sample_time
+    owner: telemetry
     run_linkage: run_id
-
   ear_decision_log:
-    owner: orchestration
-    kind: table
-    evidence: extension_registry name=orchestration; EAR policy decisions logged per attempt
+    evidence: extension_registry name=orchestration; EAR policy decisions logged per
+      attempt
     golden_class: raw
-    natural_key: [decision_id]
-    run_linkage: goal_attempt.attempt_id
-    run_linkage: run_id -> goal_attempt.run_id
-
-  ear_policy:
-    owner: orchestration
     kind: table
+    natural_key:
+    - decision_id
+    owner: orchestration
+    run_linkage: run_id -> goal_attempt.run_id
+  ear_policy:
     evidence: extension_registry name=orchestration; seeded EAR policy definitions
     golden_class: config
-    natural_key: [policy_name]
-    run_linkage: none
-
-  ear_policy_rules:
-    owner: orchestration
     kind: table
+    natural_key:
+    - policy_name
+    owner: orchestration
+    run_linkage: none
+  ear_policy_rules:
     evidence: extension_registry name=orchestration; rules within each EAR policy
     golden_class: config
-    natural_key: [policy_name, rule_order]
-    run_linkage: none
-
-  energy_attribution:
-    owner: attribution
     kind: table
+    natural_key:
+    - policy_name
+    - rule_order
+    owner: orchestration
+    run_linkage: none
+  energy_attribution:
     evidence: extension_registry name=attribution; written by phase_attribution_etl
     golden_class: derived
-    natural_key: [run_id, phase, energy_domain]
-    run_linkage: run_id
-
-  energy_derived_metrics:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - phase
+    - energy_domain
+    owner: attribution
+    run_linkage: run_id
+  energy_derived_metrics:
     evidence: written by aggregate_hardware_metrics ETL after each run
     golden_class: derived
-    natural_key: [run_id]
-    run_linkage: run_id
-
-  energy_domains:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    owner: core
+    run_linkage: run_id
+  energy_domains:
     evidence: hardware topology; seeded by detect_hardware; describes RAPL domains
     golden_class: config
-    natural_key: [machine_id, domain_name]
-    run_linkage: none
-
-  energy_sample_domains:
-    owner: core
     kind: table
+    natural_key:
+    - machine_id
+    - domain_name
+    owner: core
+    run_linkage: none
+  energy_sample_domains:
     evidence: join table linking energy_samples to energy_domains
     golden_class: raw
-    natural_key: [sample_id, domain_id]
-    run_linkage: sample_id -> energy_samples.run_id
-
-  energy_samples:
-    owner: core
     kind: table
+    natural_key:
+    - sample_id
+    - domain_id
+    owner: core
+    run_linkage: sample_id -> energy_samples.run_id
+  energy_samples:
     evidence: primary RAPL counter table; written by energy reader (INV-1)
     golden_class: raw
-    natural_key: [run_id, sample_time, domain_id]
-    run_linkage: run_id
-
-  energy_samples_v2:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - domain_id
+    owner: core
+    run_linkage: run_id
+  energy_samples_v2:
     evidence: updated energy sample schema; same writer as energy_samples
     golden_class: raw
-    natural_key: [run_id, sample_time, domain_id]
-    run_linkage: run_id
-
-  energy_sources:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - domain_id
+    owner: core
+    run_linkage: run_id
+  energy_sources:
     evidence: seeded by detect_hardware; lists available energy measurement sources
     golden_class: config
-    natural_key: [machine_id, source_name]
-    run_linkage: none
-
-  environment_config:
-    owner: core
     kind: table
+    natural_key:
+    - machine_id
+    - source_name
+    owner: core
+    run_linkage: none
+  environment_config:
     evidence: written by detect_environment at setup; forensic anchor (FAD-1)
     golden_class: config
-    natural_key: [env_id]
+    kind: table
+    natural_key:
+    - env_id
+    owner: core
     run_linkage: none
-
   etl_queue:
-    owner: core
-    kind: table
-    evidence: written by queue_etl after save_pair/save_single; consumed by async worker
+    evidence: written by queue_etl after save_pair/save_single; consumed by async
+      worker
     golden_class: derived
-    natural_key: [run_id, etl_name]
-    run_linkage: run_id
-
-  eval_criteria:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - etl_name
+    owner: core
+    run_linkage: run_id
+  eval_criteria:
     evidence: seeded task evaluation criteria; read by scorers
     golden_class: config
-    natural_key: [task_id, criterion_name]
-    run_linkage: none
-
-  experiments:
-    owner: core
     kind: table
+    natural_key:
+    - task_id
+    - criterion_name
+    owner: core
+    run_linkage: none
+  experiments:
     evidence: top-level experiment grouping; written by experiment_runner
     golden_class: raw
-    natural_key: [exp_id]
-    run_linkage: exp_id -> runs.exp_id
-
-  extension_registry:
-    owner: core
     kind: table
+    natural_key:
+    - exp_id
+    owner: core
+    run_linkage: exp_id -> runs.exp_id
+  extension_registry:
     evidence: v089 migration; tracks plugin namespaces; 11 legacy rows confirmed
     golden_class: config
-    natural_key: [name]
-    run_linkage: none
-
-  failure_cost_profile:
-    owner: failure_recovery
     kind: table
+    natural_key:
+    - name
+    owner: core
+    run_linkage: none
+  failure_cost_profile:
     evidence: extension_registry name=failure_recovery; cost profile per failure type
     golden_class: config
-    natural_key: [failure_type, profile_version]
-    run_linkage: none
-
-  failure_injection_log:
-    owner: orchestration
     kind: table
+    natural_key:
+    - failure_type
+    - profile_version
+    owner: failure_recovery
+    run_linkage: none
+  failure_injection_log:
     evidence: extension_registry name=orchestration; written by injection engine
     golden_class: raw
-    natural_key: [run_id, injection_time]
-    run_linkage: run_id
-
-  failure_taxonomy:
-    owner: failure_recovery
     kind: table
+    natural_key:
+    - run_id
+    - injection_time
+    owner: orchestration
+    run_linkage: run_id
+  failure_taxonomy:
     evidence: extension_registry name=failure_recovery; seeded taxonomy
     golden_class: config
-    natural_key: [failure_code]
-    run_linkage: none
-
-  goal_attempt:
-    owner: core
     kind: table
+    natural_key:
+    - failure_code
+    owner: failure_recovery
+    run_linkage: none
+  goal_attempt:
     evidence: written by goal_execution_manager per attempt
     golden_class: raw
-    natural_key: [run_id, attempt_number]
-    run_linkage: run_id
-
-  goal_execution:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - attempt_number
+    owner: core
+    run_linkage: run_id
+  goal_execution:
     evidence: written by goal_execution_etl after each run
     golden_class: derived
-    natural_key: [run_id]
-    run_linkage: run_id
-
-  goal_output:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    owner: core
+    run_linkage: run_id
+  goal_output:
     evidence: written by experiment_runner after each run; stores final output
     golden_class: raw
-    natural_key: [run_id]
-    run_linkage: run_id
-
-  gpu_config:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    owner: core
+    run_linkage: run_id
+  gpu_config:
     evidence: hardware topology; written by detect_hardware
     golden_class: config
-    natural_key: [machine_id, gpu_index]
-    run_linkage: none
-
-  gpu_samples:
-    owner: core
     kind: table
+    natural_key:
+    - machine_id
+    - gpu_index
+    owner: core
+    run_linkage: none
+  gpu_samples:
     evidence: written by GPU reader during runs (INV-1)
     golden_class: raw
-    natural_key: [run_id, sample_time, gpu_index]
-    run_linkage: run_id
-
-  hallucination_events:
-    owner: output_quality
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - gpu_index
+    owner: core
+    run_linkage: run_id
+  hallucination_events:
     evidence: extension_registry name=output_quality; written by output quality scorer
     golden_class: raw
-    natural_key: [run_id, attempt_id, event_time]
-    run_linkage: run_id
-
-  hardware_config:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - attempt_id
+    - event_time
+    owner: output_quality
+    run_linkage: run_id
+  hardware_config:
     evidence: hardware topology; written by detect_hardware at setup
     golden_class: config
-    natural_key: [machine_id]
-    run_linkage: none
-
-  idle_baseline_domains:
-    owner: core
     kind: table
+    natural_key:
+    - machine_id
+    owner: core
+    run_linkage: none
+  idle_baseline_domains:
     evidence: written by idle baseline capture; links baselines to energy domains
     golden_class: config
-    natural_key: [baseline_id, domain_id]
-    run_linkage: none
-
-  idle_baselines:
-    owner: core
     kind: table
+    natural_key:
+    - baseline_id
+    - domain_id
+    owner: core
+    run_linkage: none
+  idle_baselines:
     evidence: written by measure baseline command; read by attribution ETL
     golden_class: config
-    natural_key: [machine_id, baseline_date, workflow_type]
-    run_linkage: none
-
-  interrupt_samples:
-    owner: core
     kind: table
+    natural_key:
+    - machine_id
+    - baseline_date
+    - workflow_type
+    owner: core
+    run_linkage: none
+  interrupt_samples:
     evidence: written by interrupt reader (/proc/stat) during runs
     golden_class: raw
-    natural_key: [run_id, sample_time]
-    run_linkage: run_id
-
-  io_samples:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    owner: core
+    run_linkage: run_id
+  io_samples:
     evidence: written by disk reader (/proc/diskstats) during runs
     golden_class: raw
-    natural_key: [run_id, sample_time, device]
-    run_linkage: run_id
-
-  llm_interactions:
-    owner: llm_tracking
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - device
+    owner: core
+    run_linkage: run_id
+  llm_interactions:
     evidence: extension_registry name=llm_tracking; written by LLM interaction logger
     golden_class: raw
-    natural_key: [run_id, interaction_time, attempt_number]
-    run_linkage: run_id
-
-  machine_setup_history:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - interaction_time
+    - attempt_number
+    owner: llm_tracking
+    run_linkage: run_id
+  machine_setup_history:
     evidence: written by detect_hardware and install scripts; audit trail
     golden_class: meta
-    natural_key: [setup_time, hostname]
-    run_linkage: none
-
-  measurement_method_registry:
-    owner: core
     kind: table
+    natural_key:
+    - setup_time
+    - hostname
+    owner: core
+    run_linkage: none
+  measurement_method_registry:
     evidence: seeded by seed_methodology.py; methodology registry (MPC-2)
     golden_class: config
-    natural_key: [method_id]
-    run_linkage: none
-
-  measurement_methodology:
-    owner: core
     kind: table
+    natural_key:
+    - method_id
+    owner: core
+    run_linkage: none
+  measurement_methodology:
     evidence: written per run; records method used per column (MPC-1)
     golden_class: raw
-    natural_key: [run_id, column_name]
-    run_linkage: run_id
-
-  method_references:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - column_name
+    owner: core
+    run_linkage: run_id
+  method_references:
     evidence: seeded by seed_methodology.py; literature references per method (MPC-3)
     golden_class: config
-    natural_key: [method_id, ref_index]
-    run_linkage: none
-
-  metric_analysis_domains:
-    owner: gui
     kind: table
+    natural_key:
+    - method_id
+    - ref_index
+    owner: core
+    run_linkage: none
+  metric_analysis_domains:
     evidence: GUI configuration; maps metrics to analysis domains
     golden_class: gui
-    natural_key: [metric_name, domain_name]
-    run_linkage: none
-
-  metric_display_registry:
-    owner: gui
     kind: table
+    natural_key:
+    - metric_name
+    - domain_name
+    owner: gui
+    run_linkage: none
+  metric_display_registry:
     evidence: GUI display configuration; seeded by GUI migrations
     golden_class: gui
-    natural_key: [metric_name]
-    run_linkage: none
-
-  migration_history:
-    owner: core
     kind: table
+    natural_key:
+    - metric_name
+    owner: gui
+    run_linkage: none
+  migration_history:
     evidence: migration bookkeeping; written by alems_migrate
     golden_class: meta
-    natural_key: [version, source]
-    run_linkage: none
-
-  network_energy_attribution:
-    owner: network_energy
     kind: table
+    natural_key:
+    - version
+    - source
+    owner: core
+    run_linkage: none
+  network_energy_attribution:
     evidence: extension_registry name=network_energy; written by network_energy_etl
     golden_class: derived
-    natural_key: [run_id, interface]
-    run_linkage: run_id
-
-  nic_samples:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - interface
+    owner: network_energy
+    run_linkage: run_id
+  nic_samples:
     evidence: written by NIC reader during runs
     golden_class: raw
-    natural_key: [run_id, sample_time, interface]
-    run_linkage: run_id
-
-  normalization_factors:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - interface
+    owner: core
+    run_linkage: run_id
+  normalization_factors:
     evidence: seeded normalization constants used by ETL
     golden_class: config
-    natural_key: [factor_name, version]
-    run_linkage: none
-
-  orchestration_events:
-    owner: orchestration
     kind: table
+    natural_key:
+    - factor_name
+    - version
+    owner: core
+    run_linkage: none
+  orchestration_events:
     evidence: extension_registry name=orchestration; written by goal_execution_manager
     golden_class: raw
-    natural_key: [run_id, event_time, event_type]
-    run_linkage: run_id
-
-  orchestration_tax_summary:
+    kind: table
+    natural_key:
+    - run_id
+    - event_time
+    - event_type
     owner: orchestration
-    kind: table
-    evidence: extension_registry name=orchestration; written by tax summary ETL (save_pair path)
-    golden_class: derived
-    natural_key: [run_id]
     run_linkage: run_id
-
-  outlier_detection_config:
-    owner: outlier_detection
+  orchestration_tax_summary:
+    evidence: extension_registry name=orchestration; written by tax summary ETL (save_pair
+      path)
+    golden_class: derived
     kind: table
+    natural_key:
+    - run_id
+    owner: orchestration
+    run_linkage: run_id
+  outlier_detection_config:
     evidence: extension_registry name=outlier_detection; seeded config
     golden_class: config
-    natural_key: [metric_name, detector_version]
-    run_linkage: none
-
-  output_quality:
-    owner: output_quality
     kind: table
+    natural_key:
+    - metric_name
+    - detector_version
+    owner: outlier_detection
+    run_linkage: none
+  output_quality:
     evidence: extension_registry name=output_quality; written by output quality scorer
     golden_class: raw
-    natural_key: [run_id, attempt_number]
-    run_linkage: run_id
-
-  output_quality_judges:
-    owner: output_quality
     kind: table
+    natural_key:
+    - run_id
+    - attempt_number
+    owner: output_quality
+    run_linkage: run_id
+  output_quality_judges:
     evidence: extension_registry name=output_quality; seeded judge configuration
     golden_class: config
-    natural_key: [judge_name, judge_version]
-    run_linkage: none
-
-  page_configs:
-    owner: gui
     kind: table
+    natural_key:
+    - judge_name
+    - judge_version
+    owner: output_quality
+    run_linkage: none
+  page_configs:
     evidence: GUI page configuration; seeded by GUI migrations
     golden_class: gui
-    natural_key: [page_name]
-    run_linkage: none
-
-  page_metric_configs:
-    owner: gui
     kind: table
+    natural_key:
+    - page_name
+    owner: gui
+    run_linkage: none
+  page_metric_configs:
     evidence: GUI metric-per-page configuration
     golden_class: gui
-    natural_key: [page_name, metric_name]
-    run_linkage: none
-
-  page_sections:
-    owner: gui
     kind: table
+    natural_key:
+    - page_name
+    - metric_name
+    owner: gui
+    run_linkage: none
+  page_sections:
     evidence: GUI page section layout
     golden_class: gui
-    natural_key: [page_name, section_order]
-    run_linkage: none
-
-  page_templates:
-    owner: gui
     kind: table
+    natural_key:
+    - page_name
+    - section_order
+    owner: gui
+    run_linkage: none
+  page_templates:
     evidence: GUI page template definitions
     golden_class: gui
-    natural_key: [template_name]
-    run_linkage: none
-
-  platform_domain_relationships:
-    owner: core
     kind: table
+    natural_key:
+    - template_name
+    owner: gui
+    run_linkage: none
+  platform_domain_relationships:
     evidence: maps hardware platforms to energy domains; seeded by detect_hardware
     golden_class: config
-    natural_key: [machine_id, domain_id]
-    run_linkage: none
-
-  policy_comparison_results:
-    owner: orchestration
     kind: table
+    natural_key:
+    - machine_id
+    - domain_id
+    owner: core
+    run_linkage: none
+  policy_comparison_results:
     evidence: extension_registry name=orchestration; EAR policy comparison output
     golden_class: derived
-    natural_key: [exp_id, policy_a, policy_b]
-    run_linkage: exp_id -> experiments.exp_id
-
-  power_limit_events:
-    owner: power_limits
     kind: table
+    natural_key:
+    - exp_id
+    - policy_a
+    - policy_b
+    owner: orchestration
+    run_linkage: exp_id -> experiments.exp_id
+  power_limit_events:
     evidence: extension_registry name=power_limits; written when power limit fires
     golden_class: raw
-    natural_key: [run_id, event_time]
-    run_linkage: run_id
-
-  power_limits:
-    owner: power_limits
     kind: table
+    natural_key:
+    - run_id
+    - event_time
+    owner: power_limits
+    run_linkage: run_id
+  power_limits:
     evidence: extension_registry name=power_limits; seeded power limit definitions
     golden_class: config
-    natural_key: [limit_name, machine_id]
-    run_linkage: none
-
-  power_rail_samples:
-    owner: core
     kind: table
+    natural_key:
+    - limit_name
+    - machine_id
+    owner: power_limits
+    run_linkage: none
+  power_rail_samples:
     evidence: written by power rail reader during runs
     golden_class: raw
-    natural_key: [run_id, sample_time, rail_id]
-    run_linkage: run_id
-
-  power_rails:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - rail_id
+    owner: core
+    run_linkage: run_id
+  power_rails:
     evidence: hardware topology; written by detect_hardware
     golden_class: config
-    natural_key: [machine_id, rail_name]
-    run_linkage: none
-
-  query_registry:
-    owner: gui
     kind: table
+    natural_key:
+    - machine_id
+    - rail_name
+    owner: core
+    run_linkage: none
+  query_registry:
     evidence: GUI named query registry; seeded by GUI migrations
     golden_class: gui
-    natural_key: [query_name]
+    kind: table
+    natural_key:
+    - query_name
+    owner: gui
     run_linkage: none
-
   recovery_events:
-    owner: failure_recovery
-    kind: table
-    evidence: extension_registry name=failure_recovery; written by recovery policy adapter
+    evidence: extension_registry name=failure_recovery; written by recovery policy
+      adapter
     golden_class: raw
-    natural_key: [goal_id, attempt_id]
-    run_linkage: goal_attempt.goal_id
-
-  recovery_taxonomy:
-    owner: failure_recovery
     kind: table
+    natural_key:
+    - goal_id
+    - attempt_id
+    owner: failure_recovery
+    run_linkage: goal_attempt.goal_id
+  recovery_taxonomy:
     evidence: extension_registry name=failure_recovery; seeded taxonomy
     golden_class: config
-    natural_key: [recovery_code]
-    run_linkage: none
-
-  retry_policy:
-    owner: orchestration
     kind: table
+    natural_key:
+    - recovery_code
+    owner: failure_recovery
+    run_linkage: none
+  retry_policy:
     evidence: extension_registry name=orchestration; seeded retry policy definitions
     golden_class: config
-    natural_key: [policy_name, policy_version]
+    kind: table
+    natural_key:
+    - policy_name
+    - policy_version
+    owner: orchestration
     run_linkage: none
-
   run_outliers:
-    owner: outlier_detection
-    kind: table
-    evidence: extension_registry name=outlier_detection; written by outlier detector ETL
+    evidence: extension_registry name=outlier_detection; written by outlier detector
+      ETL
     golden_class: derived
-    natural_key: [run_id, metric_name, detector_version]
-    run_linkage: run_id
-
-  run_power_limits:
-    owner: power_limits
     kind: table
+    natural_key:
+    - run_id
+    - metric_name
+    - detector_version
+    owner: outlier_detection
+    run_linkage: run_id
+  run_power_limits:
     evidence: extension_registry name=power_limits; links active limits to runs
     golden_class: raw
-    natural_key: [run_id, limit_name]
-    run_linkage: run_id
-
-  run_quality:
-    owner: output_quality
     kind: table
+    natural_key:
+    - run_id
+    - limit_name
+    owner: power_limits
+    run_linkage: run_id
+  run_quality:
     evidence: extension_registry name=output_quality; written by quality ETL
     golden_class: derived
-    natural_key: [run_id]
-    run_linkage: run_id
-
-  runs:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    owner: output_quality
+    run_linkage: run_id
+  runs:
     evidence: primary measurement table (INV-1); written by experiment_runner
     golden_class: raw
-    natural_key: [run_id]
-    run_linkage: run_id
-
-  schema_version:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    owner: core
+    run_linkage: run_id
+  schema_version:
     evidence: DDL migration bookkeeping (SC-7); written by migrations
     golden_class: meta
-    natural_key: [version]
-    run_linkage: none
-
-  serving_runtime_snapshots:
-    owner: orchestration
     kind: table
-    evidence: extension_registry name=orchestration (serving snapshots are orchestration output)
-    golden_class: raw
-    natural_key: [snapshot_id]
-    run_linkage: goal_attempt.attempt_id
-    run_linkage: run_id
-
-  sqlite_sequence:
+    natural_key:
+    - version
     owner: core
+    run_linkage: none
+  serving_runtime_snapshots:
+    evidence: extension_registry name=orchestration (serving snapshots are orchestration
+      output)
+    golden_class: raw
     kind: table
+    natural_key:
+    - snapshot_id
+    owner: orchestration
+    run_linkage: run_id
+  sqlite_sequence:
     evidence: SQLite internal autoincrement tracking; not written by application code
     golden_class: meta
-    natural_key: [name]
-    run_linkage: none
-
-  standardization_registry:
-    owner: core
     kind: table
+    natural_key:
+    - name
+    owner: core
+    run_linkage: none
+  standardization_registry:
     evidence: seeded standardization factor registry used by normalization ETL
     golden_class: config
-    natural_key: [factor_name, version]
-    run_linkage: none
-
-  state_reuse_events:
-    owner: telemetry
     kind: table
+    natural_key:
+    - factor_name
+    - version
+    owner: core
+    run_linkage: none
+  state_reuse_events:
     evidence: extension_registry name=telemetry; written by cache telemetry collector
     golden_class: raw
-    natural_key: [run_id, event_time]
-    run_linkage: run_id
-
-  state_reuse_taxonomy:
-    owner: telemetry
     kind: table
+    natural_key:
+    - run_id
+    - event_time
+    owner: telemetry
+    run_linkage: run_id
+  state_reuse_taxonomy:
     evidence: extension_registry name=telemetry; seeded taxonomy
     golden_class: config
-    natural_key: [reuse_code]
-    run_linkage: none
-
-  task_categories:
-    owner: task_categories
     kind: table
+    natural_key:
+    - reuse_code
+    owner: telemetry
+    run_linkage: none
+  task_categories:
     evidence: extension_registry name=task_categories; seeded task category taxonomy
     golden_class: config
-    natural_key: [category_name]
-    run_linkage: none
-
-  task_quality_config:
-    owner: core
     kind: table
+    natural_key:
+    - category_name
+    owner: task_categories
+    run_linkage: none
+  task_quality_config:
     evidence: seeded task-level quality thresholds; read by scorers
     golden_class: config
-    natural_key: [task_id]
-    run_linkage: none
-
-  task_retry_override:
-    owner: orchestration
     kind: table
+    natural_key:
+    - task_id
+    owner: core
+    run_linkage: none
+  task_retry_override:
     evidence: extension_registry name=orchestration; per-task retry overrides
     golden_class: config
-    natural_key: [task_id, policy_name]
-    run_linkage: none
-
-  thermal_samples:
-    owner: core
     kind: table
+    natural_key:
+    - task_id
+    - policy_name
+    owner: orchestration
+    run_linkage: none
+  thermal_samples:
     evidence: written by thermal reader during runs (INV-1)
     golden_class: raw
-    natural_key: [run_id, sample_time, zone_id]
-    run_linkage: run_id
-
-  thermal_samples_v2:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - zone_id
+    owner: core
+    run_linkage: run_id
+  thermal_samples_v2:
     evidence: updated thermal sample schema; same writer as thermal_samples
     golden_class: raw
-    natural_key: [run_id, sample_time, zone_id]
-    run_linkage: run_id
-
-  thermal_zones:
-    owner: core
     kind: table
+    natural_key:
+    - run_id
+    - sample_time
+    - zone_id
+    owner: core
+    run_linkage: run_id
+  thermal_zones:
     evidence: hardware topology; written by detect_hardware
     golden_class: config
-    natural_key: [machine_id, zone_name]
+    kind: table
+    natural_key:
+    - machine_id
+    - zone_name
+    owner: core
     run_linkage: none
-
   tool_failure_events:
-    owner: failure_recovery
-    kind: table
-    evidence: extension_registry name=failure_recovery; written by tool execution layer
+    evidence: extension_registry name=failure_recovery; written by tool execution
+      layer
     golden_class: raw
-    natural_key: [run_id, attempt_id, event_time]
-    run_linkage: run_id
-
-  tool_selection_events:
-    owner: orchestration
     kind: table
+    natural_key:
+    - run_id
+    - attempt_id
+    - event_time
+    owner: failure_recovery
+    run_linkage: run_id
+  tool_selection_events:
     evidence: extension_registry name=orchestration; written by tool selector
     golden_class: raw
-    natural_key: [run_id, attempt_id, selection_time]
+    kind: table
+    natural_key:
+    - run_id
+    - attempt_id
+    - selection_time
+    owner: orchestration
     run_linkage: run_id
-
+  writer_idempotency:
+    evidence: auto-registered by audit capture; review and correct
+    golden_class: raw
+    kind: table
+    natural_key: []
+    owner: unknown
+    run_linkage: null
 views:
-
   energy_samples_with_power:
-    owner: core
-    kind: view
     evidence: derived from energy_samples; power computed from counter deltas
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  ml_features:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  ml_features:
     evidence: feature view for ML analysis; derived from runs and samples
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  orchestration_analysis:
-    owner: orchestration
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  orchestration_analysis:
     evidence: analysis view over orchestration_events
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  research_metrics_view:
-    owner: core
     kind: view
+    natural_key: []
+    owner: orchestration
+    run_linkage: run_id
+  research_metrics_view:
     evidence: research-facing flattened metrics view
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_attribution_summary:
-    owner: attribution
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_attribution_summary:
     evidence: summary over energy_attribution
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_energy:
-    owner: core
     kind: view
+    natural_key: []
+    owner: attribution
+    run_linkage: run_id
+  v_energy:
     evidence: primary energy analysis view over runs and energy_samples
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_energy_normalized:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_energy_normalized:
     evidence: normalized energy view applying normalization_factors
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_failure_cost_by_experiment:
-    owner: failure_recovery
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_failure_cost_by_experiment:
     evidence: failure cost aggregated per experiment
     golden_class: derived
-    natural_key: []
-    run_linkage: exp_id -> experiments.exp_id
-
-  v_failure_cost_comparison:
-    owner: failure_recovery
     kind: view
+    natural_key: []
+    owner: failure_recovery
+    run_linkage: exp_id -> experiments.exp_id
+  v_failure_cost_comparison:
     evidence: cross-experiment failure cost comparison
     golden_class: derived
-    natural_key: []
-    run_linkage: exp_id -> experiments.exp_id
-
-  v_failure_energy_taxonomy:
-    owner: failure_recovery
     kind: view
+    natural_key: []
+    owner: failure_recovery
+    run_linkage: exp_id -> experiments.exp_id
+  v_failure_energy_taxonomy:
     evidence: failure events joined with taxonomy and energy
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_fraction_verification:
-    owner: attribution
     kind: view
+    natural_key: []
+    owner: failure_recovery
+    run_linkage: run_id
+  v_fraction_verification:
     evidence: verifies attribution fractions sum to 1.0 per run (INV-12)
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_goal_energy_decomposition:
-    owner: core
     kind: view
+    natural_key: []
+    owner: attribution
+    run_linkage: run_id
+  v_goal_energy_decomposition:
     evidence: per-goal energy split by phase
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_idle_baseline_domains:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_idle_baseline_domains:
     evidence: joins idle_baseline_domains with energy_domains
     golden_class: derived
-    natural_key: []
-    run_linkage: none
-
-  v_idle_baselines:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: none
+  v_idle_baselines:
     evidence: clean view over idle_baselines
     golden_class: derived
-    natural_key: []
-    run_linkage: none
-
-  v_outcome_efficiency:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: none
+  v_outcome_efficiency:
     evidence: energy per correct outcome metric view
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_platform_baseline_summary:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_platform_baseline_summary:
     evidence: cross-platform idle baseline summary
     golden_class: derived
-    natural_key: []
-    run_linkage: none
-
-  v_quality_energy_frontier:
-    owner: output_quality
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: none
+  v_quality_energy_frontier:
     evidence: Pareto frontier of quality vs energy per experiment
     golden_class: derived
-    natural_key: []
-    run_linkage: exp_id -> experiments.exp_id
-
-  v_recovery_cost_by_depth:
-    owner: failure_recovery
     kind: view
+    natural_key: []
+    owner: output_quality
+    run_linkage: exp_id -> experiments.exp_id
+  v_recovery_cost_by_depth:
     evidence: recovery cost aggregated by retry depth
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_clean:
-    owner: core
     kind: view
+    natural_key: []
+    owner: failure_recovery
+    run_linkage: run_id
+  v_runs_clean:
     evidence: filtered runs excluding outliers; base for paper analysis
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_clean_cpu:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_clean_cpu:
     evidence: v_runs_clean joined with cpu_samples
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_clean_energy:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_clean_energy:
     evidence: v_runs_clean joined with energy data
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_clean_llm:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_clean_llm:
     evidence: v_runs_clean joined with llm_interactions
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_clean_orchestration:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_clean_orchestration:
     evidence: v_runs_clean joined with orchestration_events
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_clean_system:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_clean_system:
     evidence: v_runs_clean joined with system samples
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_clean_thermal:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_clean_thermal:
     evidence: v_runs_clean joined with thermal data
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_measured_cpu:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_measured_cpu:
     evidence: unfiltered runs with cpu measurements; complement of v_runs_clean_cpu
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_measured_energy:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_measured_energy:
     evidence: unfiltered runs with energy measurements
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_measured_llm:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_measured_llm:
     evidence: unfiltered runs with LLM interaction data
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_measured_orchestration:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_measured_orchestration:
     evidence: unfiltered runs with orchestration data
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_measured_system:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_measured_system:
     evidence: unfiltered runs with system sample data
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_measured_thermal:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_measured_thermal:
     evidence: unfiltered runs with thermal data
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_runs_unfiltered:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_runs_unfiltered:
     evidence: all runs with no quality filtering; base for outlier analysis
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_state_reuse_impact:
-    owner: telemetry
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_state_reuse_impact:
     evidence: state reuse events joined with energy impact
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_thermal_cpu:
-    owner: core
     kind: view
+    natural_key: []
+    owner: telemetry
+    run_linkage: run_id
+  v_thermal_cpu:
     evidence: thermal zones filtered to CPU role; primary thermal analysis view
     golden_class: derived
-    natural_key: []
-    run_linkage: run_id
-
-  v_wasted_energy_per_success:
-    owner: core
     kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
+  v_wasted_energy_per_success:
     evidence: wasted energy (failed attempts) per successful run
     golden_class: derived
+    kind: view
     natural_key: []
+    owner: core
     run_linkage: run_id

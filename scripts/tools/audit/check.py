@@ -222,10 +222,10 @@ def cmd_check(argv: List[str]) -> int:
     try:
         violations = check_coverage(conn, ownership)
         if violations:
-            print(f"[audit] AUTO-REGISTERING {len(violations)} unlisted tables/views")
-            auto_register_unknown(violations)
-            ownership = load_ownership()
-            print("[audit] FAIL: fix table_ownership.yaml before check")
+            print(f"[audit] FAIL: {len(violations)} unlisted tables/views in DB:")
+            for v in violations:
+                print(f"  {v}")
+            print("[audit] Add each to config/schema/table_ownership.yaml and re-run.")
             return 1
 
         print("[audit] reading reference runs from live DB ...")

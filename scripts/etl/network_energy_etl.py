@@ -21,6 +21,8 @@ import sys
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+from core.network.network_estimator_factory import NetworkEstimatorFactory
+from core.network.overlap_utils import fetch_blocking_windows
 
 # ── SQL ──────────────────────────────────────────────────────────────────────
 
@@ -47,7 +49,7 @@ _EXISTING_ROW = """
 """
 
 
-def process_run(run_id: int, db_conn: sqlite3.Connection) -> None:
+def process_run(run_id: int, db_conn: sqlite3.Connection = None) -> None:
     """
     Compute and store network wait energy attribution for one run.
 
@@ -56,13 +58,20 @@ def process_run(run_id: int, db_conn: sqlite3.Connection) -> None:
 
     Args:
         run_id:  The run to process.
-        db_conn: Open SQLite connection (same conn as run inserts — EEI pattern).
+        db_conn: Open SQLite connection. Runtime callers supply this (EEI
+                 pattern). CLI and backfill callers pass None; a connection
+                 is opened and closed here against the resolved store.
     """
-    # Import factory here to avoid circular imports at module load time
-    from core.network.network_estimator_factory import NetworkEstimatorFactory
-    from core.network.overlap_utils import fetch_blocking_windows
-
+    # Open own connection only for CLI/backfill callers (conn=None).
+    # Runtime path (experiment_runner, execute_goal) always supplies conn.
+    _owns_conn = db_conn is None
+    if _owns_conn:
+        from scripts.tools.path_loader import get_alems_db_path as _gp
+        db_conn = sqlite3.connect(_gp())
     try:
+        # Import factory here to avoid circular imports at module load time
+
+
         # Load blocking windows for this run
         windows = fetch_blocking_windows(db_conn, run_id)
 
@@ -126,6 +135,9 @@ def process_run(run_id: int, db_conn: sqlite3.Connection) -> None:
     except Exception as exc:
         # Never crash experiment_runner — log and continue (PAC-4)
         logger.error("network_etl: run=%d failed: %s", run_id, exc, exc_info=True)
+    finally:
+        if _owns_conn:
+            db_conn.close()
 
 
 def backfill_all(db_path: str) -> None:
