@@ -1022,7 +1022,7 @@ def cmd_plan(conn, hostname: str) -> None:
     total = len(pending_schema) + len(pending_seed) + len(pending_setup)
     print(f"\nTotal: {total} migrations to apply.")
     if total:
-        print("Run 'alems migrate' to execute.")
+        print("Run 'alems dev migrate --run' to execute.")
 
 
 def cmd_adopt(conn, hostname: str, machine_id, commit, skip_confirmation=False) -> None:
@@ -1145,6 +1145,10 @@ def main() -> int:
         help="Skip the --adopt confirmation prompt. Scripted use only.",
     )
     parser.add_argument(
+        "--run", action="store_true",
+        help="Apply all pending migrations. Without this flag, shows plan only.",
+    )
+    parser.add_argument(
         "--env-mode", choices=["prod", "dev", "integration", "preprod"],
         default=None,
         help="Environment mode. dev: heals checksum mismatches. prod: fatal on mismatch. "
@@ -1176,6 +1180,15 @@ def main() -> int:
     machine_id = get_machine_id()
     commit = get_repo_commit()
     db_path = get_db_path()
+    try:
+        from core.storage.inprocess_writer import _ProjectLock
+        _mig_lock = _ProjectLock(db_path, timeout_s=60.0)
+        _mig_lock.acquire()
+    except ImportError:
+        _mig_lock = None
+    except Exception as _lock_err:
+        print(f"alems_migrate: cannot acquire writer lock: {_lock_err}", file=sys.stderr)
+        return 1
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
 
@@ -1200,13 +1213,21 @@ def main() -> int:
         if args.adopt:
             cmd_adopt(conn, hostname, machine_id, commit, skip_confirmation=args.yes)
             return 0
-        cmd_migrate(conn, hostname, machine_id, commit, env_mode=env_mode)
+        if args.run:
+            cmd_migrate(conn, hostname, machine_id, commit, env_mode=env_mode)
+            return 0
+        # No action flag given — show plan and usage, never apply.
+        cmd_plan(conn, hostname)
+        print("", file=sys.stderr)
+        print("  Run 'alems dev migrate --run' to apply pending migrations.", file=sys.stderr)
         return 0
     except MigrationError as e:
         print(str(e), file=sys.stderr)
         return 1
     finally:
         conn.close()
+        if _mig_lock is not None:
+            _mig_lock.release()
 
 
 if __name__ == "__main__":

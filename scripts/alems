@@ -141,6 +141,9 @@ db.create_tables()
                 bash scripts/install.sh
                 ;;
 
+            migrate)
+                python3 scripts/tools/alems_migrate.py "$@"
+                ;;
             audit|lock)
                 _python_cli dev "$SUBCMD" "$@"
                 ;;
@@ -150,6 +153,7 @@ db.create_tables()
                 echo "  alems dev sync      — sync schema/configs (after manual git pull)"
                 echo "  alems dev status    — show platform, DB, branch, schema version"
                 echo "  alems dev install   — run full install"
+                echo "  alems dev migrate   — run pending schema migrations only"
                 echo ""
                 ;;
         esac

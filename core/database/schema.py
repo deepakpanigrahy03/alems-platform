@@ -3580,3 +3580,10 @@ ORDER BY
     re.rollback_depth_turns,
     sre.reuse_type;
 """
+# 39.2 WP-2a: plumbing table for WriterSession idempotency keys (D6.3a)
+CREATE_WRITER_IDEMPOTENCY = """
+CREATE TABLE IF NOT EXISTS writer_idempotency (
+    idem_key    TEXT    NOT NULL PRIMARY KEY,
+    recorded_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+"""
