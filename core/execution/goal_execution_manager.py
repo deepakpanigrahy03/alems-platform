@@ -77,6 +77,7 @@ def execute_goal(
     retry_adapter=None,
     recovery_policy_id: str = "full_restart",
     cache_collector=None,
+    writer=None,
 ) -> Optional[int]:
     """
     Execute one goal (one workflow side) with full retry support.
@@ -106,7 +107,13 @@ def execute_goal(
         logger.warning("execute_goal: invalid workflow_type=%r — aborting", workflow_type)
         return None
 
-    conn        = db.db.conn
+    from core.storage.inprocess_writer import InProcessWriter as _IPW
+    from core.storage.resolver import resolve_store as _rs
+    _own_writer = writer is None
+    if _own_writer:
+        writer = _IPW(_rs())
+        writer.open()
+    conn        = writer.conn
     task_id     = task.get("id", "unknown")
     task_name   = task.get("name", task_id)
     task_meta   = task.get("meta", {}) or {}
@@ -683,11 +690,11 @@ def execute_goal(
         energy_attribution_etl.populate_attribution_stubs(rid, conn)
         # Bug 10 + 11 fix: run full attribution computation on execute_goal path.
         try:
-            energy_attribution_etl.compute_energy_attribution(rid, Path(get_alems_db_path()))
+            energy_attribution_etl.compute_energy_attribution(rid, conn=conn)
         except Exception as _e:
             logger.warning("energy_attribution_etl failed for run=%d: %s", rid, _e)
         try:
-            phase_attribution_etl.compute_phase_attribution(rid, get_alems_db_path())
+            phase_attribution_etl.compute_phase_attribution(rid, conn=conn)
         except Exception as _e:
             logger.warning("phase_attribution_etl failed for run=%d: %s", rid, _e)
         # Bug 11 fix: pre/post task energy populated by duration_fix_etl, not
@@ -704,11 +711,13 @@ def execute_goal(
                     post_task_duration_sec=_ml.get("post_task_duration_sec") or 0.0,
                     cpu_frac_pre=_ml.get("cpu_frac_pre") or 0.0,
                     cpu_frac_post=_ml.get("cpu_frac_post") or 0.0,
-                    db_path=Path(get_alems_db_path()),
+                    conn=conn,
                 )
         except Exception as _e:
             logger.warning("duration_fix_etl failed for run=%d: %s", rid, _e)
 
+    if _own_writer:
+        writer.close()
     return goal_id
 
 def _flush_injection_log(

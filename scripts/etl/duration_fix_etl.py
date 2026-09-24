@@ -278,7 +278,7 @@ def _fix_run(cursor: sqlite3.Cursor, run_id: int) -> dict | None:
 
 
 
-def fix_run(run_id: int, db_path: Path = DEFAULT_DB) -> bool:
+def fix_run(run_id: int, db_path: Path = DEFAULT_DB, conn=None) -> bool:
     """
     Compute and write corrected duration metrics for a single run.
 
@@ -289,11 +289,12 @@ def fix_run(run_id: int, db_path: Path = DEFAULT_DB) -> bool:
     Returns:
         True on success, False on failure.
     """
-    if not db_path.exists():
-        logger.error("DB not found: %s", db_path)
-        return False
-
-    conn = sqlite3.connect(str(db_path))
+    _own_conn = conn is None
+    if _own_conn:
+        if not db_path.exists():
+            logger.error("DB not found: %s", db_path)
+            return False
+        conn = sqlite3.connect(str(db_path))
     try:
         cursor = conn.cursor()
         data = _fix_run(cursor, run_id)
@@ -338,7 +339,8 @@ def fix_run(run_id: int, db_path: Path = DEFAULT_DB) -> bool:
         conn.rollback()
         return False
     finally:
-        conn.close()
+        if _own_conn:
+            conn.close()
 
 
 def fix_run_with_pretask(
@@ -350,6 +352,7 @@ def fix_run_with_pretask(
     cpu_frac_pre: float,
     cpu_frac_post: float,
     db_path: Path = DEFAULT_DB,
+    conn=None,
 ) -> bool:
     """
     Compute and store pre/post task energy for a single run.
@@ -381,11 +384,13 @@ def fix_run_with_pretask(
         return False
 
     # Standard duration/coverage backfill first — always runs regardless of platform.
-    ok = fix_run(run_id, db_path)
+    ok = fix_run(run_id, db_path, conn=conn)
     if not ok:
         return False
 
-    conn = sqlite3.connect(str(db_path))
+    _own_conn = conn is None
+    if _own_conn:
+        conn = sqlite3.connect(str(db_path))
     try:
         cursor = conn.cursor()
 
@@ -511,7 +516,8 @@ def fix_run_with_pretask(
         conn.rollback()
         return False
     finally:
-        conn.close()
+        if _own_conn:
+            conn.close()
 
 
 
@@ -537,7 +543,7 @@ def backfill_all(db_path: Path = DEFAULT_DB) -> None:
 
     logger.info("Backfilling duration fix for %d runs...", total)
     for (run_id,) in runs:
-        ok = fix_run(run_id, db_path)
+        ok = fix_run(run_id, db_path, conn=conn)
         if ok:
             passed += 1
         else:

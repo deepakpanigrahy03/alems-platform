@@ -78,6 +78,8 @@ from core.execution.retry_coordinator import RetryCoordinator, ExecutionResult
 from core.execution.failure_classifier import FailureClassifier
 from core.execution.failure_injector import FailureInjector
 from core.readers.power_rail_sampler import PowerRailSampler
+from core.storage.inprocess_writer import InProcessWriter
+from core.storage.resolver import resolve_store
 import logging
 logger = logging.getLogger(__name__)
  
@@ -91,10 +93,11 @@ _failure_classifier = FailureClassifier()  # stateless — classify failures on 
 
 
 
-def _insert_nic_samples(db, run_id: int, samples: list) -> None:
+def _insert_nic_samples(db, run_id: int, samples: list, conn=None) -> None:
     """Insert NIC byte counter samples to nic_samples table. Never raises (PAC-4)."""
     if not samples:
         return
+    _conn = conn if conn is not None else db.db.conn
     try:
         rows = [
             (
@@ -110,13 +113,13 @@ def _insert_nic_samples(db, run_id: int, samples: list) -> None:
             )
             for s in samples
         ]
-        db.db.conn.executemany("""
+        _conn.executemany("""
             INSERT INTO nic_samples
                 (run_id, sample_ns, interface, tx_bytes, rx_bytes,
                  tx_packets, rx_packets, sample_start_ns, sample_end_ns)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, rows)
-        db.db.conn.commit()
+        _conn.commit()
         logger.debug("_insert_nic_samples: run=%d rows=%d", run_id, len(rows))
     except Exception as exc:
         logger.warning("_insert_nic_samples failed run=%d: %s", run_id, exc)
@@ -217,7 +220,7 @@ def _auto_expectation(expected_answer: str, task_meta: dict) -> dict:
 # module-level helpers (_insert_nic_samples, _convert_gpu_to_telemetry, etc.)
 # ---------------------------------------------------------------------------
 
-def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: str) -> None:
+def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: str, conn=None) -> None:
     """
     Run quality scoring for all attempts in a completed goal.
  
@@ -236,8 +239,9 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
         workflow_type: "agentic" or "linear".
     """
     try:
-        conn = db.db.conn
- 
+        if conn is None:
+            conn = db.db.conn
+
         # Extract task metadata.
         task_meta = result.get("task_meta", {}) or {}
         task_category = task_meta.get("category") or result.get("task_category")
@@ -1105,8 +1109,9 @@ class ExperimentRunner:
             return False
 
     def save_pair(self, db, exp_id, hw_id, linear_result, agentic_result, rep_num,
-                  task_id=None, task_name=None, task_meta=None):
+                  task_id=None, task_name=None, task_meta=None, writer=None):
         """Save one pair of runs with all samples."""
+        _wconn = db.db.conn
 
         # Set run_number
         linear_result["ml_features"]["run_number"] = rep_num
@@ -1135,7 +1140,7 @@ class ExperimentRunner:
             self._validate_run(db, linear_id, hw_id)
             # Stub row so ETL _backfill_normalization_factors never skips this run
             _linear_meta = linear_result.get("task_meta", {}) or {}
-            db.db.execute(
+            _wconn.execute(
                 "INSERT OR IGNORE INTO normalization_factors (run_id, task_category, workload_type) VALUES (?, ?, ?)",
                 (linear_id, _linear_meta.get("category", "custom"), "linear"),
             )
@@ -1192,12 +1197,12 @@ class ExperimentRunner:
                     logger.warning("power_rail insert failed (linear): %s", e)    
             try:
                 from scripts.etl.gpu_spbm_etl import process_one as _pgs
-                _pgs(linear_id, db.db.conn)
+                _pgs(linear_id, _wconn)
             except Exception as _e:
                 logger.warning("gpu_spbm_etl failed linear run_id=%d: %s", linear_id, _e)
             try:
                 from scripts.etl.spbm_telemetry_etl import process_run as _pst
-                _pst(linear_id, linear_result, db.db.conn)
+                _pst(linear_id, linear_result, _wconn)
             except Exception as _e:
                 logger.warning("spbm_telemetry_etl failed linear run_id=%d: %s", linear_id, _e)
             # Linear CPU samples
@@ -1205,7 +1210,7 @@ class ExperimentRunner:
                 db.insert_cpu_samples(linear_id, linear_result["cpu_samples"])
             # SPEC_03A: NIC samples
             if linear_result.get("nic_samples"):
-                _insert_nic_samples(db, linear_id, linear_result["nic_samples"])
+                _insert_nic_samples(db, linear_id, linear_result["nic_samples"], conn=_wconn)
             # 16D3: ARM — write summary cpu_samples row from PerformanceCounters.
             # On x86, turbostat already wrote continuous rows above.
             # On aarch64, turbostat is absent; ARMPMUReader fills PerformanceCounters.
@@ -1372,7 +1377,7 @@ class ExperimentRunner:
             self._validate_run(db, agentic_id, hw_id)
             # Stub row so ETL _backfill_normalization_factors never skips this run
             _agentic_meta = agentic_result.get("task_meta", {}) or {}
-            db.db.execute(
+            _wconn.execute(
                 "INSERT OR IGNORE INTO normalization_factors (run_id, task_category, workload_type) VALUES (?, ?, ?)",
                 (agentic_id, _agentic_meta.get("category", "custom"), "agentic"),
             )
@@ -1423,12 +1428,12 @@ class ExperimentRunner:
                     logger.warning("power_rail insert failed (agentic): %s", e)
             try:
                 from scripts.etl.gpu_spbm_etl import process_one as _pgs
-                _pgs(agentic_id, db.db.conn)
+                _pgs(agentic_id, _wconn)
             except Exception as _e:
                 logger.warning("gpu_spbm_etl failed agentic run_id=%d: %s", agentic_id, _e)
             try:
                 from scripts.etl.spbm_telemetry_etl import process_run as _pst
-                _pst(agentic_id, agentic_result, db.db.conn)
+                _pst(agentic_id, agentic_result, _wconn)
             except Exception as _e:
                 logger.warning("spbm_telemetry_etl failed agentic run_id=%d: %s", agentic_id, _e)
             # Agentic CPU samples
@@ -1436,7 +1441,7 @@ class ExperimentRunner:
                 db.insert_cpu_samples(agentic_id, agentic_result["cpu_samples"])
             # SPEC_03A: NIC samples
             if agentic_result.get("nic_samples"):
-                _insert_nic_samples(db, agentic_id, agentic_result["nic_samples"])
+                _insert_nic_samples(db, agentic_id, agentic_result["nic_samples"], conn=_wconn)
             # 16D3: ARM — write summary cpu_samples row from PerformanceCounters.
             _hw_info = self.get_hardware_info()
             _caps_arch = (_hw_info.get('cpu_architecture') or '').lower()
@@ -1602,7 +1607,7 @@ class ExperimentRunner:
                     db.insert_llm_interaction(interaction)
             try:
                 from scripts.etl.network_energy_etl import process_run as _pne
-                _pne(linear_id, db.db.conn)
+                _pne(linear_id, _wconn)
             except Exception as _e:
                 logger.warning("network_energy_etl failed linear run_id=%d: %s", linear_id, _e)
             # Save LLM interactions for agentic run
@@ -1618,7 +1623,7 @@ class ExperimentRunner:
                     db.insert_llm_interaction(interaction)
             try:
                 from scripts.etl.network_energy_etl import process_run as _pne
-                _pne(agentic_id, db.db.conn)
+                _pne(agentic_id, _wconn)
             except Exception as _e:
                 logger.warning("network_energy_etl failed agentic run_id=%d: %s", agentic_id, _e)
             # Tax summary for this pair
@@ -1686,13 +1691,13 @@ class ExperimentRunner:
         )
 
         # ETL runs synchronously — daemon threads were dying before completion
-        compute_phase_attribution(agentic_id)
-        aggregate_hardware_metrics(agentic_id)
-        aggregate_hardware_metrics(linear_id)
-        compute_energy_attribution(agentic_id)
-        compute_energy_attribution(linear_id)
-        populate_ttft_tpot(agentic_id)
-        populate_ttft_tpot(linear_id)
+        compute_phase_attribution(agentic_id, conn=_wconn)
+        aggregate_hardware_metrics(agentic_id, conn=_wconn)
+        aggregate_hardware_metrics(linear_id, conn=_wconn)
+        compute_energy_attribution(agentic_id, conn=_wconn)
+        compute_energy_attribution(linear_id, conn=_wconn)
+        populate_ttft_tpot(agentic_id, conn=_wconn)
+        populate_ttft_tpot(linear_id, conn=_wconn)
         # v9: duration fix
         _aml = agentic_result.get("ml_features", {})
         if _aml.get("rapl_before_pretask") is not None:
@@ -1704,10 +1709,11 @@ class ExperimentRunner:
                 _aml.get("post_task_duration_sec", 0.0),
                 _aml.get("cpu_frac_pre", 0.0),
                 _aml.get("cpu_frac_post", 0.0),
+                conn=_wconn,
             )
         else:
-            fix_run(agentic_id)
-
+            fix_run(agentic_id, conn=_wconn)
+ 
         _lml = linear_result.get("ml_features", {})
         if _lml.get("rapl_before_pretask") is not None:
             fix_run_with_pretask(
@@ -1718,9 +1724,10 @@ class ExperimentRunner:
                 _lml.get("post_task_duration_sec", 0.0),
                 _lml.get("cpu_frac_pre", 0.0),
                 _lml.get("cpu_frac_post", 0.0),
+                conn=_wconn,
             )
         else:
-            fix_run(linear_id)
+            fix_run(linear_id, conn=_wconn)
      
         # ── Goal tracking wiring (8.5-A) ─────────────────────────────────────
         # One goal_execution + goal_attempt row per workflow side.
@@ -1738,6 +1745,7 @@ class ExperimentRunner:
             orchestration_uj=linear_orchestration_uj,
             compute_uj=None,
             gpu_energy_uj=linear_gpu_uj,
+            conn=_wconn,
         )
         agentic_goal_id = self._record_goal_pair(
             db=db,
@@ -1752,61 +1760,61 @@ class ExperimentRunner:
             orchestration_uj=agentic_orchestration_uj,
             compute_uj=None,
             gpu_energy_uj=agentic_gpu_uj,
+            conn=_wconn,
         )
         # Bug 7 fix: backfill attempt_id on orchestration_events for comparison path.
         # Also backfill started_at_ns/finished_at_ns from run timestamps — _record_goal_pair
         # creates attempt post-run so started_at_ns would reflect insert time, not run start.
         if agentic_goal_id is not None:
-            _agentic_attempt = db.db.conn.execute(
+            _agentic_attempt = _wconn.execute(
                 "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
                 (agentic_id,)
             ).fetchone()
             if _agentic_attempt:
-                _agentic_run_ts = db.db.conn.execute(
+                _agentic_run_ts = _wconn.execute(
                     "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
                     (agentic_id,)
                 ).fetchone()
-                db.db.conn.execute(
+                _wconn.execute(
                     "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
                     (_agentic_attempt[0], agentic_id)
                 )
                 if _agentic_run_ts:
-                    db.db.conn.execute(
+                    _wconn.execute(
                         "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
                         (_agentic_run_ts[0], _agentic_run_ts[1], _agentic_attempt[0])
                     )
-                db.db.conn.commit()
+                _wconn.commit()
         # ETL runs sync — after both goals recorded so normalization_factors
         # sees the full picture for this experiment repetition.
         if linear_goal_id is not None:
-            goal_execution_etl.process_one(linear_goal_id, db.db.conn)
+            goal_execution_etl.process_one(linear_goal_id, _wconn)
             _goal_tracker.queue_etl(
-                db.db.conn, 'goal_execution', linear_goal_id, 'goal_execution_etl',
+                _wconn, 'goal_execution', linear_goal_id, 'goal_execution_etl',
             )
         if agentic_goal_id is not None:
-            goal_execution_etl.process_one(agentic_goal_id, db.db.conn)
+            goal_execution_etl.process_one(agentic_goal_id, _wconn)
             _goal_tracker.queue_etl(
-                db.db.conn, 'goal_execution', agentic_goal_id, 'goal_execution_etl',
+                _wconn, 'goal_execution', agentic_goal_id, 'goal_execution_etl',
             )
+ 
 
         # --- Quality scoring (8.5C) ---
         # Called AFTER goal_execution ETL so attempt_ids are committed.
         # Quality judge runs after core energy_uj is committed (Observer Energy).
         if linear_goal_id is not None:
             _run_quality_scoring(db=db, goal_id=linear_goal_id, result=linear_result,
-                                 workflow_type="linear")
+                                 workflow_type="linear", conn=_wconn)
         if agentic_goal_id is not None:
             _run_quality_scoring(db=db, goal_id=agentic_goal_id, result=agentic_result,
-                                 workflow_type="agentic")
+                                 workflow_type="agentic", conn=_wconn)
 
         # Attribution stubs — runs sync after goal rows exist
-        energy_attribution_etl.populate_attribution_stubs(linear_id, db.db.conn)
-        energy_attribution_etl.populate_attribution_stubs(agentic_id, db.db.conn)
-        _goal_tracker.queue_etl(db.db.conn, 'run', linear_id, 'energy_attribution_etl')
-        _goal_tracker.queue_etl(db.db.conn, 'run', agentic_id, 'energy_attribution_etl')
-
+        energy_attribution_etl.populate_attribution_stubs(linear_id, _wconn)
+        energy_attribution_etl.populate_attribution_stubs(agentic_id, _wconn)
+        _goal_tracker.queue_etl(_wconn, 'run', linear_id, 'energy_attribution_etl')
+        _goal_tracker.queue_etl(_wconn, 'run', agentic_id, 'energy_attribution_etl')
         return linear_id, agentic_id
-
     def _record_goal_pair(
         self,
         db,
@@ -1821,6 +1829,7 @@ class ExperimentRunner:
         orchestration_uj: int,
         compute_uj: int,
         gpu_energy_uj: int = None,
+        conn=None,
     ) -> int:
         """
         Create one goal_execution + one goal_attempt for a completed single-attempt run.
@@ -1844,7 +1853,8 @@ class ExperimentRunner:
         Returns:
             goal_id (int) or None on failure.
         """
-        conn = db.db.conn
+        if conn is None:
+            conn = db.db.conn
  
         # Derive difficulty and goal_type from task metadata
         level = task_meta.get("level") if task_meta else None
@@ -1911,6 +1921,7 @@ class ExperimentRunner:
             rep_num: int,
             workflow_type: str,
             task_meta: dict = None,
+            writer=None,
         ) -> int:
             """
             Save one run for single-workflow-mode experiments (linear or agentic only).
@@ -1934,6 +1945,9 @@ class ExperimentRunner:
                 )
                 return None
 
+
+            _wconn = db.db.conn
+ 
             # Mirror save_pair() pre-insert setup exactly
             result["ml_features"]["run_number"] = rep_num
             result_copy = result.copy()
@@ -1959,7 +1973,7 @@ class ExperimentRunner:
                 self._validate_run(db, run_id, hw_id)
                 # Stub row so ETL _backfill_normalization_factors never skips this run
                 _meta = result.get("task_meta", {}) or {}
-                db.db.execute(
+                _wconn.execute(
                     "INSERT OR IGNORE INTO normalization_factors (run_id, task_category, workload_type) VALUES (?, ?, ?)",
                     (run_id, _meta.get("category", "custom"), workflow_type),
                 )
@@ -2011,12 +2025,12 @@ class ExperimentRunner:
                     logger.warning("power_rail insert failed (single): %s", e)
             try:
                 from scripts.etl.gpu_spbm_etl import process_one as _pgs
-                _pgs(run_id, db.db.conn)
+                _pgs(run_id, _wconn)
             except Exception as _e:
                 logger.warning("gpu_spbm_etl failed single run_id=%d: %s", run_id, _e)
             try:
                 from scripts.etl.spbm_telemetry_etl import process_run as _pst
-                _pst(run_id, result, db.db.conn)
+                _pst(run_id, result, _wconn)
             except Exception as _e:
                 logger.warning("spbm_telemetry_etl failed single run_id=%d: %s", run_id, _e)
             if "cpu_samples" in result:
@@ -2038,7 +2052,7 @@ class ExperimentRunner:
                         logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
             # SPEC_03A: NIC samples
             if result.get("nic_samples"):
-                _insert_nic_samples(db, run_id, result["nic_samples"])
+                _insert_nic_samples(db, run_id, result["nic_samples"], conn=_wconn)
 
             # 16D3: ARM — write summary cpu_samples row from PerformanceCounters.
             # On x86, turbostat already wrote continuous rows above.
@@ -2217,7 +2231,7 @@ class ExperimentRunner:
             # Network energy ETL — mirrors save_pair() call after LLM interactions.
             try:
                 from scripts.etl.network_energy_etl import process_run as _pne
-                _pne(run_id, db.db.conn)
+                _pne(run_id, _wconn)
             except Exception as _e:
                 logger.warning("network_energy_etl failed single run_id=%d: %s", run_id, _e)
 
@@ -2229,10 +2243,10 @@ class ExperimentRunner:
             logger.info("save_single: run_id=%d workflow=%s rep=%d", run_id, workflow_type, rep_num)
 
             # ETL chain — same order as save_pair()
-            compute_phase_attribution(run_id)
-            aggregate_hardware_metrics(run_id)
-            compute_energy_attribution(run_id)
-            populate_ttft_tpot(run_id)
+            compute_phase_attribution(run_id, conn=_wconn)
+            aggregate_hardware_metrics(run_id, conn=_wconn)
+            compute_energy_attribution(run_id, conn=_wconn)
+            populate_ttft_tpot(run_id, conn=_wconn)
 
             # Duration fix — mirrors save_pair() fix_run_with_pretask block
             _ml = result.get("ml_features", {})
@@ -2245,9 +2259,10 @@ class ExperimentRunner:
                     _ml.get("post_task_duration_sec", 0.0),
                     _ml.get("cpu_frac_pre", 0.0),
                     _ml.get("cpu_frac_post", 0.0),
+                    conn=_wconn,
                 )
             else:
-                fix_run(run_id)
+                fix_run(run_id, conn=_wconn)
 
             # Goal tracking — single side only
             goal_id = self._record_goal_pair(
@@ -2263,43 +2278,43 @@ class ExperimentRunner:
                 orchestration_uj=orchestration_uj,
                 compute_uj=None,
                 gpu_energy_uj=_gpu_uj,
+                conn=_wconn,
             )
 
             if goal_id is not None:
-                goal_execution_etl.process_one(goal_id, db.db.conn)
+                goal_execution_etl.process_one(goal_id, _wconn)
                 _goal_tracker.queue_etl(
-                    db.db.conn, "goal_execution", goal_id, "goal_execution_etl",
+                    _wconn, "goal_execution", goal_id, "goal_execution_etl",
                 )
                 # Bug 7 fix: backfill attempt_id and ns timestamps for save_single path.
                 if workflow_type == "agentic":
-                    _attempt = db.db.conn.execute(
+                    _attempt = _wconn.execute(
                         "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
                         (run_id,)
                     ).fetchone()
                     if _attempt:
-                        _run_ts = db.db.conn.execute(
+                        _run_ts = _wconn.execute(
                             "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
                             (run_id,)
                         ).fetchone()
-                        db.db.conn.execute(
+                        _wconn.execute(
                             "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
                             (_attempt[0], run_id)
                         )
                         if _run_ts:
-                            db.db.conn.execute(
+                            _wconn.execute(
                                 "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
                                 (_run_ts[0], _run_ts[1], _attempt[0])
                             )
-                        db.db.conn.commit()
+                        _wconn.commit()
 
             # --- Quality scoring (8.5C) ---
             if goal_id is not None:
                 _run_quality_scoring(db=db, goal_id=goal_id, result=result,
-                                     workflow_type=result.get("workflow_type", "linear"))
+                                     workflow_type=result.get("workflow_type", "linear"), conn=_wconn)
 
-            energy_attribution_etl.populate_attribution_stubs(run_id, db.db.conn)
-            _goal_tracker.queue_etl(db.db.conn, "run", run_id, "energy_attribution_etl")
-
+            energy_attribution_etl.populate_attribution_stubs(run_id, _wconn)
+            _goal_tracker.queue_etl(_wconn, "run", run_id, "energy_attribution_etl")
             return run_id
 
     def _save_run_samples(self, db, run_id: int, result: dict) -> None:

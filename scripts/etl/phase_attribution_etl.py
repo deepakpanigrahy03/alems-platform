@@ -94,9 +94,9 @@ ATTRIBUTION_METHOD_FALLBACK = "fallback_run_level_v2"
 _CPU_PACKAGE_DOMAIN_NAME = "PACKAGE"
 
 
-def _conn(db_path):
-    # type: (str) -> sqlite3.Connection
-    """Open DB connection with row factory."""
+def _conn(db_path, existing=None):
+    if existing is not None:
+        return existing
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
@@ -406,8 +406,8 @@ def _total_run_samples(conn, run_id, use_spbm, cpu_domain_id):
     return row["n"] if row else 0
 
 
-def compute_phase_attribution(run_id, db_path=DB_PATH):
-    # type: (int, str) -> dict
+def compute_phase_attribution(run_id, db_path=DB_PATH, conn=None):
+    # type: (int, str, object) -> dict
     """
     Compute direct sample-based phase attribution for one run (v2).
 
@@ -427,7 +427,8 @@ def compute_phase_attribution(run_id, db_path=DB_PATH):
         dict with planning, execution, synthesis, inter_phase energy values
         and coverage metrics. Returns {"error": ...} on skip conditions.
     """
-    conn = _conn(db_path)
+    _own_conn = conn is None
+    conn = _conn(db_path, existing=conn)
 
     # Detect platform: SPBM (ARM) or RAPL (x86). Rule PAC-4.
     # Returns domain_id if SPBM samples exist, None otherwise.
@@ -444,7 +445,8 @@ def compute_phase_attribution(run_id, db_path=DB_PATH):
     # Early return: no phases = no agentic workflow
     phases = _get_phases(conn, run_id)
     if not phases:
-        conn.close()
+        if _own_conn:
+            conn.close()
         return {"error": "no phases for run %d" % run_id}
 
     # Fetch run-level values needed for inter_phase calculation
@@ -454,7 +456,8 @@ def compute_phase_attribution(run_id, db_path=DB_PATH):
     ).fetchone()
 
     if not run_row:
-        conn.close()
+        if _own_conn:
+            conn.close()
         return {"error": "run %d not found" % run_id}
 
     dynamic_energy = run_row["dynamic_energy_uj"] or 0
@@ -586,7 +589,8 @@ def compute_phase_attribution(run_id, db_path=DB_PATH):
     ))
 
     conn.commit()
-    conn.close()
+    if _own_conn:
+        conn.close()
 
     return {
         "planning":           phase_totals["planning"],

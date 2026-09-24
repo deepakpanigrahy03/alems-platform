@@ -45,7 +45,7 @@ def _compute_prefill_energy(conn, run_id: int, first_token_time_ns: int, request
 
     return row[0] if row and row[0] else 0
 
-def populate_run(run_id: int) -> bool:
+def populate_run(run_id: int, conn=None) -> bool:
     """
     Compute and write for a single run:
       - avg ttft_ms / tpot_ms into runs table
@@ -53,10 +53,13 @@ def populate_run(run_id: int) -> bool:
     All streaming interactions processed in one connection.
     Args:
         run_id: target run_id
+        conn:   Optional existing connection. When provided, _conn() is not called.
     Returns:
         True if streaming data found and written, False otherwise
     """
-    conn = _conn()
+    _own_conn = conn is None
+    if _own_conn:
+        conn = _conn()
     try:
         # ── 1. prefill_energy_uj per interaction ──────────────────────────
         interactions = conn.execute("""
@@ -103,7 +106,8 @@ def populate_run(run_id: int) -> bool:
                     run_id, row["avg_ttft"], row["avg_tpot"])
         return True
     finally:
-        conn.close()
+        if _own_conn:
+            conn.close()
 
 
 def main() -> None:

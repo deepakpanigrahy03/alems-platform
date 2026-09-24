@@ -161,12 +161,15 @@ class ExperimentHarness:
             # register_thermal_zones needs raw sqlite3 conn.
             # __init__ has no DatabaseManager — open short-lived connection
             # using same 3-layer path resolution as energy_engine.py lines 628-648.
-            import sqlite3 as _sqlite3
-            from scripts.tools.path_loader import get_alems_db_path as _get_db
-            _db_conn = _sqlite3.connect(_get_db(), timeout=5)
-            self.registered_zones   = register_thermal_zones(_db_conn, _raw_zones)
-            self.registered_cooling = register_cooling_devices(_db_conn, _raw_devices)
-            _db_conn.close()
+            from core.storage.inprocess_writer import InProcessWriter as _IPW
+            from core.storage.resolver import resolve_store as _rs
+            _therm_writer = _IPW(_rs())
+            _therm_writer.open()
+            try:
+                self.registered_zones   = register_thermal_zones(_therm_writer.conn, _raw_zones)
+                self.registered_cooling = register_cooling_devices(_therm_writer.conn, _raw_devices)
+            finally:
+                _therm_writer.close()
  
             # Replace the engine's legacy thermal reader with ThermalReaderV2
             # so read_all_thermal() returns quality-flagged per-zone data

@@ -1007,22 +1007,24 @@ def populate_tool_failure_wasted_energy(run_id: int, db_path: Path = DEFAULT_DB)
 # PUBLIC API
 # =============================================================================
 
-def compute_energy_attribution(run_id: int, db_path: Path = DEFAULT_DB) -> bool:
+def compute_energy_attribution(run_id: int, db_path: Path = DEFAULT_DB, conn=None) -> bool:
     """
     Compute and upsert energy attribution for a single run.
-
+ 
     Args:
         run_id:  Target run_id from runs table.
         db_path: Path to SQLite database.
-
+        conn:    Optional existing connection. When provided, db_path is ignored.
+ 
     Returns:
         True on success, False on failure.
     """
-    if not db_path.exists():
-        logger.error("DB not found: %s", db_path)
-        return False
-
-    conn = sqlite3.connect(str(db_path))
+    _own_conn = conn is None
+    if _own_conn:
+        if not db_path.exists():
+            logger.error("DB not found: %s", db_path)
+            return False
+        conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
 
     try:
@@ -1083,7 +1085,8 @@ def compute_energy_attribution(run_id: int, db_path: Path = DEFAULT_DB) -> bool:
         return False
 
     finally:
-        conn.close()
+        if _own_conn:
+            conn.close()
 
 
 def backfill_all(db_path: Path = DEFAULT_DB) -> None:

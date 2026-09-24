@@ -17,13 +17,15 @@ from scripts.tools.path_loader import get_alems_db_path
 DB_PATH = get_alems_db_path()
 
 
-def _conn(db_path: str) -> sqlite3.Connection:
+def _conn(db_path: str, existing=None) -> sqlite3.Connection:
+    if existing is not None:
+        return existing
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def aggregate_hardware_metrics(run_id: int, db_path: str = DB_PATH) -> dict:
+def aggregate_hardware_metrics(run_id: int, db_path: str = DB_PATH, conn=None) -> dict:
     """
     Aggregate hardware sample tables into runs table for one run.
 
@@ -36,7 +38,8 @@ def aggregate_hardware_metrics(run_id: int, db_path: str = DB_PATH) -> dict:
         disk_write_bytes_total  = SUM(io_samples.disk_write_bytes)
         voltage_vcore_avg       = AVG(thermal_samples.voltage_vcore)
     """
-    conn = _conn(db_path)
+    _own_conn = conn is None
+    conn = _conn(db_path, existing=conn)
 
     row = conn.execute("""
         SELECT
@@ -63,7 +66,8 @@ def aggregate_hardware_metrics(run_id: int, db_path: str = DB_PATH) -> dict:
           row["dr"],  row["dw"], row["vcore"], run_id))
 
     conn.commit()
-    conn.close()
+    if _own_conn:
+        conn.close()
 
     return {
         "l1d_cache_misses_total":  row["l1d"],
@@ -88,7 +92,8 @@ def aggregate_async(run_id: int, db_path: str = DB_PATH) -> None:
 
 def backfill_all(db_path: str = DB_PATH) -> None:
     """Backfill all existing runs."""
-    conn = _conn(db_path)
+    _own_conn = conn is None
+    conn = _conn(db_path, existing=conn)
     runs = conn.execute("SELECT run_id FROM runs ORDER BY run_id").fetchall()
     conn.close()
     print(f"Backfilling {len(runs)} runs...")
