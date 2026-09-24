@@ -35,12 +35,13 @@ def test_load_ownership_covers_tables():
     assert len(views) >= 35, f"Expected >=35 views, got {len(views)}"
 
 
-def test_audit_dir_is_under_project():
-    """AUDIT_DIR sits alongside experiments.db not inside the repo."""
-    from scripts.tools.audit.utils import AUDIT_DIR, REPO_ROOT
-    assert str(REPO_ROOT) not in str(AUDIT_DIR), (
-        f"AUDIT_DIR should not be inside REPO_ROOT.\n"
-        f"  REPO_ROOT={REPO_ROOT}\n  AUDIT_DIR={AUDIT_DIR}"
+def test_audit_dir_resolves():
+    """AUDIT_DIR resolves to db.parent/audit alongside experiments.db."""
+    from scripts.tools.audit.utils import AUDIT_DIR, get_db_path
+    db = get_db_path()
+    assert AUDIT_DIR == db.parent / "audit", (
+        f"AUDIT_DIR should be db.parent/audit.\n"
+        f"  db={db}\n  AUDIT_DIR={AUDIT_DIR}"
     )
 
 
