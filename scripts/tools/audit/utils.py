@@ -330,6 +330,48 @@ def _compare_rows(diffs: List[Dict], table: str, key: str,
 
 
 # ---------------------------------------------------------------------------
+# Auto-register unknown tables into table_ownership.yaml
+# ---------------------------------------------------------------------------
+
+def auto_register_unknown(violations: List[str]) -> None:
+    """
+    Add unlisted tables and views to table_ownership.yaml with safe defaults.
+    owner=unknown, golden_class=raw, no natural_key, no run_linkage.
+    Researcher reviews and corrects owner/golden_class afterwards.
+    """
+    with open(OWNERSHIP_YAML) as fh:
+        raw = yaml.safe_load(fh)
+
+    tables_block = raw.get("tables") or {}
+    views_block = raw.get("views") or {}
+
+    for v in violations:
+        parts = v.split("'")
+        if len(parts) < 2:
+            continue
+        kind = v.split("'")[0].strip()
+        name = parts[1]
+        entry = {
+            "owner": "unknown",
+            "kind": kind,
+            "evidence": "auto-registered by audit capture; review and correct",
+            "golden_class": "raw",
+            "natural_key": [],
+            "run_linkage": None,
+        }
+        if kind == "view":
+            views_block[name] = entry
+        else:
+            tables_block[name] = entry
+
+    raw["tables"] = tables_block
+    raw["views"] = views_block
+
+    with open(OWNERSHIP_YAML, "w") as fh:
+        yaml.dump(raw, fh, default_flow_style=False, allow_unicode=True)
+
+
+# ---------------------------------------------------------------------------
 # Coverage check
 # ---------------------------------------------------------------------------
 

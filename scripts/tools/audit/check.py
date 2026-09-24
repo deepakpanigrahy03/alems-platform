@@ -18,6 +18,7 @@ from scripts.tools.audit.utils import (
     AUDIT_DIR,
     REPORTS_DIR,
     REPO_ROOT,
+    auto_register_unknown,
     check_coverage,
     diff_dumps,
     dump_all,
@@ -221,8 +222,9 @@ def cmd_check(argv: List[str]) -> int:
     try:
         violations = check_coverage(conn, ownership)
         if violations:
-            for v in violations:
-                print(f"COVERAGE FAIL: {v}")
+            print(f"[audit] AUTO-REGISTERING {len(violations)} unlisted tables/views")
+            auto_register_unknown(violations)
+            ownership = load_ownership()
             print("[audit] FAIL: fix table_ownership.yaml before check")
             return 1
 

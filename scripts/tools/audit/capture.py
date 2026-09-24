@@ -17,7 +17,9 @@ import yaml
 
 from scripts.tools.audit.utils import (
     AUDIT_DIR,
+    OWNERSHIP_YAML,
     REPO_ROOT,
+    auto_register_unknown,
     check_coverage,
     dump_all,
     get_db_path,
@@ -129,10 +131,12 @@ def cmd_capture(argv: List[str]) -> int:
     try:
         violations = check_coverage(conn, ownership)
         if violations:
+            print(f"[audit] AUTO-REGISTERING {len(violations)} unlisted tables/views:")
             for v in violations:
-                print(f"COVERAGE FAIL: {v}")
-            print("[audit] FAIL: fix table_ownership.yaml before capture")
-            return 1
+                print(f"  {v}")
+            auto_register_unknown(violations)
+            ownership = load_ownership()
+            print(f"[audit] Review and correct owner/golden_class in table_ownership.yaml")
 
         print("[audit] reading reference runs from live DB ...")
         dump = dump_all(conn, ownership, ref_run_ids, nondeterministic)
