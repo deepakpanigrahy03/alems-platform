@@ -104,7 +104,8 @@ tables:
     kind: table
     evidence: extension_registry name=orchestration; EAR policy decisions logged per attempt
     golden_class: raw
-    natural_key: [run_id, attempt_id, decision_time]
+    natural_key: [decision_id]
+    run_linkage: goal_attempt.attempt_id
     run_linkage: run_id -> goal_attempt.run_id
 
   ear_policy:
@@ -552,8 +553,8 @@ tables:
     kind: table
     evidence: extension_registry name=failure_recovery; written by recovery policy adapter
     golden_class: raw
-    natural_key: [run_id, attempt_id, event_time]
-    run_linkage: run_id
+    natural_key: [goal_id, attempt_id]
+    run_linkage: goal_attempt.goal_id
 
   recovery_taxonomy:
     owner: failure_recovery
@@ -616,7 +617,8 @@ tables:
     kind: table
     evidence: extension_registry name=orchestration (serving snapshots are orchestration output)
     golden_class: raw
-    natural_key: [run_id, snapshot_time]
+    natural_key: [snapshot_id]
+    run_linkage: goal_attempt.attempt_id
     run_linkage: run_id
 
   sqlite_sequence:

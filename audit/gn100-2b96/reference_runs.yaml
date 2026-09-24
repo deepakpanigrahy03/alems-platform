@@ -1,0 +1,103 @@
+# audit/gn100-2b96/reference_runs.yaml
+# Reference run selection for GN100 (gn100-2b96).
+# SPEC_39_1 section 7.1 step 1.
+host: gn100-2b96
+captured_at: "2026-09-23"
+spec_version: "SPEC_39_1 section 7.1"
+
+runs:
+  - run_id: 217
+    workflow_type: linear
+    experiment_type: normal
+    provider: vllm_local
+    task: gsm8k_basic
+    persistence_path: save_pair
+    reason: "linear normal baseline, large pool (n=121), local vllm energy source"
+
+  - run_id: 1552
+    workflow_type: linear
+    experiment_type: normal
+    provider: groq
+    task: gsm8k_basic
+    persistence_path: save_pair
+    reason: "linear remote provider (groq), n=118, covers remote energy path"
+
+  - run_id: 1379
+    workflow_type: agentic
+    experiment_type: normal
+    provider: vllm_local
+    task: tg_single_calc
+    persistence_path: execute_goal
+    reason: "agentic normal local, n=82, covers execute_goal path"
+
+  - run_id: 1441
+    workflow_type: agentic
+    experiment_type: normal
+    provider: nvidia_nim
+    task: tg_single_calc
+    persistence_path: execute_goal
+    reason: "agentic nvidia_nim, n=64, covers nim energy attribution"
+
+  - run_id: 408
+    workflow_type: agentic
+    experiment_type: failure_injection
+    provider: vllm_local
+    task: commonsense_reasoning
+    persistence_path: execute_goal
+    reason: "injection series start, covers failure_injection_log linkage"
+
+  - run_id: 467
+    workflow_type: agentic
+    experiment_type: failure_injection
+    provider: vllm_local
+    task: factual_qa
+    persistence_path: execute_goal
+    reason: "injection series end, different task, same provider block"
+
+  - run_id: 885
+    workflow_type: agentic
+    experiment_type: failure_injection
+    provider: nvidia_nim
+    task: commonsense_reasoning
+    persistence_path: execute_goal
+    reason: "injection nim series, n=60, covers nim injection ETL path"
+
+  - run_id: 1791
+    workflow_type: agentic
+    experiment_type: failure_injection
+    provider: vllm_remote
+    task: tg_single_calc
+    persistence_path: execute_goal
+    reason: "largest single injection series (n=130), remote vllm energy source"
+
+  - run_id: 1505
+    workflow_type: agentic
+    experiment_type: normal
+    provider: vllm_remote
+    task: gsm8k_basic
+    persistence_path: execute_goal
+    reason: "normal vllm_remote, covers remote normal path"
+
+  - run_id: 221
+    workflow_type: agentic
+    experiment_type: failure_injection
+    provider: nvidia_nim
+    task: gsm8k_basic
+    persistence_path: execute_goal
+    reason: "injection nvidia_nim gsm8k, different task from run 885"
+
+  - run_id: 155
+    workflow_type: agentic
+    experiment_type: failure_injection
+    provider: groq
+    task: gsm8k_basic
+    persistence_path: execute_goal
+    reason: "injection groq, covers groq provider injection path"
+
+  - run_id: 2040
+    workflow_type: agentic
+    experiment_type: failure_injection
+    provider: llamacpp_remote
+    task: tg_single_calc
+    persistence_path: execute_goal
+    reason: "injection llamacpp_remote, covers llama.cpp provider path"

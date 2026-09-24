@@ -24,27 +24,27 @@ def handle_dev(argv: List[str]) -> int:
         return 1
 
     sub = argv[0]
-    if sub == "golden":
-        return _cmd_golden(argv[1:])
+    if sub == "audit":
+        return _cmd_audit(argv[1:])
 
     # Other dev subcommands (pull, sync, status, install) are handled by scripts/alems bash.
     print(f"alems dev: unknown subcommand '{sub}' (may be a bash command, use scripts/alems)", file=sys.stderr)
     return 1
 
 
-def _cmd_golden(argv: List[str]) -> int:
-    """Dispatch golden sub-subcommands. Implemented in WP 1b."""
+def _cmd_audit(argv: List[str]) -> int:
+    """Dispatch audit sub-subcommands."""
     action = argv[0] if argv else ""
     if action in ("capture", "check", "rebaseline"):
         try:
-            from scripts.tools.golden.runner import golden_main
-            return golden_main(action, argv[1:])
+            from scripts.tools.audit.runner import audit_main
+            return audit_main(action, argv[1:])
         except ImportError:
             print(
-                f"alems dev golden {action}: golden system not yet built (WP 1b).",
+                f"alems dev audit {action}: audit system not yet built.",
                 file=sys.stderr,
             )
             return 1
-    print(f"alems dev golden: unknown action '{action}'", file=sys.stderr)
-    print("Usage: alems dev golden [capture|check|rebaseline]", file=sys.stderr)
+    print(f"alems dev audit: unknown action '{action}'", file=sys.stderr)
+    print("Usage: alems dev audit [capture|check|rebaseline]", file=sys.stderr)
     return 1

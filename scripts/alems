@@ -141,6 +141,9 @@ db.create_tables()
                 bash scripts/install.sh
                 ;;
 
+            audit|lock)
+                _python_cli dev "$SUBCMD" "$@"
+                ;;
             help|*)
                 echo ""
                 echo "  alems dev pull      — git pull + smart schema sync"

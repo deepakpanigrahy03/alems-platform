@@ -1,0 +1,5 @@
+# audit/gn100-2b96/nondeterministic.yaml
+# Columns excluded from audit comparison due to documented nondeterminism.
+# Initially empty. A column is only added after two consecutive checks differ
+# AND Deepak approves the exclusion.
+{}
