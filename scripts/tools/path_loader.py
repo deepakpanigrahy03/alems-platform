@@ -40,17 +40,26 @@ def _source_alemsrc():
 def get_alems_db_path():
     # type: () -> str
     """
-    Resolve the correct SQLite DB path for this machine.
+    Resolve the correct SQLite DB path for this machine or active sandbox.
 
-    Priority:
-      Layer 1: ALEMS_DATA_ROOT env var + hostname
-               -> $ALEMS_DATA_ROOT/$hostname/experiments.db
-      Layer 2: app_settings.yaml database.sqlite.path (relative)
-      Layer 3: hardcoded fallback -> data/experiments.db
+    Delegates to core.storage.resolver.resolve_store() which is the single
+    source of truth. Resolution order:
+      1. ALEMS_STORE env var
+      2. Sandbox store (walk up from ALEMS_CALLER_DIR for alems-sandbox.yaml)
+      3. ALEMS_DATA_ROOT + .alems-env layers (legacy, backward compat)
+      4. Hardcoded fallback data/experiments.db
 
     Returns:
-        Path string for experiments.db on this machine.
+        Absolute path string for experiments.db on this machine.
     """
+    import os
+    os.environ.setdefault("ALEMS_CALLER_DIR", os.getcwd())
+    try:
+        from core.storage.resolver import resolve_store
+        return resolve_store()
+    except Exception:
+        pass
+    # Fallback to original logic if resolver import fails
     _source_alemsrc()
     # Layer 0: .alems-env marker file in checkout root (highest priority).
     # Single token: dev | integration | preprod | prod

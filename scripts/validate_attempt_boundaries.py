@@ -28,7 +28,7 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 
-sys.path.insert(0, str(Path.cwd()))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.tools.path_loader import get_alems_db_path
 
 CHECKS = [

@@ -55,8 +55,14 @@ def _load_builtin_commands() -> None:
     """Register built-in command handlers directly."""
     from core.cli.cmd_lock import handle_lock
     from core.cli.cmd_dev import handle_dev
+    from core.cli.cmd_sandbox import handle_sandbox
+    from core.cli.cmd_engine import handle_engine
+    from core.cli.cmd_run import handle_run
     _COMMANDS["lock"] = handle_lock
     _COMMANDS["dev"] = handle_dev
+    _COMMANDS["sandbox"] = handle_sandbox
+    _COMMANDS["engine"] = handle_engine
+    _COMMANDS["run"] = handle_run
 
 
 def _print_help() -> None:

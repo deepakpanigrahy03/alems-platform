@@ -42,10 +42,25 @@ class ConfigLoader:
         """Initialize with config directory."""
         # Set configuration directory
         if config_dir is None:
-            # __file__ is /home/dpani/mydrive/a-lems/core/config_loader.py
-            # parent → /home/dpani/mydrive/a-lems/core/
-            # parent.parent → /home/dpani/mydrive/a-lems/
             self.config_dir = Path(__file__).parent.parent / "config"
+            # Use sandbox config/ if running inside a sandbox (design 7.12 layer 4).
+            import os
+            sandbox_dir = None
+            sandbox_env = os.environ.get("ALEMS_SANDBOX")
+            if sandbox_env:
+                sandbox_dir = Path(sandbox_env)
+            else:
+                p = Path.cwd()
+                for _ in range(8):
+                    if (p / "alems-sandbox.yaml").exists():
+                        sandbox_dir = p
+                        break
+                    parent = p.parent
+                    if parent == p:
+                        break
+                    p = parent
+            if sandbox_dir is not None and (sandbox_dir / "config").exists():
+                self.config_dir = sandbox_dir / "config"
         else:
             self.config_dir = Path(config_dir)
 
@@ -57,8 +72,15 @@ class ConfigLoader:
             f"✅ Loaded models config: {list(self._models_config.keys()) if self._models_config else 'None'}"
         )
 
-        # Load hardware config
-        self._hardware_config = self._load_json("hw_config.json")
+        # Load hardware config via accessor (design 7.13).
+        # resolve_hw_config() checks machine path first, repo fallback second.
+        # Never loads from a sandbox directory.
+        try:
+            from core.storage.resolver import resolve_hw_config
+            self._hardware_config = resolve_hw_config()
+        except Exception as _e:
+            logger.warning("resolve_hw_config failed, falling back to direct load: %s", _e)
+            self._hardware_config = self._load_json("hw_config.json")
         print(
             f"✅ Loaded hardware config: {list(self._hardware_config.keys()) if self._hardware_config else 'None'}"
         )
@@ -351,8 +373,13 @@ class ConfigLoader:
             with open(settings_path, "r") as f:
                 data = yaml.safe_load(f)
 
+            # Merge sandbox config/overrides.yaml on top (design 7.12 layer 4)
+            merged = data if data else {}
+            sandbox_overrides = self._load_sandbox_overrides()
+            if sandbox_overrides:
+                merged = self._deep_merge(merged, sandbox_overrides)
             # Recursively convert nested dicts to ConfigDict
-            return self._to_config_dict(data if data else {})
+            return self._to_config_dict(merged)
 
         except ImportError:
             print("⚠️ PyYAML not installed. Run: pip install pyyaml")
@@ -360,6 +387,49 @@ class ConfigLoader:
         except Exception as e:
             print(f"⚠️ Failed to load settings: {e}")
             return ConfigDict()
+
+    def _load_sandbox_overrides(self):
+        # type: () -> dict
+        """Find and load sandbox config/overrides.yaml via ALEMS_SANDBOX or cwd walk-up."""
+        import os
+        import yaml
+        sandbox_dir = None
+        sandbox_env = os.environ.get("ALEMS_SANDBOX")
+        if sandbox_env:
+            sandbox_dir = Path(sandbox_env)
+        else:
+            p = Path.cwd()
+            for _ in range(8):
+                if (p / "alems-sandbox.yaml").exists():
+                    sandbox_dir = p
+                    break
+                parent = p.parent
+                if parent == p:
+                    break
+                p = parent
+        if sandbox_dir is None:
+            return {}
+        overrides_path = sandbox_dir / "config" / "overrides.yaml"
+        if not overrides_path.exists():
+            return {}
+        try:
+            with open(overrides_path) as f:
+                data = yaml.safe_load(f)
+            return data if isinstance(data, dict) else {}
+        except Exception as e:
+            logger.warning("sandbox overrides load failed: %s", e)
+            return {}
+
+    def _deep_merge(self, base, override):
+        # type: (dict, dict) -> dict
+        """Recursively merge override onto base. Override wins on conflict."""
+        result = dict(base)
+        for key, val in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(val, dict):
+                result[key] = self._deep_merge(result[key], val)
+            else:
+                result[key] = val
+        return result
 
     def _to_config_dict(self, data):
         """Recursively convert dict to ConfigDict."""

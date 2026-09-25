@@ -59,13 +59,18 @@ class BaselineManager:
         """
         import os, socket as _socket
         if base_dir is None:
-            # Use same machine-aware root as experiments.db
-            data_root = os.environ.get("ALEMS_DATA_ROOT", "")
-            if data_root:
-                host = _socket.gethostname().lower()
-                self.base_dir = Path(data_root) / host / "baselines"
+            # Sandbox isolation: when ALEMS_STORE is set, baselines live
+            # next to the sandbox store so each sandbox is fully isolated.
+            store_env = os.environ.get("ALEMS_STORE", "")
+            if store_env:
+                self.base_dir = Path(store_env).parent / "baselines"
             else:
-                self.base_dir = Path(project_root) / "data" / "baselines"
+                data_root = os.environ.get("ALEMS_DATA_ROOT", "")
+                if data_root:
+                    host = _socket.gethostname().lower()
+                    self.base_dir = Path(data_root) / host / "baselines"
+                else:
+                    self.base_dir = Path(project_root) / "data" / "baselines"
         else:
             self.base_dir = Path(project_root) / base_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)

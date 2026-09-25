@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alems-platform.org/schemas/sandbox-lock/1.0.0",
+  "title": "A-LEMS Sandbox Lock File",
+  "description": "alems.lock schema. Records exact versions of every component used by this sandbox. Written by sandbox create and upgrade. Read at every run. Committed to git.",
+  "type": "object",
+  "required": [
+    "lock_format_version",
+    "sandbox_id",
+    "runtime_version",
+    "sdk_version",
+    "core_schema_version",
+    "python",
+    "locked_at"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "lock_format_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "sandbox_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "Must match alems-sandbox.yaml sandbox_id."
+    },
+    "runtime_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "alems-platform package version of the engine that produced this lock."
+    },
+    "sdk_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "alems-sdk package version."
+    },
+    "core_schema_version": {
+      "type": "integer",
+      "description": "Highest applied core migration version number."
+    },
+    "python": {
+      "type": "string",
+      "description": "Absolute path to the engine venv python executable used to produce this lock."
+    },
+    "install_type": {
+      "type": "string",
+      "enum": ["pip", "dev"],
+      "description": "pip = installed from PyPI. dev = development checkout pre-PyPI-release."
+    },
+    "dev_path": {
+      "type": "string",
+      "description": "Present only when install_type is dev. Absolute path to engine checkout."
+    },
+    "locked_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 datetime when this lock was written."
+    },
+    "plugins": {
+      "type": "array",
+      "description": "Every plugin loaded by this engine at lock time.",
+      "items": {
+        "type": "object",
+        "required": ["id", "version", "content_hash"],
+        "additionalProperties": false,
+        "properties": {
+          "id":           { "type": "string" },
+          "version":      { "type": "string" },
+          "content_hash": { "type": "string" },
+          "origin":       { "type": "string", "enum": ["engine", "sandbox"] }
+        }
+      }
+    },
+    "extension_schema_versions": {
+      "type": "object",
+      "description": "Map of namespace -> highest applied extension migration version.",
+      "additionalProperties": { "type": "integer" }
+    }
+  }
+}

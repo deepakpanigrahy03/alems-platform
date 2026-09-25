@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from .base import DatabaseError, DatabaseInterface
-from .schema import (CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALITY,
+from .schema import (CREATE_SANDBOX_IDENTITY, CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALITY,
                      CREATE_OUTLIER_DETECTION_CONFIG, CREATE_RUN_OUTLIERS,
                      CREATE_V_RUNS_CLEAN, CREATE_V_RUNS_UNFILTERED,
                      CREATE_ANALYSIS_DOMAIN_CONFIG, CREATE_METRIC_ANALYSIS_DOMAINS,
@@ -434,7 +434,8 @@ class SQLiteAdapter(DatabaseInterface):
         # Extension registry table — tracks activated research extensions per machine.
         # Created as part of core schema so it exists on every install (35D).
         self.conn.executescript(CREATE_EXTENSION_REGISTRY)   
-        self.conn.executescript(CREATE_WRITER_IDEMPOTENCY)     
+        self.conn.executescript(CREATE_WRITER_IDEMPOTENCY)
+        self.conn.executescript(CREATE_SANDBOX_IDENTITY)     
 
 
         # Commit explicitly (DDL should be committed)

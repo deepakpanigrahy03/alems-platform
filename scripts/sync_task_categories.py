@@ -32,7 +32,8 @@ def load_tasks_from_yaml():
 
 def sync_to_database(tasks):
     """Full refresh of task_categories table"""
-    db_path = Path(__file__).parent.parent / "data" / "experiments.db"
+    from scripts.tools.path_loader import get_alems_db_path
+    db_path = Path(get_alems_db_path())
 
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()

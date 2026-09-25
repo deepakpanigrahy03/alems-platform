@@ -3587,3 +3587,16 @@ CREATE TABLE IF NOT EXISTS writer_idempotency (
     recorded_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 """
+
+CREATE_SANDBOX_IDENTITY = """
+CREATE TABLE IF NOT EXISTS sandbox_identity (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    sandbox_id       TEXT    NOT NULL UNIQUE,
+    name             TEXT    NOT NULL,
+    sandbox_path     TEXT    NOT NULL,
+    engine_version   TEXT    NOT NULL,
+    engine_python    TEXT    NOT NULL,
+    adopted_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+    adopted_from     TEXT    NULL
+);
+"""

@@ -16,7 +16,8 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
-
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.tools.path_loader import get_alems_db_path
 DB_PATH  = get_alems_db_path()
 PASS     = "✅"

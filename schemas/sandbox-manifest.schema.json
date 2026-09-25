@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alems-platform.org/schemas/sandbox-manifest/1.0.0",
+  "title": "A-LEMS Sandbox Manifest",
+  "description": "alems-sandbox.yaml schema. Defines a sandbox: one research unit (one paper, one study). Never contains hardware config, endpoints, or credentials.",
+  "type": "object",
+  "required": [
+    "sandbox_format_version",
+    "sandbox_id",
+    "name",
+    "author",
+    "created_at",
+    "engine_version",
+    "sdk_version"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "sandbox_format_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Format version. Tooling refuses unknown future versions."
+    },
+    "sandbox_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "description": "UUID generated at create time. Never changes."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Short slug used in store path derivation. Lowercase, hyphens only."
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Username of sandbox creator."
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date",
+      "description": "ISO 8601 date of sandbox creation."
+    },
+    "engine_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Preferred engine version (semver). Launcher picks an installed engine satisfying this."
+    },
+    "sdk_version": {
+      "type": "string",
+      "description": "PEP 440 version specifier for alems-sdk, e.g. >=1.0.0,<2.0.0"
+    },
+    "data_root": {
+      "type": "string",
+      "description": "Optional override for ALEMS_DATA_ROOT. Absolute path. Omit to use env var."
+    },
+    "extensions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Declared sandbox-local extensions under extensions/. Loaded through conformance kit."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 256,
+      "description": "Human description of sandbox purpose, e.g. ISPASS 2027 energy attribution experiments."
+    },
+    "adopted_store": {
+      "type": "string",
+      "description": "Present only for adopted sandboxes. Absolute path to the existing store. Overrides derived store path."
+    }
+  }
+}

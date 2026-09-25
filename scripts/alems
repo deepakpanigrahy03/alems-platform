@@ -17,9 +17,77 @@ set -euo pipefail
 
 # ── Resolve project root and activate venv ───────────────────────────
 ALEMS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
+export ALEMS_CALLER_DIR="$(pwd)"
+# Always re-derive store from cwd. Never inherit from shell env.
+unset ALEMS_STORE ALEMS_SANDBOX ALEMS_PROJECT
+
+# ── Derive store from cwd context (always wins over shell env) ────────
+_sandbox_yaml=""
+_p="$ALEMS_CALLER_DIR"
+for _i in 1 2 3 4 5 6 7 8; do
+    if [ -f "${_p}/alems-sandbox.yaml" ]; then
+        _sandbox_yaml="${_p}/alems-sandbox.yaml"
+        export ALEMS_SANDBOX="${_p}"
+        break
+    fi
+    _p="$(dirname "${_p}")"
+    [ "${_p}" = "/" ] && break
+done
 cd "$ALEMS_ROOT"
 export PYTHONPATH="${ALEMS_ROOT}"
 [ -f venv/bin/activate ] && source venv/bin/activate 2>/dev/null || true
+
+# ── Source ~/.alemsrc (machine level: ALEMS_DATA_ROOT, API keys) ─────
+if [ -f "${HOME}/.alemsrc" ]; then
+    set -a
+    # Use setdefault: only set if not already in shell environment
+    while IFS= read -r _line; do
+        [[ "$_line" =~ ^export\ ([A-Z_]+)=(.*)$ ]] || continue
+        _k="${BASH_REMATCH[1]}"
+        _v="${BASH_REMATCH[2]}"
+        [ -z "${!_k+x}" ] && export "${_k}=${_v}"
+    done < "${HOME}/.alemsrc"
+    set +a
+fi
+
+# ── Source .sandbox-env (sandbox level: ALEMS_STORE, highest priority) ─
+# Walk up from ALEMS_CALLER_DIR to find .sandbox-env
+_SANDBOX_ENV=""
+_p="${ALEMS_CALLER_DIR}"
+for _i in 1 2 3 4 5 6 7 8; do
+    if [ -f "${_p}/.sandbox-env" ]; then
+        _SANDBOX_ENV="${_p}/.sandbox-env"
+        break
+    fi
+    _p="$(dirname "${_p}")"
+    [ "${_p}" = "/" ] && break
+done
+if [ -n "${_sandbox_yaml}" ]; then
+    # Force store from manifest — cwd context always wins over shell env
+    _store=$(python3 -c "
+import yaml, sys
+with open('${_sandbox_yaml}') as f:
+    m = yaml.safe_load(f)
+store = m.get('store','')
+if store:
+    import os
+    store = os.path.expandvars(store)
+print(store)
+" 2>/dev/null)
+    [ -n "${_store}" ] && export ALEMS_STORE="${_store}"
+fi
+if [ -n "${_SANDBOX_ENV}" ]; then
+    # Expand variables (ALEMS_DATA_ROOT must be set first via ~/.alemsrc above)
+    while IFS= read -r _line; do
+        [[ "$_line" =~ ^[A-Z_]+=.*$ ]] || continue
+        _k="${_line%%=*}"
+        _v="${_line#*=}"
+        # Expand $ALEMS_DATA_ROOT and $(hostname) in value
+        _v="$(eval echo "${_v}")"
+        # Shell environment always wins over .sandbox-env
+        [ -z "${!_k+x}" ] && export "${_k}=${_v}"
+    done < "${_SANDBOX_ENV}"
+fi
 
 # ── Helpers ──────────────────────────────────────────────────────────
 _platform() {
@@ -33,6 +101,7 @@ print(json.load(open(p)).get('platform_class','unknown') if os.path.exists(p) el
 # ── Python CLI delegation ─────────────────────────────────────────────
 # Commands implemented in core/cli/ are delegated to the Python entry point.
 # Bash subcommands above take priority; unknown commands fall through here.
+# sandbox, engine, run are Python commands registered in core/cli/main.py.
 _python_cli() {
     python3 -m core.cli.main "$@"
     return $?
@@ -161,10 +230,60 @@ db.create_tables()
 
     # ── EXPERIMENT COMMANDS ───────────────────────────────────────────
     run)
-        TASK="${1:-gsm8k_basic}"
+        PROFILE="${1:-}"
         shift || true
-        echo "  Running experiment: ${TASK}"
-        python3 -m core.execution.tests.run_experiment --task-id "$TASK" "$@"
+        if [ -z "$PROFILE" ] || [ "$PROFILE" = "--help" ] || [ "$PROFILE" = "-h" ]; then
+            echo ""
+            echo "  alems run <profile-name>    run a profile from sandbox profiles/"
+            echo "  alems run <profile-name>    also searches config/experiment_configs/"
+            echo ""
+            echo "  Examples:"
+            echo "    alems run baseline_study"
+            echo "    alems run ear_study_ear_aggressive"
+            echo "    alems run --config /abs/path/to/profile.yaml"
+            echo ""
+            exit 0
+        fi
+        # Resolve profile path: sandbox profiles/ first, then experiment_configs/
+        SANDBOX_ROOT=$(python3 -c "
+import sys, os
+# Walk up from ALEMS_CALLER_DIR (where user typed alems, not engine root)
+p = os.environ.get('ALEMS_CALLER_DIR', os.path.abspath('.'))
+for _ in range(8):
+    if os.path.exists(os.path.join(p,'alems-sandbox.yaml')):
+        print(p); exit(0)
+    p = os.path.dirname(p)
+print('')
+" 2>/dev/null)
+        PROFILE_PATH=""
+        if [ -n "$SANDBOX_ROOT" ] && [ -f "${SANDBOX_ROOT}/profiles/${PROFILE}.yaml" ]; then
+            PROFILE_PATH="${SANDBOX_ROOT}/profiles/${PROFILE}.yaml"
+        elif [ -n "$SANDBOX_ROOT" ] && [ -f "${SANDBOX_ROOT}/profiles/examples/${PROFILE}.yaml" ]; then
+            PROFILE_PATH="${SANDBOX_ROOT}/profiles/examples/${PROFILE}.yaml"
+        elif [ -f "config/experiment_configs/${PROFILE}.yaml" ]; then
+            PROFILE_PATH="config/experiment_configs/${PROFILE}.yaml"
+        elif [ -f "${PROFILE}" ]; then
+            PROFILE_PATH="${PROFILE}"
+        else
+            echo "  error: profile '${PROFILE}' not found"
+            echo "  searched: profiles/${PROFILE}.yaml, profiles/examples/${PROFILE}.yaml, config/experiment_configs/${PROFILE}.yaml"
+            exit 1
+        fi
+        echo "  profile: ${PROFILE_PATH}"
+        # Resolve sandbox store and set ALEMS_STORE so run_experiment.py
+        # writes to sandbox store, never to prod/dev store
+        SANDBOX_STORE=$(python3 -c "
+import sys, os
+sys.path.insert(0,'.')
+os.environ['ALEMS_CALLER_DIR'] = os.environ.get('ALEMS_CALLER_DIR','')
+from core.storage.resolver import resolve_store
+print(resolve_store())
+" 2>/dev/null)
+        if [ -n "$SANDBOX_STORE" ]; then
+            echo "  store:   ${SANDBOX_STORE}"
+            export ALEMS_STORE="${SANDBOX_STORE}"
+        fi
+        python3 -m core.execution.tests.run_experiment --config "$PROFILE_PATH" "$@"
         ;;
 
     measure)
@@ -180,19 +299,62 @@ db.create_tables()
         ;;
 
     # ── PYTHON CLI COMMANDS (delegated to core/cli) ───────────────────
-    lock)
-        python3 -m core.cli.main lock "$@"
+    lock|sandbox|engine)
+        _python_cli "$CMD" "$@"
+        exit $?
         ;;
-
+    # ── VALIDATE COMMANDS ─────────────────────────────────────────────
+    validate)
+        SUBCMD="${1:-help}"; shift || true
+        case "$SUBCMD" in
+            integrity)
+                python3 scripts/test_exp_integrity.py "$@"
+                ;;
+            energy)
+                python3 scripts/validate_energy_chain_v2.py "$@"
+                ;;
+            phase)
+                python3 scripts/validate_phase_attribution.py "$@"
+                ;;
+            attribution)
+                python3 scripts/validate_chunk61_attribution.py "$@"
+                ;;
+            boundaries)
+                python3 scripts/validate_attempt_boundaries.py "$@"
+                ;;
+            report)
+                python3 scripts/report_energy_chain.py "$@"
+                ;;
+            *)
+                echo "Usage: alems validate <subcommand>"
+                echo "  integrity    -- experiment integrity check"
+                echo "  energy       -- energy chain validation"
+                echo "  phase        -- phase attribution validation"
+                echo "  attribution  -- chunk61 attribution validation"
+                echo "  boundaries   -- attempt boundary validation"
+                echo "  report       -- energy chain report"
+                ;;
+        esac
+        ;;
     # ── HELP ──────────────────────────────────────────────────────────
     help|--help|-h|*)
         echo ""
         echo "  A-LEMS CLI"
         echo ""
         echo "  Experiment commands:"
-        echo "    alems run <task-id> [args]   — run an experiment"
+        echo "    alems run <profile-name>     — run an experiment profile"
         echo "    alems measure                — run energy baseline"
         echo "    alems report                 — generate report"
+        echo ""
+        echo "  Sandbox commands:"
+        echo "    alems sandbox create <dir>   — create a new sandbox"
+        echo "    alems sandbox use <dir>      — switch active sandbox"
+        echo "    alems sandbox info           — show current sandbox"
+        echo "    alems sandbox doctor         — run health checks"
+        echo ""
+        echo "  Engine commands:"
+        echo "    alems engine list            — list registered engines"
+        echo "    alems engine register <path> — register an engine"
         echo ""
         echo "  Developer commands:"
         echo "    alems dev pull               — git pull + smart sync"
@@ -201,4 +363,5 @@ db.create_tables()
         echo "    alems dev install            — full install"
         echo ""
         ;;
+
 esac

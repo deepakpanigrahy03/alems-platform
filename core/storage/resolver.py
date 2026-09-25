@@ -160,11 +160,22 @@ def _store_from_project_dir(project_dir: Path) -> Optional[str]:
             import yaml  # type: ignore
             with open(manifest) as f:
                 data = yaml.safe_load(f)
-            store_rel = data.get("store_path", "data/experiments.db")
-            store = Path(store_rel)
-            if not store.is_absolute():
-                store = project_dir / store
-            return str(store.resolve())
+            # Adopted sandbox: store path is explicit in manifest
+            adopted = data.get("adopted_store")
+            if adopted:
+                return str(Path(adopted).resolve())
+            # New sandbox: derive store from data_root + hostname + name + sandbox_id
+            sandbox_id = data.get("sandbox_id", "")
+            name = data.get("name", "unknown")
+            short_id = sandbox_id.split("-")[0] if sandbox_id else "unknown"
+            # data_root from manifest override or ALEMS_DATA_ROOT
+            data_root = data.get("data_root") or os.environ.get("ALEMS_DATA_ROOT")
+            if data_root:
+                host = socket.gethostname().lower()
+                return str(
+                    Path(data_root) / host / "sandboxes" /
+                    f"{name}-{short_id}" / "experiments.db"
+                )
         except Exception as exc:
             logger.warning(
                 "resolve_store: failed to read manifest %s: %s", manifest, exc
@@ -232,7 +243,7 @@ def _read_active_project() -> Optional[str]:
 # hw_config accessor (section 9 of spec)
 # ---------------------------------------------------------------------------
 
-def resolve_hw_config() -> Path:
+def resolve_hw_config() -> dict:
     """
     Return the path to hw_config.json for this machine and environment.
 
@@ -253,14 +264,28 @@ def resolve_hw_config() -> Path:
         # Try the env-scoped path first.
         env_scoped = _env_scoped_hw_config(base, host)
         if env_scoped and env_scoped.exists():
-            return env_scoped
-        # Bare machine path.
+            return _load_hw_config(env_scoped)
         machine_path = Path(base) / host / "hw_config.json"
         if machine_path.exists():
-            return machine_path
+            return _load_hw_config(machine_path)
 
-    # Repo fallback — always present after detect_hardware runs.
-    return Path("config/hw_config.json")
+    # Repo fallback
+    repo_path = Path(__file__).resolve().parent.parent.parent / "config" / "hw_config.json"
+    if repo_path.exists():
+        return _load_hw_config(repo_path)
+    logger.error("resolve_hw_config: no hw_config.json found")
+    return {}
+
+
+def _load_hw_config(path: Path) -> dict:
+    """Load and parse hw_config.json. Returns {} on failure."""
+    import json
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except Exception as e:
+        logger.warning("_load_hw_config failed %s: %s", path, e)
+        return {}
 
 
 def hw_config_write_paths() -> list:

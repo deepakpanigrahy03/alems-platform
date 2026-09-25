@@ -12,7 +12,8 @@ Checks:
 
 import sqlite3
 import sys
-
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from scripts.tools.path_loader import get_alems_db_path
 DB_PATH  = get_alems_db_path()
 
