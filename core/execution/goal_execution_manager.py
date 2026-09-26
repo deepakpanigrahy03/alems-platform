@@ -35,6 +35,9 @@ from pathlib import Path
 from scripts.etl import goal_execution_etl, energy_attribution_etl, phase_attribution_etl, duration_fix_etl
 from scripts.tools.path_loader import get_alems_db_path
 from core.execution.retry_coordinator import RetryCoordinator, RetryPolicy
+import platform
+from core.execution.arm_cpu_sample_builder import _build_arm_cpu_sample_row
+from core.execution.darwin_cpu_sample_builder import _build_darwin_cpu_sample_row
 from core.execution.failure_classifier import FailureClassifier
 from core.database.tool_failure_recorder import record_tool_failure
 from core.execution.run_persistence import insert_one_run
@@ -648,7 +651,7 @@ def execute_goal(
             if _orch_events:
                 db.insert_orchestration_events(run_id, _orch_events)
                 # Backfill attempt_id now that events are in DB.
-                conn.execute(
+                db.execute(
                     """
                     UPDATE orchestration_events
                     SET attempt_id = (
@@ -660,7 +663,6 @@ def execute_goal(
                     """,
                     (goal_id, run_id, run_id),
                 )
-                conn.commit()
         except Exception as _e:
             logger.warning(
                 "execute_goal: orchestration_events insert failed run=%d: %s", run_id, _e
@@ -672,12 +674,57 @@ def execute_goal(
                     db.insert_llm_interaction(interaction)
         except Exception as _e:
             logger.warning("execute_goal: llm_interactions insert failed run=%d: %s", run_id, _e)
+        # GPU samples
+        if "gpu_samples" in final_result and final_result["gpu_samples"]:
+            db.insert_gpu_samples(run_id, final_result["gpu_samples"])
+        if "v2_samples" in final_result and final_result["v2_samples"]:
+            db.insert_energy_samples_v2(run_id, final_result["v2_samples"])
+        if "spbm_samples" in final_result and final_result["spbm_samples"]:
+            db.insert_energy_samples_v2(run_id, final_result["spbm_samples"])
+        # CPU samples — x86 turbostat rows inserted directly; ARM and Darwin get one summary row
+        if "cpu_samples" in final_result and final_result["cpu_samples"]:
+            db.insert_cpu_samples(run_id, final_result["cpu_samples"])
+        _caps_arch = platform.machine().lower()
+        if _caps_arch == 'aarch64':
+            _arm_row = _build_arm_cpu_sample_row(run_id, final_result)
+            if _arm_row:
+                _r = db.get_run(run_id)
+                if _r:
+                    _arm_row['sample_start_ns'] = _r.get('start_time_ns')
+                    _arm_row['sample_end_ns']   = _r.get('end_time_ns')
+                    _arm_row['timestamp_ns']    = _r.get('end_time_ns')
+                try:
+                    db.insert_cpu_samples(run_id, [_arm_row])
+                except Exception as _e:
+                    logger.warning("execute_goal: arm cpu_samples failed run=%d: %s", run_id, _e)
+        elif platform.system() == 'Darwin':
+            _darwin_row = _build_darwin_cpu_sample_row(run_id, final_result)
+            if _darwin_row:
+                _r = db.get_run(run_id)
+                if _r:
+                    _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
+                    _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
+                    _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
+                    _darwin_row['interval_ns'] = (
+                        (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
+                    )
+                try:
+                    db.insert_cpu_samples(run_id, [_darwin_row])
+                except Exception as _e:
+                    logger.warning("execute_goal: darwin cpu_samples failed run=%d: %s", run_id, _e)
+        # Interrupt and IO samples
+        if "interrupt_samples" in final_result:
+            db.insert_interrupt_samples(run_id, final_result["interrupt_samples"])
+        if "io_samples" in final_result:
+            db.insert_io_samples(run_id, final_result["io_samples"])
+        # Thermal samples
+        if "thermal_samples" in final_result:
+            db.insert_thermal_samples(run_id, final_result["thermal_samples"])
         try:
             from scripts.etl.network_energy_etl import process_run as _pne
             _pne(run_id, conn)
         except Exception as _e:
             logger.warning("execute_goal: network_etl failed run=%d: %s", run_id, _e)
-
     # finish_goal always called — regardless of outcome or exception path
     # finish_goal always called — regardless of outcome or exception path
     goal_tracker.finish_goal(

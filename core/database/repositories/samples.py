@@ -105,7 +105,7 @@ class SamplesRepository:
         """
 
         for s in samples:
-            self.db.conn.execute(
+            self.db.execute(
                 query,
                 (
                     run_id,
@@ -188,7 +188,7 @@ class SamplesRepository:
             )
             for s in samples
         ]
-        self.db.conn.executemany(query, rows)
+        self.db.execute_many(query, rows)
         logger.debug("insert_gpu_samples: %d rows for run_id=%d", len(rows), run_id)
         
     def insert_energy_samples_v2(self, run_id, samples):
@@ -244,7 +244,7 @@ class SamplesRepository:
             m['derivation_formula'],
             m['source_ids_used'],
         ) for m in metrics]
-        self.db.conn.executemany("""
+        self.db.execute_many("""
             INSERT INTO energy_derived_metrics
                 (run_id, sample_id, metric_name, value_uj,
                  derivation_formula, source_ids_used)
@@ -278,7 +278,7 @@ class SamplesRepository:
             s.dc_input_mw,
             s.mem_util_pct,
         ) for s in samples]
-        self.db.conn.executemany("""
+        self.db.execute_many("""
             INSERT INTO device_telemetry (
                 run_id, source_id, timestamp_ns, interval_ns,
                 device_type, power_mw, energy_uj, util_pct,
@@ -308,7 +308,7 @@ class SamplesRepository:
             r.get('parent_domain_id'),
             r.get('contributes_to_parent', 1),
         ) for r in rows]
-        self.db.conn.executemany("""
+        self.db.execute_many("""
             INSERT OR IGNORE INTO platform_domain_relationships
                 (hw_id, hardware_hash, source_id, domain_id,
                  parent_domain_id, contributes_to_parent)
@@ -328,7 +328,7 @@ class SamplesRepository:
             return
         # No transaction wrapper — caller manages transactions (same pattern as all insert_* methods).
         for r in span_records:
-            self.db.conn.execute(
+            self.db.execute(
                 """
                 INSERT OR IGNORE INTO spans
                     (span_id, trace_id, parent_span_id, run_id,
@@ -347,7 +347,7 @@ class SamplesRepository:
                 ),
             )
             for p in r.get("placements", []):
-                self.db.conn.execute(
+                self.db.execute(
                     """
                     INSERT INTO span_placements
                         (span_id, node, device, phase, start_ns, end_ns)
@@ -359,7 +359,7 @@ class SamplesRepository:
             for key, val in r.get("attributes", {}).items():
                 from core.vocabularies.agent.span_writer import _encode_attribute
                 value_type, value_text = _encode_attribute(val)
-                self.db.conn.execute(
+                self.db.execute(
                     """
                     INSERT OR REPLACE INTO span_attributes
                         (span_id, key, value_text, value_type)
@@ -385,7 +385,7 @@ class SamplesRepository:
             return
 
         for s in samples:
-            self.db.conn.execute(
+            self.db.execute(
                 """
                 INSERT INTO cpu_samples (
                     run_id, timestamp_ns,
@@ -449,7 +449,7 @@ class SamplesRepository:
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         for s in samples:
-            self.db.conn.execute(query, (
+            self.db.execute(query, (
                 run_id,
                 s.get("sample_start_ns"),
                 s.get("sample_end_ns"),
@@ -512,7 +512,7 @@ class SamplesRepository:
         """
 
         for s in samples:
-            self.db.conn.execute(
+            self.db.execute(
                 query,
                 (
                     run_id,
@@ -572,7 +572,7 @@ class SamplesRepository:
             if isinstance(all_zones, dict):
                 all_zones = json.dumps(all_zones)   # dict → JSON string
 
-            self.db.conn.execute(
+            self.db.execute(
                 query,
                 (
                     run_id,
