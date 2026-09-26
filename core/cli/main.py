@@ -58,11 +58,13 @@ def _load_builtin_commands() -> None:
     from core.cli.cmd_sandbox import handle_sandbox
     from core.cli.cmd_engine import handle_engine
     from core.cli.cmd_run import handle_run
+    from core.cli.cmd_plugins import handle_plugins
     _COMMANDS["lock"] = handle_lock
     _COMMANDS["dev"] = handle_dev
     _COMMANDS["sandbox"] = handle_sandbox
     _COMMANDS["engine"] = handle_engine
     _COMMANDS["run"] = handle_run
+    _COMMANDS["plugins"] = handle_plugins
 
 
 def _print_help() -> None:

@@ -1,0 +1,2 @@
+from fixture_estimator.estimator import FixtureEstimator
+ALEMS_PLUGIN_META = FixtureEstimator.ALEMS_PLUGIN_META

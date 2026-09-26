@@ -1,0 +1,2 @@
+from fixture_reader.reader import ConstantEnergyReader
+ALEMS_PLUGIN_META = ConstantEnergyReader.ALEMS_PLUGIN_META

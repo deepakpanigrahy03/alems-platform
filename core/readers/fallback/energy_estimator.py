@@ -71,6 +71,10 @@ class EnergyEstimator(EnergyReaderABC):
     METHOD_LAYER       = "silicon"
     METHOD_CONFIDENCE  = 0.0
     METHOD_PROVENANCE  = "INFERRED"
+    FIDELITY           = "INFERRED"
+    # Error bound: model is a stub returning zeros; true error is 100%.
+    # When the real XGBoost model ships this becomes a calibrated value.
+    ERROR_BOUND        = "unknown"
     METHOD_PARAMS      = {"model": "xgboost", "features": ["cpu_util", "freq_mhz"], "stub": True}
     FALLBACK_METHOD_ID = None
     def __init__(self, config: dict = None):

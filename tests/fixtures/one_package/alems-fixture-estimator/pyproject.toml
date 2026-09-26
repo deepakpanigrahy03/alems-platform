@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alems-fixture-estimator"
+version = "0.1.0"
+description = "One-package-test fixture: estimator with declared error bound"
+requires-python = ">=3.9"
+dependencies = ["alems-sdk"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fixture_estimator*"]
+
+[project.entry-points."alems.readers.energy"]
+fixture_estimator = "fixture_estimator.estimator:FixtureEstimator"

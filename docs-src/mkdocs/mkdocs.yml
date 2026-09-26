@@ -66,6 +66,7 @@ nav:
     - Energy Attribution: research/energy-attribution.md
     - Phase Attribution: research/phase-attribution.md
     - Energy Readers: research/energy-readers.md
+    - Plugin Conformance: research/plugin-conformance.md
     - System Measurement: research/system-measurement.md
     - Derived Metrics: research/derived-metrics.md
     - Normalization: research/normalization.md

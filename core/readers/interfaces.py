@@ -121,6 +121,27 @@ class BaseReader(ABC):
 # ============================================================================
 
 class EnergyReaderABC(BaseReader):
+    # Fidelity declaration — overridden by subclasses (SPEC_39_3 section 6).
+    # Values: MEASURED (direct hardware read), INFERRED (modeled estimate).
+    # Matches PAC-3 / fidelity vocabulary in SPEC_39_00_COMMON section 2.
+    FIDELITY = "MEASURED"
+
+    @classmethod
+    def get_config_schema(cls) -> dict:
+        """
+        Return a JSON-Schema-compatible dict describing plugin config.
+
+        Subclasses override this to declare their settings.
+        Default returns an empty object schema (no required config).
+
+        Returns:
+            JSON Schema dict with at minimum {"type": "object"}.
+        """
+        # Default: no required config; subclasses extend this.
+        return {"type": "object", "properties": {}, "additionalProperties": True}
+    # Error bound string for INFERRED readers (SPEC_39_3 section 6).
+    # Format: "±X%" or "unknown". None for MEASURED readers.
+    ERROR_BOUND = None
     """
     Interface for all energy measurement readers.
 

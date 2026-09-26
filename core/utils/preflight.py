@@ -159,10 +159,16 @@ def preflight(executor, provider):
             check_msr()
     else:
         check_msr()
-    if provider in ("vllm_local", "vllm_remote"):
-        # vllm_local/vllm_remote use built-in check for backward compat
+    if provider == "vllm_local":
+        # vllm_local uses built-in check for backward compat.
         base_url = executor.config.get("base_url", "http://localhost:8000/v1")
         check_vllm(base_url)
+    elif provider == "vllm_remote":
+        # vllm_remote routes through plugin preflight (B6-1).
+        # Falls back to built-in check if no plugin is registered.
+        if not _run_plugin_preflight(provider, executor.config):
+            base_url = executor.config.get("base_url", "http://localhost:8000/v1")
+            check_vllm(base_url)
     elif provider == "groq":
         check_groq(executor.config)
     elif provider == "cloud":

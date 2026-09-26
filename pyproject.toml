@@ -11,7 +11,7 @@ dependencies = [
 packages = ["core", "alems"]
 
 [project.scripts]
-alems = "core.cli.main:main"
+alems = "core.cli.launcher:main"
  
 # Plugin CLI extension point: declared now, unused until after Gate F (section 8a rule 6).
 [project.entry-points."alems.cli.commands"]
@@ -79,6 +79,7 @@ semantic = "core.execution.scorers.semantic:SemanticScorer"
 llm_judge = "core.execution.scorers.llm_judge:LLMJudgeScorer"
 numeric = "core.execution.scorers.numeric:NumericScorer"
 structural = "core.execution.scorers.structural:StructuralScorer"
+unit_test = "core.execution.scorers.unit_test:UnitTestScorer"
 
 [project.entry-points."alems.tools"]
 builtin = "core.execution.tools.bootstrap:BuiltinToolProvider"
@@ -101,6 +102,21 @@ tool_selection = "extensions.tool_selection.extension:ToolSelectionExtension"
 # Example: my_engine = "mypackage.my_engine:MyInjectionEngine"
 [project.entry-points."alems.injection_engines"]
 scenario = "core.injection.scenario_injector:ScenarioInjector"
+
+# Harness plugin groups — populated by 39.4/39.5.
+# Declared now so external packages can register into them immediately.
+[project.entry-points."alems.harness.retry"]
+
+[project.entry-points."alems.harness.recovery"]
+
+[project.entry-points."alems.harness.collectors"]
+
+# Semantic family — populated by 39.4.
+[project.entry-points."alems.conformance.kits"]
+
+[project.entry-points."alems.spans.vocabularies"]
+
+[project.entry-points."alems.attribution.models"]
 
 # Serving engine telemetry adapters.
 # Core defines the discovery contract for this group.

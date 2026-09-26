@@ -85,6 +85,10 @@ def _resolve_profile(argv: List[str]):
         candidate = sandbox_root / "profiles" / f"{name}.yaml"
         if candidate.exists():
             return candidate, rest
+        # Also search profiles/examples/ subdirectory
+        candidate_ex = sandbox_root / "profiles" / "examples" / f"{name}.yaml"
+        if candidate_ex.exists():
+            return candidate_ex, rest
         # Also try bare name if it already has .yaml
         if name.endswith(".yaml"):
             candidate2 = sandbox_root / "profiles" / name

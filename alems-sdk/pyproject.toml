@@ -11,3 +11,8 @@ dependencies = ["packaging>=21"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+[project.entry-points."alems.conformance.kits"]
+measurement = "alems_sdk._kit_measurement:MeasurementKit"
+execution   = "alems_sdk._kit_execution:ExecutionKit"
+persistence = "alems_sdk._kit_persistence:PersistenceKit"
+output      = "alems_sdk._kit_persistence:OutputKit"

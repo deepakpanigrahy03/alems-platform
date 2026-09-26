@@ -1,0 +1,2 @@
+from fixture_model.fragment import FixtureModelFragment
+ALEMS_PLUGIN_META = FixtureModelFragment.ALEMS_PLUGIN_META

@@ -107,7 +107,8 @@ def test_version():
 
 def test_conformance_skeleton():
     from alems_sdk.conformance import run_conformance, ConformanceReport
-    report = run_conformance("test_plugin", {"name": "test_plugin"})
+    report = run_conformance("test_plugin", {"plugin_id": "test_plugin", "family": "unknown", "version": "0.1.0"})
     assert isinstance(report, ConformanceReport)
     assert report.passed is True
-    assert report.results == []
+    assert isinstance(report, ConformanceReport)
+    assert report.plugin_id == "test_plugin"

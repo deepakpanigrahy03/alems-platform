@@ -257,16 +257,19 @@ class TestResolver:
 class TestHwConfigResolver:
     def test_returns_existing_path(self):
         from core.storage.resolver import resolve_hw_config
-        p = resolve_hw_config()
-        # The repo fallback (config/hw_config.json) always exists on GN100
-        # and UBUNTU2505 after detect_hardware has run.
-        assert p.exists(), f"resolve_hw_config() returned non-existent path: {p}"
+        # resolve_hw_config returns a parsed dict, not a Path.
+        # An empty dict means no config found; a non-empty dict means success.
+        result = resolve_hw_config()
+        assert isinstance(result, dict), (
+            f"resolve_hw_config() must return a dict, got {type(result)}"
+        )
+        assert result != {}, "resolve_hw_config() returned empty dict — hw_config.json not found"
 
     def test_returns_path_object(self):
         from core.storage.resolver import resolve_hw_config
-        from pathlib import Path
-        p = resolve_hw_config()
-        assert isinstance(p, Path)
+        # resolve_hw_config returns a parsed config dict, not a Path object.
+        result = resolve_hw_config()
+        assert isinstance(result, dict)
 
 
 # ---------------------------------------------------------------------------

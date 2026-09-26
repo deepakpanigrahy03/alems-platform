@@ -299,7 +299,7 @@ print(resolve_store())
         ;;
 
     # ── PYTHON CLI COMMANDS (delegated to core/cli) ───────────────────
-    lock|sandbox|engine)
+    lock|sandbox|engine|plugins)
         _python_cli "$CMD" "$@"
         exit $?
         ;;

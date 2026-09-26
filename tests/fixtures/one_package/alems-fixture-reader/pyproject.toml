@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alems-fixture-reader"
+version = "0.1.0"
+description = "One-package-test fixture: constant-power synthetic energy reader"
+requires-python = ">=3.9"
+dependencies = ["alems-sdk"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fixture_reader*"]
+
+[project.entry-points."alems.readers.energy"]
+fixture_constant = "fixture_reader.reader:ConstantEnergyReader"
