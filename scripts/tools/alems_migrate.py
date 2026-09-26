@@ -682,6 +682,36 @@ def preflight(conn, mtype: str, repo_files: dict, env_mode: str = "prod"):
 # Commands
 # ---------------------------------------------------------------------------
 
+def _update_sandbox_lock(conn) -> None:
+    """
+    After migrations apply, rewrite core_schema_version in alems.lock.
+    Uses _schema_versions from core/versioning.py which correctly filters
+    source='core' and version < 9000 from migration_history.
+    Only runs when invoked from a sandbox directory. Silent on failure
+    so a missing lock never aborts a successful migration.
+    """
+    try:
+        from core.cli.cmd_sandbox import _resolve_sandbox_path, _yaml_dump
+        from core.versioning import _schema_versions
+        sandbox_root = _resolve_sandbox_path()
+        if sandbox_root is None:
+            return
+        lock_file = sandbox_root / "alems.lock"
+        if not lock_file.exists():
+            return
+        import yaml
+        with open(lock_file) as f:
+            lock = yaml.safe_load(f) or {}
+        db_path = str(conn.execute("PRAGMA database_list").fetchone()[2])
+        schema_info = _schema_versions(db_path)
+        new_version = schema_info.get("core_schema_version") or lock.get("core_schema_version")
+        lock["core_schema_version"] = new_version
+        lock_file.write_text(_yaml_dump(lock))
+        print(f"  Updated alems.lock: core_schema_version -> {new_version}")
+    except Exception as exc:
+        print(f"  Warning: could not update alems.lock: {exc}")
+
+
 def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod") -> None:
     ensure_tables(conn)
     schema_files = discover_repo_files(SCHEMA_DIR, "v")
@@ -717,6 +747,7 @@ def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod")
         f"\nTotal applied: {len(pending_schema)} schema, {len(pending_seed)} seed, "
         f"{len(pending_setup)} machine setup, {len(pending_ext)} extension."
     )
+    _update_sandbox_lock(conn)
 
 
 def _read_active_extensions() -> list:

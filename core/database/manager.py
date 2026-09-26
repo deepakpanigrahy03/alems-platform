@@ -160,6 +160,10 @@ class DatabaseManager:
         """Insert high-frequency RAPL samples."""
         self.samples.insert_energy_samples(run_id, samples)
 
+    def insert_spans(self, run_id: int, span_records: list) -> None:
+        """Insert span tree for one run. Caller manages transaction."""
+        self.samples.insert_spans(run_id, span_records)
+
     def insert_cpu_samples(self, run_id: int, samples: List[Dict[str, Any]]) -> None:
         """Insert CPU samples."""
         self.samples.insert_cpu_samples(run_id, samples)

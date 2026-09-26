@@ -1132,12 +1132,26 @@ class ExperimentRunner:
         linear_copy["baseline_id"] = linear_copy["ml_features"].get("baseline_id")
         agentic_copy["baseline_id"] = agentic_copy["ml_features"].get("baseline_id")
 
+        # Two SpanWriters sharing one trace_id — one per run_id (EEI-4).
+        # trace_id groups linear and agentic under one experiment trace.
+        from core.vocabularies.agent.span_writer import SpanWriter
+        import uuid
+        _trace_id = uuid.uuid4().hex
+        _linear_writer = SpanWriter(trace_id=_trace_id)
+        _linear_span_id = _linear_writer.open_span("run", f"linear:{task_id}")
+        _linear_writer.close_span(_linear_span_id)
+        _agentic_writer = SpanWriter(trace_id=_trace_id)
+        _agentic_span_id = _agentic_writer.open_span("run", f"agentic:{task_id}")
+        _agentic_writer.close_span(_agentic_span_id)
+
         with db.transaction():
             # Insert linear run
             linear_id = db.insert_run(exp_id, hw_id, linear_result)
             record_run_provenance(db, linear_id, linear_result,
                       reader_mode=linear_result.get("reader_mode"))
             self._validate_run(db, linear_id, hw_id)
+            # Flush linear span — after insert_run so run_id is known (EEI-4).
+            _linear_writer.flush_to_db(db, linear_id)
             # Stub row so ETL _backfill_normalization_factors never skips this run
             _linear_meta = linear_result.get("task_meta", {}) or {}
             _wconn.execute(
@@ -1372,6 +1386,7 @@ class ExperimentRunner:
 
             # Insert agentic run
             agentic_id = db.insert_run(exp_id, hw_id, agentic_result)
+            _agentic_writer.flush_to_db(db, agentic_id)
             record_run_provenance(db, agentic_id, agentic_result,
                       reader_mode=agentic_result.get("reader_mode"))
             self._validate_run(db, agentic_id, hw_id)
@@ -1962,11 +1977,17 @@ class ExperimentRunner:
             result["task_meta"] = task_meta
             outcome   = "success" if result.get("execution", {}).get("status") == "success" else "failure"
 
+            from core.vocabularies.agent.span_writer import SpanWriter
+            _span_writer = SpanWriter()
+            _span_id = _span_writer.open_span("run", f"{workflow_type}:{task_id}")
+            _span_writer.close_span(_span_id)
+
             with db.transaction():
                 run_id = db.insert_run(exp_id, hw_id, result)
                 if run_id is None:
                     logger.warning("save_single: insert_run returned None — aborting")
                     return None
+                _span_writer.flush_to_db(db, run_id)
 
                 record_run_provenance(db, run_id, result,
                                     reader_mode=result.get("reader_mode"))

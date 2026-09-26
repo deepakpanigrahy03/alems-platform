@@ -33,6 +33,9 @@ from typing import Any, Dict, List, Optional, Union
 
 from .base import DatabaseError, DatabaseInterface
 from .schema import (CREATE_SANDBOX_IDENTITY, CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALITY,
+                     CREATE_SPANS, CREATE_SPAN_PLACEMENTS, CREATE_SPAN_LINKS,
+                     CREATE_SPAN_EVENTS, CREATE_SPAN_ATTRIBUTES, CREATE_SPAN_ANNOTATIONS,
+                     CREATE_ATTRIBUTION_RESIDUAL,
                      CREATE_OUTLIER_DETECTION_CONFIG, CREATE_RUN_OUTLIERS,
                      CREATE_V_RUNS_CLEAN, CREATE_V_RUNS_UNFILTERED,
                      CREATE_ANALYSIS_DOMAIN_CONFIG, CREATE_METRIC_ANALYSIS_DOMAINS,
@@ -306,6 +309,14 @@ class SQLiteAdapter(DatabaseInterface):
             ("task_quality_config",  "success_threshold", "REAL"),
             ("goal_execution",       "winning_attempt_id",
              "INTEGER REFERENCES goal_attempt(attempt_id)"),
+            ("runs",                 "span_id",     "TEXT"),
+            ("goal_execution",       "span_id",     "TEXT"),
+            ("goal_attempt",         "span_id",     "TEXT"),
+            ("orchestration_events", "span_id",     "TEXT"),
+            ("llm_interactions",     "span_id",     "TEXT"),
+            ("tool_failure_events",  "span_id",     "TEXT"),
+            ("energy_sources",       "fidelity",    "TEXT NOT NULL DEFAULT 'MEASURED' CHECK (fidelity IN ('MEASURED','INFERRED','LIMITED'))"),
+            ("energy_sources",       "error_bound", "TEXT"),
         ]
         for table, column, typedef in _col_additions:
             existing = [r[1] for r in
@@ -337,6 +348,13 @@ class SQLiteAdapter(DatabaseInterface):
         self.conn.executescript(CREATE_OUTPUT_QUALITY)
         self.conn.executescript(CREATE_OUTPUT_QUALITY_JUDGES) 
         self.conn.executescript(CREATE_TASK_QUALITY_CONFIG)
+        self.conn.executescript(CREATE_SPANS)
+        self.conn.executescript(CREATE_SPAN_PLACEMENTS)
+        self.conn.executescript(CREATE_SPAN_LINKS)
+        self.conn.executescript(CREATE_SPAN_EVENTS)
+        self.conn.executescript(CREATE_SPAN_ATTRIBUTES)
+        self.conn.executescript(CREATE_SPAN_ANNOTATIONS)
+        self.conn.executescript(CREATE_ATTRIBUTION_RESIDUAL)
         self.conn.executescript(CREATE_GOAL_OUTPUT)
         self.conn.executescript(CREATE_OUTLIER_DETECTION_CONFIG)
         self.conn.executescript(CREATE_RUN_OUTLIERS)
@@ -900,6 +918,51 @@ class SQLiteAdapter(DatabaseInterface):
                     s.get("dram_energy_uj"),
                 ),
             )
+
+    def insert_spans(self, run_id: int, span_records: list) -> None:
+        """Insert span tree rows accumulated by SpanWriter for one run."""
+        if not span_records:
+            return
+        # Caller manages transaction — no wrapper here, same as all insert_* methods.
+        for r in span_records:
+            self.conn.execute(
+                """
+                INSERT OR IGNORE INTO spans
+                    (span_id, trace_id, parent_span_id, run_id,
+                     vocabulary, vocabulary_version, kind, name,
+                     start_ns, end_ns, start_wall, status,
+                     tenant_kind, tenant_ref)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    r["span_id"], r["trace_id"], r.get("parent_span_id"), run_id,
+                    r.get("vocabulary", "agent"), r.get("vocabulary_version", "1"),
+                    r["kind"], r["name"],
+                    r["start_ns"], r.get("end_ns"), r.get("start_wall"), r.get("status", "closed"),
+                    r.get("tenant_kind"), r.get("tenant_ref"),
+                ),
+            )
+            for p in r.get("placements", []):
+                self.conn.execute(
+                    """
+                    INSERT INTO span_placements
+                        (span_id, node, device, phase, start_ns, end_ns)
+                    VALUES (?,?,?,?,?,?)
+                    """,
+                    (r["span_id"], p["node"], p["device"],
+                     p.get("phase"), p["start_ns"], p.get("end_ns")),
+                )
+            for key, val in r.get("attributes", {}).items():
+                from core.vocabularies.agent.span_writer import _encode_attribute
+                value_type, value_text = _encode_attribute(val)
+                self.conn.execute(
+                    """
+                    INSERT OR REPLACE INTO span_attributes
+                        (span_id, key, value_text, value_type)
+                    VALUES (?,?,?,?)
+                    """,
+                    (r["span_id"], key, value_text, value_type),
+                )
 
     def insert_cpu_samples(self, run_id: int, samples: List[Dict[str, Any]]) -> None:
         """Insert CPU samples from turbostat."""

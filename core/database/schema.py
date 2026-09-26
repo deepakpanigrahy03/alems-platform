@@ -3600,3 +3600,109 @@ CREATE TABLE IF NOT EXISTS sandbox_identity (
     adopted_from     TEXT    NULL
 );
 """
+CREATE_SPANS = """
+CREATE TABLE IF NOT EXISTS spans (
+    span_id          TEXT    NOT NULL PRIMARY KEY,
+    trace_id         TEXT    NOT NULL,
+    parent_span_id   TEXT,
+    run_id           INTEGER,
+    vocabulary       TEXT    NOT NULL DEFAULT 'generic',
+    vocabulary_version TEXT  NOT NULL DEFAULT '1',
+    kind             TEXT    NOT NULL,
+    name             TEXT    NOT NULL,
+    start_ns         INTEGER NOT NULL,
+    end_ns           INTEGER,
+    start_wall       TEXT,
+    status           TEXT    NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed', 'error')),
+    tenant_kind      TEXT,
+    tenant_ref       TEXT,
+    provenance_ref   TEXT,
+    FOREIGN KEY (run_id) REFERENCES runs(run_id)
+);
+CREATE INDEX IF NOT EXISTS idx_spans_trace  ON spans(trace_id);
+CREATE INDEX IF NOT EXISTS idx_spans_run    ON spans(run_id);
+CREATE INDEX IF NOT EXISTS idx_spans_parent ON spans(parent_span_id);
+CREATE INDEX IF NOT EXISTS idx_spans_kind   ON spans(kind);
+"""
+
+CREATE_SPAN_PLACEMENTS = """
+CREATE TABLE IF NOT EXISTS span_placements (
+    placement_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    span_id      TEXT    NOT NULL,
+    node         TEXT    NOT NULL,
+    device       TEXT    NOT NULL,
+    phase        TEXT,
+    start_ns     INTEGER NOT NULL,
+    end_ns       INTEGER,
+    FOREIGN KEY (span_id) REFERENCES spans(span_id)
+);
+CREATE INDEX IF NOT EXISTS idx_placements_span ON span_placements(span_id);
+"""
+
+CREATE_SPAN_LINKS = """
+CREATE TABLE IF NOT EXISTS span_links (
+    link_id        INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    span_id        TEXT    NOT NULL,
+    linked_span_id TEXT    NOT NULL,
+    link_type      TEXT    NOT NULL,
+    FOREIGN KEY (span_id) REFERENCES spans(span_id)
+);
+CREATE INDEX IF NOT EXISTS idx_links_span ON span_links(span_id);
+"""
+
+CREATE_SPAN_EVENTS = """
+CREATE TABLE IF NOT EXISTS span_events (
+    event_id   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    span_id    TEXT    NOT NULL,
+    event_type TEXT    NOT NULL,
+    ts_ns      INTEGER NOT NULL,
+    attributes TEXT,
+    FOREIGN KEY (span_id) REFERENCES spans(span_id)
+);
+CREATE INDEX IF NOT EXISTS idx_events_span ON span_events(span_id);
+"""
+
+CREATE_SPAN_ATTRIBUTES = """
+CREATE TABLE IF NOT EXISTS span_attributes (
+    attr_id    INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    span_id    TEXT    NOT NULL,
+    key        TEXT    NOT NULL,
+    value_text TEXT,
+    value_type TEXT    NOT NULL DEFAULT 'string' CHECK (value_type IN ('string','int','float','bool','json')),
+    UNIQUE (span_id, key),
+    FOREIGN KEY (span_id) REFERENCES spans(span_id)
+);
+CREATE INDEX IF NOT EXISTS idx_attrs_span ON span_attributes(span_id);
+"""
+
+CREATE_SPAN_ANNOTATIONS = """
+CREATE TABLE IF NOT EXISTS span_annotations (
+    annotation_id      INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    span_id            TEXT    NOT NULL,
+    annotation_type    TEXT    NOT NULL,
+    annotation_version TEXT    NOT NULL DEFAULT '1',
+    source             TEXT    NOT NULL,
+    created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    payload            TEXT    NOT NULL,
+    provenance_ref     TEXT,
+    FOREIGN KEY (span_id) REFERENCES spans(span_id)
+);
+CREATE INDEX IF NOT EXISTS idx_annotations_span ON span_annotations(span_id);
+"""
+
+CREATE_ATTRIBUTION_RESIDUAL = """
+CREATE TABLE IF NOT EXISTS attribution_residual (
+    residual_id   INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    run_id        INTEGER NOT NULL,
+    domain        TEXT    NOT NULL,
+    window_label  TEXT    NOT NULL,
+    measured_uj   BIGINT,
+    attributed_uj BIGINT,
+    residual_uj   BIGINT,
+    tolerance_uj  BIGINT,
+    status        TEXT    CHECK (status IN ('ok','large','negative','unmeasured')),
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (run_id) REFERENCES runs(run_id)
+);
+CREATE INDEX IF NOT EXISTS idx_residual_run ON attribution_residual(run_id);
+"""

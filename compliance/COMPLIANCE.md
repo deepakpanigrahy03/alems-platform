@@ -995,3 +995,74 @@ truth for how to create, update, rename, and validate documentation in A-LEMS.
 It covers: document structure standard, new document checklist, file rename
 sequence, methodology anchor protocol, diagram updates, build verification,
 and the full methodology document template.
+
+## 19. Writer Contract Compliance (WCC)
+*Added in Chunk 39.4: enforces INV-21 and EEI-2 extension for all new write code*
+
+### Rule WCC-1: All Flush Calls Go Through the Writer Interface
+Never pass a raw sqlite3 connection to flush_to_db(), insert_samples(),
+or any buffer flush method. All flush calls must go through InProcessWriter
+(or daemon writer in 39.7).
+
+```python
+# WRONG — bypasses writer contract, violates INV-21
+span_writer.flush_to_db(db.conn, run_id)
+
+# RIGHT — goes through sanctioned writer interface
+span_writer.flush_to_db(storage_writer, run_id)
+```
+
+### Rule WCC-2: No New Raw sqlite3.connect() in Write Paths
+After 39.2, new write code must never call sqlite3.connect() directly
+or use raw conn.execute() for INSERT, UPDATE, or DELETE.
+Direct read-only connections in GUI, analysis, and validation scripts
+remain legal (documented transitional exception per EEI-2 extension).
+
+```bash
+# Audit command: flag any new raw write connections
+grep -rn "sqlite3\.connect\|\.conn\.execute" core/ --include=*.py
+```
+
+### Rule WCC-3: SpanWriter Receives the Writer Handle, Not a Connection
+SpanWriter.flush_to_db() signature is:
+    flush_to_db(writer: InProcessWriter, run_id: int) -> int
+Never flush_to_db(conn: sqlite3.Connection, run_id: int).
+The writer handle is available on RunPersistence as self._writer
+or passed explicitly from ExperimentRunner.
+
+### Rule WCC-4: CH39-9 Raw Connections Are Write-Forbidden After 39.2
+Any code added after 39.2 that writes to the store via a raw connection
+is a compliance violation regardless of how it is framed (helper, ETL,
+one-off script). Route through the writer or flag as a known exception
+in the implementation record with a chunk assignment for cleanup.
+
+## 20. Execution Path Sync Compliance (EPS)
+
+### Rule EPS-1: Three Paths Must Always Stay in Sync
+A-LEMS has three execution paths. Any new wiring (spans, samples, ETL,
+quality scoring) must be applied to ALL THREE or recorded as a known gap
+with a chunk assignment:
+
+save_pair() — normal comparison runs (linear + agentic paired)
+save_single() — single workflow runs (linear only or agentic only)
+execute_goal() — retry and injection runs (goal_execution_manager.py)
+
+
+Adding a capability to save_pair only is a compliance violation.
+The execute_goal path handles the majority of research workload:
+failure injection, retry studies, EAR experiments.
+
+### Rule EPS-2: Sync Audit Command
+Before any chunk handoff, verify all three paths have the same wiring:
+
+```bash
+grep -n "SpanWriter\|flush_to_db\|insert_spans" \
+  core/execution/experiment_runner.py \
+  core/execution/goal_execution_manager.py
+```
+
+All three must appear in both files after 39.4 wiring is complete.
+
+### Rule EPS-3: New Execution Paths Must Be Declared
+Any new execution path that calls insert_run() must be registered in
+this compliance section and wired for spans before the chunk closes.

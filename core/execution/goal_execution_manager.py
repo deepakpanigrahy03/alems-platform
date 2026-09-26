@@ -580,6 +580,15 @@ def execute_goal(
     if run_id:
         all_run_ids = [run_id]
         winning_run_id = run_id if winning_result is not None else None
+        # Flush span for this run — after insert_one_run so run_id is known (EEI-4).
+        try:
+            from core.vocabularies.agent.span_writer import SpanWriter
+            _span_writer = SpanWriter()
+            _span_id = _span_writer.open_span("run", f"{workflow_type}:goal:{goal_id}")
+            _span_writer.close_span(_span_id)
+            _span_writer.flush_to_db(db, run_id)
+        except Exception as _span_exc:
+            logger.warning("execute_goal: span flush failed: %s", _span_exc)
         # Update all goal_attempt rows with the real run_id now that it exists
         try:
             conn.execute(

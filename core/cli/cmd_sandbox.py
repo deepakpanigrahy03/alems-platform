@@ -443,6 +443,35 @@ def _cmd_doctor(argv: List[str]) -> int:
               f"but running engine={running_version}")
         print(f"      Run: alems sandbox upgrade --dry-run")
 
+    # Check 7: schema in sync (lock vs db vs pending migrations)
+    if store_path.exists():
+        try:
+            from core.versioning import _schema_versions
+            schema_info = _schema_versions(str(store_path))
+            db_version = schema_info.get("core_schema_version")
+            lock_version = lock.get("core_schema_version")
+            if db_version != lock_version:
+                print(f"FAIL: schema out of sync -- lock={lock_version}, db={db_version}")
+                print(f"      Run: alems dev migrate --run")
+                issues += 1
+            else:
+                from scripts.tools.alems_migrate import discover_repo_files, preflight, SCHEMA_DIR
+                import sqlite3 as _sqlite3
+                _conn = _sqlite3.connect(str(store_path), timeout=5.0)
+                try:
+                    schema_files = discover_repo_files(SCHEMA_DIR, "v")
+                    pending = preflight(_conn, "schema", schema_files)
+                finally:
+                    _conn.close()
+                if pending:
+                    print(f"WARN: schema lock={lock_version} matches db but "
+                          f"{len(pending)} migration(s) pending")
+                    print(f"      Run: alems dev migrate --run")
+                else:
+                    print(f"OK:   schema in sync (lock={lock_version}, db={db_version}, pending=0)")
+        except Exception as e:
+            print(f"WARN: could not check schema sync: {e}")
+
     if issues == 0:
         print("\ndoctor: all checks passed")
         return 0

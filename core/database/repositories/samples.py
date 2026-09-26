@@ -322,6 +322,52 @@ class SamplesRepository:
     # CPU SAMPLES — turbostat telemetry
     # =========================================================================
 
+    def insert_spans(self, run_id: int, span_records: list) -> None:
+        """Insert span tree rows accumulated by SpanWriter for one run."""
+        if not span_records:
+            return
+        # No transaction wrapper — caller manages transactions (same pattern as all insert_* methods).
+        for r in span_records:
+            self.db.conn.execute(
+                """
+                INSERT OR IGNORE INTO spans
+                    (span_id, trace_id, parent_span_id, run_id,
+                     vocabulary, vocabulary_version, kind, name,
+                     start_ns, end_ns, start_wall, status,
+                     tenant_kind, tenant_ref)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    r["span_id"], r["trace_id"], r.get("parent_span_id"), run_id,
+                    r.get("vocabulary", "agent"), r.get("vocabulary_version", "1"),
+                    r["kind"], r["name"],
+                    r["start_ns"], r.get("end_ns"), r.get("start_wall"),
+                    r.get("status", "closed"),
+                    r.get("tenant_kind"), r.get("tenant_ref"),
+                ),
+            )
+            for p in r.get("placements", []):
+                self.db.conn.execute(
+                    """
+                    INSERT INTO span_placements
+                        (span_id, node, device, phase, start_ns, end_ns)
+                    VALUES (?,?,?,?,?,?)
+                    """,
+                    (r["span_id"], p["node"], p["device"],
+                     p.get("phase"), p["start_ns"], p.get("end_ns")),
+                )
+            for key, val in r.get("attributes", {}).items():
+                from core.vocabularies.agent.span_writer import _encode_attribute
+                value_type, value_text = _encode_attribute(val)
+                self.db.conn.execute(
+                    """
+                    INSERT OR REPLACE INTO span_attributes
+                        (span_id, key, value_text, value_type)
+                    VALUES (?,?,?,?)
+                    """,
+                    (r["span_id"], key, value_text, value_type),
+                )
+
     def insert_cpu_samples(
         self, run_id: int, samples: List[Dict[str, Any]]
     ) -> None:

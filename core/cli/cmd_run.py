@@ -170,23 +170,27 @@ def _delegate_to_runner(profile_path: Path, extra_argv: List[str]) -> int:
             print(f"error: profile must have task_id and provider", file=sys.stderr)
             return 1
 
-        # Delegate to scripts/run_experiment.py via subprocess to preserve
-        # all existing argument handling and environment setup.
-        # This is the minimal shim; 39.4 replaces with direct harness call.
-        import subprocess
-        cmd = [
-            sys.executable,
-            "core/execution/tests/run_experiment.py",
-            "--task-id", task_id,
-            "--provider", provider,
-            "--repetitions", str(repetitions),
-        ]
+        # Profile fields are passed directly via --config; no translation needed.
 
-        # Forward any extra argv (for power users passing raw flags)
-        cmd.extend(extra_argv)
+        import importlib.util
+        _engine_root = Path(__file__).parent.parent.parent
+        _script = _engine_root / "core" / "execution" / "tests" / "run_experiment.py"
+        _spec = importlib.util.spec_from_file_location("_alems_run_experiment", _script)
+        _mod  = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
 
-        result = subprocess.run(cmd)
-        return result.returncode
+        # Pass the profile yaml directly as --config.
+        # run_experiment.py reads all fields from it natively.
+        # Same process = store resolver and environment inherited automatically.
+        _saved_argv = sys.argv
+        sys.argv = ["alems-run", "--config", str(profile_path)] + extra_argv
+        try:
+            result = _mod.main()
+            return result if isinstance(result, int) else 0
+        except SystemExit as e:
+            return e.code if isinstance(e.code, int) else 0
+        finally:
+            sys.argv = _saved_argv
 
     except Exception as e:
         logger.error("run delegation failed: %s", e)

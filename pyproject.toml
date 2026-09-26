@@ -115,6 +115,8 @@ scenario = "core.injection.scenario_injector:ScenarioInjector"
 [project.entry-points."alems.conformance.kits"]
 
 [project.entry-points."alems.spans.vocabularies"]
+agent   = "core.vocabularies.agent:AgentVocabulary"
+generic = "core.vocabularies.generic"
 
 [project.entry-points."alems.attribution.models"]
 
