@@ -628,7 +628,12 @@ def display_master_summary(all_results):
 def main():
     """Main entry point - minimal logic."""
     args = parse_arguments()
-    apply_config(args)
+    try:
+        apply_config(args)
+    except FileNotFoundError as e:
+        print(f"\n  error: {e}", file=sys.stderr)
+        print(f"  run: python run_experiment.py --help", file=sys.stderr)
+        return 1
     if args.list_tasks:
         tasks = load_tasks()
         list_task_summary(tasks)
