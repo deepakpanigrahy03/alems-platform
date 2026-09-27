@@ -32,7 +32,12 @@ import time
 from typing import Optional
 
 from pathlib import Path
-from scripts.etl import goal_execution_etl, energy_attribution_etl, phase_attribution_etl, duration_fix_etl
+from core.attribution.legacy_v1 import (
+    goal_execution_etl,
+    energy_attribution_etl,
+    phase_attribution_etl,
+    duration_fix_etl,
+)
 from scripts.tools.path_loader import get_alems_db_path
 from core.execution.retry_coordinator import RetryCoordinator, RetryPolicy
 import platform

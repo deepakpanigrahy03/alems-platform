@@ -8,6 +8,7 @@ from alems_sdk._kit_base import ConformanceKit
 from alems_sdk._kit_measurement import MeasurementKit, MEASUREMENT_GROUPS
 from alems_sdk._kit_execution import ExecutionKit, EXECUTION_GROUPS
 from alems_sdk._kit_persistence import PersistenceKit, OutputKit, PERSISTENCE_GROUPS, OUTPUT_GROUPS
+from alems_sdk.attribution import AttributionModelABC, AttributionPolicy, AttributionError
 
 __all__ = [
     "KitResult",
@@ -22,4 +23,7 @@ __all__ = [
     "OutputKit",
     "PERSISTENCE_GROUPS",
     "OUTPUT_GROUPS",
+    "AttributionModelABC",
+    "AttributionPolicy",
+    "AttributionError",
 ]

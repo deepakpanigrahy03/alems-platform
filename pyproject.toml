@@ -119,6 +119,7 @@ agent   = "core.vocabularies.agent:AgentVocabulary"
 generic = "core.vocabularies.generic"
 
 [project.entry-points."alems.attribution.models"]
+legacy_v1 = "core.attribution.legacy_v1:LegacyV1AttributionModel"
 
 # Serving engine telemetry adapters.
 # Core defines the discovery contract for this group.

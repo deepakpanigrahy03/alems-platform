@@ -2140,7 +2140,12 @@ CREATE TABLE IF NOT EXISTS energy_attribution (
     gpu_phase_planning_uj         BIGINT,
     gpu_phase_execution_uj        BIGINT,
     gpu_phase_synthesis_uj        BIGINT,
-    gpu_phase_inter_uj            BIGINT,   
+    gpu_phase_inter_uj            BIGINT,
+    -- Attribution model metadata (39.4b): recorded on every row.
+    -- isolation_level: exclusive | partitioned | shared (D10.5).
+    -- idle_policy: named convention for idle energy allocation (D10.3).
+    isolation_level               TEXT DEFAULT 'exclusive',
+    idle_policy                   TEXT DEFAULT 'legacy_baseline_subtraction',
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 CREATE INDEX IF NOT EXISTS idx_energy_attribution_run

@@ -40,19 +40,19 @@ from core.config_loader import ConfigLoader
 from core.database.manager import DatabaseManager
 from core.models.baseline_measurement import BaselineMeasurement
 from core.utils.provenance import record_run_provenance
-from scripts.etl.phase_attribution_etl import compute_phase_attribution
-from scripts.etl.aggregate_hardware_metrics import aggregate_hardware_metrics
+from core.attribution.legacy_v1.phase_attribution_etl import compute_phase_attribution
+from core.attribution.legacy_v1.aggregate_hardware_metrics import aggregate_hardware_metrics
 # 16D3: ARM PMU cache data → cpu_samples row builder
 # 16D4: Darwin PMU cache data → cpu_samples row builder (mirrors ARM pattern)
 from core.execution.darwin_cpu_sample_builder import _build_darwin_cpu_sample_row
 from core.execution.arm_cpu_sample_builder import _build_arm_cpu_sample_row
 from core.execution.sample_processor import calculate_thermal_metrics
-from scripts.etl.energy_attribution_etl import compute_energy_attribution
-from scripts.etl.duration_fix_etl import fix_run, fix_run_with_pretask
-from scripts.etl.ttft_tpot_etl import populate_run as populate_ttft_tpot
+from core.attribution.legacy_v1.energy_attribution_etl import compute_energy_attribution
+from core.attribution.legacy_v1.duration_fix_etl import fix_run, fix_run_with_pretask
+from core.attribution.legacy_v1.ttft_tpot_etl import populate_run as populate_ttft_tpot
 from core.execution.goal_tracker import GoalTracker
-import scripts.etl.goal_execution_etl as goal_execution_etl
-import scripts.etl.energy_attribution_etl as energy_attribution_etl
+import core.attribution.legacy_v1.goal_execution_etl as goal_execution_etl
+import core.attribution.legacy_v1.energy_attribution_etl as energy_attribution_etl
 from core.extensions.manager import ExtensionManager
 from core.extensions.abc import PostRunPayload
 from core.execution.hallucination_detector import HallucinationDetector

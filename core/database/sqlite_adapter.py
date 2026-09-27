@@ -317,6 +317,8 @@ class SQLiteAdapter(DatabaseInterface):
             ("tool_failure_events",  "span_id",     "TEXT"),
             ("energy_sources",       "fidelity",    "TEXT NOT NULL DEFAULT 'MEASURED' CHECK (fidelity IN ('MEASURED','INFERRED','LIMITED'))"),
             ("energy_sources",       "error_bound", "TEXT"),
+            ("energy_attribution",   "isolation_level", "TEXT DEFAULT 'exclusive'"),
+            ("energy_attribution",   "idle_policy",     "TEXT DEFAULT 'legacy_baseline_subtraction'"),
         ]
         for table, column, typedef in _col_additions:
             existing = [r[1] for r in

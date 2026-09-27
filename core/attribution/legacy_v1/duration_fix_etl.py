@@ -1,0 +1,622 @@
+#!/usr/bin/env python3
+"""
+================================================================================
+scripts/etl/duration_fix_etl.py
+================================================================================
+PURPOSE:
+    Backfills and computes task_duration_ns, framework_overhead_ns,
+    pre_task_energy_uj, pre_task_duration_ns, energy_sample_coverage_pct,
+    and avg_task_power_watts for all runs.
+
+COMPLETE TIME/ENERGY MODEL:
+    ┌──────────────────────────────────────────────────────────────┐
+    │ Window      │ Time                 │ Energy                  │
+    ├──────────────────────────────────────────────────────────────┤
+    │ pre_task    │ pre_task_duration_ns │ pre_task_energy_uj      │
+    │             │ (t_pre → t0)         │ (rapl_before → start)   │
+    ├──────────────────────────────────────────────────────────────┤
+    │ task        │ task_duration_ns     │ pkg_energy_uj (PRIMARY) │
+    │             │ (t0 → t1)            │ (rapl_start → end)      │
+    ├──────────────────────────────────────────────────────────────┤
+    │ framework   │ framework_ovhd_ns    │ not measured (future)   │
+    │             │ (t1 → t2)            │                         │
+    └──────────────────────────────────────────────────────────────┘
+
+HISTORICAL BACKFILL STRATEGY:
+    For pre-v9 runs, rapl_before_pretask was not captured.
+    So pre_task_energy_uj = NULL for all historical runs.
+    task_duration_ns estimated from energy_samples span (error <1%).
+    All historical runs: duration_includes_overhead = 1.
+
+PLATFORM COMPLIANCE (PAC):
+    rapl.read_energy() returns None on macOS/ARM/fallback.
+    pre_task_energy_uj = NULL on non-RAPL platforms — graceful degradation.
+    task_duration_ns and framework_overhead_ns use perf_counter — all platforms.
+
+AUTHOR: Deepak Panigrahy
+================================================================================
+"""
+
+import logging
+import sqlite3
+import sys
+from pathlib import Path
+import threading
+
+
+logger = logging.getLogger(__name__)
+
+from scripts.tools.path_loader import get_alems_db_path
+from scripts.etl.energy_window_resolver import EnergyWindowResolverFactory, SpbmV2Resolver
+
+DEFAULT_DB = Path(get_alems_db_path())
+
+# Coverage quality thresholds
+COVERAGE_GOLD       = 95.0
+COVERAGE_ACCEPTABLE = 80.0
+
+
+def _pkg_uj(rapl_dict: dict | None) -> int | None:
+    """Extract package energy µJ from a rapl snapshot. PAC safe.
+
+    Accepts both NormalizedEnergyReading (Phase 2) and raw dict (legacy).
+    """
+    if rapl_dict is None:
+        return None
+    # NormalizedEnergyReading path (Phase 2)
+    if hasattr(rapl_dict, 'pkg_uj'):
+        return rapl_dict.pkg_uj
+    # Legacy raw dict path (backward compat)
+    if not rapl_dict:
+        return None
+    return (rapl_dict.get("package-0") or rapl_dict.get("package")
+            or rapl_dict.get("pkg")
+            or rapl_dict.get("cpu"))
+ 
+ 
+def _compute_window_energy(
+    rapl_start_uj: int | None,
+    rapl_end_uj:   int | None,
+    baseline_power_watts: float | None,
+    duration_ns:   int | None,
+    cpu_fraction:  float | None,
+) -> int | None:
+    """
+    Compute net attributed energy for a measurement window.
+ 
+    Formula:
+        raw_delta  = rapl_end_uj - rapl_start_uj
+        baseline   = baseline_power_watts * duration_sec * 1e6  (µJ)
+        dynamic    = raw_delta - baseline
+        attributed = dynamic * cpu_fraction
+ 
+    Args:
+        rapl_start_uj:        RAPL pkg counter at window start (µJ).
+        rapl_end_uj:          RAPL pkg counter at window end (µJ).
+        baseline_power_watts: Idle baseline power (W) for this run.
+        duration_ns:          Window duration in nanoseconds.
+        cpu_fraction:         A-LEMS process CPU share during window.
+ 
+    Returns:
+        Attributed energy in µJ as int, or None if inputs unavailable.
+        Returns 0 minimum (no negative energy).
+    """
+    if rapl_start_uj is None or rapl_end_uj is None:
+        return None
+    if baseline_power_watts is None or duration_ns is None or cpu_fraction is None:
+        return None
+ 
+    raw_delta_uj  = rapl_end_uj - rapl_start_uj
+    if raw_delta_uj < 0:
+        # On Apple Silicon, IOKit cumulative counters start at 0 at reader init.
+        # rapl_start_uj may exceed rapl_end_uj (first sample) causing negative delta.
+        # Fall back to baseline power * duration as energy estimate.
+        if baseline_power_watts is not None and duration_ns is not None:
+            duration_sec = duration_ns / 1e9
+            raw_delta_uj = int(baseline_power_watts * duration_sec * 1e6)
+            logger.debug(
+                "Negative counter delta — using baseline estimate: %.1f µJ",
+                raw_delta_uj
+            )
+        else:
+            logger.warning("RAPL counter wrap detected — window energy invalid")
+            return None
+
+    # No baseline subtraction for overhead windows — the pre/post task windows
+    # are short instrumentation periods, not LLM work. Subtracting the task-era
+    # baseline (which reflects LLM power draw) would under-report or zero out
+    # the signal. Use raw delta attributed by CPU fraction only.
+    attributed_uj = raw_delta_uj * cpu_fraction
+    return max(0, int(attributed_uj))
+ 
+ 
+def _compute_pre_task_energy(
+    rapl_before: dict | None,
+    rapl_start:  dict | None,
+) -> int | None:
+    """Legacy wrapper — kept for backfill_all path."""
+    before_pkg = _pkg_uj(rapl_before)
+    start_pkg  = _pkg_uj(rapl_start)
+    if before_pkg is None or start_pkg is None:
+        return None
+    delta = start_pkg - before_pkg
+    if delta < 0:
+        logger.warning("RAPL counter wrap detected in pre-task window")
+        return None
+    return int(delta)
+
+
+
+def _fix_run(cursor: sqlite3.Cursor, run_id: int) -> dict | None:
+    """
+    Compute all corrected duration and energy metrics for a single run.
+
+    For new runs (post-v9): values come from result dict stored in DB.
+    For historical runs: task_duration estimated from energy_samples span.
+
+    Args:
+        cursor: Open DB cursor.
+        run_id: Target run.
+
+    Returns:
+        Dict of UPDATE values, or None if insufficient data.
+    """
+    # Fetch run row
+    cursor.execute("""
+        SELECT run_id, start_time_ns, end_time_ns, duration_ns,
+               pkg_energy_uj, workflow_type,
+               task_duration_ns, pre_task_energy_uj
+        FROM runs WHERE run_id = ?
+    """, (run_id,))
+    row = cursor.fetchone()
+    if not row:
+        logger.warning("Run %d not found", run_id)
+        return None
+
+    (run_id, start_ns, end_ns, old_duration_ns,
+     pkg_uj, wf_type, existing_task_dur, existing_pre) = row
+
+    if not start_ns or not end_ns:
+        logger.warning("Run %d missing start/end timestamps", run_id)
+        return None
+
+    # Get energy_samples span — proxy for task end time (t1)
+    cursor.execute("""
+        SELECT MIN(sample_start_ns) AS first_ns,
+               MAX(sample_end_ns)   AS last_ns,
+               COUNT(*)             AS sample_count,
+               MIN(timestamp_ns)    AS first_ts,
+               MAX(timestamp_ns)    AS last_ts
+        FROM energy_samples
+        WHERE run_id = ?
+    """, (run_id,))
+    es = cursor.fetchone()
+
+    if not es or es[2] == 0:
+        # Fallback: SPBM platform — use energy_sample_domains domain_id=1
+        # Find primary domain (max cumulative energy) for this run
+        cursor.execute("""
+            SELECT domain_id FROM energy_sample_domains
+            WHERE run_id = ?
+            GROUP BY domain_id ORDER BY MAX(energy_uj) DESC LIMIT 1
+        """, (run_id,))
+        _dom = cursor.fetchone()
+        _primary_domain = _dom[0] if _dom else 1
+        cursor.execute("""
+            SELECT MIN(esv.timestamp_ns), MAX(esv.timestamp_ns), COUNT(*)
+            FROM energy_samples_v2 esv
+            WHERE esv.run_id = ?
+        """, (run_id,))
+        spbm_es = cursor.fetchone()
+        if not spbm_es or spbm_es[2] == 0:
+            logger.warning("Run %d: no energy samples on any platform — skipping (pre-measurement run)", run_id)
+            return None
+        first_sample_ns = spbm_es[0]
+        last_sample_ns  = spbm_es[1]
+        sample_count    = spbm_es[2]
+    else:
+        # sample_start_ns/end_ns only populated post-Chunk2.
+        # Fall back to timestamp_ns for pre-Chunk2 historical runs.
+        first_sample_ns = es[0] if es[0] is not None else es[3]
+        last_sample_ns  = es[1] if es[1] is not None else es[4]
+        sample_count    = es[2]
+    if first_sample_ns is None or last_sample_ns is None:
+        logger.warning("Run %d has no usable sample timestamps — skipping", run_id)
+        return None
+
+    # t0 = start_ns (run_start_perf anchor)
+    # t1 ≈ last_sample_ns (energy sampler stops at executor return)
+    # t2 = end_ns (run_end_perf anchor)
+    # For new runs (post-v9), task_duration_ns is already correctly set
+    # from harness perf_counter — use it as-is, only estimate for historical.
+
+    if existing_task_dur:
+        # New run — use harness-measured value, derive others
+        task_duration_ns      = existing_task_dur
+        total_run_duration_ns = max(0, end_ns - start_ns)
+        framework_overhead_ns = max(0, total_run_duration_ns - task_duration_ns)
+    else:
+        # Historical run — estimate from energy_samples span
+        task_duration_ns      = max(0, last_sample_ns - start_ns)
+        framework_overhead_ns = max(0, end_ns - last_sample_ns)
+        total_run_duration_ns = max(0, end_ns - start_ns)
+
+    # Coverage: sample span / task duration
+    sample_span_ns = last_sample_ns - first_sample_ns
+    coverage_pct = (
+        round(sample_span_ns / task_duration_ns * 100, 2)
+        if task_duration_ns > 0 else 0.0
+    )
+
+    # Corrected average power (task duration only)
+    avg_task_power_watts = (
+        round(pkg_uj / (task_duration_ns / 1e9) / 1e6, 4)
+        if task_duration_ns > 0 and pkg_uj else None
+    )
+
+    # pre/post task energy: NULL for historical runs (RAPL snapshots not captured)
+    # Will be populated for new runs via fix_run_with_pretask()
+    pre_task_energy_uj   = existing_pre   # preserve if already set
+    pre_task_duration_ns = None           # not recoverable for historical runs
+ 
+    return {
+        "run_id":                       run_id,
+        "task_duration_ns":             task_duration_ns,
+        "framework_overhead_ns":        framework_overhead_ns,
+        "total_run_duration_ns":        total_run_duration_ns,
+        "duration_includes_overhead":   1,
+        "energy_sample_coverage_pct":   coverage_pct,
+        "avg_task_power_watts":         avg_task_power_watts,
+        "pre_task_energy_uj":           pre_task_energy_uj,
+        "pre_task_duration_ns":         pre_task_duration_ns,
+        "post_task_duration_ns":        None,   # not recoverable for historical runs
+        "post_task_energy_uj":          None,
+        "rapl_before_pretask_uj":       None,
+        "rapl_after_task_uj":           None,
+        "framework_overhead_energy_uj": None,
+    }
+
+
+
+def fix_run(run_id: int, db_path: Path = DEFAULT_DB, conn=None) -> bool:
+    """
+    Compute and write corrected duration metrics for a single run.
+
+    Args:
+        run_id:  Target run_id.
+        db_path: Path to SQLite DB.
+
+    Returns:
+        True on success, False on failure.
+    """
+    _own_conn = conn is None
+    if _own_conn:
+        if not db_path.exists():
+            logger.error("DB not found: %s", db_path)
+            return False
+        conn = sqlite3.connect(str(db_path))
+    try:
+        cursor = conn.cursor()
+        data = _fix_run(cursor, run_id)
+        if not data:
+            return False
+
+        cursor.execute("""
+            UPDATE runs SET
+                task_duration_ns             = :task_duration_ns,
+                framework_overhead_ns        = :framework_overhead_ns,
+                total_run_duration_ns        = :total_run_duration_ns,
+                duration_includes_overhead   = :duration_includes_overhead,
+                energy_sample_coverage_pct   = :energy_sample_coverage_pct,
+                avg_task_power_watts         = :avg_task_power_watts,
+                pre_task_energy_uj           = :pre_task_energy_uj,
+                pre_task_duration_ns         = :pre_task_duration_ns,
+                post_task_duration_ns        = :post_task_duration_ns,
+                post_task_energy_uj          = :post_task_energy_uj,
+                rapl_before_pretask_uj       = :rapl_before_pretask_uj,
+                rapl_after_task_uj           = :rapl_after_task_uj,
+                framework_overhead_energy_uj = :framework_overhead_energy_uj
+            WHERE run_id = :run_id
+        """, data)
+
+
+        conn.commit()
+        logger.info(
+            "Run %d | task=%dms framework=%dms coverage=%.1f%% "
+            "power=%.3fW pre_task=%s",
+            run_id,
+            (data["task_duration_ns"] or 0) // 1_000_000,
+            (data["framework_overhead_ns"] or 0) // 1_000_000,
+            data["energy_sample_coverage_pct"] or 0,
+            data["avg_task_power_watts"] or 0,
+            f"{data['pre_task_energy_uj']}µJ"
+            if data["pre_task_energy_uj"] is not None else "NULL(historical)",
+        )
+        return True
+
+    except Exception as exc:
+        logger.error("Duration fix failed for run %d: %s", run_id, exc)
+        conn.rollback()
+        return False
+    finally:
+        if _own_conn:
+            conn.close()
+
+
+def fix_run_with_pretask(
+    run_id: int,
+    rapl_before_pretask: dict | None,
+    rapl_after_task: dict | None,
+    pre_task_duration_sec: float,
+    post_task_duration_sec: float,
+    cpu_frac_pre: float,
+    cpu_frac_post: float,
+    db_path: Path = DEFAULT_DB,
+    conn=None,
+) -> bool:
+    """
+    Compute and store pre/post task energy for a single run.
+
+    Called by experiment_runner after each run (online path) and by
+    backfill_attempt_attribution.py for historical runs (offline path).
+
+    Platform detection is delegated to EnergyWindowResolverFactory — this
+    function has zero platform branching. Adding a new platform requires
+    only a new resolver class and a factory detection step.
+
+    Args:
+        run_id:               Target run.
+        rapl_before_pretask:  Dict from read_energy() before pre-task reads.
+                              None on platforms without point reads (Mac IOKit).
+        rapl_after_task:      Dict from read_energy() after stop_measurement().
+                              None on platforms without point reads.
+        pre_task_duration_sec:  Duration of pre-task window in seconds.
+        post_task_duration_sec: Duration of post-task window in seconds.
+        cpu_frac_pre:         A-LEMS process CPU share during pre-task.
+        cpu_frac_post:        A-LEMS process CPU share during post-task.
+        db_path:              Path to SQLite DB.
+
+    Returns:
+        True on success or graceful skip, False on error.
+    """
+    if not db_path.exists():
+        logger.error("fix_run_with_pretask: DB not found: %s", db_path)
+        return False
+
+    # Standard duration/coverage backfill first — always runs regardless of platform.
+    ok = fix_run(run_id, db_path, conn=conn)
+    if not ok:
+        return False
+
+    _own_conn = conn is None
+    if _own_conn:
+        conn = sqlite3.connect(str(db_path))
+    try:
+        cursor = conn.cursor()
+
+        # Resolve cumulative point-read anchors — None on Mac IOKit.
+        rapl_before_uj = _pkg_uj(rapl_before_pretask)
+        rapl_after_uj  = _pkg_uj(rapl_after_task)
+        # Backfill path: dicts are None but DB may have values from original run.
+        if rapl_before_uj is None or rapl_after_uj is None:
+            cursor.execute(
+                "SELECT rapl_before_pretask_uj, rapl_after_task_uj FROM runs WHERE run_id = ?",
+                (run_id,)
+            )
+            db_pt = cursor.fetchone()
+            if db_pt:
+                rapl_before_uj = rapl_before_uj or db_pt[0]
+                rapl_after_uj  = rapl_after_uj  or db_pt[1]
+        has_point_reads = rapl_before_uj is not None and rapl_after_uj is not None
+
+        # Detect platform and get resolver — zero branching here.
+        resolver = EnergyWindowResolverFactory.detect(cursor, run_id, has_point_reads)
+        logger.debug("Run %d: using %s", run_id, resolver.name())
+
+        # Fetch task timing for t1 computation.
+        cursor.execute(
+            "SELECT start_time_ns, task_duration_ns FROM runs WHERE run_id = ?",
+            (run_id,)
+        )
+        ts_row = cursor.fetchone()
+        if not ts_row or not ts_row[0] or not ts_row[1]:
+            logger.warning("Run %d: no timestamps — skipping pre/post task energy", run_id)
+            return True
+        t1_ns = int(ts_row[0]) + int(ts_row[1])
+
+        # Existing task duration from DB — needed for total_run_duration_ns.
+        cursor.execute("SELECT task_duration_ns FROM runs WHERE run_id = ?", (run_id,))
+        dur_row = cursor.fetchone()
+        existing_task_dur_ns = int(dur_row[0]) if dur_row and dur_row[0] else None
+
+        # ── Post-task first (needed by SpbmV2Resolver.resolve_pre_task_with_context)
+        post_result = resolver.resolve_post_task(
+            cursor=cursor,
+            run_id=run_id,
+            rapl_after_uj=rapl_after_uj,
+            t1_ns=t1_ns,
+            post_task_duration_sec=post_task_duration_sec,
+            cpu_frac_post=cpu_frac_post,
+        )
+
+        # ── Pre-task — SPBM needs post_task_raw for residual computation.
+        if isinstance(resolver, SpbmV2Resolver):
+            pre_result = resolver.resolve_pre_task_with_context(
+                cursor=cursor,
+                run_id=run_id,
+                rapl_before_uj=rapl_before_uj,
+                rapl_after_uj=rapl_after_uj,
+                post_task_raw_uj=post_result.raw_uj if post_result else 0,
+                pre_task_duration_sec=pre_task_duration_sec,
+            )
+        else:
+            pre_result = resolver.resolve_pre_task(
+                cursor=cursor,
+                run_id=run_id,
+                rapl_before_uj=rapl_before_uj,
+                pre_task_duration_sec=pre_task_duration_sec,
+                cpu_frac_pre=cpu_frac_pre,
+            )
+
+        # ── Extract values — None when resolver could not compute.
+        pre_task_energy_uj   = pre_result.attributed_uj  if pre_result  else None
+        post_task_energy_uj  = post_result.attributed_uj if post_result else None
+        pre_task_duration_ns = pre_result.duration_ns    if pre_result  else int(pre_task_duration_sec * 1e9)
+        post_task_duration_ns = post_result.duration_ns  if post_result else int(post_task_duration_sec * 1e9)
+
+        framework_overhead_energy_uj = (
+            pre_task_energy_uj + post_task_energy_uj
+            if pre_task_energy_uj is not None and post_task_energy_uj is not None
+            else None
+        )
+
+        # ── Write to DB.
+        cursor.execute("""
+            UPDATE runs SET
+                rapl_before_pretask_uj       = ?,
+                rapl_after_task_uj           = ?,
+                pre_task_duration_ns         = ?,
+                pre_task_energy_uj           = ?,
+                post_task_duration_ns        = ?,
+                post_task_energy_uj          = ?,
+                framework_overhead_energy_uj = ?,
+                framework_overhead_ns        = ?,
+                total_run_duration_ns        = ?,
+                duration_includes_overhead   = 0
+            WHERE run_id = ?
+        """, (
+            rapl_before_uj,
+            rapl_after_uj,
+            pre_task_duration_ns,
+            pre_task_energy_uj,
+            post_task_duration_ns,
+            post_task_energy_uj,
+            framework_overhead_energy_uj,
+            pre_task_duration_ns + post_task_duration_ns,
+            (
+                pre_task_duration_ns + existing_task_dur_ns + post_task_duration_ns
+                if existing_task_dur_ns else None
+            ),
+            run_id,
+        ))
+        conn.commit()
+
+        logger.info(
+            "Run %d (%s) | pre=%s post=%s overhead=%s",
+            run_id,
+            resolver.name(),
+            f"{pre_task_energy_uj}µJ" if pre_task_energy_uj is not None else "NULL",
+            f"{post_task_energy_uj}µJ" if post_task_energy_uj is not None else "NULL",
+            f"{framework_overhead_energy_uj}µJ" if framework_overhead_energy_uj is not None else "NULL",
+        )
+        return True
+
+    except Exception as exc:
+        logger.error("fix_run_with_pretask: run %d failed: %s", run_id, exc)
+        conn.rollback()
+        return False
+    finally:
+        if _own_conn:
+            conn.close()
+
+
+
+def backfill_all(db_path: Path = DEFAULT_DB) -> None:
+    """
+    Backfill duration fix for all existing runs.
+    pre_task_energy_uj = NULL for all historical runs (not measurable retroactively).
+    """
+    if not db_path.exists():
+        logger.error("DB not found: %s", db_path)
+        return
+
+    conn = sqlite3.connect(str(db_path))
+    try:
+        runs = conn.execute(
+            "SELECT run_id FROM runs ORDER BY run_id"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    total = len(runs)
+    passed = failed = 0
+
+    logger.info("Backfilling duration fix for %d runs...", total)
+    for (run_id,) in runs:
+        ok = fix_run(run_id, db_path, conn=conn)
+        if ok:
+            passed += 1
+        else:
+            failed += 1
+
+    # Coverage distribution report
+    conn = sqlite3.connect(str(db_path))
+    try:
+        dist = conn.execute("""
+            SELECT
+                COUNT(CASE WHEN energy_sample_coverage_pct >= 95 THEN 1 END)  AS gold,
+                COUNT(CASE WHEN energy_sample_coverage_pct >= 80
+                            AND energy_sample_coverage_pct < 95 THEN 1 END)   AS ok,
+                COUNT(CASE WHEN energy_sample_coverage_pct < 80
+                            AND energy_sample_coverage_pct IS NOT NULL
+                           THEN 1 END)                                         AS poor,
+                ROUND(AVG(energy_sample_coverage_pct), 2)                     AS avg_pct,
+                ROUND(AVG(framework_overhead_ns) / 1e6, 1)                    AS avg_fw_ms,
+                COUNT(CASE WHEN pre_task_energy_uj IS NOT NULL THEN 1 END)    AS has_pretask
+            FROM runs
+        """).fetchone()
+        logger.info(
+            "Coverage — gold(≥95%%): %d | ok(80-95%%): %d | poor(<80%%): %d "
+            "| avg: %.1f%% | avg_framework: %.1fms | with_pretask: %d",
+            dist[0], dist[1], dist[2],
+            dist[3] or 0, dist[4] or 0, dist[5],
+        )
+    finally:
+        conn.close()
+
+    logger.info("Backfill done — %d/%d ok, %d failed", passed, total, failed)
+
+
+def duration_fix_async(
+    run_id: int,
+    rapl_before_pretask: dict | None = None,
+    pre_task_duration_sec: float = 0.0,
+    db_path: Path = DEFAULT_DB,
+) -> None:
+    """
+    Non-blocking thread — replaces async def which was never awaited.
+    Args:
+        run_id: run to fix
+        rapl_before_pretask: RAPL snapshot before pre-task window (optional)
+        pre_task_duration_sec: pre-task window duration in seconds
+        db_path: database path
+    """
+    if rapl_before_pretask is not None:
+        target, args = fix_run_with_pretask, (run_id, rapl_before_pretask, pre_task_duration_sec, db_path)
+    else:
+        target, args = fix_run, (run_id, db_path)
+    threading.Thread(target=target, args=args, daemon=True).start()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s — %(message)s",
+    )
+
+    if "--backfill-all" in sys.argv:
+        backfill_all()
+    elif "--run-id" in sys.argv:
+        idx = sys.argv.index("--run-id")
+        try:
+            rid = int(sys.argv[idx + 1])
+        except (IndexError, ValueError):
+            print("Usage: python duration_fix_etl.py --run-id <id>")
+            sys.exit(1)
+        ok = fix_run(rid)
+        sys.exit(0 if ok else 1)
+    else:
+        print("Usage:")
+        print("  python scripts/etl/duration_fix_etl.py --run-id <id>")
+        print("  python scripts/etl/duration_fix_etl.py --backfill-all")
+        sys.exit(1)

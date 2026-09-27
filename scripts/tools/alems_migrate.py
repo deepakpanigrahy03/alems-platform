@@ -706,6 +706,9 @@ def _update_sandbox_lock(conn) -> None:
         schema_info = _schema_versions(db_path)
         new_version = schema_info.get("core_schema_version") or lock.get("core_schema_version")
         lock["core_schema_version"] = new_version
+        # Record attribution model versions for INV-17 (full lock in provenance).
+        # legacy_v1 is always present after 39.4b; expansion phases add more models.
+        lock.setdefault("attribution_model_versions", {})["legacy_v1"] = "1.0.0"
         lock_file.write_text(_yaml_dump(lock))
         print(f"  Updated alems.lock: core_schema_version -> {new_version}")
     except Exception as exc:
