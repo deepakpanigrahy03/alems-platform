@@ -21,11 +21,14 @@ import logging
 from typing import Optional
 
 from core.utils.provenance import record_run_provenance
-from scripts.etl.phase_attribution_etl import compute_phase_attribution
-from scripts.etl.aggregate_hardware_metrics import aggregate_hardware_metrics
-from scripts.etl.energy_attribution_etl import compute_energy_attribution, populate_tool_failure_wasted_energy
-from scripts.etl.duration_fix_etl import fix_run, fix_run_with_pretask
-from scripts.etl.ttft_tpot_etl import populate_run as populate_ttft_tpot
+from core.attribution.legacy_v1.phase_attribution_etl import compute_phase_attribution
+from core.attribution.legacy_v1.aggregate_hardware_metrics import aggregate_hardware_metrics
+from core.attribution.legacy_v1.energy_attribution_etl import compute_energy_attribution, populate_tool_failure_wasted_energy
+from core.attribution.legacy_v1.duration_fix_etl import fix_run, fix_run_with_pretask
+from core.attribution.legacy_v1.ttft_tpot_etl import populate_run as populate_ttft_tpot
+from core.attribution.conservation_residual import compute_conservation_residual
+from core.attribution.conservation_residual import compute_conservation_residual
+from core.attribution.conservation_residual import compute_conservation_residual
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +110,7 @@ class RunPersistenceService:
         # ETL runs outside transaction — each ETL function is idempotent
         self._run_post_etl(run_id)
         self._apply_duration_fix(run_id, result)
+        self._compute_residual(run_id, db)
 
         return run_id
 
@@ -317,6 +321,18 @@ class RunPersistenceService:
         else:
             fix_run(run_id)
 
+    def _compute_residual(self, run_id: int, db: object) -> None:
+        # type: (int, object) -> None
+        """Populate attribution_residual. Transitional raw conn (B39-4c-1)."""
+        try:
+            conn = db.db.conn
+        except AttributeError:
+            conn = getattr(db, "conn", None)
+        if conn is None:
+            logger.warning("_compute_residual: no conn for run_id=%d", run_id)
+            return
+        compute_conservation_residual(run_id, conn)
+        
     def _convert_energy_samples(self, samples: list) -> list:
         """
         Convert energy samples to dict format.

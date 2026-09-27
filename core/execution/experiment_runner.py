@@ -50,6 +50,8 @@ from core.execution.sample_processor import calculate_thermal_metrics
 from core.attribution.legacy_v1.energy_attribution_etl import compute_energy_attribution
 from core.attribution.legacy_v1.duration_fix_etl import fix_run, fix_run_with_pretask
 from core.attribution.legacy_v1.ttft_tpot_etl import populate_run as populate_ttft_tpot
+from core.attribution.conservation_residual import compute_conservation_residual
+from core.vocabularies.agent.span_builder import build_spans_from_result
 from core.execution.goal_tracker import GoalTracker
 import core.attribution.legacy_v1.goal_execution_etl as goal_execution_etl
 import core.attribution.legacy_v1.energy_attribution_etl as energy_attribution_etl
@@ -287,7 +289,7 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
                 ).fetchone()
                 energy_uj = int(row[0] or 0) if row else 0
             except Exception as _e:
-                print(f"DBG energy error: {_e}")
+                logger.warning("energy error: %s", _e)
                 energy_uj = 0
 
  
@@ -309,7 +311,7 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
                     agentic_result=result if workflow_type == "agentic" else None,
                     energy_uj=energy_uj,
                 )
-                print(f"DBG score: attempt={attempt_id} score={computation.result.normalized_score} method={computation.result.score_method}")
+                logger.debug("score: attempt=%d score=%s method=%s", attempt_id, computation.result.normalized_score, computation.result.score_method)
             except Exception as _se:
                 logger.error("judgment_engine.judge raised for attempt_id=%d: %s", attempt_id, _se)
                 continue
@@ -377,6 +379,113 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
             exc,
         )
  
+
+def _backfill_attempt_span_id(conn: object, run_id: int, writer: object) -> None:
+    # type: (object, int, object) -> None
+    """
+    Backfill goal_attempt.span_id from the attempt span written by SpanWriter.
+    Called after flush_to_db so span rows are committed.
+    Never raises.
+    """
+    try:
+        attempt_span = next(
+            (r for r in writer._spans if r.kind == "attempt"), None
+        )
+        if attempt_span is None:
+            return
+        conn.execute(
+            "UPDATE goal_attempt SET span_id = ? WHERE run_id = ? AND span_id IS NULL",
+            (attempt_span.span_id, run_id),
+        )
+        conn.commit()
+    except Exception as exc:
+        logger.warning(
+            "_backfill_attempt_span_id: run_id=%d skipped: %s", run_id, exc
+        )
+
+
+def _backfill_span_outcome(conn: object, run_id: int, outcome: str) -> None:
+    # type: (object, int, str) -> None
+    """
+    Update outcome attribute on goal and attempt spans after _record_goal_pair.
+    Called after spans are flushed so span_attributes rows exist.
+    Never raises.
+    """
+    try:
+        rows = conn.execute(
+            "SELECT span_id FROM spans WHERE run_id=? AND kind IN ('goal','attempt')",
+            (run_id,),
+        ).fetchall()
+        for (span_id,) in rows:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO span_attributes (span_id, key, value_text, value_type)
+                VALUES (?, 'outcome', ?, 'string')
+                """,
+                (span_id, outcome),
+            )
+        conn.commit()
+    except Exception as exc:
+        logger.warning("_backfill_span_outcome: run_id=%d skipped: %s", run_id, exc)
+
+
+def _write_quality_annotations(db: object, conn: object, run_id: int) -> None:
+    # type: (object, object, int) -> None
+    """
+    Write quality score as span_annotation on the attempt span.
+
+    Reads normalized_score and pass_fail from goal_attempt after
+    _run_quality_scoring commits. Uses goal_attempt.span_id to link
+    to the attempt span. Never raises -- annotation is observability only.
+    """
+    try:
+        rows = conn.execute(
+            """
+            SELECT ga.span_id, ga.normalized_score, ga.pass_fail,
+                   ga.attempt_number, ga.is_retry
+            FROM goal_attempt ga
+            WHERE ga.run_id = ?
+              AND ga.normalized_score IS NOT NULL
+            """,
+            (run_id,),
+        ).fetchall()
+        if not rows:
+            return
+        # If span_id not backfilled yet, look it up from spans table.
+        rows_with_span = []
+        for span_id, score, pass_fail, attempt_num, is_retry in rows:
+            if span_id is None:
+                row = conn.execute(
+                    "SELECT span_id FROM spans WHERE run_id=? AND kind='attempt' LIMIT 1",
+                    (run_id,),
+                ).fetchone()
+                span_id = row[0] if row else None
+            if span_id:
+                rows_with_span.append((span_id, score, pass_fail, attempt_num, is_retry))
+        rows = rows_with_span
+        if not rows:
+            return
+        annotations = []
+        for span_id, score, pass_fail, attempt_num, is_retry in rows:
+            annotations.append({
+                "span_id": span_id,
+                "annotation_type": "quality_score",
+                "annotation_version": "1",
+                "source": "quality_judge",
+                "payload": {
+                    "normalized_score": score,
+                    "pass_fail": pass_fail,
+                    "attempt_number": attempt_num,
+                    "is_retry": bool(is_retry),
+                },
+            })
+        with db.transaction():
+            db.insert_span_annotations(annotations)
+    except Exception as exc:
+        logger.warning(
+            "_write_quality_annotations: run_id=%d skipped: %s", run_id, exc
+        )
+
 
 def _dispatch_post_run(db: object, run_id: int, result: dict, workflow_type: str) -> None:
     """
@@ -1143,6 +1252,10 @@ class ExperimentRunner:
         _agentic_writer = SpanWriter(trace_id=_trace_id)
         _agentic_span_id = _agentic_writer.open_span("run", f"agentic:{task_id}")
         _agentic_writer.close_span(_agentic_span_id)
+        # Build child spans from result data -- must happen before flush_to_db (EEI-4).
+        _hw_info_spans = self.get_hardware_info()
+        build_spans_from_result(_linear_writer, _linear_span_id, linear_result, "linear", _hw_info_spans)
+        build_spans_from_result(_agentic_writer, _agentic_span_id, agentic_result, "agentic", _hw_info_spans)
 
         with db.transaction():
             # Insert linear run
@@ -1152,6 +1265,7 @@ class ExperimentRunner:
             self._validate_run(db, linear_id, hw_id)
             # Flush linear span — after insert_run so run_id is known (EEI-4).
             _linear_writer.flush_to_db(db, linear_id)
+            _backfill_attempt_span_id(_wconn, linear_id, _linear_writer)
             # Stub row so ETL _backfill_normalization_factors never skips this run
             _linear_meta = linear_result.get("task_meta", {}) or {}
             _wconn.execute(
@@ -1747,6 +1861,9 @@ class ExperimentRunner:
         # ── Goal tracking wiring (8.5-A) ─────────────────────────────────────
         # One goal_execution + goal_attempt row per workflow side.
         # ETL populates energy rollup columns synchronously after both goals recorded.
+        # Backfill outcome on goal and attempt spans now that goal tracking is done.
+        _backfill_span_outcome(_wconn, linear_id, linear_outcome)
+        _backfill_span_outcome(_wconn, agentic_id, agentic_outcome)
         linear_goal_id = self._record_goal_pair(
             db=db,
             exp_id=exp_id,
@@ -1823,12 +1940,19 @@ class ExperimentRunner:
         if agentic_goal_id is not None:
             _run_quality_scoring(db=db, goal_id=agentic_goal_id, result=agentic_result,
                                  workflow_type="agentic", conn=_wconn)
+        # Quality annotations on attempt spans.
+        _write_quality_annotations(db, _wconn, linear_id)
+        _write_quality_annotations(db, _wconn, agentic_id)
 
         # Attribution stubs — runs sync after goal rows exist
         energy_attribution_etl.populate_attribution_stubs(linear_id, _wconn)
         energy_attribution_etl.populate_attribution_stubs(agentic_id, _wconn)
         _goal_tracker.queue_etl(_wconn, 'run', linear_id, 'energy_attribution_etl')
         _goal_tracker.queue_etl(_wconn, 'run', agentic_id, 'energy_attribution_etl')
+        compute_conservation_residual(linear_id, _wconn)
+        compute_conservation_residual(agentic_id, _wconn)
+        compute_conservation_residual(linear_id, _wconn)
+        compute_conservation_residual(agentic_id, _wconn)
         return linear_id, agentic_id
     def _record_goal_pair(
         self,
@@ -1981,6 +2105,7 @@ class ExperimentRunner:
             _span_writer = SpanWriter()
             _span_id = _span_writer.open_span("run", f"{workflow_type}:{task_id}")
             _span_writer.close_span(_span_id)
+            build_spans_from_result(_span_writer, _span_id, result, workflow_type, self.get_hardware_info())
 
             with db.transaction():
                 run_id = db.insert_run(exp_id, hw_id, result)
@@ -1988,6 +2113,7 @@ class ExperimentRunner:
                     logger.warning("save_single: insert_run returned None — aborting")
                     return None
                 _span_writer.flush_to_db(db, run_id)
+                _backfill_attempt_span_id(_wconn, run_id, _span_writer)
 
                 record_run_provenance(db, run_id, result,
                                     reader_mode=result.get("reader_mode"))
@@ -2286,6 +2412,7 @@ class ExperimentRunner:
                 fix_run(run_id, conn=_wconn)
 
             # Goal tracking — single side only
+            _backfill_span_outcome(_wconn, run_id, outcome)
             goal_id = self._record_goal_pair(
                 db=db,
                 exp_id=exp_id,
@@ -2333,9 +2460,11 @@ class ExperimentRunner:
             if goal_id is not None:
                 _run_quality_scoring(db=db, goal_id=goal_id, result=result,
                                      workflow_type=result.get("workflow_type", "linear"), conn=_wconn)
+            _write_quality_annotations(db, _wconn, run_id)
 
             energy_attribution_etl.populate_attribution_stubs(run_id, _wconn)
             _goal_tracker.queue_etl(_wconn, "run", run_id, "energy_attribution_etl")
+            compute_conservation_residual(run_id, _wconn)
             return run_id
 
     def _save_run_samples(self, db, run_id: int, result: dict) -> None:

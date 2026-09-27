@@ -965,6 +965,42 @@ class SQLiteAdapter(DatabaseInterface):
                     """,
                     (r["span_id"], key, value_text, value_type),
                 )
+            for ev in r.get("events", []):
+
+                from core.vocabularies.agent.span_writer import _encode_attribute
+                import json
+                attrs_json = json.dumps(ev.get("attributes") or {})
+                self.conn.execute(
+                    """
+                    INSERT INTO span_events
+                        (span_id, event_type, ts_ns, attributes)
+                    VALUES (?,?,?,?)
+                    """,
+                    (r["span_id"], ev["event_type"], ev["ts_ns"], attrs_json),
+                )
+
+    def insert_span_annotations(self, annotations: list) -> None:
+        """Insert span annotation rows. Caller manages transaction."""
+        if not annotations:
+            return
+        for a in annotations:
+            import json
+            self.conn.execute(
+                """
+                INSERT INTO span_annotations
+                    (span_id, annotation_type, annotation_version,
+                     source, payload, provenance_ref)
+                VALUES (?,?,?,?,?,?)
+                """,
+                (
+                    a["span_id"],
+                    a["annotation_type"],
+                    a.get("annotation_version", "1"),
+                    a["source"],
+                    json.dumps(a["payload"]) if not isinstance(a["payload"], str) else a["payload"],
+                    a.get("provenance_ref"),
+                ),
+            )
 
     def insert_cpu_samples(self, run_id: int, samples: List[Dict[str, Any]]) -> None:
         """Insert CPU samples from turbostat."""

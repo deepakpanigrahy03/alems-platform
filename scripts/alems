@@ -292,6 +292,8 @@ print(resolve_store())
             echo "$MIGRATE_OUT" | grep -E "v[0-9]+|Total:"
             exit 1
         fi
+        echo "sandbox: ${SANDBOX_ROOT:-<none resolved>}"
+        echo "store:   $(python3 -c "import sys; sys.path.insert(0,'scripts/tools'); from path_loader import get_alems_db_path; print(get_alems_db_path())" 2>/dev/null || echo '<unresolved>')"
         python3 -m core.execution.tests.run_experiment --config "$PROFILE_PATH" "$@"
         ;;
 

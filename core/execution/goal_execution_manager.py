@@ -165,6 +165,7 @@ def execute_goal(
     attempts_made   = 0
     winning_result  = None
     last_result     = None
+    failed_attempt_events = []  # accumulate tool errors from failed attempts
     # goal_attempt.energy_uj = E_attributed per attempt (process share of workload)
     # goal_execution.total_energy_uj = SUM(E_attributed across all attempts)
     # This is the paper unit of analysis — not E_dynamic which includes background
@@ -374,6 +375,20 @@ def execute_goal(
         prev_attempt_id = attempt_id
         if result is not None:
             last_result = result
+        if outcome != "success" and result is not None:
+            _fevs = result.get("orchestration_events") or []
+            for ev in _fevs:
+                _meta = ev.get("metadata") or {}
+                if ev.get("event_type") == "tool_call" and not _meta.get("success", True):
+                    failed_attempt_events.append({
+                        "event_type": "tool_error",
+                        "ts_ns": ev.get("start_time_ns") or 0,
+                        "attributes": {
+                            "tool_name": _meta.get("tool_name") or _meta.get("tool"),
+                            "attempt_number": attempt_num,
+                            "error": _meta.get("error", "unknown"),
+                        },
+                    })
         if outcome == "success":
             winning_result = result
             logger.info(
@@ -591,10 +606,35 @@ def execute_goal(
         # Flush span for this run — after insert_one_run so run_id is known (EEI-4).
         try:
             from core.vocabularies.agent.span_writer import SpanWriter
+            from core.vocabularies.agent.span_builder import build_spans_from_result
             _span_writer = SpanWriter()
             _span_id = _span_writer.open_span("run", f"{workflow_type}:goal:{goal_id}")
             _span_writer.close_span(_span_id)
-            _span_writer.flush_to_db(db, run_id)
+            if failed_attempt_events:
+                final_result["span_failed_events"] = failed_attempt_events
+            build_spans_from_result(_span_writer, _span_id, final_result, workflow_type, db.get_hardware_info() if hasattr(db, 'get_hardware_info') else {})
+            with db.transaction():
+                _span_writer.flush_to_db(db, run_id)
+            # Backfill attempt span_id on goal_attempt for quality annotation join.
+            try:
+                _attempt_span = next(
+                    (r for r in _span_writer._spans if r.kind == "attempt"), None
+                )
+                if _attempt_span:
+                    conn.execute(
+                        "UPDATE goal_attempt SET span_id = ? WHERE run_id = ? AND span_id IS NULL",
+                        (_attempt_span.span_id, run_id),
+                    )
+                    conn.commit()
+            except Exception as _bfe:
+                logger.warning("execute_goal: backfill attempt span_id failed: %s", _bfe)
+            # Backfill outcome on goal and attempt spans.
+            try:
+                from core.execution.experiment_runner import _backfill_span_outcome
+                _final_outcome = "success" if winning_result is not None else "failure"
+                _backfill_span_outcome(conn, run_id, _final_outcome)
+            except Exception as _ofe:
+                logger.warning("execute_goal: backfill span outcome failed: %s", _ofe)
         except Exception as _span_exc:
             logger.warning("execute_goal: span flush failed: %s", _span_exc)
         # Update all goal_attempt rows with the real run_id now that it exists

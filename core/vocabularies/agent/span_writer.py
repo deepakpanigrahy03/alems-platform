@@ -37,7 +37,7 @@ class SpanRecord:
         "vocabulary", "vocabulary_version", "kind", "name",
         "start_ns", "end_ns", "start_wall", "status",
         "tenant_kind", "tenant_ref", "provenance_ref",
-        "placements", "attributes",
+        "placements", "attributes", "events",
     )
 
     def __init__(
@@ -70,6 +70,7 @@ class SpanRecord:
         self.provenance_ref     = None
         self.placements: List[Dict[str, Any]] = []
         self.attributes: Dict[str, Any] = {}
+        self.events: List[Dict[str, Any]] = []
 
 
 class SpanWriter:
@@ -218,7 +219,9 @@ class SpanWriter:
                 "tenant_ref":         record.tenant_ref,
                 "placements":         record.placements,
                 "attributes":         record.attributes,
+                "events":             getattr(record, "events", []),
             })
+
 
         try:
             db.insert_spans(run_id, records)
@@ -231,14 +234,14 @@ class SpanWriter:
 
 
 def _encode_attribute(value: Any):
-    # type: () -> tuple
+    # type: (Any) -> tuple
     """
     Encode a Python value for span_attributes storage.
 
     Returns:
         (value_type, value_text) tuple.
     """
-    import json
+    import json  # noqa: PLC0415 -- deferred to avoid module-level cost
     if isinstance(value, bool):
         return ("bool", "true" if value else "false")
     if isinstance(value, int):
