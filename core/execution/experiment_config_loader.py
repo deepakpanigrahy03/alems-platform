@@ -35,8 +35,10 @@ def apply_config(args) -> None:
     # Validate path before importing yaml — gives clear error message
     path = Path(config_path)
     if not path.exists():
-        logger.warning("apply_config: config file not found: %s — using CLI args", config_path)
-        return
+        raise FileNotFoundError(
+            f"config file not found: {config_path}\n"
+            f"Check the path and try again."
+        )
 
     try:
         import yaml

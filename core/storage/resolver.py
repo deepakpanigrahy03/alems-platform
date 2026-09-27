@@ -160,10 +160,10 @@ def _store_from_project_dir(project_dir: Path) -> Optional[str]:
             import yaml  # type: ignore
             with open(manifest) as f:
                 data = yaml.safe_load(f)
-            # Adopted sandbox: store path is explicit in manifest
-            adopted = data.get("adopted_store")
-            if adopted:
-                return str(Path(adopted).resolve())
+            # Explicit store path in manifest (highest priority).
+            explicit_store = data.get("store") or data.get("adopted_store")
+            if explicit_store:
+                return str(Path(explicit_store).resolve())
             # New sandbox: derive store from data_root + hostname + name + sandbox_id
             sandbox_id = data.get("sandbox_id", "")
             name = data.get("name", "unknown")

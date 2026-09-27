@@ -283,6 +283,15 @@ print(resolve_store())
             echo "  store:   ${SANDBOX_STORE}"
             export ALEMS_STORE="${SANDBOX_STORE}"
         fi
+        # Schema preflight: refuse run if sandbox DB has pending migrations.
+        MIGRATE_OUT=$(python3 scripts/tools/alems_migrate.py 2>&1)
+        if echo "$MIGRATE_OUT" | grep -q "migrations to apply" && ! echo "$MIGRATE_OUT" | grep -q "Total: 0"; then
+            echo ""
+            echo "  error: pending migrations detected. Run: alems dev migrate --run"
+            echo ""
+            echo "$MIGRATE_OUT" | grep -E "v[0-9]+|Total:"
+            exit 1
+        fi
         python3 -m core.execution.tests.run_experiment --config "$PROFILE_PATH" "$@"
         ;;
 

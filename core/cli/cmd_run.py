@@ -145,6 +145,30 @@ def _check_lock():
                 "lock version %s does not match running engine %s",
                 locked_version, running_version
             )
+
+        # Schema version enforcement (39.4b): compare lock schema version
+        # against the engine's latest migration file version.
+        # Lock is the sandbox's last known schema; engine files are the truth.
+        try:
+            locked_schema = lock.get("core_schema_version")
+            if locked_schema is not None:
+                from pathlib import Path as _Path
+                migrations_dir = _Path(__file__).parent.parent.parent / "migrations" / "schema"
+                schema_files = sorted(
+                    f.stem for f in migrations_dir.glob("v[0-9]*.sql")
+                    if not f.stem.startswith("v9")
+                )
+                if schema_files:
+                    latest = int(schema_files[-1].split("_")[0][1:])
+                    if int(locked_schema) < latest:
+                        return False, (
+                            f"schema mismatch: sandbox lock is at v{locked_schema} "
+                            f"but engine has migrations up to v{latest}.\n"
+                            f"Run: alems dev migrate --run"
+                        )
+        except Exception as schema_exc:
+            logger.warning("migration pending check failed: %s", schema_exc)
+
     except Exception as e:
         logger.warning("lock check failed: %s", e)
 
