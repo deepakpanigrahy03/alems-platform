@@ -64,7 +64,11 @@ nav:
     - Orchestration Tax: research/orchestration-tax.md
     - Mathematical Derivations: research/mathematical-derivations.md
     - Energy Attribution: research/energy-attribution.md
+    - Attribution Model Contract: research/attribution-model-contract.md
+    - Span Vocabulary (Agent): research/span-vocabulary-agent.md
+    - Attribution Model Contract: research/attribution-model-contract.md
     - Phase Attribution: research/phase-attribution.md
+    - Span Vocabulary Agent: research/span-vocabulary-agent.md
     - Energy Readers: research/energy-readers.md
     - Plugin Conformance: research/plugin-conformance.md
     - System Measurement: research/system-measurement.md
