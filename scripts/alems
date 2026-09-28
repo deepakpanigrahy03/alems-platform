@@ -154,7 +154,11 @@ case "$CMD" in
                 CHANGED=$(git diff --name-only "$OLD_HEAD" "$NEW_HEAD")
                 NEEDS_YAML=$(echo "$CHANGED" | grep -qE "config/.*\.yaml|gui/report_engine/goals/" && echo "yes" || echo "no")
                 NEEDS_SEED=$(echo "$CHANGED" | grep -q "migrations/seed/" && echo "yes" || echo "no")
-                NEEDS_PLUGINS=$(echo "$CHANGED" | grep -E "pyproject\.toml|alems-sdk/|alems-plugin-" | grep -c . || true)
+                NEEDS_PLUGINS=$(python3 -c "
+                from importlib.metadata import entry_points
+                groups = [g for g in entry_points().groups if g.startswith('alems')]
+                print(0 if len(groups) >= 10 else 1)
+                ")
                 echo "  Syncing..."
                 DB_PATH=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())")
                 python3 -c "
