@@ -1,9 +1,0 @@
-#!/bin/bash
-# post-merge: fires after git pull or git merge completes.
-# Warns the developer to use alems dev pull instead of git pull directly.
-echo ""
-echo "  WARNING: You ran git pull directly."
-echo "  The DB schema and plugin entry points may be out of sync."
-echo "  Always use: alems dev pull"
-echo "  to apply pending migrations and reinstall plugins without pulling again."
-echo ""
