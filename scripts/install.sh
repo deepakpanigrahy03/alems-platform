@@ -605,6 +605,19 @@ else:
             print('  Baseline measurement returned None')
 " 2>/dev/null || echo "  Baseline measurement skipped (non-fatal)"
 
+# Install all plugin packages and SDK editable into the project venv.
+# This registers entry points so the registry can discover readers,
+# engines, scorers, and harness components on any machine.
+echo "[+] Installing plugin packages editable..."
+cd "${PLATFORM_DIR}"
+for pkg_dir in alems-sdk alems-plugin-*/; do
+    if [ -f "${pkg_dir}/pyproject.toml" ]; then
+        echo "    pip install -e ${pkg_dir}"
+        venv/bin/pip install -q -e "${pkg_dir}"
+    fi
+done
+echo "    Plugin packages installed."
+
 echo ""
 echo "A-LEMS installation complete."
 echo "  Platform: ${PLATFORM}"

@@ -156,6 +156,7 @@ case "$CMD" in
                 NEEDS_MIGRATE=$(echo "$CHANGED" | grep -q "migrations/schema/" && echo "yes" || echo "no")
                 NEEDS_YAML=$(echo "$CHANGED" | grep -qE "config/.*\.yaml|gui/report_engine/goals/" && echo "yes" || echo "no")
                 NEEDS_SEED=$(echo "$CHANGED" | grep -q "migrations/seed/" && echo "yes" || echo "no")
+                NEEDS_PLUGINS=$(echo "$CHANGED" | grep -E "pyproject\.toml|alems-sdk/|alems-plugin-" | grep -c . || true)
                 echo "  Syncing..."
                 DB_PATH=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())")
                 python3 -c "
@@ -167,6 +168,13 @@ db.create_tables()
                 [ "$NEEDS_YAML" = "yes" ] && python3 scripts/migrate_yaml_to_db.py || true
                 [ "$NEEDS_SEED" = "yes" ] && python3 scripts/seed_methodology.py || true
                 python3 scripts/seed_quality_config.py
+                if [ "${NEEDS_PLUGINS:-0}" -gt 0 ]; then
+                    echo "  Plugin packages changed. Reinstalling editable installs..."
+                    for pkg_dir in alems-sdk alems-plugin-*/; do
+                        [ -f "${pkg_dir}/pyproject.toml" ] && venv/bin/pip install -q -e "${pkg_dir}"
+                    done
+                    echo "  Plugin packages reinstalled."
+                fi
                 echo "  Sync complete. Schema: v$(_schema_version)"
                 ;;
 
@@ -188,6 +196,20 @@ db.create_tables()
                 python3 scripts/seed_methodology.py
                 python3 scripts/seed_quality_config.py
                 echo "  Sync complete. Schema: v$(_schema_version)"
+                ;;
+
+            install-plugins)
+                # Explicit command: reinstall all plugin packages editable.
+                # Run this after git clone on a new machine, or when
+                # entry points seem stale (alems run finds no readers).
+                echo "  Installing plugin packages editable..."
+                for pkg_dir in alems-sdk alems-plugin-*/; do
+                    if [ -f "${pkg_dir}/pyproject.toml" ]; then
+                        echo "    ${pkg_dir}"
+                        venv/bin/pip install -q -e "${pkg_dir}"
+                    fi
+                done
+                echo "  Done. Run 'alems dev status' to verify."
                 ;;
 
             status)
@@ -222,8 +244,8 @@ db.create_tables()
                 echo "  alems dev sync      — sync schema/configs (after manual git pull)"
                 echo "  alems dev status    — show platform, DB, branch, schema version"
                 echo "  alems dev install   — run full install"
-                echo "  alems dev migrate   — run pending schema migrations only"
-                echo ""
+                echo "  alems dev migrate   — show pending migrations"
+                echo "  alems dev migrate --run  — apply pending migrations"               echo ""
                 ;;
         esac
         ;;
@@ -353,25 +375,45 @@ print(resolve_store())
         echo "  A-LEMS CLI"
         echo ""
         echo "  Experiment commands:"
-        echo "    alems run <profile-name>     — run an experiment profile"
-        echo "    alems measure                — run energy baseline"
-        echo "    alems report                 — generate report"
+        echo "    alems run <profile-name>          — run an experiment profile"
+        echo "    alems measure                     — run energy baseline"
+        echo "    alems report                      — generate report"
         echo ""
         echo "  Sandbox commands:"
-        echo "    alems sandbox create <dir>   — create a new sandbox"
-        echo "    alems sandbox use <dir>      — switch active sandbox"
-        echo "    alems sandbox info           — show current sandbox"
-        echo "    alems sandbox doctor         — run health checks"
+        echo "    alems sandbox create <dir>        — create a new sandbox"
+        echo "    alems sandbox create <dir> --adopt <store>  — adopt existing store"
+        echo "    alems sandbox init                — generate .sandbox-env for this machine"
+        echo "    alems sandbox use <dir>           — switch active sandbox"
+        echo "    alems sandbox info                — show current sandbox"
+        echo "    alems sandbox doctor              — run health checks"
+        echo "    alems sandbox upgrade --dry-run   — preview upgrade plan"
+ 
         echo ""
         echo "  Engine commands:"
-        echo "    alems engine list            — list registered engines"
-        echo "    alems engine register <path> — register an engine"
+        echo "    alems engine list                 — list registered engines"
+        echo "    alems engine register <path>      — register an engine"
+        echo ""
+        echo "  Validation commands:"
+        echo "    alems validate integrity          — experiment integrity check"
+        echo "    alems validate energy             — energy chain validation"
+        echo "    alems validate phase              — phase attribution validation"
+        echo "    alems validate attribution        — attribution validation"
+        echo "    alems validate boundaries         — attempt boundary validation"
+        echo "    alems validate report             — energy chain report"
+        echo ""
+        echo "  Plugin and schema commands:"
+        echo "    alems plugins                     — list installed plugins"
+        echo "    alems lock                        — show sandbox lock file"
+        echo "    alems schema <kind>               — print JSON schema"
         echo ""
         echo "  Developer commands:"
-        echo "    alems dev pull               — git pull + smart sync"
-        echo "    alems dev sync               — sync schema/configs"
-        echo "    alems dev status             — environment info"
-        echo "    alems dev install            — full install"
+        echo "    alems dev pull                    — git pull + smart schema sync"
+        echo "    alems dev sync                    — sync schema/configs"
+        echo "    alems dev status                  — environment info"
+        echo "    alems dev install                 — full install"
+        echo "    alems dev migrate                 — show pending migrations"
+        echo "    alems dev migrate --run           — apply pending migrations"
+        echo "    alems dev install-plugins         — reinstall all plugin packages editable"
         echo ""
         ;;
 
