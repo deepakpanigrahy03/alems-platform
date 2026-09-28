@@ -78,6 +78,7 @@ from .schema import (CREATE_SANDBOX_IDENTITY, CREATE_CPU_SAMPLES, CREATE_ENERGY_
                      CREATE_METRIC_DISPLAY_REGISTRY,
                      CREATE_QUERY_REGISTRY,
                      CREATE_STANDARDIZATION_REGISTRY,
+                     CREATE_SCHEMA_NAMESPACE_TABLES,
                      CREATE_EVAL_CRITERIA,
                      CREATE_COMPONENT_REGISTRY,
                      CREATE_PAGE_CONFIGS,
@@ -453,9 +454,10 @@ class SQLiteAdapter(DatabaseInterface):
         self.conn.executescript(CREATE_NIC_SAMPLES)
         # Extension registry table — tracks activated research extensions per machine.
         # Created as part of core schema so it exists on every install (35D).
-        self.conn.executescript(CREATE_EXTENSION_REGISTRY)   
+        self.conn.executescript(CREATE_EXTENSION_REGISTRY)
         self.conn.executescript(CREATE_WRITER_IDEMPOTENCY)
-        self.conn.executescript(CREATE_SANDBOX_IDENTITY)     
+        self.conn.executescript(CREATE_SANDBOX_IDENTITY)
+        self.conn.executescript(CREATE_SCHEMA_NAMESPACE_TABLES)     
 
 
         # Commit explicitly (DDL should be committed)

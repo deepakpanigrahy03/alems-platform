@@ -3711,3 +3711,13 @@ CREATE TABLE IF NOT EXISTS attribution_residual (
 );
 CREATE INDEX IF NOT EXISTS idx_residual_run ON attribution_residual(run_id);
 """
+
+CREATE_SCHEMA_NAMESPACE_TABLES = """
+CREATE TABLE IF NOT EXISTS schema_namespace_tables (
+    namespace    TEXT NOT NULL,
+    object_name  TEXT NOT NULL,
+    object_kind  TEXT NOT NULL CHECK (object_kind IN ('table','view')),
+    adopted_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (namespace, object_name)
+);
+"""
