@@ -30,9 +30,9 @@ from core.execution.scorers.context import (
 class TestExpectationSchema:
 
     def test_parse_exact_expectation(self):
-        data = {"scorer_type": "exact", "expected_source": "inline", "answer": "12"}
+        data = {"scorer_type": "exact_match", "expected_source": "inline", "answer": "12"}
         exp = Expectation.from_dict(data)
-        assert exp.scorer_type == "exact"
+        assert exp.scorer_type == "exact_match"
         assert exp.answer == "12"
         assert exp.is_scoreable() is True
 
@@ -55,12 +55,12 @@ class TestExpectationSchema:
 
     def test_parse_rubric_expectation(self):
         data = {
-            "scorer_type": "rubric",
+            "scorer_type": "llm_judge",
             "expected_source": "inline",
             "rubric": {"key_concepts": ["energy"], "min_words": 100},
         }
         exp = Expectation.from_dict(data)
-        assert exp.scorer_type == "rubric"
+        assert exp.scorer_type == "llm_judge"
         assert exp.get_expected_value() == {"key_concepts": ["energy"], "min_words": 100}
 
     def test_none_scorer_type_not_scoreable(self):
@@ -77,7 +77,7 @@ class TestExpectationSchema:
             Expectation.from_dict({"scorer_type": "invalid_type"})
 
     def test_requires_execution_trace_only_for_structural(self):
-        for stype in ["exact", "numeric", "semantic", "rubric", "none"]:
+        for stype in ["exact_match", "numeric", "semantic", "llm_judge", "none"]:
             exp = Expectation.from_dict({"scorer_type": stype})
             assert exp.requires_execution_trace() is False
         exp = Expectation.from_dict({
@@ -96,7 +96,7 @@ class TestExpectedSourceResolver:
     def test_inline_returns_answer(self):
         resolver = ExpectedSourceResolver()
         exp = Expectation.from_dict({
-            "scorer_type": "exact", "expected_source": "inline", "answer": "42"
+            "scorer_type": "exact_match", "expected_source": "inline", "answer": "42"
         })
         assert resolver.resolve(exp) == "42"
 
@@ -118,7 +118,7 @@ class TestExpectedSourceResolver:
     def test_benchmark_dataset_raises_not_implemented(self):
         resolver = ExpectedSourceResolver()
         exp = Expectation.from_dict({
-            "scorer_type": "exact",
+            "scorer_type": "exact_match",
             "expected_source": "benchmark_dataset",
             "answer": "12",
         })
@@ -128,7 +128,7 @@ class TestExpectedSourceResolver:
     def test_computed_at_runtime_raises_not_implemented(self):
         resolver = ExpectedSourceResolver()
         exp = Expectation.from_dict({
-            "scorer_type": "exact",
+            "scorer_type": "exact_match",
             "expected_source": "computed_at_runtime",
             "answer": "12",
         })
@@ -178,9 +178,19 @@ class TestNumericScorer:
     def test_scorer_type(self):
         assert NumericScorer.SCORER_TYPE == "numeric"
 
-    def test_percentage(self):
+    def test_percentage_different_from_decimal(self):
+        # "77.8%" normalizes to 0.778; "77.8" normalizes to 77.8.
+        # Different numbers — correct score is 0.0.
+        # Old assertion (score==1.0) was wrong: a model writing "77.8%"
+        # when the answer is "77.8" gave the wrong answer.
         scorer = NumericScorer()
         score, _, _ = scorer.score("77.8%", "77.8")
+        assert score == 0.0
+
+    def test_percentage_matches_fraction(self):
+        # "77.8%" normalizes to 0.778; "0.778" normalizes to 0.778 — same.
+        scorer = NumericScorer()
+        score, _, _ = scorer.score("77.8%", "0.778")
         assert score == 1.0
 
     def test_score_with_context(self):

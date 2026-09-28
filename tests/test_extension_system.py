@@ -307,36 +307,37 @@ class TestOutputQualityExtension:
             """
         )
 
-    def test_stub_writes_output_quality_row(self):
-        """on_post_run must write a stub row to output_quality."""
+    def test_on_post_run_is_noop(self):
+        # on_post_run() is a documented no-op for OutputQualityExtension.
+        # Scoring is per-attempt via persist(), called synchronously from
+        # _run_quality_scoring in experiment_runner. PostRunPayload is
+        # once-per-run and cannot represent N per-attempt scores.
         conn = self._make_db_with_quality_tables()
         payload = _make_payload(conn, run_id=1)
 
         from extensions.output_quality.extension import OutputQualityExtension
         ext = OutputQualityExtension()
-        ext.on_post_run(payload)
+        ext.on_post_run(payload)  # must not raise
 
         row = conn.execute(
-            "SELECT scorer_name, score FROM output_quality WHERE run_id = 1"
+            "SELECT scorer_name FROM output_quality WHERE run_id = 1"
         ).fetchone()
-        assert row is not None, "output_quality row not written"
-        assert row[0] == "stub_phase1"
-        assert row[1] is None  # score is NULL in phase 1
+        assert row is None, "on_post_run must not write rows — no-op by design"
 
-    def test_stub_writes_run_quality_row(self):
-        """on_post_run must write a summary row to run_quality."""
+    def test_on_post_run_does_not_write_run_quality(self):
+        # run_quality is written by a separate ETL process after the run.
+        # OutputQualityExtension.on_post_run() does not write it.
         conn = self._make_db_with_quality_tables()
         payload = _make_payload(conn, run_id=1)
 
         from extensions.output_quality.extension import OutputQualityExtension
         ext = OutputQualityExtension()
-        ext.on_post_run(payload)
+        ext.on_post_run(payload)  # must not raise
 
         row = conn.execute(
             "SELECT scorer_count FROM run_quality WHERE run_id = 1"
         ).fetchone()
-        assert row is not None, "run_quality row not written"
-        assert row[0] == 0  # no actual scorer ran in phase 1
+        assert row is None, "on_post_run must not write run_quality rows"
 
     def test_skips_failed_runs(self):
         """on_post_run must skip runs with status != 'completed'."""
@@ -359,12 +360,13 @@ class TestOutputQualityExtension:
         assert ext.get_name() == "output_quality"
 
     def test_get_tables_returns_owned_tables(self):
-        """get_tables() must list the tables created by this extension's migrations."""
+        # output_quality namespace owns: output_quality, output_quality_judges.
+        # run_quality is written by ETL and not declared in get_tables().
         from extensions.output_quality.extension import OutputQualityExtension
         ext = OutputQualityExtension()
         tables = ext.get_tables()
         assert "output_quality" in tables
-        assert "run_quality" in tables
+        assert "output_quality_judges" in tables
 
     def test_on_post_run_does_not_raise_on_db_error(self):
         """on_post_run must catch exceptions and not propagate to experiment_runner."""

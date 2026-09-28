@@ -15,6 +15,120 @@ These tables answer the core research question: **how much energy does the agent
 
 ---
 
+## Controlling Quality Scoring { #quality-gate }
+
+Quality scoring has two layers with different costs.
+
+**Layer 1: Cheap local scorers** run on every attempt when the task declares
+an `expectation:` block. Exact match, numeric, semantic, and structural scorers
+are fast, local, and produce `normalized_score` and `pass_fail` on
+`goal_attempt`. No LLM call. No flag required.
+
+**Layer 2: LLM judge** calls an external LLM to evaluate open-ended outputs
+against a rubric. Results are written to `output_quality` and
+`output_quality_judges`. This is expensive. It is off by default.
+
+### Activation precedence (lowest to highest)
+
+absent in config -> quality off (safe default) quality.enabled: false -> quality off quality.enabled: true -> quality on --quality-enabled CLI -> quality on (overrides YAML, project runs only)
+
+
+### From an experiment config YAML or sandbox profile
+
+```yaml
+# Benchmarking run — LLM judge on, output_quality rows written.
+quality:
+  enabled: true
+```
+
+```yaml
+# Retry or injection study — energy only, no LLM judge cost.
+quality:
+  enabled: false
+```
+
+No `quality` section is equivalent to `enabled: false`.
+
+### From the CLI (project runs only)
+
+```bash
+# Quality on from CLI — overrides quality: enabled: false in any YAML.
+python core/execution/tests/run_experiment.py \
+  --tasks t3_summarization \
+  --provider vllm_remote \
+  --experiment-type normal \
+  --experiment-goal "benchmark quality run" \
+  --quality-enabled \
+  --save-db
+```
+
+### From a sandbox
+
+Control quality per experiment through the profile YAML.
+The profile is the source of truth for sandbox runs.
+
+```yaml
+# profiles/benchmark_quality.yaml
+quality:
+  enabled: true
+```
+
+```bash
+cd <sandbox-root>
+alems run benchmark_quality
+```
+
+### What each mode writes
+
+| Mode | LLM judge | output_quality rows | goal_attempt scores | hallucination_events |
+|---|---|---|---|---|
+| quality off (default) | no | no | yes (cheap scorers) | no |
+| quality on | yes (rubric tasks) | yes | yes | yes (failed attempts) |
+
+### When to use quality on
+
+Use `quality: enabled: true` for benchmarking runs that train or evaluate
+quality models, paper figures that report normalized scores or pass rates,
+and studies comparing model output quality across providers.
+
+Use the default (off) for retry and failure injection studies, calibration
+and baseline runs, and any run where speed matters and quality is not the
+research question.
+
+### Verification queries
+
+**Check quality gate was respected for a run:**
+```sql
+SELECT r.run_id,
+       COUNT(oq.quality_id) AS quality_rows,
+       COUNT(ga.attempt_id) AS attempt_rows
+FROM runs r
+JOIN goal_attempt ga ON ga.run_id = r.run_id
+LEFT JOIN output_quality oq ON oq.attempt_id = ga.attempt_id
+WHERE r.run_id = <your_run_id>
+GROUP BY r.run_id;
+```
+Expected: `quality_rows=0` when quality was off, `quality_rows=attempt_rows` when on.
+
+**Check cheap scorer ran regardless of quality gate:**
+```sql
+SELECT attempt_id, normalized_score, pass_fail
+FROM goal_attempt
+WHERE run_id = <your_run_id>
+ORDER BY attempt_id;
+```
+Expected: `normalized_score` NOT NULL when task has an expectation block.
+
+**Confirm output_quality extension is installed:**
+```python
+from core.execution.experiment_runner import _load_output_quality_extension
+ext = _load_output_quality_extension()
+print(ext.get_name() if ext else "not installed")
+# Expected: output_quality
+```
+
+---
+
 ## Hallucination Detection Methodology
 *method_id: `hallucination_detection_v1` | confidence: 0.85*
 

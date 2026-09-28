@@ -54,6 +54,18 @@ def parse_arguments():
         help="Provider from models.yaml e.g. groq, llama_cpp, ollama_remote")
     parser.add_argument("--country", type=str, default="US")
     parser.add_argument("--save-db", action="store_true")
+    parser.add_argument(
+        "--quality-enabled",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable LLM judge scoring and output_quality persistence. "
+            "Default false: retry, injection, and energy-only runs pay no "
+            "LLM judge cost. Cheap local scorers (exact_match, numeric, "
+            "structural, semantic) always run per task expectation block. "
+            "Overrides quality.enabled in experiment config YAML when set."
+        ),
+    )
     parser.add_argument("--providers", type=str, help="Comma-separated providers")
     parser.add_argument(
         "--verbose", action="store_true", help="Show detailed hardware output per pair"

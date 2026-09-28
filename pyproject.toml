@@ -96,6 +96,7 @@ json = "core.execution.outputs.json_output:JSONOutputAdapter"
 
 [project.entry-points."alems.extensions"]
 tool_selection = "extensions.tool_selection.extension:ToolSelectionExtension"
+output_quality = "extensions.output_quality.extension:OutputQualityExtension"
 
 # Injection engines — discovered by scenario_loader.build_injector().
 # Register custom injection engines here with their mode name as the key.
@@ -106,10 +107,16 @@ scenario = "core.injection.scenario_injector:ScenarioInjector"
 # Harness plugin groups — populated by 39.4/39.5.
 # Declared now so external packages can register into them immediately.
 [project.entry-points."alems.harness.retry"]
+flat = "core.retry.retry_adapter:FlatRetryAdapter"
+ear = "core.retry.retry_adapter:EARAdapter"
 
 [project.entry-points."alems.harness.recovery"]
+full_restart = "core.recovery.recovery_adapter:FullRestartPolicy"
+localized = "core.recovery.recovery_adapter:LocalizedRecoveryPolicy"
 
 [project.entry-points."alems.harness.collectors"]
+noop = "core.telemetry.cache_collector:NoOpCollector"
+engine_backed = "core.telemetry.engine_backed_collector:EngineBackedCollector"
 
 # Semantic family — populated by 39.4.
 [project.entry-points."alems.conformance.kits"]

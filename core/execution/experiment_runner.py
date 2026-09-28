@@ -62,7 +62,32 @@ from core.execution.expectation.schema import Expectation
 from core.execution.expectation.adapter import TaskExpectationAdapter
 from core.execution import judgment_engine
 from core.execution.judgment_types import JudgmentResult
-from extensions.output_quality.extension import OutputQualityExtension
+# OutputQualityExtension loaded conditionally via entry point (39.5a).
+# Direct import removed — extension must be declared in alems.extensions
+# and quality.enabled=true in the experiment config to take effect.
+# Falls back to None when not installed or not enabled.
+def _load_output_quality_extension():
+    # type: () -> object
+    """
+    Discover OutputQualityExtension via entry point.
+    Returns the class instance if the extension is installed, else None.
+    Failure to load is a warning not an error — the run proceeds without
+    quality persistence. Consistent with ExtensionABC lifecycle contract.
+    """
+    try:
+        from importlib.metadata import entry_points
+        eps = entry_points(group="alems.extensions")
+        for ep in eps:
+            if ep.name == "output_quality":
+                cls = ep.load()
+                return cls()
+        return None
+    except Exception as _e:
+        import logging as _logging
+        _logging.getLogger(__name__).warning(
+            "output_quality extension not loaded: %s", _e
+        )
+        return None
 import core.execution.adapters.bootstrap  # noqa: F401
 import core.serving.bootstrap  # noqa: F401 — registers RemoteAPIAdapter + VLLMAdapter
 import core.telemetry.engine_backed_collector  # noqa: F401 — registers EngineBackedCollector
@@ -75,7 +100,9 @@ import core.telemetry.engine_backed_collector  # noqa: F401 — registers Engine
 # score_result block further down).
 _hallucination_detector = HallucinationDetector()
 _expectation_adapter = TaskExpectationAdapter()
-_output_quality_extension = OutputQualityExtension()
+# Discovered via entry point at startup. None when not installed.
+# persist() is called only when quality_enabled=True in experiment config.
+_output_quality_extension = _load_output_quality_extension()
 from core.execution.retry_coordinator import RetryCoordinator, ExecutionResult
 from core.execution.failure_classifier import FailureClassifier
 from core.execution.failure_injector import FailureInjector
@@ -222,23 +249,30 @@ def _auto_expectation(expected_answer: str, task_meta: dict) -> dict:
 # module-level helpers (_insert_nic_samples, _convert_gpu_to_telemetry, etc.)
 # ---------------------------------------------------------------------------
 
-def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: str, conn=None) -> None:
+def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: str, conn=None, quality_enabled: bool = False) -> None:
     """
     Run quality scoring for all attempts in a completed goal.
- 
+
     Uses TaskExpectationAdapter to resolve the task's expectation block
     and dispatch to the correct scorer via ScorerRegistry.
     Supports exact, numeric, semantic, rubric, and structural scoring.
- 
-    Quality scoring fires only when the task has an expectation: block
-    with a valid scorer_type and expected value. Tasks without this
-    block are silently skipped.
- 
+
+    Cheap local scorers (exact_match, numeric, structural, semantic) always
+    run when the task declares an expectation block. The LLM judge (rubric
+    scorer), OutputQualityExtension.persist(), and hallucination detection
+    are gated on quality_enabled=True. This is set from quality.enabled in
+    the experiment config YAML. Default false: energy and retry studies pay
+    no LLM judge cost.
+
     Args:
-        db           : DatabaseInterface wrapper.
-        goal_id      : goal_execution primary key.
-        result       : Result dict from harness including task_meta.
-        workflow_type: "agentic" or "linear".
+        db             : DatabaseInterface wrapper.
+        goal_id        : goal_execution primary key.
+        result         : Result dict from harness including task_meta.
+        workflow_type  : "agentic" or "linear".
+        conn           : Optional raw connection. Resolved from db if None.
+        quality_enabled: When True, runs LLM judge and persists output_quality
+                         rows and hallucination events. When False, cheap local
+                         scorers still run but LLM judge is skipped.
     """
     try:
         if conn is None:
@@ -318,21 +352,25 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
 
             pass_fail = computation.result.pass_fail
 
-            # SPEC 35J (INV-3 fix): output_quality/output_quality_judges are
-            # extension-owned tables. This used to be hand-written INSERT/UPDATE
-            # SQL directly in this core file — a real architectural violation,
-            # found and fixed this session. OutputQualityExtension.persist()
-            # is now the only code that writes to these two tables.
-            try:
-                quality_id = _output_quality_extension.persist(
-                    conn=conn,
-                    attempt_id=attempt_id,
-                    goal_id=goal_id,
-                    computation=computation,
-                )
-            except Exception as _pe:
-                logger.error("OutputQualityExtension.persist failed for attempt_id=%d: %s", attempt_id, _pe)
-                quality_id = None
+            # OutputQualityExtension.persist() writes to extension-owned tables
+            # (output_quality, output_quality_judges). Gated on quality_enabled
+            # so retry/injection/energy-only studies pay no LLM judge cost.
+            # Cheap scorer results (normalized_score, pass_fail) are written
+            # to goal_attempt below regardless of this gate.
+            quality_id = None
+            if quality_enabled and _output_quality_extension is not None:
+                try:
+                    quality_id = _output_quality_extension.persist(
+                        conn=conn,
+                        attempt_id=attempt_id,
+                        goal_id=goal_id,
+                        computation=computation,
+                    )
+                except Exception as _pe:
+                    logger.error(
+                        "OutputQualityExtension.persist failed for attempt_id=%d: %s",
+                        attempt_id, _pe,
+                    )
 
             # goal_attempt is core — core still owns this write directly,
             # unlike output_quality (extension-owned). Unchanged from before.
@@ -358,8 +396,9 @@ def _run_quality_scoring(db: object, goal_id: int, result: dict, workflow_type: 
                 except Exception as _ge:
                     logger.error("goal_output insert failed for attempt_id=%d: %s", attempt_id, _ge)
 
-            # Detect hallucination on failed attempts.
-            if pass_fail == 0:
+            # Hallucination detection requires a quality_id from persist().
+            # Gated on quality_enabled for the same reason as persist().
+            if quality_enabled and pass_fail == 0:
                 judgment = computation.result
                 judgment.quality_id = quality_id
                 _hallucination_detector.detect(
@@ -1934,12 +1973,13 @@ class ExperimentRunner:
         # --- Quality scoring (8.5C) ---
         # Called AFTER goal_execution ETL so attempt_ids are committed.
         # Quality judge runs after core energy_uj is committed (Observer Energy).
+        _qe = getattr(self.args, "quality_enabled", False) if hasattr(self, "args") else False
         if linear_goal_id is not None:
             _run_quality_scoring(db=db, goal_id=linear_goal_id, result=linear_result,
-                                 workflow_type="linear", conn=_wconn)
+                                 workflow_type="linear", conn=_wconn, quality_enabled=_qe)
         if agentic_goal_id is not None:
             _run_quality_scoring(db=db, goal_id=agentic_goal_id, result=agentic_result,
-                                 workflow_type="agentic", conn=_wconn)
+                                 workflow_type="agentic", conn=_wconn, quality_enabled=_qe)
         # Quality annotations on attempt spans.
         _write_quality_annotations(db, _wconn, linear_id)
         _write_quality_annotations(db, _wconn, agentic_id)
@@ -2457,9 +2497,11 @@ class ExperimentRunner:
                         _wconn.commit()
 
             # --- Quality scoring (8.5C) ---
+            _qe = getattr(self.args, "quality_enabled", False) if hasattr(self, "args") else False
             if goal_id is not None:
                 _run_quality_scoring(db=db, goal_id=goal_id, result=result,
-                                     workflow_type=result.get("workflow_type", "linear"), conn=_wconn)
+                                     workflow_type=result.get("workflow_type", "linear"),
+                                     conn=_wconn, quality_enabled=_qe)
             _write_quality_annotations(db, _wconn, run_id)
 
             energy_attribution_etl.populate_attribution_stubs(run_id, _wconn)

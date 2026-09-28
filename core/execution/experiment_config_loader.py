@@ -70,6 +70,22 @@ def apply_config(args) -> None:
     if serving_engine:
         args.serving_engine = serving_engine
 
+    # Quality gate (39.5a): controls LLM judge and OutputQualityExtension.persist().
+    # Cheap local scorers (exact_match, numeric, structural, semantic) run always
+    # per task expectation block regardless of this flag.
+    # Precedence: CLI --quality-enabled > YAML quality.enabled > default false.
+    # If CLI already set quality_enabled=True (store_true), do not overwrite it.
+    if not getattr(args, "quality_enabled", False):
+        quality = cfg.get("quality") or {}
+        if quality:
+            args.quality_enabled = bool(quality.get("enabled", False))
+            logger.debug("apply_config: quality.enabled = %s (from YAML)", args.quality_enabled)
+        else:
+            args.quality_enabled = False
+            logger.debug("apply_config: quality.enabled = False (default)")
+    else:
+        logger.debug("apply_config: quality.enabled = True (CLI override)")
+
 def _apply_failure_injection_section(args, fi: dict) -> None:
     """
     Build FailureInjector from failure_injection YAML section and store on args.
