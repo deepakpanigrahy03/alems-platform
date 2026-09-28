@@ -166,7 +166,7 @@ db.create_tables()
                 python3 scripts/tools/alems_migrate.py --run
                 [ "$NEEDS_YAML" = "yes" ] && python3 scripts/migrate_yaml_to_db.py || true
                 [ "$NEEDS_SEED" = "yes" ] && python3 scripts/seed_methodology.py || true
-                venv/bin/pip install -e .
+                venv/bin/pip install -e "${ALEMS_ROOT}"
                 for pkg_dir in alems-plugin-*/; do
                     if [ -f "${pkg_dir}/pyproject.toml" ]; then
                         pkg_name=$(grep "^name" ${pkg_dir}/pyproject.toml | cut -d= -f2 | tr -d ' "' | tr - _)
@@ -194,7 +194,7 @@ db.create_tables()
                 python3 scripts/tools/alems_migrate.py --run
                 python3 scripts/migrate_yaml_to_db.py
                 python3 scripts/seed_methodology.py
-                venv/bin/pip install -e .
+                venv/bin/pip install -e "${ALEMS_ROOT}"
                 for pkg_dir in alems-plugin-*/; do
                     if [ -f "${pkg_dir}/pyproject.toml" ]; then
                         pkg_name=$(grep "^name" ${pkg_dir}/pyproject.toml | cut -d= -f2 | tr -d ' "' | tr - _)
@@ -212,7 +212,7 @@ db.create_tables()
                 # Run this after git clone on a new machine, or when
                 # entry points seem stale (alems run finds no readers).
                 echo "  Installing plugin packages editable..."
-                venv/bin/pip install -e .
+                venv/bin/pip install -e "${ALEMS_ROOT}"
                 for pkg_dir in alems-sdk alems-plugin-*/; do
                     if [ -f "${pkg_dir}/pyproject.toml" ]; then
                         pkg_name=$(grep "^name" ${pkg_dir}/pyproject.toml | cut -d= -f2 | tr -d ' "' | tr - _)
