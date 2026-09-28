@@ -9,6 +9,20 @@
 # schema_version must exist before detect_environment.py reads it.
 set -euo pipefail
 
+# Block if another venv is active.
+# source venv/bin/activate does not fully switch venvs.
+# The wrong venv causes store resolver to point at wrong DB.
+if [ -n "${VIRTUAL_ENV:-}" ]; then
+    echo ""
+    echo "  ERROR: A virtual environment is already active:"
+    echo "  ${VIRTUAL_ENV}"
+    echo ""
+    echo "  Run: deactivate"
+    echo "  Then run: bash scripts/install.sh"
+    echo ""
+    exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
