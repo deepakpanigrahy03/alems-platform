@@ -618,12 +618,26 @@ for pkg_dir in alems-sdk alems-plugin-*/; do
 done
 echo "    Plugin packages installed."
 
+# Install post-merge hook so direct git pull triggers a warning.
+# The hook is not committed to git (.git/ is never versioned) so
+# install.sh installs it on every machine during setup.
+echo "[+] Installing git post-merge hook..."
+mkdir -p "${PLATFORM_DIR}/.git/hooks"
+cp "${PLATFORM_DIR}/scripts/hooks/post-merge" "${PLATFORM_DIR}/.git/hooks/post-merge"
+chmod +x "${PLATFORM_DIR}/.git/hooks/post-merge"
+echo "    Hook installed."
+
 echo ""
 echo "A-LEMS installation complete."
 echo "  Platform: ${PLATFORM}"
 echo "  Database: ${DB_PATH}"
 echo ""
+echo "IMPORTANT: Never run 'git pull' directly."
+echo "  Always use: alems dev pull"
+echo "  This keeps the DB schema and plugin entry points in sync with the code."
+echo ""
 echo "Next steps:"
 echo "  source venv/bin/activate"
+echo "  alems dev pull"
 echo "  python -m core.execution.tests.test_llm_setup --provider all --verbose"
 echo "  python -m core.execution.tests.test_harness --task-id gsm8k_basic --repetitions 1 --save-db"

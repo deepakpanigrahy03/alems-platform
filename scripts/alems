@@ -153,7 +153,6 @@ case "$CMD" in
                 fi
                 # Check what changed between old and new HEAD
                 CHANGED=$(git diff --name-only "$OLD_HEAD" "$NEW_HEAD")
-                NEEDS_MIGRATE=$(echo "$CHANGED" | grep -q "migrations/schema/" && echo "yes" || echo "no")
                 NEEDS_YAML=$(echo "$CHANGED" | grep -qE "config/.*\.yaml|gui/report_engine/goals/" && echo "yes" || echo "no")
                 NEEDS_SEED=$(echo "$CHANGED" | grep -q "migrations/seed/" && echo "yes" || echo "no")
                 NEEDS_PLUGINS=$(echo "$CHANGED" | grep -E "pyproject\.toml|alems-sdk/|alems-plugin-" | grep -c . || true)
@@ -164,7 +163,9 @@ from core.database.sqlite_adapter import SQLiteAdapter
 db = SQLiteAdapter({'path': '${DB_PATH}'})
 db.create_tables()
 "
-                python3 scripts/tools/alems_migrate.py
+                # Always run migrate: idempotent, only applies pending migrations.
+                # Conditional check misses machines that skipped several pulls.
+                python3 scripts/tools/alems_migrate.py --run
                 [ "$NEEDS_YAML" = "yes" ] && python3 scripts/migrate_yaml_to_db.py || true
                 [ "$NEEDS_SEED" = "yes" ] && python3 scripts/seed_methodology.py || true
                 python3 scripts/seed_quality_config.py
@@ -179,25 +180,27 @@ db.create_tables()
                 ;;
 
             sync)
-                # Full sync without pulling
+                # Full sync without pulling. Safe to run after accidental git pull.
+                # Applies all pending migrations, reseeds, reinstalls plugin entry points.
                 echo "  Syncing schema and configs..."
-                # Ensure DB directory exists before running migrations
                 DB_DIR=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; import os; print(os.path.dirname(get_alems_db_path()))")
                 mkdir -p "$DB_DIR"
-                # Ensure all tables exist before migrations run
                 DB_PATH=$(python3 -c "from scripts.tools.path_loader import get_alems_db_path; print(get_alems_db_path())")
                 python3 -c "
 from core.database.sqlite_adapter import SQLiteAdapter
 db = SQLiteAdapter({'path': '${DB_PATH}'})
 db.create_tables()
 "
-                python3 scripts/tools/alems_migrate.py
+                python3 scripts/tools/alems_migrate.py --run
                 python3 scripts/migrate_yaml_to_db.py
                 python3 scripts/seed_methodology.py
                 python3 scripts/seed_quality_config.py
+                for pkg_dir in alems-sdk alems-plugin-*/; do
+                    [ -f "${pkg_dir}/pyproject.toml" ] && venv/bin/pip install -q -e "${pkg_dir}"
+                done
                 echo "  Sync complete. Schema: v$(_schema_version)"
                 ;;
-
+ 
             install-plugins)
                 # Explicit command: reinstall all plugin packages editable.
                 # Run this after git clone on a new machine, or when
@@ -244,8 +247,11 @@ db.create_tables()
                 echo "  alems dev sync      — sync schema/configs (after manual git pull)"
                 echo "  alems dev status    — show platform, DB, branch, schema version"
                 echo "  alems dev install   — run full install"
-                echo "  alems dev migrate   — show pending migrations"
-                echo "  alems dev migrate --run  — apply pending migrations"               echo ""
+                echo "  alems dev migrate        — show pending migrations"
+                echo "  alems dev migrate --run  — apply pending migrations"
+                echo "  alems dev sync           — fix machine after accidental git pull"
+                echo "  alems dev install-plugins — reinstall all plugin entry points"
+                echo ""
                 ;;
         esac
         ;;
@@ -413,7 +419,8 @@ print(resolve_store())
         echo "    alems dev install                 — full install"
         echo "    alems dev migrate                 — show pending migrations"
         echo "    alems dev migrate --run           — apply pending migrations"
-        echo "    alems dev install-plugins         — reinstall all plugin packages editable"
+        echo "    alems dev sync                    — fix machine after accidental git pull"
+        echo "    alems dev install-plugins         — reinstall all plugin entry points"
         echo ""
         ;;
 
