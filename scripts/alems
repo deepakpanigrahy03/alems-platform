@@ -35,6 +35,9 @@ for _i in 1 2 3 4 5 6 7 8; do
 done
 cd "$ALEMS_ROOT"
 export PYTHONPATH="${ALEMS_ROOT}"
+if [ -n "${VIRTUAL_ENV:-}" ] && [ "${VIRTUAL_ENV}" != "${ALEMS_ROOT}/venv" ]; then
+    deactivate 2>/dev/null || true
+fi
 [ -f venv/bin/activate ] && source venv/bin/activate 2>/dev/null || true
 
 # ── Source ~/.alemsrc (machine level: ALEMS_DATA_ROOT, API keys) ─────
@@ -239,6 +242,17 @@ db.create_tables()
                 echo "  Commit:    $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
                 echo "  Schema:    v$(_schema_version)"
                 echo "  Python:    $(python3 --version 2>&1)"
+                echo "  Plugins:"
+                for pkg_dir in alems-plugin-*/; do
+                    if [ -f "${pkg_dir}/pyproject.toml" ]; then
+                        pkg_name=$(grep "^name" ${pkg_dir}/pyproject.toml | cut -d= -f2 | tr -d ' "' | tr - _)
+                        if venv/bin/pip show "$pkg_name" > /dev/null 2>&1; then
+                            echo "    ${pkg_dir%/}  ✓"
+                        else
+                            echo "    ${pkg_dir%/}  MISSING — run: alems dev install-plugins"
+                        fi
+                    fi
+                done
                 echo ""
                 ;;
 

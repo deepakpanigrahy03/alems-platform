@@ -261,6 +261,12 @@ else
     esac
 fi
 # shellcheck disable=SC1091
+# Deactivate any active venv before activating ours.
+# source alone does not fully switch if another venv is active.
+if [ -n "${VIRTUAL_ENV:-}" ]; then
+    echo "  Deactivating active venv: ${VIRTUAL_ENV}"
+    deactivate 2>/dev/null || true
+fi
 source venv/bin/activate
 
 # ── Step 2: Platform-specific deps + Python packages ─────────────────
@@ -630,7 +636,13 @@ echo "  Always use: alems dev pull"
 echo "  This keeps the DB schema and plugin entry points in sync with the code."
 echo ""
 echo "Next steps:"
-echo "  source venv/bin/activate"
+echo "  # Deactivate any active venv before activating ours.
+# source alone does not fully switch if another venv is active.
+if [ -n "${VIRTUAL_ENV:-}" ]; then
+    echo "  Deactivating active venv: ${VIRTUAL_ENV}"
+    deactivate 2>/dev/null || true
+fi
+source venv/bin/activate"
 echo "  alems dev pull"
 echo "  python -m core.execution.tests.test_llm_setup --provider all --verbose"
 echo "  python -m core.execution.tests.test_harness --task-id gsm8k_basic --repetitions 1 --save-db"
