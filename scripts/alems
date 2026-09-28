@@ -168,11 +168,10 @@ db.create_tables()
                 python3 scripts/tools/alems_migrate.py --run
                 [ "$NEEDS_YAML" = "yes" ] && python3 scripts/migrate_yaml_to_db.py || true
                 [ "$NEEDS_SEED" = "yes" ] && python3 scripts/seed_methodology.py || true
-                python3 scripts/seed_quality_config.py
                 if [ "${NEEDS_PLUGINS:-0}" -gt 0 ]; then
                     echo "  Plugin packages changed. Reinstalling editable installs..."
                     for pkg_dir in alems-sdk alems-plugin-*/; do
-                        [ -f "${pkg_dir}/pyproject.toml" ] && venv/bin/pip install -q -e "${pkg_dir}"
+                        [ -f "${pkg_dir}/pyproject.toml" ] && venv/bin/pip install -e "${pkg_dir}"
                     done
                     echo "  Plugin packages reinstalled."
                 fi
@@ -194,10 +193,14 @@ db.create_tables()
                 python3 scripts/tools/alems_migrate.py --run
                 python3 scripts/migrate_yaml_to_db.py
                 python3 scripts/seed_methodology.py
-                python3 scripts/seed_quality_config.py
                 for pkg_dir in alems-sdk alems-plugin-*/; do
-                    [ -f "${pkg_dir}/pyproject.toml" ] && venv/bin/pip install -q -e "${pkg_dir}"
+                    [ -f "${pkg_dir}/pyproject.toml" ] && venv/bin/pip install -e "${pkg_dir}"
                 done
+                # Install post-merge hook so future direct git pull warns the developer.
+                if [ -f "scripts/hooks/post-merge" ]; then
+                    cp scripts/hooks/post-merge .git/hooks/post-merge
+                    chmod +x .git/hooks/post-merge
+                fi
                 echo "  Sync complete. Schema: v$(_schema_version)"
                 ;;
  
@@ -209,7 +212,7 @@ db.create_tables()
                 for pkg_dir in alems-sdk alems-plugin-*/; do
                     if [ -f "${pkg_dir}/pyproject.toml" ]; then
                         echo "    ${pkg_dir}"
-                        venv/bin/pip install -q -e "${pkg_dir}"
+                        venv/bin/pip install -e "${pkg_dir}"
                     fi
                 done
                 echo "  Done. Run 'alems dev status' to verify."
