@@ -148,8 +148,7 @@ case "$CMD" in
                 git pull
                 NEW_HEAD=$(git rev-parse HEAD)
                 if [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
-                    echo "  Already up to date. No sync needed."
-                    exit 0
+                    echo "  Already up to date. Checking sync state..."
                 fi
                 # Check what changed between old and new HEAD
                 CHANGED=$(git diff --name-only "$OLD_HEAD" "$NEW_HEAD")
