@@ -40,6 +40,7 @@ nav:
   - Developer:
     - Architecture: developer/architecture.md
     - Database Schema: developer/database-schema.md
+    - Schema Namespaces: developer/schema-namespaces.md
     - Schema Migration: developer/schema-migration.md
     - Energy Chain: developer/energy-chain.md
     - Adding a Platform: developer/adding-a-platform.md
