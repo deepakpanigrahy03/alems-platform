@@ -618,14 +618,7 @@ for pkg_dir in alems-sdk alems-plugin-*/; do
 done
 echo "    Plugin packages installed."
 
-# Install post-merge hook so direct git pull triggers a warning.
-# The hook is not committed to git (.git/ is never versioned) so
-# install.sh installs it on every machine during setup.
-echo "[+] Installing git post-merge hook..."
-mkdir -p "${PLATFORM_DIR}/.git/hooks"
-cp "${PLATFORM_DIR}/scripts/hooks/post-merge" "${PLATFORM_DIR}/.git/hooks/post-merge"
-chmod +x "${PLATFORM_DIR}/.git/hooks/post-merge"
-echo "    Hook installed."
+
 
 echo ""
 echo "A-LEMS installation complete."
