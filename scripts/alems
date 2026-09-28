@@ -167,8 +167,14 @@ db.create_tables()
                 [ "$NEEDS_YAML" = "yes" ] && python3 scripts/migrate_yaml_to_db.py || true
                 [ "$NEEDS_SEED" = "yes" ] && python3 scripts/seed_methodology.py || true
                 venv/bin/pip install -e .
-                for pkg_dir in alems-sdk alems-plugin-*/; do
-                    [ -f "${pkg_dir}/pyproject.toml" ] && venv/bin/pip install -e "${pkg_dir}"
+                for pkg_dir in alems-plugin-*/; do
+                    if [ -f "${pkg_dir}/pyproject.toml" ]; then
+                        pkg_name=$(grep "^name" ${pkg_dir}/pyproject.toml | cut -d= -f2 | tr -d ' "' | tr - _)
+                        if ! venv/bin/pip show "$pkg_name" > /dev/null 2>&1; then
+                            echo "  New plugin: ${pkg_dir} — installing..."
+                            venv/bin/pip install -e "${pkg_dir}"
+                        fi
+                    fi
                 done
                 echo "  Sync complete. Schema: v$(_schema_version)"
                 ;;
@@ -189,8 +195,14 @@ db.create_tables()
                 python3 scripts/migrate_yaml_to_db.py
                 python3 scripts/seed_methodology.py
                 venv/bin/pip install -e .
-                for pkg_dir in alems-sdk alems-plugin-*/; do
-                    [ -f "${pkg_dir}/pyproject.toml" ] && venv/bin/pip install -e "${pkg_dir}"
+                for pkg_dir in alems-plugin-*/; do
+                    if [ -f "${pkg_dir}/pyproject.toml" ]; then
+                        pkg_name=$(grep "^name" ${pkg_dir}/pyproject.toml | cut -d= -f2 | tr -d ' "' | tr - _)
+                        if ! venv/bin/pip show "$pkg_name" > /dev/null 2>&1; then
+                            echo "  New plugin: ${pkg_dir} — installing..."
+                            venv/bin/pip install -e "${pkg_dir}"
+                        fi
+                    fi
                 done
                 echo "  Sync complete. Schema: v$(_schema_version)"
                 ;;
@@ -203,8 +215,13 @@ db.create_tables()
                 venv/bin/pip install -e .
                 for pkg_dir in alems-sdk alems-plugin-*/; do
                     if [ -f "${pkg_dir}/pyproject.toml" ]; then
-                        echo "    ${pkg_dir}"
-                        venv/bin/pip install -e "${pkg_dir}"
+                        pkg_name=$(grep "^name" ${pkg_dir}/pyproject.toml | cut -d= -f2 | tr -d ' "' | tr - _)
+                        if ! venv/bin/pip show "$pkg_name" > /dev/null 2>&1; then
+                            echo "  Installing: ${pkg_dir}"
+                            venv/bin/pip install -e "${pkg_dir}"
+                        else
+                            echo "  OK: ${pkg_dir}"
+                        fi
                     fi
                 done
                 echo "  Done. Run 'alems dev status' to verify."
