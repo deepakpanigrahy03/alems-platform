@@ -27,8 +27,7 @@ from core.attribution.legacy_v1.energy_attribution_etl import compute_energy_att
 from core.attribution.legacy_v1.duration_fix_etl import fix_run, fix_run_with_pretask
 from core.attribution.legacy_v1.ttft_tpot_etl import populate_run as populate_ttft_tpot
 from core.attribution.conservation_residual import compute_conservation_residual
-from core.attribution.conservation_residual import compute_conservation_residual
-from core.attribution.conservation_residual import compute_conservation_residual
+
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +105,9 @@ class RunPersistenceService:
                 return None
             self._insert_samples(db, run_id, result)
             self._insert_events(db, run_id, result)
+
+        # Steps that commit on their own or read committed samples (G73).
+        self._insert_after_commit(db, run_id, result)
 
         # ETL runs outside transaction — each ETL function is idempotent
         self._run_post_etl(run_id)
@@ -199,8 +201,40 @@ class RunPersistenceService:
             if converted:
                 db.insert_energy_samples(run_id, converted)
 
+        # From here: the save_pair per run block (source of truth), so every
+        # execution path persists the same tables (EPS-1, G77). Each step is a
+        # no op when the harness did not produce its input on this platform.
+        if result.get("gpu_samples"):
+            db.insert_gpu_samples(run_id, result["gpu_samples"])
+            try:
+                # Late import: experiment_runner imports this module.
+                from core.execution.experiment_runner import _convert_gpu_to_telemetry
+                telemetry = _convert_gpu_to_telemetry(result["gpu_samples"])
+                if telemetry:
+                    db.insert_device_telemetry(run_id, telemetry)
+            except Exception as _e:
+                logger.warning("device_telemetry insert failed run_id=%d: %s", run_id, _e)
+        # v2 and SPBM are independent keys, as in save_pair; the harness fills
+        # at most one of them on any platform.
+        if result.get("v2_samples"):
+            db.insert_energy_samples_v2(run_id, result["v2_samples"])
+        if result.get("legacy_samples"):
+            db.insert_energy_samples(run_id, result["legacy_samples"])
+        if result.get("spbm_samples"):
+            db.insert_energy_samples_v2(run_id, result["spbm_samples"])
+        if result.get("rail_result"):
+            try:
+                db.insert_power_rail_samples(run_id, result["rail_result"].samples)
+                db.insert_run_power_limits(run_id, result["rail_result"].limits_snapshot)
+            except Exception as _e:
+                logger.warning("power_rail insert failed run_id=%d: %s", run_id, _e)
+
         if "cpu_samples" in result:
             db.insert_cpu_samples(run_id, result["cpu_samples"])
+
+        # One summary cpu_samples row where turbostat is absent (save_pair 16D3):
+        # aarch64 from ARM PMU counters, Darwin from KPerf. x86 wrote rows above.
+        self._insert_summary_cpu_row(db, run_id, result)
 
         # 16D3: ARM — no PerformanceCounters object available in result dict here
         # (unlike experiment_runner.py's linear_result/agentic_result). The retry
@@ -257,6 +291,14 @@ class RunPersistenceService:
 
         if "thermal_samples" in result:
             db.insert_thermal_samples(run_id, result["thermal_samples"])
+            # Thermal V2 per zone rows, as save_pair and save_single (G74).
+            try:
+                import socket as _socket_v2
+                db.thermal.insert_thermal_samples_v2(
+                    run_id, result["thermal_samples"], _socket_v2.gethostname().lower(),
+                )
+            except Exception as _e:
+                logger.warning("thermal_samples_v2 insert failed run_id=%d: %s", run_id, _e)
             # Aggregate stats only after thermal samples exist — matches save_pair() order
             agg = self._aggregate_run_stats(
                 run_id,
@@ -271,6 +313,69 @@ class RunPersistenceService:
                 agg["cpu_busy_mhz"] = result["ml_features"]["frequency_mhz"]
             db.update_run_stats(run_id, agg)
 
+    def _insert_summary_cpu_row(self, db, run_id: int, result: dict) -> None:
+        """
+        Insert one summary cpu_samples row on aarch64 or Darwin (save_pair 16D3).
+
+        The row spans the run window, read from the runs row just inserted.
+        Never raises: a failed summary row must not abort the run (PAC-4).
+        """
+        import platform as _platform
+        from core.execution.arm_cpu_sample_builder import _build_arm_cpu_sample_row
+        from core.execution.darwin_cpu_sample_builder import _build_darwin_cpu_sample_row
+
+        if _get_platform_arch() == "aarch64":
+            row = _build_arm_cpu_sample_row(run_id, result)
+        elif _platform.system() == "Darwin":
+            row = _build_darwin_cpu_sample_row(run_id, result)
+        else:
+            return
+        if not row:
+            return
+        run = db.get_run(run_id)
+        if run:
+            row["sample_start_ns"] = run.get("start_time_ns")
+            row["sample_end_ns"] = run.get("end_time_ns")
+            row["timestamp_ns"] = run.get("end_time_ns")
+            if _platform.system() == "Darwin":
+                row["interval_ns"] = (run.get("end_time_ns") or 0) - (run.get("start_time_ns") or 0)
+        try:
+            db.insert_cpu_samples(run_id, [row])
+        except Exception as _e:
+            logger.warning("summary cpu_samples insert failed run_id=%d: %s", run_id, _e)
+
+    def _insert_after_commit(self, db, run_id: int, result: dict) -> None:
+        """
+        NIC samples, then SPBM and network ETLs, after the sample transaction.
+
+        _insert_nic_samples commits on its connection, so it must not run inside
+        the transaction; the ETLs read committed rows only. Same connection as
+        the adapter (no second writer connection).
+        """
+        try:
+            conn = db.db.conn
+        except AttributeError:
+            conn = getattr(db, "conn", None)
+        from core.execution.experiment_runner import _insert_nic_samples  # late: cycle
+        if result.get("nic_samples"):
+            _insert_nic_samples(db, run_id, result["nic_samples"], conn=conn)
+        # Transitional: core imports scripts here, as before (CH39-3, G81, 39.5.5).
+        try:
+            from scripts.etl.gpu_spbm_etl import process_one as _pgs
+            _pgs(run_id, conn)
+        except Exception as _e:
+            logger.warning("gpu_spbm_etl failed run_id=%d: %s", run_id, _e)
+        try:
+            from scripts.etl.spbm_telemetry_etl import process_run as _pst
+            _pst(run_id, result, conn)
+        except Exception as _e:
+            logger.warning("spbm_telemetry_etl failed run_id=%d: %s", run_id, _e)
+        try:
+            from scripts.etl.network_energy_etl import process_run as _pne
+            _pne(run_id, conn)
+        except Exception as _e:
+            logger.warning("network_etl failed run_id=%d: %s", run_id, _e)
+
     def _insert_events(self, db, run_id: int, result: dict) -> None:
         """
         Insert orchestration events and LLM interactions.
@@ -278,8 +383,12 @@ class RunPersistenceService:
         LLM interactions key is pending_interactions — run_id stamped per row
         because harness does not know run_id at capture time.
         """
-        if "orchestration_events" in result:
-            db.insert_orchestration_events(run_id, result["orchestration_events"])
+        # Same key fallback execute_goal used; inserted exactly once (G82).
+        events = (result.get("orchestration_events")
+                  or (result.get("execution") or {}).get("events")
+                  or result.get("events"))
+        if events:
+            db.insert_orchestration_events(run_id, events)
 
         # pending_interactions — harness key for not-yet-persisted LLM calls
         if result.get("pending_interactions"):

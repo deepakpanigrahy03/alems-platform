@@ -182,7 +182,8 @@ def write_power_limits(run_id: int, limits: dict, conn=None) -> None:
             if value_mw is None:
                 continue  # honest skip, not a fake zero, per MIC-3
             row = conn.execute(
-                "SELECT limit_id FROM power_limits WHERE limit_name = ?",
+                # Catalog names are upper case (PL1); SPBM reports lower case (pl1).
+                "SELECT limit_id FROM power_limits WHERE UPPER(limit_name) = UPPER(?)",
                 (limit_name,),
             ).fetchone()
             if row is None:
