@@ -19,6 +19,7 @@ from importlib.metadata import PackageNotFoundError, entry_points, version
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from alems_sdk.conformance import run_conformance
+from alems_sdk.manifest import origin_of as _origin_of
 from alems_sdk.manifest import (
     ORIGIN_RUNTIME,
     ManifestError,
@@ -81,9 +82,13 @@ def load_group(
     register_fn: Callable[[type, dict], None],
     core_version: str,
     active_names: Optional[Iterable[str]] = None,
+    origins: Optional[Iterable[str]] = None,
 ) -> List[str]:
     """
     Load every entry point of group through the single path.
+
+    origins restricts loading to entry points whose distribution origin
+    (runtime, external, local) is listed; None loads every origin.
 
     Args:
         group: entry point group.
@@ -99,13 +104,22 @@ def load_group(
     from core.plugin_validator import _check_compat, _check_platform_constraint
 
     active = set(active_names or ())
+    # None means every origin; a set filters before any import happens.
+    allowed = set(origins) if origins is not None else None
     sdk_version = _sdk_version()
     registered: List[str] = []
 
     for ep in _entry_points(group):
         name = ep.name
         explicit = name in active
+        # A reload starts clean: no stale refusal or origin survives (G64).
         REFUSALS.pop((group, name), None)
+        ORIGINS.pop((group, name), None)
+
+        # Origin filter before ep.load(): filtered plugins are never imported.
+        dist = getattr(ep, "dist", None)
+        if allowed is not None and _origin_of(getattr(dist, "name", None)) not in allowed:
+            continue
 
         # Stage load.
         try:
@@ -115,7 +129,6 @@ def load_group(
             continue
 
         # Stage manifest: declared META merged with derived facts.
-        dist = getattr(ep, "dist", None)
         try:
             manifest = build_manifest(
                 entry_point_name=name,
