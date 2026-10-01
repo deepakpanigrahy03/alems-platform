@@ -245,10 +245,16 @@ class RetrievalToolSelector(ToolSelectorABC):
         except ImportError:
             return False
 
-    def get_config_schema(self) -> Dict[str, Any]:
+    @classmethod
+    def get_config_schema(cls) -> Dict[str, Any]:
+        """Settings read from plugins.<id> (design 7.14, JSON Schema)."""
         return {
-            "tool_selector_k": {
-                "type": "int", "required": False, "default": 5,
-                "description": "Number of top-ranked tools to select.",
+            "type": "object",
+            "properties": {
+                "tool_selector_k": {
+                    "type": "integer", "minimum": 1, "default": 5,
+                    "description": "Number of top-ranked tools to select.",
+                },
             },
+            "additionalProperties": False,
         }

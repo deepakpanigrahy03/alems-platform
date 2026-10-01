@@ -25,16 +25,16 @@ logger = logging.getLogger(__name__)
 
 
 class LlamaCppAdapter(BaseAdapterMixin, TextGenABC):
- 
-    ENGINE_TYPE: str = "llama_cpp"
-    METHOD_ID:   str = "llama_cpp"
     """
     Adapter for llama-cpp-python GGUF local models.
 
     No network traffic — all three phases (pre/compute/post) are local CPU.
     non_local_ms is always 0. bytes_sent/recv always 0.
     """
-
+ 
+    ENGINE_TYPE: str = "llama_cpp"
+    METHOD_ID:   str = "llama_cpp"
+    
     def __init__(self, provider_config: Dict, model_config: Dict):
         """
         Args:

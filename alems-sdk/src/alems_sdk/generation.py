@@ -14,9 +14,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict
+from alems_sdk.config_schema import Configurable
 
-
-class TextGenABC(ABC):
+class TextGenABC(Configurable, ABC):
     """
     Abstract base for all text generation adapters.
 
@@ -63,7 +63,7 @@ class TextGenABC(ABC):
         """Human readable adapter name for logging."""
 
 
-class MediaABC(ABC):
+class MediaABC(Configurable, ABC):
     """
     Abstract base for media adapters (TTS, STT, voice cloning).
 

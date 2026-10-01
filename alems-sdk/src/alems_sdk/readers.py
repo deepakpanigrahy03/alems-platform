@@ -43,13 +43,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from alems_sdk.energy_reading import NormalizedEnergyReading
 from alems_sdk.measurement_schema import MeasurementSchema
  
-
+from alems_sdk.config_schema import Configurable
 
 # ============================================================================
 # BASE — shared by all readers
 # ============================================================================
 
-class BaseReader(ABC):
+class BaseReader(Configurable, ABC):
     """
     Shared base for all hardware readers.
 

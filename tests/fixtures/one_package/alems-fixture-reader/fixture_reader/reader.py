@@ -20,7 +20,10 @@ _META = {
 }
 
 
-class ConstantEnergyReader:
+from alems_sdk.readers import BaseReader  # noqa: E402
+
+
+class ConstantEnergyReader(BaseReader):
     """
     Constant-power energy reader for testing.
 

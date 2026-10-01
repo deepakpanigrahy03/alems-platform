@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import abc
 from typing import Any, Dict, Optional
-
+from alems_sdk.config_schema import Configurable
 
 class AttributionPolicy:
     """
@@ -56,7 +56,7 @@ class AttributionPolicy:
         }
 
 
-class AttributionModelABC(abc.ABC):
+class AttributionModelABC(Configurable, abc.ABC):
     """
     Contract every attribution model plugin must implement.
 

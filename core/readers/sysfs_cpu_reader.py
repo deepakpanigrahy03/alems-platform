@@ -52,7 +52,10 @@ _COLUMN_STATES = {"C1", "C2", "C3", "C6", "C7"}
 _SAMPLE_INTERVAL_S = 0.1  # 10 Hz — matches turbostat and gpu_collector
 
 
-class SysfsCPUReader:
+from core.readers.interfaces import BaseReader  # noqa: E402
+
+
+class SysfsCPUReader(BaseReader):
     """
     Threaded 10 Hz sampler producing turbostat compatible cpu_samples
     dicts from procfs/sysfs counters.

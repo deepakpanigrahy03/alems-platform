@@ -24,6 +24,8 @@ from core.execution.tools.selector_abc import (
 
 
 class StaticToolSelector(ToolSelectorABC):
+    """Selects every registered tool, or the task's allowed_tools list when given."""
+
     SELECTOR_TYPE = "static"
 
     def select(

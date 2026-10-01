@@ -13,9 +13,9 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
+from alems_sdk.config_schema import Configurable
 
-
-class RetryPolicyAdapter(ABC):
+class RetryPolicyAdapter(Configurable, ABC):
     """
     Base class for all retry policy engines.
 
@@ -72,7 +72,7 @@ class RecoveryDecision:
     recovery_point_phase: Optional[str] = None
 
 
-class RecoveryPolicyAdapter(ABC):
+class RecoveryPolicyAdapter(Configurable, ABC):
     """
     Decides where to resume execution after a failure.
 

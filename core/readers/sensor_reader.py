@@ -64,6 +64,7 @@ class SensorReader(ThermalReaderABC):
 
     # SPEC 35A: registry contract.
     METHOD_ID: str = "sensor_reader_sysfs"
+    FIDELITY = "MEASURED"
     PRIORITY: int  = 100
  
     @classmethod

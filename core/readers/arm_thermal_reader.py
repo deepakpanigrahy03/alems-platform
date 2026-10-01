@@ -28,18 +28,6 @@ CPU_ZONE_KEYWORDS = ["acpitz", "cpu", "package", "soc", "grace", "neoverse"]
 
 
 class ARMThermalReader(ThermalReaderABC):
- 
-    METHOD_ID: str = "arm_thermal_sysfs"
-    PRIORITY: int  = 100
- 
-    @classmethod
-    def can_handle(cls, caps) -> bool:
-        """Eligible on Linux aarch64 with thermal zones available."""
-        return (
-            caps.os == "Linux"
-            and caps.arch == "aarch64"
-            and caps.has_thermal
-        )
     """
     Reads thermal zones from /sys/class/thermal/ sysfs on ARM Linux.
 
@@ -50,6 +38,20 @@ class ARMThermalReader(ThermalReaderABC):
     Used on GN100 (aarch64) where SensorReader returns {} because
     its hw_config thermal paths are x86 MSR/hwmon paths not present on Grace.
     """
+     
+    METHOD_ID: str = "arm_thermal_sysfs"
+    FIDELITY = "MEASURED"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux aarch64 with thermal zones available."""
+        return (
+            caps.os == "Linux"
+            and caps.arch == "aarch64"
+            and caps.has_thermal
+        )
+
 
     def __init__(self, config: dict):
         # config kept for interface consistency; not used (no hw_config paths needed)

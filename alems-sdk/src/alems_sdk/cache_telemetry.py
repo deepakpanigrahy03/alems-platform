@@ -12,7 +12,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
-
+from alems_sdk.config_schema import Configurable
 
 @dataclass
 class StateReuseEvent:
@@ -82,7 +82,7 @@ class CacheStateSnapshot:
     hit_rate_aggregate: Optional[float] = None
 
 
-class CacheTelemetryCollector(ABC):
+class CacheTelemetryCollector(Configurable, ABC):
     """
     Collects cache and state telemetry after a recovery completes.
 

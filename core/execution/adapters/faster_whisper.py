@@ -25,16 +25,16 @@ logger = logging.getLogger(__name__)
 
 
 class FasterWhisperAdapter(MediaABC):
- 
-    ENGINE_TYPE: str = "faster_whisper"
-    METHOD_ID:   str = "faster_whisper"
     """
     STT adapter for FasterWhisper.
 
     process() input: audio file path (str)
     process() output: {content (transcript), language, duration_sec, total_time_ms}
     """
-
+ 
+    ENGINE_TYPE: str = "faster_whisper"
+    METHOD_ID:   str = "faster_whisper"
+    
     def __init__(self, provider_config: Dict, model_config: Dict):
         """
         Args:

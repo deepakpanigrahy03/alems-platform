@@ -17,7 +17,10 @@ _META = {
 }
 
 
-class FixtureEstimator:
+from alems_sdk.readers import BaseReader  # noqa: E402
+
+
+class FixtureEstimator(BaseReader):
     """
     Fixture estimator. Returns a constant estimate with a declared error bound.
 

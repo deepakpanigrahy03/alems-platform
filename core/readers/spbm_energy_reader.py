@@ -60,6 +60,7 @@ class SPBMEnergyReader(EnergyReaderABC):
     """
 
     METHOD_ID         = 'spbm_pkg_v1'
+    FIDELITY = "MEASURED"
     METHOD_PROVENANCE = 'spbm_pkg_v1'
     PRIORITY: int     = 100
  

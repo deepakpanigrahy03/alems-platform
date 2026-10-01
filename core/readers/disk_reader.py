@@ -70,6 +70,7 @@ class DiskReader(DiskReaderABC):
 
     # SPEC 35A: registry contract.
     METHOD_ID: str = "disk_reader_linux"
+    FIDELITY = "MEASURED"
     PRIORITY: int  = 100
  
     @classmethod

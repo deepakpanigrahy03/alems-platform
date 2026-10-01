@@ -33,7 +33,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from core.utils.formula import formula
-
+from core.readers.interfaces import EnergyReaderABC
 # Configure module logger
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ GPU_PP1_MSR      = "0x641"
 # Energy unit from MSR 0x606 bits[12:8]=14 → 0.5^14 J = 61.0352 µJ per LSB
 GPU_ENERGY_UNIT_UJ = 61.0352
 
-class RAPLReader:
+class RAPLReader(EnergyReaderABC):
     """
     Reads Intel RAPL (Running Average Power Limit) energy counters from sysfs.
 
@@ -74,6 +74,7 @@ class RAPLReader:
     # Formula lives on get_energy_delta() via @formula decorator
     # ------------------------------------------------------------------
     METHOD_ID          = "rapl_msr_pkg_energy"
+    FIDELITY = "MEASURED"
     METHOD_NAME        = "RAPL MSR Direct Package Energy"
     METHOD_LAYER       = "silicon"
     METHOD_CONFIDENCE  = 1.0

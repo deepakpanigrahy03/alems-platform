@@ -56,6 +56,8 @@ class IOKitPowerReader(EnergyReaderABC):
     """
 
     METHOD_ID          = "iokit_power_reader"
+    FIDELITY = "MEASURED"
+
     PRIORITY: int      = 100
  
     @classmethod

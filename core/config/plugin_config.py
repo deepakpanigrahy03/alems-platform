@@ -172,86 +172,63 @@ def load_plugin_config(
     """
     Load and validate config for a named plugin from app_settings.yaml.
 
-    Reads the plugins.<name> section.
-    Validates every declared key against the schema from get_config_schema().
-    Returns a typed dict ready for injection into the adapter constructor.
-
-    Validation rules
-    ----------------
-    Missing required key (required=True, no default):
-        Raises PluginConfigError naming the plugin and the key.
-    Wrong type:
-        Raises PluginConfigError naming the key and expected type.
-    Unknown key (in YAML but not in schema):
-        Logs a warning, ignores the key.
-    Absent section, no required keys:
-        Returns dict of schema defaults. No error, no warning.
-    Absent section, required keys present:
-        Raises PluginConfigError listing the required keys.
+    The schema is JSON Schema draft 2020-12 (design 7.14): an object schema
+    whose properties are the keys of plugins.<name>. Defaults declared in the
+    schema are applied; unknown keys are rejected unless the schema sets
+    additionalProperties; values are validated, never coerced.
 
     Args:
-        name:          Plugin identity string (ALEMS_PLUGIN_META["name"]).
-        schema:        Dict from get_config_schema() on the adapter class.
+        name:          Plugin identity (entry point name).
+        schema:        JSON Schema from get_config_schema(); empty means no settings.
         settings_path: Override for tests.
 
     Returns:
-        Validated dict of config values for this plugin.
+        Validated dict of config values, defaults applied.
 
     Raises:
-        PluginConfigError: On any hard validation failure.
+        PluginConfigError: on any validation failure.
     """
-    if not schema:
-        # Plugin declared no config — nothing to do.
-        return {}
+    from jsonschema import Draft202012Validator
+    from jsonschema.exceptions import SchemaError
 
     settings = get_raw_settings(settings_path)
     plugins_section: Dict[str, Any] = settings.get("plugins") or {}
-    raw: Dict[str, Any] = plugins_section.get(name) or {}
+    raw: Dict[str, Any] = dict(plugins_section.get(name) or {})
 
-    # If the section is absent, check whether any required keys exist.
-    if not raw:
-        required_missing = [
-            k for k, spec in schema.items()
-            if spec.get("required", False) and spec.get("default") is None
-        ]
-        if required_missing:
+    if not schema:
+        # No settings declared: a configured section is an error, not silence.
+        if raw:
             raise PluginConfigError(
-                f"Plugin '{name}' requires configuration in app_settings.yaml "
-                f"under plugins.{name} with keys: {', '.join(sorted(required_missing))}"
+                f"Plugin '{name}' declares no settings but plugins.{name} sets "
+                f"{', '.join(sorted(raw))}"
             )
-        # No required keys — return defaults.
-        return _build_defaults(schema)
+        return {}
 
-    # Section is present. Warn on unknown keys.
-    known = set(schema.keys())
-    for k in raw:
-        if k not in known:
-            logger.warning(
-                "plugin_config[%s]: unknown key '%s' in plugins.%s — ignored",
-                name, k, name,
-            )
+    effective = dict(schema)
+    # Unknown keys are rejected unless the schema decides otherwise (7.14).
+    effective.setdefault("additionalProperties", False)
+    try:
+        Draft202012Validator.check_schema(effective)
+    except SchemaError as exc:
+        raise PluginConfigError(f"Plugin '{name}' has an invalid config schema: {exc.message}")
 
-    # Validate and coerce declared keys.
-    result: Dict[str, Any] = {}
-    for key, spec in schema.items():
-        type_name = spec.get("type", "str")
-        required = spec.get("required", False)
-        default = spec.get("default")
+    result = _build_defaults(effective)
+    result.update(raw)
 
-        if key in raw:
-            result[key] = _coerce(key, raw[key], type_name)
-        elif required and default is None:
-            raise PluginConfigError(
-                f"Plugin '{name}': required configuration key '{key}' is missing "
-                f"from plugins.{name} in app_settings.yaml."
-            )
-        else:
-            # Use default (may be None if optional with no default).
-            result[key] = default
-
+    errors = sorted(
+        Draft202012Validator(effective).iter_errors(result),
+        key=lambda e: list(e.path),
+    )
+    if errors:
+        detail = "; ".join(
+            f"{'.'.join(str(p) for p in e.path) or '(root)'}: {e.message}" for e in errors
+        )
+        raise PluginConfigError(f"Plugin '{name}' configuration invalid under plugins.{name}: {detail}")
     return result
 
 
 def _build_defaults(schema: Dict[str, Any]) -> Dict[str, Any]:
-    """Return a dict of default values for all keys in schema."""
-    return {key: spec.get("default") for key, spec in schema.items()}
+    """Defaults declared by the JSON Schema properties (keys without a default are omitted)."""
+    props = schema.get("properties") or {}
+    return {key: spec["default"] for key, spec in props.items()
+            if isinstance(spec, dict) and "default" in spec}

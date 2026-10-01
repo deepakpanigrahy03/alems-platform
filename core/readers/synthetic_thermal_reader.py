@@ -42,6 +42,7 @@ class SyntheticThermalReader(ThermalReaderABC):
     # Registry contract (SPEC 35A)
     # ------------------------------------------------------------------
     METHOD_ID: str = "synthetic_thermal"
+    FIDELITY = "SYNTHETIC"
     PRIORITY: int  = 100
 
     @classmethod

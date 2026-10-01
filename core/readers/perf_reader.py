@@ -66,18 +66,6 @@ logger = logging.getLogger(__name__)
 
 
 class PerfReader(CPUReaderABC):
- 
-    METHOD_ID: str = "perf_cpu_reader"
-    PRIORITY: int  = 100
- 
-    @classmethod
-    def can_handle(cls, caps) -> bool:
-        """Eligible on Linux x86_64, not synthetic platform."""
-        return (
-            caps.os == "Linux"
-            and caps.arch == "x86_64"
-            and getattr(caps, "platform_class", "") != "synthetic"
-        )
     """
     Reads hardware performance counters using Linux perf_events.
 
@@ -96,6 +84,20 @@ class PerfReader(CPUReaderABC):
     Req 1.10: Page faults
     Req 1.43: Thread migrations
     """
+     
+    METHOD_ID: str = "perf_cpu_reader"
+    FIDELITY = "MEASURED"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux x86_64, not synthetic platform."""
+        return (
+            caps.os == "Linux"
+            and caps.arch == "x86_64"
+            and getattr(caps, "platform_class", "") != "synthetic"
+        )
+
 
     # Default perf events to monitor
     # These cover the requirements from the MLSys paper

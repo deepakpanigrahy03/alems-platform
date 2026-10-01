@@ -24,15 +24,15 @@ logger = logging.getLogger(__name__)
 
 
 class AnthropicAdapter(TextGenABC):
- 
-    ENGINE_TYPE: str = "anthropic"
-    METHOD_ID:   str = "anthropic"
     """
     Adapter for Anthropic Claude models via official SDK.
 
     Cloud provider — non_local_ms captures full round-trip.
     Network OS counters captured for bytes_sent/recv tracking.
     """
+
+    ENGINE_TYPE: str = "anthropic"
+    METHOD_ID:   str = "anthropic"
 
     def __init__(self, provider_config: Dict, model_config: Dict):
         """

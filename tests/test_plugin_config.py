@@ -1,230 +1,116 @@
 """
 tests/test_plugin_config.py
 
-Unit tests for core/config/plugin_config.py (SPEC 35F).
+Unit tests for core/config/plugin_config.load_plugin_config under the single
+JSON Schema contract (design 7.14, 39.5.1a.3, G47). Replaces the 35F tests,
+which asserted the retired flat format (coercion, unknown keys ignored).
 
-All tests are self-contained — they write a temporary app_settings.yaml
-and pass it directly to load_plugin_config() via settings_path.
-No real config file is read or modified.
-
-Run with:
-    python -m pytest tests/test_plugin_config.py -v
+Every test writes a temporary app_settings.yaml and passes it via settings_path.
+Run: venv/bin/python -m pytest tests/test_plugin_config.py -v
 """
+
+from pathlib import Path
 
 import pytest
 import yaml
-from pathlib import Path
-from core.config.plugin_config import (
-    load_plugin_config,
-    get_raw_settings,
-    reset_cache,
-    PluginConfigError,
-)
 
+from core.config.plugin_config import PluginConfigError, load_plugin_config, reset_cache
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+SCHEMA = {
+    "type": "object",
+    "properties": {
+        "endpoint": {"type": "string"},
+        "timeout_s": {"type": "number", "default": 3.0},
+        "retries": {"type": "integer", "minimum": 0, "default": 2},
+    },
+    "required": ["endpoint"],
+}
 
-def write_settings(tmp_path: Path, content: dict) -> Path:
-    """Write a dict as YAML to a temp app_settings.yaml and return its path."""
-    p = tmp_path / "app_settings.yaml"
-    p.write_text(yaml.dump(content))
-    return p
-
-
-def settings_with_plugin(tmp_path: Path, plugin_name: str, plugin_cfg: dict) -> Path:
-    """Write minimal settings with one plugins.<name> section."""
-    return write_settings(tmp_path, {"plugins": {plugin_name: plugin_cfg}})
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)
-def clear_cache():
-    """Reset the settings cache before each test so tests are isolated."""
+def _fresh_cache():
+    """Each test reads its own settings file."""
     reset_cache()
     yield
     reset_cache()
 
 
-SYNTHETIC_SCHEMA = {
-    "mode": {"type": "str", "required": True, "default": None},
-    "package_uj": {"type": "int", "required": False, "default": 1_000_000},
-    "core_uj": {"type": "int", "required": False, "default": 600_000},
-    "dram_uj": {"type": "int", "required": False, "default": 200_000},
-}
-
-SCORER_SCHEMA = {
-    "judge_model": {"type": "str", "required": True, "default": None},
-    "judge_provider": {"type": "str", "required": True, "default": None},
-}
+def _settings(tmp_path: Path, content: dict) -> Path:
+    p = tmp_path / "app_settings.yaml"
+    p.write_text(yaml.dump(content))
+    return p
 
 
-# ---------------------------------------------------------------------------
-# AC-1: Plugin loads with correct values from plugins.<name> section
-# ---------------------------------------------------------------------------
-
-def test_ac1_valid_config_returned(tmp_path):
-    """Config present and valid — returns correct typed dict."""
-    p = settings_with_plugin(tmp_path, "synthetic", {
-        "mode": "constant",
-        "package_uj": 2_000_000,
-        "core_uj": 1_200_000,
-        "dram_uj": 400_000,
-    })
-    result = load_plugin_config("synthetic", SYNTHETIC_SCHEMA, settings_path=p)
-    assert result["mode"] == "constant"
-    assert result["package_uj"] == 2_000_000
-    assert result["core_uj"] == 1_200_000
-    assert result["dram_uj"] == 400_000
+def _with_plugin(tmp_path: Path, cfg: dict) -> Path:
+    return _settings(tmp_path, {"plugins": {"demo": cfg}})
 
 
-# ---------------------------------------------------------------------------
-# AC-2: Absent section with no required keys — returns defaults
-# ---------------------------------------------------------------------------
-
-def test_ac2_absent_section_no_required_uses_defaults(tmp_path):
-    """No plugins.ollama section, no required keys — defaults returned silently."""
-    p = write_settings(tmp_path, {"server": {"host": "0.0.0.0"}})
-    schema = {
-        "timeout_ms": {"type": "int", "required": False, "default": 30_000},
-    }
-    result = load_plugin_config("ollama", schema, settings_path=p)
-    assert result["timeout_ms"] == 30_000
+def test_valid_config_with_defaults_applied(tmp_path):
+    cfg = load_plugin_config("demo", SCHEMA, _with_plugin(tmp_path, {"endpoint": "http://x"}))
+    assert cfg == {"endpoint": "http://x", "timeout_s": 3.0, "retries": 2}
 
 
-# ---------------------------------------------------------------------------
-# AC-3: Missing required key raises PluginConfigError naming plugin and key
-# ---------------------------------------------------------------------------
-
-def test_ac3_missing_required_key_raises(tmp_path):
-    """Required key absent from present section — raises PluginConfigError."""
-    p = settings_with_plugin(tmp_path, "factuality_scorer", {
-        "judge_model": "gpt-4o-mini",
-        # judge_provider intentionally missing
-    })
-    with pytest.raises(PluginConfigError) as exc_info:
-        load_plugin_config("factuality_scorer", SCORER_SCHEMA, settings_path=p)
-    assert "factuality_scorer" in str(exc_info.value)
-    assert "judge_provider" in str(exc_info.value)
+def test_declared_values_override_defaults(tmp_path):
+    cfg = load_plugin_config("demo", SCHEMA,
+                             _with_plugin(tmp_path, {"endpoint": "e", "retries": 5}))
+    assert cfg["retries"] == 5
 
 
-def test_ac3_absent_section_required_key_raises(tmp_path):
-    """Section entirely absent but plugin has required keys — raises PluginConfigError."""
-    p = write_settings(tmp_path, {})
-    with pytest.raises(PluginConfigError) as exc_info:
-        load_plugin_config("factuality_scorer", SCORER_SCHEMA, settings_path=p)
-    assert "factuality_scorer" in str(exc_info.value)
+def test_missing_required_key_raises(tmp_path):
+    with pytest.raises(PluginConfigError, match="endpoint"):
+        load_plugin_config("demo", SCHEMA, _with_plugin(tmp_path, {"retries": 1}))
 
 
-def test_ac3_absent_section_required_key_names_all_missing(tmp_path):
-    """Error message lists all missing required keys."""
-    p = write_settings(tmp_path, {})
-    with pytest.raises(PluginConfigError) as exc_info:
-        load_plugin_config("factuality_scorer", SCORER_SCHEMA, settings_path=p)
-    msg = str(exc_info.value)
-    assert "judge_model" in msg
-    assert "judge_provider" in msg
+def test_absent_section_with_required_key_raises(tmp_path):
+    with pytest.raises(PluginConfigError, match="endpoint"):
+        load_plugin_config("demo", SCHEMA, _settings(tmp_path, {"plugins": {}}))
 
 
-# ---------------------------------------------------------------------------
-# AC-4: Unknown keys log warning, not error
-# ---------------------------------------------------------------------------
-
-def test_ac4_unknown_key_does_not_raise(tmp_path):
-    """Unknown key in config section is ignored without error."""
-    p = settings_with_plugin(tmp_path, "synthetic", {
-        "mode": "constant",
-        "package_uj": 1_000_000,
-        "core_uj": 600_000,
-        "dram_uj": 200_000,
-        "this_key_does_not_exist": "surprise",
-    })
-    # Must not raise.
-    result = load_plugin_config("synthetic", SYNTHETIC_SCHEMA, settings_path=p)
-    assert "this_key_does_not_exist" not in result
+def test_absent_section_without_required_uses_defaults(tmp_path):
+    schema = {"type": "object", "properties": {"k": {"type": "integer", "default": 7}}}
+    assert load_plugin_config("demo", schema, _settings(tmp_path, {})) == {"k": 7}
 
 
-# ---------------------------------------------------------------------------
-# AC-5: Type mismatch raises PluginConfigError
-# ---------------------------------------------------------------------------
-
-def test_ac5_wrong_type_raises(tmp_path):
-    """String value where int expected — raises PluginConfigError."""
-    p = settings_with_plugin(tmp_path, "synthetic", {
-        "mode": "constant",
-        "package_uj": "not_an_int",
-    })
-    with pytest.raises(PluginConfigError) as exc_info:
-        load_plugin_config("synthetic", SYNTHETIC_SCHEMA, settings_path=p)
-    assert "package_uj" in str(exc_info.value)
-    assert "int" in str(exc_info.value)
+def test_unknown_key_is_rejected(tmp_path):
+    with pytest.raises(PluginConfigError, match="typo"):
+        load_plugin_config("demo", SCHEMA,
+                           _with_plugin(tmp_path, {"endpoint": "e", "typo": 1}))
 
 
-def test_ac5_coercible_string_int_accepted(tmp_path):
-    """Quoted integer in YAML ('30000') coerced to int without error."""
-    p = settings_with_plugin(tmp_path, "synthetic", {
-        "mode": "constant",
-        "package_uj": "1000000",
-    })
-    result = load_plugin_config("synthetic", SYNTHETIC_SCHEMA, settings_path=p)
-    assert result["package_uj"] == 1_000_000
-    assert isinstance(result["package_uj"], int)
+def test_schema_may_allow_extra_keys(tmp_path):
+    schema = dict(SCHEMA, additionalProperties=True)
+    cfg = load_plugin_config("demo", schema,
+                             _with_plugin(tmp_path, {"endpoint": "e", "extra": 1}))
+    assert cfg["extra"] == 1
 
 
-# ---------------------------------------------------------------------------
-# AC-6: Empty schema — always returns empty dict, no error
-# ---------------------------------------------------------------------------
-
-def test_ac6_empty_schema_always_ok(tmp_path):
-    """Plugin with no schema declared — empty dict returned regardless of section."""
-    p = write_settings(tmp_path, {})
-    result = load_plugin_config("anything", {}, settings_path=p)
-    assert result == {}
+def test_wrong_type_raises_and_is_never_coerced(tmp_path):
+    with pytest.raises(PluginConfigError, match="retries"):
+        load_plugin_config("demo", SCHEMA,
+                           _with_plugin(tmp_path, {"endpoint": "e", "retries": "5"}))
 
 
-# ---------------------------------------------------------------------------
-# AC-7: Extensions / plugins sections absent — no errors
-# ---------------------------------------------------------------------------
-
-def test_ac7_no_plugins_section_at_all(tmp_path):
-    """app_settings.yaml with no plugins key — optional plugin uses defaults."""
-    p = write_settings(tmp_path, {"server": {"host": "0.0.0.0"}})
-    schema = {"timeout_ms": {"type": "int", "required": False, "default": 5_000}}
-    result = load_plugin_config("ollama", schema, settings_path=p)
-    assert result["timeout_ms"] == 5_000
+def test_constraint_violation_raises(tmp_path):
+    with pytest.raises(PluginConfigError, match="retries"):
+        load_plugin_config("demo", SCHEMA,
+                           _with_plugin(tmp_path, {"endpoint": "e", "retries": -1}))
 
 
-def test_ac7_settings_file_absent(tmp_path):
-    """No app_settings.yaml at all — optional plugin uses defaults."""
-    missing = tmp_path / "nonexistent.yaml"
-    schema = {"timeout_ms": {"type": "int", "required": False, "default": 5_000}}
-    result = load_plugin_config("ollama", schema, settings_path=missing)
-    assert result["timeout_ms"] == 5_000
+def test_no_settings_declared_and_none_configured(tmp_path):
+    assert load_plugin_config("demo", {}, _settings(tmp_path, {})) == {}
 
 
-# ---------------------------------------------------------------------------
-# Cache behaviour
-# ---------------------------------------------------------------------------
-
-def test_cache_reuses_parsed_file(tmp_path):
-    """get_raw_settings() returns same object on second call (cached)."""
-    p = write_settings(tmp_path, {"server": {"host": "localhost"}})
-    first = get_raw_settings(settings_path=p)
-    second = get_raw_settings(settings_path=p)
-    assert first is second
+def test_no_settings_declared_but_section_configured_raises(tmp_path):
+    with pytest.raises(PluginConfigError, match="declares no settings"):
+        load_plugin_config("demo", {}, _with_plugin(tmp_path, {"x": 1}))
 
 
-def test_reset_cache_forces_reload(tmp_path):
-    """After reset_cache(), next call re-reads the file."""
-    p = write_settings(tmp_path, {"server": {"host": "v1"}})
-    first = get_raw_settings(settings_path=p)
-    assert first["server"]["host"] == "v1"
+def test_invalid_schema_raises(tmp_path):
+    bad = {"type": "object", "properties": {"k": {"type": "not-a-type"}}}
+    with pytest.raises(PluginConfigError, match="invalid config schema"):
+        load_plugin_config("demo", bad, _with_plugin(tmp_path, {"k": 1}))
 
-    reset_cache()
-    p.write_text(yaml.dump({"server": {"host": "v2"}}))
-    second = get_raw_settings(settings_path=p)
-    assert second["server"]["host"] == "v2"
+
+def test_settings_file_absent_uses_defaults(tmp_path):
+    schema = {"type": "object", "properties": {"k": {"type": "integer", "default": 1}}}
+    assert load_plugin_config("demo", schema, tmp_path / "missing.yaml") == {"k": 1}

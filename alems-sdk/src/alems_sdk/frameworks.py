@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 from alems_sdk.tools import ToolProviderABC
-
+from alems_sdk.config_schema import Configurable
 
 @dataclass
 class FrameworkResult:
@@ -48,7 +48,7 @@ class FrameworkResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class FrameworkAdapterABC(ABC):
+class FrameworkAdapterABC(Configurable, ABC):
     """
     Base class for all agent framework adapters.
 
@@ -98,6 +98,4 @@ class FrameworkAdapterABC(ABC):
     @abstractmethod
     def is_available(self) -> bool:
         raise NotImplementedError
-
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}
+    

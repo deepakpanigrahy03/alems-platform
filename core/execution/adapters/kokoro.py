@@ -24,16 +24,16 @@ logger = logging.getLogger(__name__)
 
 
 class KokoroAdapter(MediaABC):
- 
-    ENGINE_TYPE: str = "kokoro"
-    METHOD_ID:   str = "kokoro"
     """
     TTS adapter for Kokoro 82M English model.
 
     process() input: text string
     process() output: {audio_bytes, sample_rate, duration_sec, total_time_ms}
     """
-
+ 
+    ENGINE_TYPE: str = "kokoro"
+    METHOD_ID:   str = "kokoro"
+    
     def __init__(self, provider_config: Dict, model_config: Dict):
         """
         Args:

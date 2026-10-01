@@ -135,13 +135,13 @@ def test_config_schema_for_plugin_raises_gracefully():
 
 def test_plugin_config_still_validates_with_alems_schema():
     """
-    plugin_config.load_plugin_config still uses the alems dict format.
-    schema_bridge does not intercept or replace it.
-    Verify load_plugin_config raises PluginConfigError for missing required key.
+    load_plugin_config validates JSON Schema (design 7.14).
+    Verify it raises PluginConfigError for a missing required key.
     """
     from core.config.plugin_config import load_plugin_config, PluginConfigError
     import tempfile, os, pathlib
-    schema = {"api_key": {"type": "str", "required": True, "default": None}}
+    schema = {"type": "object", "properties": {"api_key": {"type": "string"}},
+              "required": ["api_key"]}
     # Pass a settings path with no plugins section.
     with tempfile.NamedTemporaryFile(suffix=".yaml", mode="w", delete=False) as f:
         f.write("plugins: {}\n")

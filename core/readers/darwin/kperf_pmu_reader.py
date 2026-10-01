@@ -60,6 +60,8 @@ class KPerfPMUReader(CPUReaderABC):
 
     # ===== Methodology metadata (for seed_methodology.py) =====
     METHOD_ID     = "kperf_pmu_v1"
+    FIDELITY = "MEASURED"
+
     PRIORITY: int = 100
  
     @classmethod

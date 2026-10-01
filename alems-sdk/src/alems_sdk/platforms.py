@@ -12,7 +12,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-
+from alems_sdk.config_schema import Configurable
 
 @dataclass
 class ProvisionStep:
@@ -97,7 +97,7 @@ class VerificationResult:
         ))
 
 
-class PlatformAdapterABC(ABC):
+class PlatformAdapterABC(Configurable, ABC):
     """
     Contract for platform adapters: detect, provision, verify one platform.
 

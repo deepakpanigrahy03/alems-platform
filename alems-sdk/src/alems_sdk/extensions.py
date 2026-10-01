@@ -27,7 +27,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
+from alems_sdk.config_schema import Configurable
 
 @dataclass(frozen=True)
 class PostRunPayload:
@@ -73,7 +73,7 @@ class PostRunPayload:
     db: Any  # DatabaseInterface — typed as Any to avoid circular import
 
 
-class ExtensionABC(ABC):
+class ExtensionABC(Configurable, ABC):
     """
     Abstract base class for all A-LEMS research extensions.
 

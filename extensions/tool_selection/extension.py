@@ -65,26 +65,22 @@ class ToolSelectionExtension(ExtensionABC):
     def get_tables(self) -> List[str]:
         return ["tool_selection_events"]
 
-    def get_config_schema(self) -> Dict:
+    @classmethod
+    def get_config_schema(cls) -> Dict:
         """
-        Config keys read from [plugins.tool_selection] in
-        app_settings.yaml. embedding_model has no platform-wide
-        default declared here deliberately — SPEC 35I's embedding
-        library/model choice is still an open design question (v2.1
-        Section 6, item 2); forcing a default here would silently
-        pre-empt that decision.
+        Config keys read from plugins.tool_selection. embedding_model has no
+        platform wide default deliberately (SPEC 35I open question); without it
+        RetrievalToolSelector reports is_available() False.
         """
         return {
-            "embedding_model": {
-                "type": str,
-                "default": None,
-                "description": (
-                    "Embedding model identifier used by "
-                    "RetrievalToolSelector. Required for that selector "
-                    "to report is_available()=True — see SPEC 35I "
-                    "Section 4's capability/configuration separation."
-                ),
+            "type": "object",
+            "properties": {
+                "embedding_model": {
+                    "type": ["string", "null"], "default": None,
+                    "description": "Embedding model identifier used by RetrievalToolSelector.",
+                },
             },
+            "additionalProperties": False,
         }
 
     def on_activate(self, db: object) -> None:

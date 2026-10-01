@@ -138,12 +138,17 @@ def _load_bindings() -> bool:
         return False
 
 
-class IOReportCPUFreqReader:
+from core.readers.interfaces import TurbostatReaderABC  # noqa: E402
+
+
+class IOReportCPUFreqReader(TurbostatReaderABC):
     """IOReport-based wall-clock-weighted CPU frequency reader for Apple Silicon."""
 
     PRIMARY_CLUSTER_PREFIX = "PCPU"
 
     METHOD_ID          = "ioreport_cpufreq_v1"
+    FIDELITY = "MEASURED"
+
     PRIORITY: int      = 100
  
     @classmethod

@@ -27,16 +27,16 @@ SUPPORTED_LANGUAGES = {"hi","ta","te","bn","mr","gu","kn","ml","pa","or","as","u
 
 
 class IndicParlerAdapter(MediaABC):
- 
-    ENGINE_TYPE: str = "indic_parler"
-    METHOD_ID:   str = "indic_parler"
     """
     TTS adapter for Indic Parler — 13 Indian language support.
 
     process() input: text string
     process() output: {audio_bytes, sample_rate, duration_sec, language, total_time_ms}
     """
-
+ 
+    ENGINE_TYPE: str = "indic_parler"
+    METHOD_ID:   str = "indic_parler"
+    
     def __init__(self, provider_config: Dict, model_config: Dict):
         """
         Args:

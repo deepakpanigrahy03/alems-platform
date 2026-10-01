@@ -24,9 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 class IndicF5Adapter(MediaABC):
- 
-    ENGINE_TYPE: str = "indic_f5"
-    METHOD_ID:   str = "indic_f5"
     """
     Voice cloning adapter for IndicF5.
 
@@ -34,7 +31,10 @@ class IndicF5Adapter(MediaABC):
     process() kwargs: reference_audio (path), language
     process() output: {audio_bytes, sample_rate, duration_sec, total_time_ms}
     """
-
+ 
+    ENGINE_TYPE: str = "indic_f5"
+    METHOD_ID:   str = "indic_f5"
+    
     def __init__(self, provider_config: Dict, model_config: Dict):
         """
         Args:

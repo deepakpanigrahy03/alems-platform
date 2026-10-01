@@ -60,6 +60,18 @@ def alems_schema_to_jsonschema(
             "additionalProperties": False,
         }
     """
+    # JSON Schema is the one format (design 7.14, G47): pass it through
+    # unchanged; the flat format below is legacy input only.
+    if isinstance(alems_schema, dict) and alems_schema.get("type") == "object":
+        result = dict(alems_schema)
+        result.setdefault("$schema", "https://json-schema.org/draft/2020-12/schema")
+        result.setdefault("properties", {})
+        result.setdefault("required", [])
+        result.setdefault("additionalProperties", False)
+        if title:
+            result["title"] = title
+        return result
+
     if not alems_schema:
         # Plugin declared no config — return an empty permissive schema.
         result: Dict[str, Any] = {

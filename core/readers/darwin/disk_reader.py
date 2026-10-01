@@ -20,6 +20,7 @@ class IOKitDiskReader(DiskReaderABC):
 
     # SPEC 35A: registry contract.
     METHOD_ID: str = "disk_reader_darwin"
+    FIDELITY = "MEASURED"
     PRIORITY: int  = 100
  
     @classmethod

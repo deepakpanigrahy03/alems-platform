@@ -43,6 +43,7 @@ class SyntheticCPUReader(CPUReaderABC):
     # Registry contract (SPEC 35A)
     # ------------------------------------------------------------------
     METHOD_ID: str = "synthetic_cpu"
+    FIDELITY = "SYNTHETIC"
     PRIORITY: int  = 100
 
     @classmethod

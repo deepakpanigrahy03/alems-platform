@@ -105,10 +105,4 @@ def test_version():
     assert ">=1.0.0" in SUPPORTED_RUNTIME_RANGE
 
 
-def test_conformance_skeleton():
-    from alems_sdk.conformance import run_conformance, ConformanceReport
-    report = run_conformance("test_plugin", {"plugin_id": "test_plugin", "family": "unknown", "version": "0.1.0"})
-    assert isinstance(report, ConformanceReport)
-    assert report.passed is True
-    assert isinstance(report, ConformanceReport)
-    assert report.plugin_id == "test_plugin"
+

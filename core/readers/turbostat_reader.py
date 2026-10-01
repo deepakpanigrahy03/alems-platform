@@ -78,6 +78,7 @@ class TurbostatReader(TurbostatReaderABC):
     """
     # SPEC 35A: registry contract.
     METHOD_ID: str = "turbostat_reader_x86"
+    FIDELITY = "MEASURED"
     PRIORITY: int  = 100
 
     @classmethod

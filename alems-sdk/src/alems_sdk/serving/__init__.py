@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 # ServingEndpoint is part of the constructor contract (runtime resolves it).
+from alems_sdk.config_schema import Configurable
 from alems_sdk.serving.config import ServingEndpoint, resolve_endpoint
 
 
@@ -153,7 +154,7 @@ class EngineInfo:
 # Abstract base class
 # ---------------------------------------------------------------------------
 
-class ServingEngineAdapter(ABC):
+class ServingEngineAdapter(Configurable, ABC):
     """
     Generic interface for serving engine telemetry.
 

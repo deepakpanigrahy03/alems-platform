@@ -23,15 +23,15 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiAdapter(TextGenABC):
- 
-    ENGINE_TYPE: str = "gemini"
-    METHOD_ID:   str = "gemini"
     """
     Adapter for Google Gemini models via generativeai SDK.
 
     Cloud provider — non_local_ms captures full round-trip.
     """
-
+ 
+    ENGINE_TYPE: str = "gemini"
+    METHOD_ID:   str = "gemini"
+    
     def __init__(self, provider_config: Dict, model_config: Dict):
         """
         Args:

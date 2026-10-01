@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from alems_sdk.tools import ToolDefinition
-
+from alems_sdk.config_schema import Configurable
 
 @dataclass
 class ToolSelectionResult:
@@ -51,7 +51,7 @@ class ToolSelectionContext:
     db: Optional[Any] = None  # DatabaseInterface
 
 
-class ToolSelectorABC(ABC):
+class ToolSelectorABC(Configurable, ABC):
     """
     Subclasses declare SELECTOR_TYPE ("static" | "retrieval" | ...) as
     the registry key.
@@ -86,6 +86,4 @@ class ToolSelectorABC(ABC):
         to all-tools (SPEC 35H Section 4.5).
         """
         raise NotImplementedError
-
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}
+    

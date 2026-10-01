@@ -54,8 +54,12 @@ logger = logging.getLogger(__name__)
 
 
 class MSRReader(MSRReaderABC):
- 
+    """
+    High-performance MSR reader using C helper binary with TSC conversion.
+    """
+     
     METHOD_ID: str = "msr_reader_x86"
+    FIDELITY = "MEASURED"
     PRIORITY: int  = 100
  
     @classmethod
@@ -66,9 +70,7 @@ class MSRReader(MSRReaderABC):
             and caps.arch == "x86_64"
             and getattr(caps, "platform_class", "") != "synthetic"
         )
-    """
-    High-performance MSR reader using C helper binary with TSC conversion.
-    """
+
 
     # Intel MSR addresses (from SDM)
     MSR_ADDRESSES = {

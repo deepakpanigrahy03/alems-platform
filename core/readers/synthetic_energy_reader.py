@@ -104,6 +104,7 @@ class SyntheticEnergyReader(EnergyReaderABC):
     # Methodology attributes — required by EnergyReaderABC contract
     # ------------------------------------------------------------------
     METHOD_ID          = "synthetic_energy"
+    FIDELITY = "SYNTHETIC"
     METHOD_NAME        = "Synthetic Energy Reader (CI/Test)"
     METHOD_LAYER       = "silicon"
     METHOD_CONFIDENCE  = 0.0   # not physically measured — see module docstring
@@ -141,36 +142,21 @@ class SyntheticEnergyReader(EnergyReaderABC):
     def get_config_schema(cls) -> dict:
         """
         Declare configuration keys read from plugins.synthetic in app_settings.yaml.
- 
-        These values override fixture YAML defaults and hardcoded fallbacks.
-        All keys are optional — the synthetic reader works with no config section.
+
+        JSON Schema (design 7.14). These values override fixture YAML defaults
+        and hardcoded fallbacks. All keys are optional: the synthetic reader
+        works with no config section.
         """
         return {
-            "enabled": {
-                "type": "bool",
-                "required": False,
-                "default": True,
+            "type": "object",
+            "properties": {
+                "enabled":    {"type": "boolean", "default": True},
+                "mode":       {"type": ["string", "null"], "default": None},
+                "package_uj": {"type": ["integer", "null"], "default": None},
+                "core_uj":    {"type": ["integer", "null"], "default": None},
+                "dram_uj":    {"type": ["integer", "null"], "default": None},
             },
-            "mode": {
-                "type": "str",
-                "required": False,
-                "default": None,
-            },
-            "package_uj": {
-                "type": "int",
-                "required": False,
-                "default": None,
-            },
-            "core_uj": {
-                "type": "int",
-                "required": False,
-                "default": None,
-            },
-            "dram_uj": {
-                "type": "int",
-                "required": False,
-                "default": None,
-            },
+            "additionalProperties": False,
         }
  
     def __init__(self, config: dict = None):

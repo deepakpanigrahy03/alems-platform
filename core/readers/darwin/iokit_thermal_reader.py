@@ -81,6 +81,7 @@ class IOKitThermalReader(ThermalReaderABC):
     """
 
     METHOD_ID          = "iokit_thermal_reader"
+    FIDELITY = "MEASURED"
     PRIORITY: int      = 100
  
     @classmethod

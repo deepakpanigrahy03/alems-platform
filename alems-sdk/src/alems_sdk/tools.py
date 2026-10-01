@@ -16,6 +16,7 @@ SPEC:   35G Section 4, 35H Part 1
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+from alems_sdk.config_schema import Configurable
 
 @dataclass
 class ToolResult:
@@ -65,7 +66,7 @@ class ToolExecutionContext:
     agent_id: Optional[str] = None
 
 
-class ToolProviderABC(ABC):
+class ToolProviderABC(Configurable, ABC):
     """Base class for all tool provider adapters. TOOL_PROVIDER_TYPE is
     the registry key. Constructor takes no required args (SPEC 35H —
     db_path moved from constructor to call-time ToolExecutionContext,
@@ -96,5 +97,3 @@ class ToolProviderABC(ABC):
     def is_available(self) -> bool:
         raise NotImplementedError
 
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}

@@ -49,16 +49,8 @@ def _kit_for_group(group: str) -> ConformanceKit:
     Returns:
         A ConformanceKit subclass instance.
     """
-    if group in MEASUREMENT_GROUPS:
-        return MeasurementKit()
-    if group in EXECUTION_GROUPS:
-        return ExecutionKit()
-    if group in PERSISTENCE_GROUPS:
-        return PersistenceKit()
-    if group in OUTPUT_GROUPS:
-        return OutputKit()
-    # Unknown group — return base kit that runs only manifest and import checks.
-    return ConformanceKit()
+    from alems_sdk._kit_families import kit_for_group
+    return kit_for_group(group)
 
 
 def run_conformance(
@@ -108,7 +100,7 @@ def run_conformance(
             kit.check(cls, meta, origin)
         except Exception as exc:
             # Kit itself must never propagate — capture as a failure.
-            kit.fail("kit raised unexpectedly: %s" % exc)
+            kit.fail("kit raised unexpectedly: %s: %s" % (type(exc).__name__, exc))
     else:
         # No class available — manifest check only.
         kit.check_manifest(meta)

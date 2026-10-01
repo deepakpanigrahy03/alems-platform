@@ -26,9 +26,9 @@ AUTHOR: Deepak Panigrahy
 
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
+from alems_sdk.config_schema import Configurable
 
-
-class ScorerABC(ABC):
+class ScorerABC(Configurable, ABC):
     """
     Abstract base class for all quality scorer adapters.
 

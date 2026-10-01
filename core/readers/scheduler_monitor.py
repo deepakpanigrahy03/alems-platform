@@ -46,17 +46,6 @@ logger = logging.getLogger(__name__)
 
 
 class SchedulerMonitor(SchedulerMonitorABC):
- 
-    METHOD_ID: str = "scheduler_monitor_proc"
-    PRIORITY: int  = 100
- 
-    @classmethod
-    def can_handle(cls, caps) -> bool:
-        """Eligible on Linux and macOS, not synthetic platform."""
-        return (
-            caps.os in ("Linux", "Darwin")
-            and getattr(caps, "platform_class", "") != "synthetic"
-        )
     """
     Reads Linux scheduler metrics from /proc filesystem.
 
@@ -69,6 +58,19 @@ class SchedulerMonitor(SchedulerMonitorABC):
     All values are read at a single point in time. For rates or deltas,
     the caller should take two readings and compute differences.
     """
+     
+    METHOD_ID: str = "scheduler_monitor_proc"
+    FIDELITY = "MEASURED"
+    PRIORITY: int  = 100
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on Linux and macOS, not synthetic platform."""
+        return (
+            caps.os in ("Linux", "Darwin")
+            and getattr(caps, "platform_class", "") != "synthetic"
+        )
+
 
     def __init__(self, config: Dict[str, Any]):
         """

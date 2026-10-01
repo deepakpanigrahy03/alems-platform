@@ -1,3 +1,4 @@
+"""Generic span vocabulary: job, task and function spans (id generic, version 1)."""
 # core/vocabularies/generic/__init__.py
 # Generic span vocabulary (alems.spans.vocabularies entry point, id=generic, version=1).
 # Kinds: job, task, function.

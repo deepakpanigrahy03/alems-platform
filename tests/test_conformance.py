@@ -1,342 +1,149 @@
-"""
-tests/test_conformance.py — unit tests for alems_sdk conformance kits.
-
-Tests per-kit logic using synthetic stub classes. Does not touch the
-real DB or run experiments. Rule S: no new measurement, no schema changes.
-"""
-from __future__ import annotations
+# tests/test_conformance.py
+# 39.5.1a.3: conformance is derived from the SDK contracts and gates loading.
+# Replaces the 39.3 tests, which asserted rules never checked against real
+# plugins (G44). Run: venv/bin/python -m pytest tests/test_conformance.py -v
+import textwrap
 
 import pytest
 
-from alems_sdk.conformance import run_conformance, ConformanceReport
-from alems_sdk._kit_measurement import MeasurementKit
-from alems_sdk._kit_execution import ExecutionKit
-from alems_sdk._kit_persistence import PersistenceKit, OutputKit
+from alems_sdk.conformance import run_conformance
+from alems_sdk.config_schema import NO_SETTINGS
+from alems_sdk.readers import BaseReader
 
 
-# ---------------------------------------------------------------------------
-# Stub classes used across tests.
-# ---------------------------------------------------------------------------
-
-class GoodReader:
-    """Minimal compliant energy reader stub."""
-    ALEMS_PLUGIN_META = {
-        "plugin_id": "good_reader",
-        "family": "measurement",
-        "extension_point": "alems.readers.energy",
-        "version": "0.1.0",
-    }
-    FIDELITY = "MEASURED"
-    ERROR_BOUND = None
-
-    @classmethod
-    def is_available(cls):
-        return True
-
-    @classmethod
-    def get_name(cls):
-        return "good_reader"
-
-    @classmethod
-    def get_config_schema(cls):
-        return {"type": "object", "properties": {}}
+def _meta(group, **over):
+    """A complete built manifest for group."""
+    m = {"plugin_id": "p", "extension_point": group, "family": "measurement",
+         "version": "0.1.0", "sdk_range": ">=1.0,<2.0", "description": "test plugin"}
+    m.update(over)
+    return m
 
 
-class MissingFidelityReader:
-    """Reader missing FIDELITY attribute."""
-    ALEMS_PLUGIN_META = {
-        "plugin_id": "no_fidelity",
-        "family": "measurement",
-        "extension_point": "alems.readers.energy",
-        "version": "0.1.0",
-    }
-
-    @classmethod
-    def is_available(cls):
-        return True
-
-    @classmethod
-    def get_name(cls):
-        return "no_fidelity"
+def _reader(fidelity="MEASURED", bound=None):
+    """A concrete reader class with every abstract method implemented."""
+    attrs = {"FIDELITY": fidelity, "ERROR_BOUND": bound}
+    for name in getattr(BaseReader, "__abstractmethods__", ()):
+        attrs[name] = lambda self, *a, **k: None
+    return type("FakeReader", (BaseReader,), attrs)
 
 
-class InferredNoErrorBound:
-    """Estimator with FIDELITY=INFERRED but no ERROR_BOUND — should fail."""
-    ALEMS_PLUGIN_META = {
-        "plugin_id": "bad_estimator",
-        "family": "measurement",
-        "extension_point": "alems.readers.energy",
-        "version": "0.1.0",
-    }
-    FIDELITY = "INFERRED"
-    # ERROR_BOUND intentionally missing
-
-    @classmethod
-    def is_available(cls):
-        return True
-
-    @classmethod
-    def get_name(cls):
-        return "bad_estimator"
-
-    @classmethod
-    def get_config_schema(cls):
-        return {"type": "object"}
+def _passed(cls, group="alems.readers.energy", origin="external", **over):
+    return run_conformance("p", _meta(group, **over), cls=cls, origin=origin)
 
 
-class GoodEstimator:
-    """Compliant estimator with FIDELITY=INFERRED and ERROR_BOUND."""
-    ALEMS_PLUGIN_META = {
-        "plugin_id": "good_estimator",
-        "family": "measurement",
-        "extension_point": "alems.readers.energy",
-        "version": "0.1.0",
-    }
-    FIDELITY = "INFERRED"
-    ERROR_BOUND = "±30%"
-
-    @classmethod
-    def is_available(cls):
-        return True
-
-    @classmethod
-    def get_name(cls):
-        return "good_estimator"
-
-    @classmethod
-    def get_config_schema(cls):
-        return {"type": "object"}
+def test_good_reader_passes():
+    assert _passed(_reader()).passed
 
 
-class GoodOutput:
-    """Compliant output plugin stub."""
-    ALEMS_PLUGIN_META = {
-        "plugin_id": "good_output",
-        "family": "output",
-        "extension_point": "alems.outputs",
-        "version": "0.1.0",
-    }
+@pytest.mark.parametrize("value", ["MEASURED", "INFERRED", "LIMITED", "SYNTHETIC"])
+def test_fidelity_vocabulary(value):
+    cls = _reader(value, bound="±10%" if value == "INFERRED" else None)
+    assert _passed(cls).passed
 
-    @classmethod
-    def get_config_schema(cls):
-        return {"type": "object"}
 
-    def export(self, store, dest):
+def test_missing_fidelity_fails():
+    assert not _passed(_reader(fidelity=None)).passed
+
+
+def test_inferred_without_error_bound_fails():
+    assert not _passed(_reader("INFERRED", bound=None)).passed
+
+
+def test_contract_violation_fails():
+    class NotAReader:
+        FIDELITY = "MEASURED"
+    assert not _passed(NotAReader).passed
+
+
+def test_abstract_method_left_fails():
+    class Half(BaseReader):
+        FIDELITY = "MEASURED"
+    if not getattr(Half, "__abstractmethods__", None):
+        pytest.skip("BaseReader has no abstract methods")
+    assert not _passed(Half).passed
+
+
+def test_default_config_schema_is_no_settings():
+    assert _reader().get_config_schema() == NO_SETTINGS
+
+
+def test_flat_config_schema_fails():
+    cls = _reader()
+    cls.get_config_schema = classmethod(lambda c: {"k": {"type": "int"}})
+    assert not _passed(cls).passed
+
+
+def test_instance_method_config_schema_fails():
+    cls = _reader()
+    cls.get_config_schema = lambda self: dict(NO_SETTINGS)
+    assert not _passed(cls).passed
+
+
+def test_incomplete_manifest_fails():
+    report = run_conformance("p", _meta("alems.readers.energy", description=""),
+                             cls=_reader(), origin="external")
+    assert not report.passed
+
+
+def test_unknown_group_fails():
+    assert not _passed(_reader(), group="alems.nope").passed
+
+
+def _module_class(tmp_path, monkeypatch, source, modname):
+    """Write source as an importable module and return its Plugin class."""
+    path = tmp_path / ("%s.py" % modname)
+    path.write_text(textwrap.dedent(source))
+    monkeypatch.syspath_prepend(str(tmp_path))
+    import importlib
+    return importlib.import_module(modname).Plugin
+
+
+@pytest.mark.parametrize("line", ["import core", "import core.readers",
+                                  "from core import x", "from core.readers import y",
+                                  "import scripts"])
+def test_external_core_import_fails(tmp_path, monkeypatch, line):
+    src = """
+    try:
+        %s
+    except Exception:
         pass
+    from alems_sdk.readers import BaseReader
+    class Plugin(BaseReader):
+        FIDELITY = "MEASURED"
+    for _n in list(getattr(Plugin, "__abstractmethods__", ())):
+        setattr(Plugin, _n, lambda self, *a, **k: None)
+    Plugin.__abstractmethods__ = frozenset()
+    """ % line
+    modname = "conf_mod_%d" % abs(hash(line))
+    cls = _module_class(tmp_path, monkeypatch, src, modname)
+    assert not _passed(cls, origin="external").passed
 
 
-class BadOutput:
-    """Output plugin missing export()."""
-    ALEMS_PLUGIN_META = {
-        "plugin_id": "bad_output",
-        "family": "output",
-        "extension_point": "alems.outputs",
-        "version": "0.1.0",
-    }
+def test_runtime_component_may_import_core(tmp_path, monkeypatch):
+    src = """
+    try:
+        import core
+    except Exception:
+        pass
+    from alems_sdk.readers import BaseReader
+    class Plugin(BaseReader):
+        FIDELITY = "MEASURED"
+    for _n in list(getattr(Plugin, "__abstractmethods__", ())):
+        setattr(Plugin, _n, lambda self, *a, **k: None)
+    Plugin.__abstractmethods__ = frozenset()
+    """
+    cls = _module_class(tmp_path, monkeypatch, src, "conf_mod_runtime")
+    assert _passed(cls, origin="runtime").passed
 
 
-class GoodExtension:
-    """Compliant persistence/extension plugin."""
-    ALEMS_PLUGIN_META = {
-        "plugin_id": "good_ext",
-        "family": "persistence",
-        "extension_point": "alems.extensions",
-        "namespace": "test_ns",
-        "version": "0.1.0",
-    }
-    NAMESPACE = "test_ns"
-
-    @classmethod
-    def get_config_schema(cls):
-        return {"type": "object"}
+def test_callable_group_accepts_function():
+    def check(provider_config):
+        """Preflight check."""
+        return {"ok": True}
+    meta = _meta("alems.preflight.checks", family="execution")
+    assert run_conformance("p", meta, cls=check, origin="runtime").passed
 
 
-class BadExtensionNoNamespace:
-    """Extension plugin missing namespace."""
-    ALEMS_PLUGIN_META = {
-        "plugin_id": "bad_ext",
-        "family": "persistence",
-        "extension_point": "alems.extensions",
-        "version": "0.1.0",
-    }
-
-
-# ---------------------------------------------------------------------------
-# MeasurementKit tests.
-# ---------------------------------------------------------------------------
-
-class TestMeasurementKit:
-
-    def test_good_reader_passes(self):
-        kit = MeasurementKit()
-        kit.check(GoodReader, GoodReader.ALEMS_PLUGIN_META, "first_party")
-        assert kit.passed
-        assert kit.failures == []
-
-    def test_missing_fidelity_first_party_fails(self):
-        kit = MeasurementKit()
-        kit.check(MissingFidelityReader, MissingFidelityReader.ALEMS_PLUGIN_META, "first_party")
-        assert not kit.passed
-        assert any("FIDELITY" in f for f in kit.failures)
-
-    def test_missing_fidelity_external_is_warning(self):
-        kit = MeasurementKit()
-        kit.check(MissingFidelityReader, MissingFidelityReader.ALEMS_PLUGIN_META, "external")
-        # External: no FIDELITY is a warning, not a failure.
-        assert kit.passed
-        assert any("FIDELITY" in w for w in kit.warnings)
-
-    def test_inferred_no_error_bound_fails(self):
-        kit = MeasurementKit()
-        kit.check(InferredNoErrorBound, InferredNoErrorBound.ALEMS_PLUGIN_META, "first_party")
-        assert not kit.passed
-        assert any("ERROR_BOUND" in f for f in kit.failures)
-
-    def test_good_estimator_passes(self):
-        kit = MeasurementKit()
-        kit.check(GoodEstimator, GoodEstimator.ALEMS_PLUGIN_META, "first_party")
-        assert kit.passed
-
-    def test_missing_is_available_fails(self):
-        class NoIsAvailable:
-            ALEMS_PLUGIN_META = {
-                "plugin_id": "x", "family": "measurement",
-                "extension_point": "alems.readers.energy", "version": "0.1.0",
-            }
-            FIDELITY = "MEASURED"
-            @classmethod
-            def get_name(cls): return "x"
-            @classmethod
-            def get_config_schema(cls): return {}
-
-        kit = MeasurementKit()
-        kit.check(NoIsAvailable, NoIsAvailable.ALEMS_PLUGIN_META, "first_party")
-        assert not kit.passed
-        assert any("is_available" in f for f in kit.failures)
-
-    def test_invalid_fidelity_value_fails(self):
-        class BadFidelity:
-            ALEMS_PLUGIN_META = {
-                "plugin_id": "x", "family": "measurement",
-                "extension_point": "alems.readers.energy", "version": "0.1.0",
-            }
-            FIDELITY = "DERIVED"  # not in compliance vocabulary
-            ERROR_BOUND = None
-            @classmethod
-            def is_available(cls): return True
-            @classmethod
-            def get_name(cls): return "x"
-            @classmethod
-            def get_config_schema(cls): return {}
-
-        kit = MeasurementKit()
-        kit.check(BadFidelity, BadFidelity.ALEMS_PLUGIN_META, "first_party")
-        assert not kit.passed
-        assert any("compliance vocabulary" in f for f in kit.failures)
-
-
-# ---------------------------------------------------------------------------
-# OutputKit tests.
-# ---------------------------------------------------------------------------
-
-class TestOutputKit:
-
-    def test_good_output_passes(self):
-        kit = OutputKit()
-        kit.check(GoodOutput, GoodOutput.ALEMS_PLUGIN_META, "first_party")
-        assert kit.passed
-
-    def test_missing_export_fails(self):
-        kit = OutputKit()
-        kit.check(BadOutput, BadOutput.ALEMS_PLUGIN_META, "first_party")
-        assert not kit.passed
-        assert any("export" in f for f in kit.failures)
-
-
-# ---------------------------------------------------------------------------
-# PersistenceKit tests.
-# ---------------------------------------------------------------------------
-
-class TestPersistenceKit:
-
-    def test_good_extension_passes(self):
-        kit = PersistenceKit()
-        kit.check(GoodExtension, GoodExtension.ALEMS_PLUGIN_META, "first_party")
-        assert kit.passed
-
-    def test_missing_namespace_fails(self):
-        kit = PersistenceKit()
-        kit.check(BadExtensionNoNamespace, BadExtensionNoNamespace.ALEMS_PLUGIN_META, "first_party")
-        assert not kit.passed
-        assert any("namespace" in f for f in kit.failures)
-
-
-# ---------------------------------------------------------------------------
-# run_conformance integration tests.
-# ---------------------------------------------------------------------------
-
-class TestRunConformance:
-
-    def test_good_reader_report_passes(self):
-        report = run_conformance(
-            "good_reader",
-            GoodReader.ALEMS_PLUGIN_META,
-            cls=GoodReader,
-            origin="first_party",
-        )
-        assert isinstance(report, ConformanceReport)
-        assert report.passed
-
-    def test_bad_estimator_report_fails(self):
-        report = run_conformance(
-            "bad_estimator",
-            InferredNoErrorBound.ALEMS_PLUGIN_META,
-            cls=InferredNoErrorBound,
-            origin="first_party",
-        )
-        assert not report.passed
-
-    def test_no_group_in_meta_returns_unknown(self):
-        meta = {"plugin_id": "orphan", "family": "unknown", "version": "0.1.0"}
-        report = run_conformance("orphan", meta, cls=None, origin="external")
-        assert report.results[0].extension_point == "unknown"
-
-    def test_no_cls_runs_manifest_only(self):
-        # Without cls, only manifest check runs; should pass for good meta.
-        report = run_conformance(
-            "good_reader",
-            GoodReader.ALEMS_PLUGIN_META,
-            cls=None,
-            origin="first_party",
-        )
-        assert report.passed
-
-    def test_kit_exception_captured_as_failure(self):
-        # Simulate a kit that raises internally.
-        class ExplodingReader:
-            ALEMS_PLUGIN_META = {
-                "plugin_id": "bomb",
-                "family": "measurement",
-                "extension_point": "alems.readers.energy",
-                "version": "0.1.0",
-            }
-            FIDELITY = "MEASURED"
-            ERROR_BOUND = None
-            @classmethod
-            def is_available(cls):
-                raise RuntimeError("hardware exploded")
-            @classmethod
-            def get_name(cls): return "bomb"
-            @classmethod
-            def get_config_schema(cls): return {}
-
-        # Should not raise; exception captured as warning (is_available raises).
-        report = run_conformance(
-            "bomb",
-            ExplodingReader.ALEMS_PLUGIN_META,
-            cls=ExplodingReader,
-            origin="first_party",
-        )
-        # is_available raising is a warning not a failure, so report passes.
-        assert report.passed
-        assert any("raised" in w for w in report.results[0].warnings)
+def test_callable_group_rejects_class():
+    meta = _meta("alems.preflight.checks", family="execution")
+    assert not run_conformance("p", meta, cls=_reader(), origin="runtime").passed

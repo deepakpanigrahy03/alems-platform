@@ -32,9 +32,9 @@ SPEC: 8.6-A2
 import time
 from abc import ABC, abstractmethod
 from typing import Optional
+from alems_sdk.config_schema import Configurable
 
-
-class InjectionEngine(ABC):
+class InjectionEngine(Configurable, ABC):
     """
     Base class for all failure injection engines.
 

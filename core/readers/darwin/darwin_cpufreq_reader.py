@@ -15,15 +15,10 @@ from typing import Dict, Optional
 logger = logging.getLogger(__name__)
 
 
-class DarwinCPUFreqReader:
- 
-    METHOD_ID: str = "darwin_cpufreq_powermetrics"
-    PRIORITY: int  = 200
- 
-    @classmethod
-    def can_handle(cls, caps) -> bool:
-        """Eligible on macOS as secondary freq reader (PRIORITY=200, loses to IOReport=100)."""
-        return caps.os == "Darwin"
+from core.readers.interfaces import TurbostatReaderABC  # noqa: E402
+
+
+class DarwinCPUFreqReader(TurbostatReaderABC):
     """
     Turbostat-equivalent frequency reader for Apple Silicon.
     Delegates to an IOKitPowerReader instance that is already running
@@ -31,6 +26,16 @@ class DarwinCPUFreqReader:
     Returns frequency_mean in stop_monitoring() summary so energy_analyzer.py
     picks it up via the same path as TurbostatReader and ARMCPUFreqReader.
     """
+     
+    METHOD_ID: str = "darwin_cpufreq_powermetrics"
+    FIDELITY = "MEASURED"
+    PRIORITY: int  = 200
+ 
+    @classmethod
+    def can_handle(cls, caps) -> bool:
+        """Eligible on macOS as secondary freq reader (PRIORITY=200, loses to IOReport=100)."""
+        return caps.os == "Darwin"
+
 
     available         = True
     turbostat_version = None

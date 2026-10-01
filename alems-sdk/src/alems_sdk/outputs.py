@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
 from alems_sdk.storage import DatabaseInterface
-
+from alems_sdk.config_schema import Configurable
 
 @dataclass
 class ExportResult:
@@ -36,7 +36,7 @@ class ExportResult:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
-class OutputAdapterABC(ABC):
+class OutputAdapterABC(Configurable, ABC):
     """
     Base class for all output/export adapters.
 
@@ -71,5 +71,3 @@ class OutputAdapterABC(ABC):
     def is_available(self) -> bool:
         raise NotImplementedError
 
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}

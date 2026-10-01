@@ -40,8 +40,19 @@ PERF_TIMEOUT_SECONDS = 300
 
 
 class ARMPMUReader(CPUReaderABC):
- 
+    """
+    ARM Neoverse V2 performance counters via Linux perf stat.
+
+    Attaches to process PID during measurement window. Falls back to
+    system-wide (-a) if no PID provided. Implements CPUReaderABC for
+    factory dispatch on aarch64 — identical interface to PerfReader.
+
+    On GN100: perf works without root via /proc/sys/kernel/perf_event_paranoid
+    set to 1 or lower. If paranoid=3, availability check will return False.
+    """
+     
     METHOD_ID: str = "arm_pmu_reader"
+    FIDELITY = "MEASURED"
     PRIORITY: int  = 100
  
     @classmethod
@@ -53,16 +64,7 @@ class ARMPMUReader(CPUReaderABC):
             and caps.has_arm_pmu
         )
  
-    """
-    ARM Neoverse V2 performance counters via Linux perf stat.
 
-    Attaches to process PID during measurement window. Falls back to
-    system-wide (-a) if no PID provided. Implements CPUReaderABC for
-    factory dispatch on aarch64 — identical interface to PerfReader.
-
-    On GN100: perf works without root via /proc/sys/kernel/perf_event_paranoid
-    set to 1 or lower. If paranoid=3, availability check will return False.
-    """
 
     METHOD_PROVENANCE = 'arm_pmu_v1'
 
