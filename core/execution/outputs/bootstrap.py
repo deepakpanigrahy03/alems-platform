@@ -15,8 +15,9 @@ SPEC:   35G Section 7
 
 import logging
 
-from core.execution.outputs.registry import OutputRegistry, DuplicateOutputError
-from core.plugin_discovery import discover_plugins
+from core.execution.outputs.registry import OutputRegistry
+from alems_sdk.manifest import ORIGIN_EXTERNAL, ORIGIN_LOCAL, ORIGIN_RUNTIME
+from core.registry.loader import load_group
 from alems import __version__ as _CORE_VERSION
 
 logger = logging.getLogger(__name__)
@@ -24,39 +25,33 @@ logger = logging.getLogger(__name__)
 output_registry = OutputRegistry()
 
 
-def _safe_register(cls, config: dict = None) -> None:
-    try:
-        output_registry.register(cls)
-    except DuplicateOutputError:
-        raise
-    except Exception as exc:
-        logger.warning(
-            "output_bootstrap: failed to register %s: %s — skipping",
-            getattr(cls, "__name__", repr(cls)), exc,
-        )
+def _register(cls, config: dict = None) -> None:
+    """
+    Register one output adapter; failures propagate to the loader.
+
+    The loader records them as refusals at stage register (WP 1a.3 section 5),
+    so this bootstrap never interprets a failure itself.
+    """
+    output_registry.register(cls)
 
 
 def register_builtin_outputs() -> None:
-    """Register CSV and JSON adapters. Import isolation per family convention."""
-    try:
-        from core.execution.outputs.csv_output import CSVOutputAdapter
-        _safe_register(CSVOutputAdapter)
-    except ImportError as exc:
-        logger.debug("output_bootstrap: CSVOutputAdapter not importable: %s", exc)
-
-    try:
-        from core.execution.outputs.json_output import JSONOutputAdapter
-        _safe_register(JSONOutputAdapter)
-    except ImportError as exc:
-        logger.debug("output_bootstrap: JSONOutputAdapter not importable: %s", exc)
+    """Register runtime output adapters through their entry points (INV-2)."""
+    load_group(
+        "alems.outputs",
+        _register,
+        _CORE_VERSION,
+        origins=(ORIGIN_RUNTIME,),
+    )
 
 
 def register_external_output_plugins() -> None:
-    """Discover external output plugins via entry_points(group="alems.outputs")."""
-    names = discover_plugins(
-        group="alems.outputs",
-        register_fn=lambda cls, cfg: _safe_register(cls, cfg),
-        core_version=_CORE_VERSION,
+    """Register external and sandbox local output plugins (alems.outputs)."""
+    names = load_group(
+        "alems.outputs",
+        _register,
+        _CORE_VERSION,
+        origins=(ORIGIN_EXTERNAL, ORIGIN_LOCAL),
     )
     if names:
         logger.info(
