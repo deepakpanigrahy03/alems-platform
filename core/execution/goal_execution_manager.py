@@ -599,12 +599,10 @@ def execute_goal(
     final_result = winning_result or last_result
     run_id = None
     final_result = winning_result or last_result
-    # Merge accumulated energy into final_result before insert
-    # This ensures runs.pkg_energy_uj = SUM(goal_attempt.energy_uj)
-    if final_result is not None and accumulated_energy["pkg_energy_uj"] > 0:
-        ml = final_result.get("ml_features", {}) or {}
-        for k in _acc_keys:
-            ml[k] = accumulated_energy[k]
+    # Decision A (G85): a run row describes one measurement window, the
+    # final attempt, so energy and time come from the same interval.
+    # Totals across attempts live only in goal_attempt and goal_execution
+    # (goal_execution_etl sums goal_attempt.energy_uj, INV-E4).
     run_id = None
     if final_result is not None:
         run_id = insert_one_run(db, exp_id, hw_id, final_result, workflow_type, rep_num)
@@ -681,7 +679,7 @@ def execute_goal(
 
     # All persistence for this run happened in insert_one_run above
     # (RunPersistenceService): samples once, events once, then ETL (G82).
-    
+
     # finish_goal always called — regardless of outcome or exception path
     goal_tracker.finish_goal(
         conn=conn,
