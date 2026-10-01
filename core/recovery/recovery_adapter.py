@@ -55,7 +55,7 @@ class FullRestartPolicy(RecoveryPolicyAdapter):
 
 class LocalizedRecoveryPolicy(RecoveryPolicyAdapter):
     """
-    Stephen's intervention: roll back only to the turn boundary containing
+    The localized recovery intervention: roll back only to the turn boundary containing
     the failure, not the entire trajectory.
 
     For a failure at step N inside turn T:
@@ -63,7 +63,7 @@ class LocalizedRecoveryPolicy(RecoveryPolicyAdapter):
       - Resume from there.
       - Preserve all context and tool results from turns before T.
 
-    This is the policy being evaluated in Stephen's MLSys paper against
+    This is the policy being evaluated for the recovery depth study. against
     FullRestartPolicy. The energy difference between the two is the
     paper's core measurement.
     """

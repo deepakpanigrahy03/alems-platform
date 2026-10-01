@@ -57,6 +57,6 @@ platform_notes:
     canonical_role: CPU_PACKAGE
     broken_zone: "TCPU (-273.15°C, OUT_OF_RANGE)"
     idle_range: "46-52°C"
-  alex_amd_x86_64:
+  amd_ryzen_x86_64::
     primary_zone: k10temp
     canonical_role: CPU_PACKAGE

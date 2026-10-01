@@ -183,7 +183,7 @@ class MSRPP1Backend:
 class NVMLBackend:
     """
     NVIDIA GPU backend via nvidia-ml-py (pynvml).
-    Covers: Alex Flesher RTX 2070 Super, GN100 GB10 fallback if DCGM absent.
+    Covers: discrete NVIDIA GPUs (RTX 2070 Super verified), NVIDIA GB10 fallback if DCGM absent.
  
     Primary: nvmlDeviceGetTotalEnergyConsumption() — cumulative mJ counter.
     Fallback: nvmlDeviceGetPowerUsage() instantaneous mW when counter absent.
@@ -493,7 +493,7 @@ class DCGMBackend:
 class IOKitBackend:
     """
     Apple Silicon GPU energy backend via powermetrics.
-    Platform: macOS only — Stephen Abkin M1 Pro.
+    Platform: macOS only, Apple Silicon (M1 Pro verified).
  
     powermetrics exposes instantaneous GPU power in mW per sample.
     GPUCollector integrates power x dt to derive energy in µJ.
@@ -701,7 +701,7 @@ class GPUCollector:
         except Exception as e:
             logger.debug("ROCmBackend probe failed: %s", e)
  
-        # IOKit — Apple Silicon (Stephen Abkin M1 Pro)
+        # IOKit — Apple Silicon (M1 Pro verified)
         try:
             b = IOKitBackend()
             if b.is_available():
@@ -721,6 +721,12 @@ class GPUCollector:
         if not self.backend.is_available():
             logger.debug("GPUCollector.start: no backend, skipping thread")
             return
+
+        # Backend cleanup once per process at exit (G37), never per run.
+        if hasattr(self.backend, "cleanup") and not getattr(self, "_cleanup_registered", False):
+            import atexit
+            atexit.register(self.backend.cleanup)
+            self._cleanup_registered = True
 
         self._running = True
         self._samples_taken = 0
@@ -757,9 +763,9 @@ class GPUCollector:
         logger.info("GPUCollector stopped: %d samples taken, %d dropped",
                     self._samples_taken, self._samples_dropped)
 
-        # Explicit DCGM cleanup — prevents shutdown-time BadParam traceback
-        if hasattr(self.backend, "cleanup"):
-            self.backend.cleanup()
+        # No per run cleanup (G37): it closed the DCGM handle and every later
+        # run in the process recorded no GPU samples. Cleanup runs at exit
+        # (registered in start), which still prevents the BadParam traceback.
 
         return samples
 

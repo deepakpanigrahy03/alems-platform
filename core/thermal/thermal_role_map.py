@@ -46,7 +46,7 @@ THERMAL_ROLE_MAP: Dict[str, str] = {
     "TSKN":             "DPTF_SENSOR",
     "TAMB":             "AMBIENT",
 
-    # ── AMD (Alex machine) ─────────────────────────────────────────────────────
+    # ── AMD Ryzen platform ─────────────────────────────────────────────────────
     "k10temp":          "CPU_PACKAGE",   # AMD Ryzen CPU package
     "zenpower":         "CPU_PACKAGE",   # alternative AMD driver
     "amdgpu":           "GPU",           # AMD GPU
@@ -64,7 +64,7 @@ THERMAL_ROLE_MAP: Dict[str, str] = {
     "Tcpu_tegra":       "CPU_PACKAGE",
     "Tgpu_tegra":       "GPU",
 
-    # ── Apple Silicon (Stephen M1 Pro) ─────────────────────────────────────────
+    # ── Apple Silicon (M1 Pro) ─────────────────────────────────────────
     # Apple does not expose /sys/class/thermal — discovery returns empty list.
     # IOKit path handled by separate IOKitThermalReader (future chunk 16-F).
     # No entries needed here — role assignment happens in IOKit reader directly.

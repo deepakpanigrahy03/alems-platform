@@ -206,12 +206,17 @@ def main():
         description="Detect GPU hardware and populate gpu_config for A-LEMS")
     parser.add_argument('--db', default=None,
                         help="Path to experiments.db")
-    parser.add_argument('--hw-config', default='config/hw_config.json',
-                        help="Path to hw_config.json")
+    parser.add_argument('--hw-config', default=None,
+                        help="Path to hw_config.json (default: machine config resolver)")
     args = parser.parse_args()
 
-    with open(args.hw_config) as f:
-        hw_config = json.load(f)
+    if args.hw_config:
+        with open(args.hw_config) as f:
+            hw_config = json.load(f)
+    else:
+        # Same resolution as the runtime (design 7.13); independent of cwd.
+        from core.storage.resolver import resolve_hw_config
+        hw_config = resolve_hw_config()
 
     gpu_infos = []
  
@@ -235,7 +240,7 @@ def main():
         logger.info("Detected Intel integrated GPU: %s (backend=%s)",
                     intel['model'], intel['backend'])
  
-    # Apple Silicon — Stephen Abkin M1 Pro path
+    # Apple Silicon path (IOKit)
     apple_gpus = detect_apple_iokit()
     if apple_gpus:
         gpu_infos.extend(apple_gpus)

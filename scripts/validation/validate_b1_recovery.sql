@@ -103,7 +103,7 @@ WHERE recovery_strategy = 'full_restart'
   AND rollback_depth_turns != -1;
 -- Expected: 0
 
--- ── 12. Summary stats for Stephen ────────────────────────────────────────────
+-- ── 12. Summary stats for the recovery depth study ────────────────────────────────────────────
 SELECT 'SUMMARY: recovery events by depth' AS check_name;
 SELECT
     rollback_depth_turns,

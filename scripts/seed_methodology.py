@@ -345,7 +345,7 @@ def _load_measured_methods() -> List[Dict]:
             "description":   (
                 "nvmlDeviceGetTotalEnergyConsumption() returns cumulative mJ. "
                 "Converted to µJ. Available on NVIDIA drivers >= 340.x. "
-                "Validated on RTX 2070 Super (Alex Flesher) and GN100 GB10."
+                "Validated on RTX 2070 Super (AMD Ryzen platform) and GN100 GB10."
             ),
             "formula_latex": r"E_{gpu} = \Delta\text{NVML}_{energy} \times 1000\,\mu J/mJ",
             "parameters":    {"nvml_field": "totalEnergyConsumption", "unit": "mJ"},
@@ -395,7 +395,7 @@ def _load_measured_methods() -> List[Dict]:
             "description":   (
                 "Apple Silicon GPU energy via sudo powermetrics. "
                 "Instantaneous power integrated over sample interval. "
-                "Platform: Stephen Abkin M1 Pro. "
+                "Platform: Apple Silicon M1 Pro. "
                 "Confidence 0.90: Apple internal counter, not independently validated."
             ),
             "formula_latex": r"E_{gpu} = P_{gpu,powermetrics} \times \Delta t",

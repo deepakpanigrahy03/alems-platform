@@ -722,10 +722,36 @@ def execute_goal(
         # GPU samples
         if "gpu_samples" in final_result and final_result["gpu_samples"]:
             db.insert_gpu_samples(run_id, final_result["gpu_samples"])
+            # Parity with save_pair and save_single (G38b, EPS-1).
+            try:
+                from core.execution.experiment_runner import _convert_gpu_to_telemetry
+                telemetry = _convert_gpu_to_telemetry(final_result["gpu_samples"])
+                if telemetry:
+                    db.insert_device_telemetry(run_id, telemetry)
+            except Exception as _e:
+                logger.warning("execute_goal: device_telemetry insert failed run=%d: %s", run_id, _e)
         if "v2_samples" in final_result and final_result["v2_samples"]:
             db.insert_energy_samples_v2(run_id, final_result["v2_samples"])
         if "spbm_samples" in final_result and final_result["spbm_samples"]:
             db.insert_energy_samples_v2(run_id, final_result["spbm_samples"])
+        # Parity with save_pair and save_single (G38b, EPS-1): power rails,
+        # power limits, then the two SPBM ETLs in the same order.
+        if final_result.get("rail_result"):
+            try:
+                db.insert_power_rail_samples(run_id, final_result["rail_result"].samples)
+                db.insert_run_power_limits(run_id, final_result["rail_result"].limits_snapshot)
+            except Exception as _e:
+                logger.warning("execute_goal: power_rail insert failed run=%d: %s", run_id, _e)
+        try:
+            from scripts.etl.gpu_spbm_etl import process_one as _pgs
+            _pgs(run_id, conn)
+        except Exception as _e:
+            logger.warning("execute_goal: gpu_spbm_etl failed run=%d: %s", run_id, _e)
+        try:
+            from scripts.etl.spbm_telemetry_etl import process_run as _pst
+            _pst(run_id, final_result, conn)
+        except Exception as _e:
+            logger.warning("execute_goal: spbm_telemetry_etl failed run=%d: %s", run_id, _e)
         # CPU samples — x86 turbostat rows inserted directly; ARM and Darwin get one summary row
         if "cpu_samples" in final_result and final_result["cpu_samples"]:
             db.insert_cpu_samples(run_id, final_result["cpu_samples"])
@@ -765,6 +791,10 @@ def execute_goal(
         # Thermal samples
         if "thermal_samples" in final_result:
             db.insert_thermal_samples(run_id, final_result["thermal_samples"])
+        # NIC samples, parity with save_pair and save_single (G38b, EPS-1).
+        if final_result.get("nic_samples"):
+            from core.execution.experiment_runner import _insert_nic_samples
+            _insert_nic_samples(db, run_id, final_result["nic_samples"], conn=conn)
         try:
             from scripts.etl.network_energy_etl import process_run as _pne
             _pne(run_id, conn)

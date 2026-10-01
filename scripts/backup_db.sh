@@ -14,7 +14,7 @@ if [ ! -f "$DB_SRC" ]; then
 fi
 
 # Layer 1: NVMe internal (survives GM7000 disconnection)
-NVME_BACKUP_DIR=/home/dpani/alems-backups
+NVME_BACKUP_DIR=/${HOME}/alems-backups
 mkdir -p "$NVME_BACKUP_DIR"
 cp "$DB_SRC" "$NVME_BACKUP_DIR/experiments_${TIMESTAMP}.db"
 echo "✅ Layer 1 (NVMe): experiments_${TIMESTAMP}.db"

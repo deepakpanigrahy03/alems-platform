@@ -79,10 +79,10 @@ BASELINE_DOMAIN_MAP = {
     'cpu_e':     ('CPU_E',   None,                  None),       # no legacy column
     'gpu':       ('GPU',     'gpu_power_watts',     'gpu_std'),
     'gpu_dcgm':  ('GPU_DCGM', 'gpu_dcgm_power_watts', 'gpu_dcgm_std'),
-    # ---- Apple IOKit keys (Stephen M1) — Chunk 16F --------------------------
+    # ---- Apple IOKit keys (Apple Silicon) — Chunk 16F --------------------------
     'cpu':       ('CORE',    'core_power_watts',    'core_std'),
     'gpu_apple': ('GPU_APPLE', None,                None),
-    # ---- AMD keys (Alex Ryzen) — Chunk 16E ----------------------------------
+    # ---- AMD keys (AMD Ryzen) — Chunk 16E ----------------------------------
     'ccd0':      ('CCD0',    None,                  None),
     'ccd1':      ('CCD1',    None,                  None),
     'package':   ('PACKAGE', 'package_power_watts', 'package_std'),

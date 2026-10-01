@@ -42,7 +42,7 @@ def _get_platform_arch() -> str:
     ExperimentRunner.get_hardware_info()'s metadata.machine field without
     requiring access to a config_loader instance.
 
-    Returns 'aarch64' on GN100, 'x86_64' on UBUNTU2505/Alex, '' if unavailable.
+    Returns 'aarch64' on GN100, 'x86_64' on x86_64 platforms, '' if unavailable.
     """
     import json
     from pathlib import Path

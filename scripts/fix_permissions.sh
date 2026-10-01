@@ -127,7 +127,7 @@ if [ -f "config/hw_config.json" ]; then
     echo "  Reading paths from config/hw_config.json..."
     
     # Get absolute path to config for systemd service
-    CONFIG_ABS_PATH=$(realpath config/hw_config.json 2>/dev/null || echo "/home/dpani/mydrive/a-lems/config/hw_config.json")
+    CONFIG_ABS_PATH=$(realpath config/hw_config.json 2>/dev/null || echo "$(pwd)/config/hw_config.json")
     
     # Extract all sysfs_paths values using jq
     # The '?' handles missing keys gracefully

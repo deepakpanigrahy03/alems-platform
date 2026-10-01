@@ -70,11 +70,11 @@ DOMAIN_PREREG     = 29  # SPBM prereg power rail
 # source_id identifies which hardware interface produced the measurement
 # ---------------------------------------------------------------------------
 
-SOURCE_RAPL       = 1   # Intel RAPL sysfs (UBUNTU2505, Alex, TAMU)
+SOURCE_RAPL       = 1   # Intel RAPL sysfs (Intel and AMD x86_64 platforms)
 SOURCE_SPBM       = 2   # NVIDIA spark_hwmon SoC (GN100)
-SOURCE_NVML       = 3   # NVIDIA NVML cumulative counter (Alex RTX)
+SOURCE_NVML       = 3   # NVIDIA NVML cumulative counter (discrete NVIDIA GPUs)
 SOURCE_DCGM       = 4   # NVIDIA DCGM field 156 (GN100 GPU compute)
-SOURCE_IOKIT      = 5   # Apple IOKit power sensor (Stephen M1)
+SOURCE_IOKIT      = 5   # Apple IOKit power sensor (Apple Silicon)
 SOURCE_AMD_ENERGY = 6   # AMD amd_energy module (future AMD)
 SOURCE_SMI_INTEG  = 7   # nvidia-smi power integration (TAMU H100/Tesla)
 SOURCE_MSR_PP1    = 8   # Intel MSR 0x641 PP1 (UBUNTU2505 Iris Xe)

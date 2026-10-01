@@ -552,7 +552,8 @@ def apply_one(conn, filepath: Path, version: int, mtype: str,
         raise MigrationError(f"Migration {filepath.name} failed: {e}") from e
 
 
-def apply_machine_setup(conn, filepath: Path, hostname: str, machine_id, commit):
+def apply_machine_setup(conn, filepath: Path, hostname: str, machine_id, commit,
+                        record_name=None):
     """Same transaction pattern as apply_one, keyed by filename instead
     of version since machine setup scripts are not sequentially ordered
     relative to each other."""
@@ -563,7 +564,8 @@ def apply_machine_setup(conn, filepath: Path, hostname: str, machine_id, commit)
         "(filename, checksum_sha256, tool_version, duration_ms, status, "
         " hostname, machine_id, repo_commit) "
         "VALUES (?,?,?,?,?,?,?,?)",
-        [filepath.name, checksum, TOOL_VERSION, 0, "running", hostname, machine_id, commit],
+        [record_name or filepath.name, checksum, TOOL_VERSION, 0, "running",
+         hostname, machine_id, commit],
     )
     record_id = cur.lastrowid
     conn.commit()
@@ -715,6 +717,52 @@ def _update_sandbox_lock(conn) -> None:
         print(f"  Warning: could not update alems.lock: {exc}")
 
 
+def _detect_platform_class() -> str:
+    """platform_class of this machine from the machine hw_config (design 7.13)."""
+    import sys
+    try:
+        root = str(MIGRATIONS_DIR.parent)
+        if root not in sys.path:
+            sys.path.insert(0, root)
+        from core.storage.resolver import resolve_hw_config
+        return (resolve_hw_config() or {}).get("platform_class") or ""
+    except Exception as e:
+        print(f"WARNING: platform detection failed; platform seeds skipped: {e}")
+        return ""
+
+
+def discover_platform_seed_files(platform_class: str):
+    """Platform seed files for this machine's platform (G38a). Idempotent SQL."""
+    if not platform_class:
+        return []
+    d = MIGRATIONS_DIR / "platform" / platform_class
+    if not d.is_dir():
+        return []
+    return sorted(p for p in d.iterdir() if p.is_file() and p.suffix == ".sql")
+
+
+def _ensure_gpu_config(conn) -> None:
+    """Populate gpu_config for this store when empty (G39); never fails migrate."""
+    import os
+    import subprocess
+    import sys
+    try:
+        has = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='gpu_config'"
+        ).fetchone()
+        if not has or conn.execute("SELECT COUNT(*) FROM gpu_config").fetchone()[0]:
+            return
+        db_path = conn.execute("PRAGMA database_list").fetchone()[2]
+        root = MIGRATIONS_DIR.parent
+        env = dict(os.environ, PYTHONPATH=str(root))
+        subprocess.run(
+            [sys.executable, str(root / "scripts" / "detect_gpu.py"), "--db", db_path],
+            cwd=str(root), env=env, check=False, timeout=120,
+        )
+    except Exception as e:
+        print(f"WARNING: gpu_config provisioning failed: {e}")
+
+
 def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod") -> None:
     ensure_tables(conn)
     schema_files = discover_repo_files(SCHEMA_DIR, "v")
@@ -736,6 +784,18 @@ def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod")
     for filepath in pending_setup:
         apply_machine_setup(conn, filepath, hostname, machine_id, commit)
         print(f"Applied machine setup {filepath.name}")
+
+    # Platform seeds for this machine's platform, in every store (G38a).
+    platform_class = _detect_platform_class()
+    for filepath in discover_platform_seed_files(platform_class):
+        record = f"platform/{platform_class}/{filepath.name}"
+        if record not in applied_setup:
+            apply_machine_setup(conn, filepath, hostname, machine_id, commit,
+                                record_name=record)
+            print(f"Applied platform seed {record}")
+
+    # Device registry for this store (G39).
+    _ensure_gpu_config(conn)
  
     # --- Extension migrations (35D) ---
     # Run only when [extensions] active is present in app_settings.yaml.
