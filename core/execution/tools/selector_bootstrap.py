@@ -14,10 +14,11 @@ SPEC:   35H Part 3
 
 import logging
 
-from core.execution.tools.selector_registry import (
-    ToolSelectorRegistry, DuplicateToolSelectorError,
+from core.execution.tools.selector_registry import ToolSelectorRegistry
+from alems_sdk.manifest import (
+    ORIGIN_EXTERNAL, ORIGIN_LOCAL, PluginUnavailable,
 )
-from core.plugin_discovery import discover_plugins
+from core.registry.loader import load_group
 from alems import __version__ as _CORE_VERSION
 
 logger = logging.getLogger(__name__)
@@ -25,23 +26,26 @@ logger = logging.getLogger(__name__)
 selector_registry = ToolSelectorRegistry()
 
 
-def _safe_register(cls, config: dict = None) -> None:
-    try:
-        selector_registry.register(cls)
-    except DuplicateToolSelectorError:
-        raise
-    except Exception as exc:
-        logger.warning(
-            "selector_bootstrap: failed to register %s: %s — skipping",
-            getattr(cls, "__name__", repr(cls)), exc,
+def _register(cls, config: dict = None) -> None:
+    """
+    Register one selector if its capability check passes (family policy).
+
+    Raises PluginUnavailable when an optional dependency is missing, so the
+    loader lists it as unavailable instead of counting it as registered.
+    """
+    # Same construction as before 1a.3: is_available() only tries an import.
+    if not cls().is_available():
+        raise PluginUnavailable(
+            "%s: capability check failed (optional dependency missing)" % cls.__name__
         )
+    selector_registry.register(cls)
 
 
 def register_external_selector_plugins() -> None:
-    names = discover_plugins(
-        group="alems.tool_selectors",
-        register_fn=lambda cls, cfg: _safe_register(cls, cfg),
-        core_version=_CORE_VERSION,
+    """Register external and sandbox local selectors only."""
+    names = load_group(
+        "alems.tool_selectors", _register, _CORE_VERSION,
+        origins=(ORIGIN_EXTERNAL, ORIGIN_LOCAL),
     )
     if names:
         logger.info(
@@ -51,28 +55,12 @@ def register_external_selector_plugins() -> None:
 
 
 def register_all_selectors() -> None:
+    """Register every selector through the single plugin path. Idempotent."""
     if not selector_registry.is_empty():
         logger.debug("selector_bootstrap: already registered — skipping")
         return
-    logger.info("selector_bootstrap: registering builtin static selector (SPEC 35H)")
-    from core.execution.tools.static_selector import StaticToolSelector
-    _safe_register(StaticToolSelector)
-
-    # SPEC 35I: retrieval selector, optional — only registered if
-    # sentence-transformers is actually installed (requirements-selectors.txt).
-    try:
-        from core.execution.tools.retrieval_selector import RetrievalToolSelector
-        if RetrievalToolSelector().is_available():
-            _safe_register(RetrievalToolSelector)
-        else:
-            logger.info(
-                "selector_bootstrap: RetrievalToolSelector not available "
-                "(sentence-transformers not installed) — skipping"
-            )
-    except ImportError as exc:
-        logger.debug("selector_bootstrap: RetrievalToolSelector not importable: %s", exc)
-
-    register_external_selector_plugins()
+    logger.info("selector_bootstrap: registering selectors (SPEC 35H)")
+    load_group("alems.tool_selectors", _register, _CORE_VERSION)
     logger.info(
         "selector_bootstrap: registered %d selector(s): %s",
         len(selector_registry.get_all()), list(selector_registry.get_all().keys()),

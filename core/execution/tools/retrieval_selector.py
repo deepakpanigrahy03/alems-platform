@@ -80,6 +80,13 @@ def _is_extension_active(ext_name: str) -> bool:
 
 
 class RetrievalToolSelector(ToolSelectorABC):
+    """
+    Embedding retrieval tool selector: offers the top k tools by semantic similarity.
+
+    Requires sentence-transformers; the model loads lazily on first selection,
+    never in is_available().
+    """
+
     SELECTOR_TYPE = "retrieval"
 
     def __init__(self):

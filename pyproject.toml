@@ -86,6 +86,7 @@ builtin = "core.execution.tools.bootstrap:BuiltinToolProvider"
 
 [project.entry-points."alems.tool_selectors"]
 static = "core.execution.tools.static_selector:StaticToolSelector"
+retrieval = "core.execution.tools.retrieval_selector:RetrievalToolSelector"
 
 [project.entry-points."alems.frameworks"]
 builtin = "core.execution.frameworks.bootstrap:BuiltinFrameworkAdapter"

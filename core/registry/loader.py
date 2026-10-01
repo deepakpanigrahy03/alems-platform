@@ -19,7 +19,7 @@ from importlib.metadata import PackageNotFoundError, entry_points, version
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from alems_sdk.conformance import run_conformance
-from alems_sdk.manifest import origin_of as _origin_of
+from alems_sdk.manifest import PluginUnavailable, origin_of as _origin_of
 from alems_sdk.manifest import (
     ORIGIN_RUNTIME,
     ManifestError,
@@ -63,7 +63,8 @@ def _entry_points(group: str):
     return list(eps.get(group, []))
 
 
-def _refuse(group: str, name: str, stage: str, reason: object, explicit: bool) -> None:
+def _refuse(group: str, name: str, stage: str, reason: object, explicit: bool,
+            level: int = logging.WARNING) -> None:
     """Record the refusal, then apply the fatal or optional policy once."""
     from core.plugin_discovery import PluginLoadError
 
@@ -74,7 +75,8 @@ def _refuse(group: str, name: str, stage: str, reason: object, explicit: bool) -
             "Plugin '%s' in group '%s' is explicitly activated but was refused "
             "at %s: %s" % (name, group, stage, reason)
         )
-    logger.warning("plugin[%s]: '%s' refused at %s: %s", group, name, stage, reason)
+    # Unavailable optional dependencies are expected; real faults are warnings.
+    logger.log(level, "plugin[%s]: '%s' refused at %s: %s", group, name, stage, reason)
 
 
 def load_group(
@@ -183,6 +185,10 @@ def load_group(
         # Stage register: the family registry keeps its own keys.
         try:
             register_fn(cls, config)
+        except PluginUnavailable as exc:
+            # Family availability rule said no: visible, not a fault.
+            _refuse(group, name, "unavailable", exc, explicit, level=logging.INFO)
+            continue
         except Exception as exc:
             _refuse(group, name, "register", exc, explicit)
             continue

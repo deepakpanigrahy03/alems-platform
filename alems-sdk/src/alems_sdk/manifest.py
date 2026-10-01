@@ -65,6 +65,14 @@ ORIGIN_EXTERNAL = "external"   # any other installed distribution
 ORIGIN_LOCAL = "local"         # no distribution (sandbox local plugin, D3.1)
 
 
+class PluginUnavailable(Exception):
+    """
+    Raised by a family register function when its availability rule says no
+    (optional dependency missing). Recorded as a refusal at stage unavailable,
+    logged at info; still fatal for an explicitly activated plugin.
+    """
+
+
 class ManifestError(ValueError):
     """The manifest cannot be built or contradicts its entry point."""
 
@@ -242,6 +250,6 @@ def check_sdk_compat(manifest: PluginManifest, sdk_version: str) -> None:
 
 __all__ = [
     "GROUP_FAMILY", "RUNTIME_DISTRIBUTION", "ORIGIN_RUNTIME", "ORIGIN_EXTERNAL",
-    "ORIGIN_LOCAL", "ManifestError", "PluginManifest", "origin_of",
+    "ORIGIN_LOCAL", "ManifestError", "PluginManifest", "PluginUnavailable", "origin_of",
     "build_manifest", "check_sdk_compat",
 ]
