@@ -31,9 +31,10 @@ from typing import Any, Dict, List
 
 from core.execution.agentic import EXECUTION_STATUS_SUCCESS
 from core.execution.frameworks.abc import FrameworkAdapterABC, FrameworkResult
-from core.execution.frameworks.registry import FrameworkRegistry, DuplicateFrameworkError
+from core.execution.frameworks.registry import FrameworkRegistry
 from core.execution.tools.abc import ToolProviderABC
-from core.plugin_discovery import discover_plugins
+from alems_sdk.manifest import ORIGIN_EXTERNAL, ORIGIN_LOCAL, PluginUnavailable
+from core.registry.loader import load_group
 from alems import __version__ as _CORE_VERSION
 
 logger = logging.getLogger(__name__)
@@ -110,25 +111,26 @@ class BuiltinFrameworkAdapter(FrameworkAdapterABC):
         return True
 
 
-def _safe_register(cls, config: dict = None) -> None:
-    """Same pattern as scorer/tool bootstrap _safe_register."""
-    try:
-        framework_registry.register(cls)
-    except DuplicateFrameworkError:
-        raise
-    except Exception as exc:
-        logger.warning(
-            "framework_bootstrap: failed to register %s: %s — skipping",
-            getattr(cls, "__name__", repr(cls)), exc,
+def _register(cls, config: dict = None) -> None:
+    """
+    Register one framework if its capability check passes (family policy).
+
+    Raises PluginUnavailable when an optional dependency is missing, so the
+    loader lists it as unavailable instead of counting it as registered.
+    """
+    # Same construction as before 1a.3: is_available() checks imports only.
+    if not cls().is_available():
+        raise PluginUnavailable(
+            "%s: capability check failed (optional dependency missing)" % cls.__name__
         )
+    framework_registry.register(cls)
 
 
 def register_external_framework_plugins() -> None:
-    """Discover external framework plugins via entry_points(group="alems.frameworks")."""
-    names = discover_plugins(
-        group="alems.frameworks",
-        register_fn=lambda cls, cfg: _safe_register(cls, cfg),
-        core_version=_CORE_VERSION,
+    """Register external and sandbox local frameworks only."""
+    names = load_group(
+        "alems.frameworks", _register, _CORE_VERSION,
+        origins=(ORIGIN_EXTERNAL, ORIGIN_LOCAL),
     )
     if names:
         logger.info(
@@ -138,33 +140,12 @@ def register_external_framework_plugins() -> None:
 
 
 def register_all_frameworks() -> None:
-    """Register builtin, then discover external plugins. Idempotent."""
+    """Register every framework through the single plugin path. Idempotent."""
     if not framework_registry.is_empty():
         logger.debug("framework_bootstrap: already registered — skipping")
         return
-    logger.info("framework_bootstrap: registering builtin framework (SPEC 35G)")
-    _safe_register(BuiltinFrameworkAdapter)
-
-    # SPEC 35H Part 2: LangChain, built on the native-client architecture
-    # (see CHUNK_31_SUPPLEMENTARY_RESEARCH_v2.md) — LangChain uses its own
-    # ChatOllama client, not a TextGenABC bridge. Only registered if the
-    # optional langchain/langchain-ollama packages are actually installed;
-    # absence is not an error, same as any other optional plugin.
-    try:
-        from core.execution.frameworks.langchain_adapter import LangChainFrameworkAdapter
-        if LangChainFrameworkAdapter().is_available():
-            _safe_register(LangChainFrameworkAdapter)
-        else:
-            logger.info(
-                "framework_bootstrap: LangChainFrameworkAdapter not available "
-                "(langchain/langchain-ollama not installed) — skipping"
-            )
-    except ImportError as exc:
-        logger.debug(
-            "framework_bootstrap: LangChainFrameworkAdapter not importable: %s", exc
-        )
-
-    register_external_framework_plugins()
+    logger.info("framework_bootstrap: registering frameworks (SPEC 35G)")
+    load_group("alems.frameworks", _register, _CORE_VERSION)
     logger.info(
         "framework_bootstrap: registered %d framework(s): %s",
         len(framework_registry.get_all()), list(framework_registry.get_all().keys()),

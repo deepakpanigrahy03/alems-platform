@@ -133,6 +133,12 @@ def _tool_provider_to_langchain_tools(
 
 
 class LangChainFrameworkAdapter(FrameworkAdapterABC):
+    """
+    LangChain agent framework adapter: runs a task through a LangChain agent.
+
+    Requires langchain; is_available() checks the import only.
+    """
+
     FRAMEWORK_TYPE = "langchain"
 
     def execute_task(

@@ -90,6 +90,7 @@ retrieval = "core.execution.tools.retrieval_selector:RetrievalToolSelector"
 
 [project.entry-points."alems.frameworks"]
 builtin = "core.execution.frameworks.bootstrap:BuiltinFrameworkAdapter"
+langchain = "core.execution.frameworks.langchain_adapter:LangChainFrameworkAdapter"
 
 [project.entry-points."alems.outputs"]
 csv = "core.execution.outputs.csv_output:CSVOutputAdapter"
