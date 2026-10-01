@@ -94,6 +94,7 @@ def execute_goal(
     recovery_policy_id: str = "full_restart",
     cache_collector=None,
     writer=None,
+    quality_enabled: bool = False,
 ) -> Optional[int]:
     """
     Execute one goal (one workflow side) with full retry support.
@@ -605,6 +606,9 @@ def execute_goal(
     # (goal_execution_etl sums goal_attempt.energy_uj, INV-E4).
     run_id = None
     if final_result is not None:
+        # Same task_meta save_pair and save_single attach: the whole task dict,
+        # so scoring, goal_output and task columns work on this path (G86).
+        final_result["task_meta"] = task
         run_id = insert_one_run(db, exp_id, hw_id, final_result, workflow_type, rep_num)
     if run_id:
         all_run_ids = [run_id]
@@ -691,6 +695,14 @@ def execute_goal(
 
     # ETL — goal energy rollup after all attempts recorded
     goal_execution_etl.process_one(goal_id, conn)
+
+    # goal_output and quality scores: the same call save_pair and save_single
+    # make, after the goal ETL so attempt ids are committed (G76).
+    if final_result is not None:
+        from core.execution.experiment_runner import _run_quality_scoring  # late: cycle
+        _run_quality_scoring(db=db, goal_id=goal_id, result=final_result,
+                             workflow_type=workflow_type, conn=conn,
+                             quality_enabled=quality_enabled)
     # ETL runs synchronously above — queue_etl removed to prevent
     # pending entries that never get marked done (N40 fix)
  

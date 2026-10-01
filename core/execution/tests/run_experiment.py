@@ -273,7 +273,11 @@ def run_provider_task(
                             _overrides["backoff_seconds"] = args.backoff_seconds
                         if _overrides:
                             policy = _dc_replace(policy, **_overrides)
+                        # Full task first, so expectation, expected_answer and
+                        # category reach scoring and persistence (G86); the keys
+                        # execute_goal reads are then set explicitly as before.
                         task_dict = {
+                            **task,
                             "id":     task.get("id"),
                             "name":   task.get("name"),
                             "prompt": task["prompt"],
@@ -295,6 +299,7 @@ def run_provider_task(
                                 retry_adapter=_retry_adapter,
                                 recovery_policy_id=getattr(args, "recovery_policy_strategy", "full_restart"),
                                 cache_collector=getattr(args, "cache_collector", None),
+                                quality_enabled=getattr(args, "quality_enabled", False),
                             )
                             runs_completed += 1
                         if workflow_mode in ("agentic", "comparison"):
@@ -308,6 +313,7 @@ def run_provider_task(
                                 retry_adapter=_retry_adapter,
                                 recovery_policy_id=getattr(args, "recovery_policy_strategy", "full_restart"),
                                 cache_collector=getattr(args, "cache_collector", None),
+                                quality_enabled=getattr(args, "quality_enabled", False),
                             )
                             runs_completed += 1
                     else:

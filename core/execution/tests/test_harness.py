@@ -420,7 +420,11 @@ def _run_experiment(setup: dict, args) -> tuple:
                     policy = _retry_coordinator.load_policy(
                         db.db.conn, getattr(args, "policy_name", "default")
                     )
+                    # Full task first, so expectation, expected_answer and
+                    # category reach scoring and persistence (G86); the keys
+                    # execute_goal reads are then set explicitly as before.
                     task_dict = {
+                        **task,
                         "id":     task.get("id"),
                         "name":   task.get("name"),
                         "prompt": task_prompt,
@@ -439,6 +443,7 @@ def _run_experiment(setup: dict, args) -> tuple:
                             policy=policy, failure_injector=failure_injector,
                             repetitions=repetitions,
                             cache_collector=getattr(args, "cache_collector", None),
+                            quality_enabled=getattr(args, "quality_enabled", False),
                         )
                         runs_completed += 1
                     if workflow_mode in ("agentic", "comparison"):
@@ -450,6 +455,7 @@ def _run_experiment(setup: dict, args) -> tuple:
                             policy=policy, failure_injector=failure_injector,
                             repetitions=repetitions,
                             cache_collector=getattr(args, "cache_collector", None),
+                            quality_enabled=getattr(args, "quality_enabled", False),
                         )
                         runs_completed += 1
                 else:
