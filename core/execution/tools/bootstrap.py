@@ -24,7 +24,7 @@ import logging
 from typing import Any, Dict, List
 
 from core.execution.tools.abc import ToolDefinition, ToolExecutionContext, ToolProviderABC
-from core.execution.tools.registry import ToolRegistry, DuplicateToolProviderError
+from core.execution.tools.registry import ToolRegistry
 from core.execution.tools.real_tools import (
     CalculatorTool,
     DatabaseQueryTool,
@@ -34,7 +34,8 @@ from core.execution.tools.real_tools import (
     APIQueryTool,
     ToolResult,
 )
-from core.plugin_discovery import discover_plugins
+from alems_sdk.manifest import ORIGIN_EXTERNAL, ORIGIN_LOCAL
+from core.registry.loader import load_group
 from alems import __version__ as _CORE_VERSION
 
 logger = logging.getLogger(__name__)
@@ -158,23 +159,16 @@ class BuiltinToolProvider(ToolProviderABC):
         return True
 
 
-def _safe_register(cls, config: dict = None) -> None:
-    try:
-        tool_registry.register(cls)
-    except DuplicateToolProviderError:
-        raise
-    except Exception as exc:
-        logger.warning(
-            "tool_bootstrap: failed to register %s: %s — skipping",
-            getattr(cls, "__name__", repr(cls)), exc,
-        )
+def _register(cls, config: dict = None) -> None:
+    """Register one tool provider; failures become loader refusals (WP 1a.3 section 5)."""
+    tool_registry.register(cls)
 
 
 def register_external_tool_plugins() -> None:
-    names = discover_plugins(
-        group="alems.tools",
-        register_fn=lambda cls, cfg: _safe_register(cls, cfg),
-        core_version=_CORE_VERSION,
+    """Register external and sandbox local tool providers only (design 7.8)."""
+    names = load_group(
+        "alems.tools", _register, _CORE_VERSION,
+        origins=(ORIGIN_EXTERNAL, ORIGIN_LOCAL),
     )
     if names:
         logger.info(
@@ -184,12 +178,14 @@ def register_external_tool_plugins() -> None:
 
 
 def register_all_tool_providers() -> None:
+    """Register every tool provider through the single plugin path. Idempotent."""
     if not tool_registry.is_empty():
         logger.debug("tool_bootstrap: already registered — skipping")
         return
-    logger.info("tool_bootstrap: registering builtin tool provider (SPEC 35G/35H)")
-    _safe_register(BuiltinToolProvider)
-    register_external_tool_plugins()
+    logger.info("tool_bootstrap: registering tool providers (SPEC 35G/35H)")
+    # The builtin provider is defined in this module and enters through its
+    # own entry point (pyproject alems.tools builtin), like any provider (E21).
+    load_group("alems.tools", _register, _CORE_VERSION)
     logger.info(
         "tool_bootstrap: registered %d tool provider(s): %s",
         len(tool_registry.get_all()), list(tool_registry.get_all().keys()),
