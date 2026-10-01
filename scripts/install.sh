@@ -630,10 +630,11 @@ else:
 # engines, scorers, and harness components on any machine.
 echo "[+] Installing plugin packages editable..."
 cd "${PLATFORM_DIR}"
+venv/bin/pip install -e "${PROJECT_ROOT}"
 for pkg_dir in alems-sdk alems-plugin-*/; do
     if [ -f "${pkg_dir}/pyproject.toml" ]; then
         echo "    pip install -e ${pkg_dir}"
-        venv/bin/pip install -q -e "${pkg_dir}"
+        venv/bin/pip install -e "${pkg_dir}"
     fi
 done
 echo "    Plugin packages installed."

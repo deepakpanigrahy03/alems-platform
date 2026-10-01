@@ -186,6 +186,7 @@ def _cmd_create(argv: List[str]) -> int:
         "name": name,
         "author": os.environ.get("USER", "unknown"),
         "created_at": date.today().isoformat(),
+        "engine": str(_engine_root()),
         "engine_version": engine_version,
         "sdk_version": f">={engine_version},<{int(engine_version.split('.')[0]) + 1}.0.0",
         "description": "",
