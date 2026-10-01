@@ -14,7 +14,7 @@ Purpose:
 
     Adding a new internal reader:
         (a) Create the reader class file.
-        (b) Add one import + _safe_register() call below.
+        (b) Add an entry point under alems.readers.<family> in pyproject.toml.
         No factory.py changes needed.
 
 Import isolation:
@@ -52,9 +52,6 @@ disk_registry      = AdapterRegistry(family="disk")
 # NIC: not in registry in 35A — NICCollector handles selection internally.
 # Will be added when NICReaderABC is stable across all platforms.
 
-# ---------------------------------------------------------------------------
-# _safe_register: registration that never silently hides programming errors
-# ---------------------------------------------------------------------------
 
 # One table: family, entry point group, registry. Synthetic readers are in
 # their family groups (pyproject). Order never decides selection: select()

@@ -109,10 +109,9 @@ class LocalizedRecoveryPolicy(RecoveryPolicyAdapter):
 # Registry: maps POLICY_ID string to class.
 # Selected by YAML: recovery_policy.strategy: full_restart | localized
 # When chunk 31 plugin packaging lands, this registry gains entry_points discovery.
-_REGISTRY: dict[str, type[RecoveryPolicyAdapter]] = {
-    FullRestartPolicy.POLICY_ID:    FullRestartPolicy,
-    LocalizedRecoveryPolicy.POLICY_ID: LocalizedRecoveryPolicy,
-}
+# Filled only through the single plugin path (WP 1a.3, INV-2); see ensure_loaded.
+_REGISTRY: dict[str, type[RecoveryPolicyAdapter]] = {}
+_LOADED = False
 
 
 class RecoveryPolicyRegistry:
@@ -137,6 +136,7 @@ class RecoveryPolicyRegistry:
             ValueError if policy_id is unknown and not empty.
         """
         # Default to full_restart for backward compatibility (B1.6).
+        RecoveryPolicyRegistry.ensure_loaded()
         resolved = policy_id or "full_restart"
 
         cls = _REGISTRY.get(resolved)
@@ -146,6 +146,28 @@ class RecoveryPolicyRegistry:
                 f"Known policies: {list(_REGISTRY.keys())}"
             )
         return cls()
+
+    @staticmethod
+    def ensure_loaded() -> None:
+        """
+        Load alems.harness.recovery once through load_group (WP 1a.3 C6).
+
+        The first call happens at import of goal_execution_manager (its
+        module level RetryCoordinator), before any measurement window
+        (master 5.2a, G62).
+        """
+        global _LOADED
+        if _LOADED:
+            return
+        # Set first: a refused group must not be retried on every get().
+        _LOADED = True
+        from core.registry.loader import load_group  # late: avoid import cycle
+        from alems import __version__ as core_version
+        load_group(
+            "alems.harness.recovery",
+            lambda cls, cfg: RecoveryPolicyRegistry.register(cls),
+            core_version,
+        )
 
     @staticmethod
     def register(cls: type[RecoveryPolicyAdapter]) -> None:

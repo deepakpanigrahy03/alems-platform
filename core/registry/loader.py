@@ -102,7 +102,8 @@ def load_group(
         Entry point names registered, in discovery order.
     """
     # Late imports: plugin_discovery delegates here, avoid an import cycle.
-    from core.plugin_discovery import _load_plugin_meta, load_plugin_config
+    from core.plugin_discovery import _load_plugin_meta
+    from core.config.plugin_config import load_plugin_config
     from core.plugin_validator import _check_compat, _check_platform_constraint
 
     active = set(active_names or ())

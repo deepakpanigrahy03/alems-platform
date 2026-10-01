@@ -119,6 +119,9 @@ def main(out_path: str) -> int:
             lines.append("%s|ERROR|%s|-|-" % (label, exc))
             continue
         group = label.rstrip("*")
+        # Registries filled by load_group on first use (C6): load before reading.
+        if hasattr(reg, "ensure_loaded"):
+            reg.ensure_loaded()
         mapping = _mapping(reg)
         if not mapping:
             # Some registries keep a module level _REGISTRY dict.

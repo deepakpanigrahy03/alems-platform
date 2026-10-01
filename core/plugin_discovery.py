@@ -1,45 +1,23 @@
 """
 ================================================================================
-PLUGIN DISCOVERY — entry_points() Loading for External Plugins
+PLUGIN DISCOVERY HELPERS  —  core/plugin_discovery.py
 ================================================================================
 
 PURPOSE:
-    Discovers externally pip-installed adapters via importlib.metadata
-    entry_points() and registers them into the same family registries
-    used by the built-in bootstrap.* modules.
+    Shared helpers for the single plugin path (core.registry.loader.load_group):
+    PluginLoadError, raised when an explicitly activated plugin is refused,
+    and _load_plugin_meta, which reads ALEMS_PLUGIN_META from a plugin package.
 
-    This is additive to bootstrap.py, not a replacement. Full bootstrap
-    removal (SPEC 35E section 7) is a later, separate step that only
-    happens after entry_point discovery is verified end to end. Built-in
-    registration still runs first; this module discovers anything
-    installed on top of it.
-
-FAILURE SEMANTICS (SPEC 35E section 4):
-    Unrequested/optional plugin failure:
-        Discovered via entry_points but not explicitly named by the
-        caller's active_names. Import, validation, or registration
-        failure: log warning, skip, continue to the next entry point.
-        Readers/engines/platforms have no per-plugin activation list,
-        so every discovered plugin in those families is always
-        "optional" — pass active_names=None (the default).
-
-    Explicitly activated plugin failure:
-        Name appears in active_names. Failure raises PluginLoadError.
-        Only extensions have an activation list today (see
-        core/extensions/manager.py, which implements this case itself
-        rather than calling discover_plugins() directly).
+    Discovery and registration live only in core.registry.loader
+    (WP 39.5.1a.3, INV-2, D3.6). Built-in and external plugins take the same
+    path; stage order and refusal semantics are defined there.
 
 AUTHOR: Deepak Panigrahy
 ================================================================================
 """
 
 import logging
-from importlib.metadata import entry_points
-from typing import Callable, Iterable, List, Optional, Type
-
-from core.plugin_validator import PluginValidationError, validate_meta
-from core.config.plugin_config import load_plugin_config, PluginConfigError
-from alems_sdk.manifest import ORIGIN_EXTERNAL, ORIGIN_LOCAL
+from typing import Optional, Type
 
 logger = logging.getLogger(__name__)
 
@@ -48,52 +26,6 @@ class PluginLoadError(Exception):
     """Raised when an explicitly-activated plugin fails to load."""
 
 
-def discover_plugins(
-    group: str,
-    register_fn: Callable[[Type, dict], None],
-    core_version: str,
-    active_names: Optional[Iterable[str]] = None,
-) -> List[str]:
-    """
-    Discover and register all plugins for an entry_point group.
- 
-    After metadata validation, loads and validates plugin configuration
-    from app_settings.yaml plugins.<name> against the schema declared
-    by get_config_schema() on the adapter class.
-    The validated config dict is passed to register_fn alongside the
-    class so each bootstrap can inject it into the constructor.
- 
-    Args:
-        group: Entry point group name, e.g. "alems.readers.energy".
-        register_fn: Callable(cls, config) that registers a resolved
-            class into the target family registry.
-            config is a validated dict from load_plugin_config().
-        core_version: alems.__version__ of the running core, passed to
-            plugin_validator for alems_compat checks.
-        active_names: If provided, plugin names in this collection are
-            explicitly activated (failure raises PluginLoadError).
-            Names not in it are optional (failure logs and skips). If
-            None, every discovered plugin in this group is optional.
- 
-    Returns:
-        List of plugin identity names successfully registered.
-    """
-    # Delegates to the single plugin path (WP 1a.3). Runtime entry points stay
-    # excluded until each bootstrap is converted (C3); then this shim is deleted.
-    # Always returns a list, including on lookup failure (G63).
-    from core.registry.loader import load_group  # late: loader imports this module
-    return load_group(
-        group,
-        register_fn,
-        core_version,
-        active_names=active_names,
-        origins=(ORIGIN_EXTERNAL, ORIGIN_LOCAL),
-    )
-
-
-def _normalize(dist_name: str) -> str:
-    """Normalize a distribution name for comparison (PEP 503 style)."""
-    return dist_name.lower().replace("_", "-")
 
 def _load_plugin_meta(cls: Type) -> Optional[dict]:
     """
@@ -111,23 +43,3 @@ def _load_plugin_meta(cls: Type) -> Optional[dict]:
         return None
 
 
-def _handle_failure(
-    group: str, name: str, stage: str, reason: object, is_explicit: bool
-) -> None:
-    """
-    Apply the two-class failure semantics from SPEC 35E section 4.
-
-    Raises PluginLoadError for explicitly activated plugins so the
-    caller can convert it into a fatal startup error. Logs a warning
-    and returns for optional plugins so one broken plugin never blocks
-    discovery of the rest.
-    """
-    if is_explicit:
-        raise PluginLoadError(
-            f"Plugin '{name}' in group '{group}' is explicitly activated "
-            f"but failed at {stage}: {reason}"
-        )
-    logger.warning(
-        "plugin_discovery[%s]: optional plugin '%s' failed at %s: %s — skipping",
-        group, name, stage, reason,
-    )

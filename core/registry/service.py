@@ -255,7 +255,11 @@ class RegistryService:
         """
         # Import lazily to avoid circular dependency at module load.
         from alems_sdk.conformance import run_conformance
+        from alems_sdk.manifest import origin_of
+        from importlib.metadata import packages_distributions
 
+        # Origin by distribution, never by module name (WP 1a.3 4.1).
+        pkg_dists = packages_distributions()
         result = {}
         for group, (family, _accessor) in _GROUP_TABLE.items():
             if family not in result:
@@ -264,11 +268,8 @@ class RegistryService:
             rows = []
             for k, v in entries.items():
                 meta = getattr(v, "ALEMS_PLUGIN_META", {})
-                # Determine origin: first party if class lives in core.* or alems_sdk.*.
-                module = getattr(v, "__module__", "") or ""
-                origin = "first_party" if (
-                    module.startswith("core.") or module.startswith("alems_sdk.")
-                ) else "external"
+                top = (getattr(v, "__module__", "") or "").split(".")[0]
+                origin = origin_of((pkg_dists.get(top) or [None])[0])
                 report = run_conformance(k, meta, cls=v, origin=origin)
                 rows.append({
                     "name": k,

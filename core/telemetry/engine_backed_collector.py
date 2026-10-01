@@ -303,5 +303,4 @@ class EngineBackedCollector(CacheTelemetryCollector):
         return f"engine_backed({self._adapter.get_name()})"
 
 
-# Self-register into CacheTelemetryRegistry on import.
-CacheTelemetryRegistry.register(EngineBackedCollector)
+

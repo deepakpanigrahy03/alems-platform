@@ -56,6 +56,14 @@ logger = logging.getLogger(__name__)
 _retry_coordinator = RetryCoordinator()
 _failure_classifier = FailureClassifier()
 
+# Load harness plugin groups at import, before any measurement window
+# (master 5.2a, G62). Recovery is also loaded by RetryCoordinator() above;
+# both calls are idempotent.
+from core.recovery import RecoveryPolicyRegistry as _RecoveryRegistry
+from core.telemetry.cache_collector import CacheTelemetryRegistry as _CollectorRegistry
+_RecoveryRegistry.ensure_loaded()
+_CollectorRegistry.ensure_loaded()
+
 # Maps FailureClassifier types to tool_failure_events CHECK constraint values.
 # tool_failure_events CHECK differs from goal_attempt failure_type — normalize here.
 _TOOL_FAILURE_TYPE_MAP = {

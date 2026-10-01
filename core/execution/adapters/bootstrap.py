@@ -15,7 +15,7 @@ Purpose:
     Adding a new engine adapter:
         (a) Create the adapter class file subclassing TextGenABC or MediaABC.
         (b) Declare ENGINE_TYPE on the class.
-        (c) Add one import + _safe_register() call below.
+        (c) Add an entry point under alems.engines.<text or media> in pyproject.toml.
         No model_factory.py changes needed.
 
 Import isolation:

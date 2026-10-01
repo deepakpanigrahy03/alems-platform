@@ -95,9 +95,9 @@ class NoOpCollector(CacheTelemetryCollector):
 # Follows same pattern as RecoveryPolicyRegistry and ScorerRegistry.
 # ─────────────────────────────────────────────────────────────────────────────
 
-_REGISTRY: dict[str, type[CacheTelemetryCollector]] = {
-    NoOpCollector.COLLECTOR_ID: NoOpCollector,
-}
+# Filled only through the single plugin path (WP 1a.3, INV-2); see ensure_loaded.
+_REGISTRY: dict[str, type[CacheTelemetryCollector]] = {}
+_LOADED = False
 
 
 class CacheTelemetryRegistry:
@@ -126,6 +126,7 @@ class CacheTelemetryRegistry:
             ValueError if collector_id is unknown and not empty.
         """
         # Default to noop for all platforms without explicit config (B2.5).
+        CacheTelemetryRegistry.ensure_loaded()
         resolved = collector_id or "noop"
 
         cls = _REGISTRY.get(resolved)
@@ -136,6 +137,28 @@ class CacheTelemetryRegistry:
                 f"Add a collector class and call CacheTelemetryRegistry.register()."
             )
         return cls()
+
+    @staticmethod
+    def ensure_loaded() -> None:
+        """
+        Load alems.harness.collectors once through load_group (WP 1a.3 C6).
+
+        goal_execution_manager calls this at import, so get() during
+        recovery never reads package metadata inside a measurement
+        window (master 5.2a, G62).
+        """
+        global _LOADED
+        if _LOADED:
+            return
+        # Set first: a refused group must not be retried on every get().
+        _LOADED = True
+        from core.registry.loader import load_group  # late: avoid import cycle
+        from alems import __version__ as core_version
+        load_group(
+            "alems.harness.collectors",
+            lambda cls, cfg: CacheTelemetryRegistry.register(cls),
+            core_version,
+        )
 
     @staticmethod
     def register(cls: type[CacheTelemetryCollector]) -> None:

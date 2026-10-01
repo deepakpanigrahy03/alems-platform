@@ -18,7 +18,7 @@ PURPOSE:
     on top of the existing hardcoded built-in.
 
 IDENTITY MODEL:
-    discover_plugins()'s register_fn receives (cls, config) — it does
+    load_group()'s register_fn receives (cls, config) — it does
     not pass the entry-point name. Readers/engines/scorers/tools all
     read identity off a class attribute (METHOD_ID/ENGINE_TYPE/
     SCORER_TYPE/TOOL_PROVIDER_TYPE) for this exact reason. Database
