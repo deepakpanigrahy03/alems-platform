@@ -49,6 +49,7 @@ from core.execution.arm_cpu_sample_builder import _build_arm_cpu_sample_row
 from core.execution.sample_processor import calculate_thermal_metrics
 from core.attribution.legacy_v1.energy_attribution_etl import compute_energy_attribution
 from core.attribution.legacy_v1.duration_fix_etl import fix_run, fix_run_with_pretask
+from core.execution.run_persistence import finalize_run_stats
 from core.attribution.legacy_v1.ttft_tpot_etl import populate_run as populate_ttft_tpot
 from core.attribution.conservation_residual import compute_conservation_residual
 from core.vocabularies.agent.span_builder import build_spans_from_result
@@ -842,61 +843,10 @@ class ExperimentRunner:
     ) -> Dict:
         """
         Compute aggregated statistics for a run from samples.
-        This will populate runs table with correct averages.
+        Delegates to run_persistence.aggregate_run_stats (single implementation).
         """
-        stats = {
-            "run_id": run_id,
-            "cpu_busy_mhz": 0.0,
-            "cpu_avg_mhz": 0.0,
-            "package_temp_celsius": 0.0,
-            "max_temp_c": 0.0,
-            "min_temp_c": 0.0,
-            "interrupt_rate": 0.0,
-        }
-
-        # Aggregate CPU samples
-        if cpu_samples:
-            busy_freqs = [
-                s.get("cpu_busy_mhz", 0) for s in cpu_samples if s.get("cpu_busy_mhz")
-            ]
-            avg_freqs = [
-                s.get("cpu_avg_mhz", 0) for s in cpu_samples if s.get("cpu_avg_mhz")
-            ]
-            if busy_freqs:
-                stats["cpu_busy_mhz"] = sum(busy_freqs) / len(busy_freqs)
-            if avg_freqs:
-                stats["cpu_avg_mhz"] = sum(avg_freqs) / len(avg_freqs)
-
-        # BUG-04 real fix (2026-09-02): this function used to maintain its
-        # own independent thermal extraction (temps = [s.get("cpu_temp")...])
-        # duplicating calculate_thermal_metrics() in sample_processor.py,
-        # which harness.py already calls successfully for start_temp_c.
-        # Two independent implementations of the same computation is what
-        # made BUG-04 possible — one path worked, the other silently
-        # didn't, and nothing forced them to agree (see TECH_DEBT_LOG.md
-        # TD-1). Calling the SAME function here means package_temp_celsius,
-        # max_temp_c, and min_temp_c can never again diverge from
-        # start_temp_c's success/failure state on ANY platform — single
-        # source of truth, not a parallel one to keep in sync by hand.
-        start_temp_c, max_temp_c, min_temp_c, _thermal_delta_c = (
-            calculate_thermal_metrics(cpu_samples, thermal_samples)
-        )
-        if start_temp_c:
-            stats["package_temp_celsius"] = start_temp_c
-            stats["max_temp_c"] = max_temp_c
-            stats["min_temp_c"] = min_temp_c
-
-        # Aggregate interrupt samples
-        if interrupt_samples:
-            irq_rates = [
-                s.get("interrupts_per_sec", 0)
-                for s in interrupt_samples
-                if s.get("interrupts_per_sec")
-            ]
-            if irq_rates:
-                stats["interrupt_rate"] = sum(irq_rates) / len(irq_rates)
-
-        return stats
+        from core.execution.run_persistence import aggregate_run_stats as _agg
+        return _agg(run_id, cpu_samples, interrupt_samples, thermal_samples)
 
     # ========================================================================
     # DUPLICATE CODE 3: Database setup (similar in both scripts)
@@ -1484,65 +1434,7 @@ class ExperimentRunner:
                     logger.warning("cooling_samples insert failed (linear): %s", _e)
 
                 # After inserting samples, update runs with aggregated stats
-                linear_agg = self.aggregate_run_stats(
-                    linear_id,
-                    linear_result.get("cpu_samples", []),
-                    linear_result.get("interrupt_samples", []),
-                    linear_result.get("thermal_samples", []),
-                )
-                # ARM: preserve frequency_mhz from INSERT when cpu_samples empty
-                if not linear_agg.get("cpu_avg_mhz") and \
-                        linear_result.get("ml_features", {}).get("frequency_mhz"):
-                    linear_agg["cpu_avg_mhz"] = linear_result["ml_features"]["frequency_mhz"]
-                    linear_agg["cpu_busy_mhz"] = linear_result["ml_features"]["frequency_mhz"]
-                # Compute derived fields inline — no separate ETL needed.
-                # Works on all platforms: None when inputs unavailable. PAC-4.
-                _ml = linear_result.get("ml_features") or {}
-                _task_dur_s  = _ml.get("task_duration_sec") or 0
-                _fw_s        = _ml.get("framework_overhead_sec") or 0
-                _attr_uj     = _ml.get("attributed_energy_uj") or 0
-                _spbm_cov    = (_ml.get("spbm_telemetry_coverage") or {}).get(
-                    "spbm_sample_coverage_pct")
-                _phase_cov   = _ml.get("phase_sample_coverage_pct")
-                _gpu_dynamic = _ml.get("gpu_dynamic_energy_uj") or 0
-                _gpu_spbm    = _ml.get("gpu_total_energy_uj") or 0
-                # avg_task_power_watts = attributed_energy_uj / task_duration_s / 1e6
-                if _attr_uj and _task_dur_s:
-                    linear_agg["avg_task_power_watts"] = round(
-                        _attr_uj / 1_000_000.0 / _task_dur_s, 4)
-                # energy_sample_coverage_pct: SPBM preferred, phase fallback
-                # Apple IOKit: compute coverage from energy_sample_domains count
-                # IOKit samples at 200ms intervals (5 Hz)
-                _iokit_cov = None
-                if _spbm_cov is None and _phase_cov is None:
-                    _task_dur_ns = _ml.get("task_duration_ns") or 0
-                    _sample_count = _ml.get("energy_sample_count") or 0
-                    if _task_dur_ns > 0 and _sample_count > 0:
-                        _iokit_cov = min(
-                            (_sample_count * 200_000_000) / _task_dur_ns * 100, 100.0
-                        )
-                linear_agg["energy_sample_coverage_pct"] = (
-                    _spbm_cov if _spbm_cov is not None else
-                    _phase_cov if _phase_cov is not None else
-                    _iokit_cov)
-                # framework_overhead_energy_uj = avg_power_w * overhead_s * 1e6
-                if linear_agg.get("avg_task_power_watts") and _fw_s:
-                    linear_agg["framework_overhead_energy_uj"] = round(
-                        linear_agg["avg_task_power_watts"] * _fw_s * 1_000_000)
-                _is_spbm     = _ml.get("spbm_telemetry_coverage") is not None
-                if _is_spbm and _gpu_dynamic > 0:
-                    linear_agg["gpu_attribution_method"] = "dcgm_field156"
-                elif _is_spbm and _gpu_spbm > 0:
-                    linear_agg["gpu_attribution_method"] = "spbm_package_v1"
-                elif _ml.get("reader_method_id") == "iokit_power_reader" and _gpu_spbm > 0:
-                    linear_agg["gpu_attribution_method"] = "iokit_powermetrics"
-                elif not _is_spbm and _gpu_spbm > 0:
-                    linear_agg["gpu_attribution_method"] = "pp1_msr"
-                else:
-                    linear_agg["gpu_attribution_method"] = "none"
-                db.update_run_stats(linear_id, linear_agg)
-                if not linear_agg.get("energy_sample_coverage_pct"):
-                    db.runs.update_energy_sample_coverage(linear_id)
+                finalize_run_stats(db, linear_id, linear_result)
 
             # Insert agentic run
             agentic_id = db.insert_run(exp_id, hw_id, agentic_result)
@@ -1705,49 +1597,8 @@ class ExperimentRunner:
                 except Exception as _e:
                     logger.warning("cooling_samples insert failed (agentic): %s", _e)
 
-                agentic_agg = self.aggregate_run_stats(
-                    agentic_id,
-                    agentic_result.get("cpu_samples", []),
-                    agentic_result.get("interrupt_samples", []),
-                    agentic_result.get("thermal_samples", []),
-                )
-                # ARM: preserve frequency_mhz from INSERT when cpu_samples empty
-                if not agentic_agg.get("cpu_avg_mhz") and \
-                        agentic_result.get("ml_features", {}).get("frequency_mhz"):
-                    agentic_agg["cpu_avg_mhz"] = agentic_result["ml_features"]["frequency_mhz"]
-                    agentic_agg["cpu_busy_mhz"] = agentic_result["ml_features"]["frequency_mhz"]
-                # Compute derived fields inline — no separate ETL needed.
-                _ml = agentic_result.get("ml_features") or {}
-                _task_dur_s  = _ml.get("task_duration_sec") or 0
-                _fw_s        = _ml.get("framework_overhead_sec") or 0
-                _attr_uj     = _ml.get("attributed_energy_uj") or 0
-                _spbm_cov    = (_ml.get("spbm_telemetry_coverage") or {}).get(
-                    "spbm_sample_coverage_pct")
-                _phase_cov   = _ml.get("phase_sample_coverage_pct")
-                _gpu_dynamic = _ml.get("gpu_dynamic_energy_uj") or 0
-                _gpu_spbm    = _ml.get("gpu_total_energy_uj") or 0
-                if _attr_uj and _task_dur_s:
-                    agentic_agg["avg_task_power_watts"] = round(
-                        _attr_uj / 1_000_000.0 / _task_dur_s, 4)
-                agentic_agg["energy_sample_coverage_pct"] = (
-                    _spbm_cov if _spbm_cov is not None else _phase_cov)
-                if agentic_agg.get("avg_task_power_watts") and _fw_s:
-                    agentic_agg["framework_overhead_energy_uj"] = round(
-                        agentic_agg["avg_task_power_watts"] * _fw_s * 1_000_000)
-                _is_spbm     = _ml.get("spbm_telemetry_coverage") is not None
-                if _is_spbm and _gpu_dynamic > 0:
-                    agentic_agg["gpu_attribution_method"] = "dcgm_field156"
-                elif _is_spbm and _gpu_spbm > 0:
-                    agentic_agg["gpu_attribution_method"] = "spbm_package_v1"
-                elif _ml.get("reader_method_id") == "iokit_power_reader" and _gpu_spbm > 0:
-                    agentic_agg["gpu_attribution_method"] = "iokit_powermetrics"
-                elif not _is_spbm and _gpu_spbm > 0:
-                    agentic_agg["gpu_attribution_method"] = "pp1_msr"
-                else:
-                    agentic_agg["gpu_attribution_method"] = "none"
-                db.update_run_stats(agentic_id, agentic_agg)
-                if not agentic_agg.get("energy_sample_coverage_pct"):
-                    db.runs.update_energy_sample_coverage(agentic_id)
+                finalize_run_stats(db, agentic_id, agentic_result)
+
             # Agentic orchestration events
             if "orchestration_events" in agentic_result:
                 db.insert_orchestration_events(

@@ -32,6 +32,117 @@ from core.attribution.conservation_residual import compute_conservation_residual
 logger = logging.getLogger(__name__)
 
 
+def aggregate_run_stats(run_id, cpu_samples, interrupt_samples, thermal_samples=None):
+    # type: (int, list, list, Optional[list]) -> dict
+    """
+    Aggregate hardware stats for one run (single implementation, all paths).
+
+    Moved unchanged from ExperimentRunner.aggregate_run_stats. Temperatures use
+    calculate_thermal_metrics, the same function the harness uses for
+    start_temp_c, so they can never diverge (TD-1).
+
+    Returns:
+        dict for db.update_run_stats().
+    """
+    from core.execution.sample_processor import calculate_thermal_metrics
+
+    stats = {
+        "run_id": run_id,
+        "cpu_busy_mhz": 0.0,
+        "cpu_avg_mhz": 0.0,
+        "package_temp_celsius": 0.0,
+        "max_temp_c": 0.0,
+        "min_temp_c": 0.0,
+        "interrupt_rate": 0.0,
+    }
+    if cpu_samples:
+        busy = [s.get("cpu_busy_mhz", 0) for s in cpu_samples if s.get("cpu_busy_mhz")]
+        avg = [s.get("cpu_avg_mhz", 0) for s in cpu_samples if s.get("cpu_avg_mhz")]
+        if busy:
+            stats["cpu_busy_mhz"] = sum(busy) / len(busy)
+        if avg:
+            stats["cpu_avg_mhz"] = sum(avg) / len(avg)
+    start_c, max_c, min_c, _delta = calculate_thermal_metrics(cpu_samples, thermal_samples)
+    if start_c:
+        stats["package_temp_celsius"] = start_c
+        stats["max_temp_c"] = max_c
+        stats["min_temp_c"] = min_c
+    if interrupt_samples:
+        rates = [s.get("interrupts_per_sec", 0) for s in interrupt_samples
+                 if s.get("interrupts_per_sec")]
+        if rates:
+            stats["interrupt_rate"] = sum(rates) / len(rates)
+    return stats
+
+
+def derive_run_fields(agg, ml):
+    # type: (dict, dict) -> dict
+    """
+    Derived run columns from ml_features (single implementation, all paths).
+
+    Moved unchanged from save_pair: frequency fallback where turbostat is absent
+    (ARM), avg_task_power_watts, energy_sample_coverage_pct (SPBM, then phase,
+    then IOKit sample count), framework_overhead_energy_uj, gpu_attribution_method.
+    Every value is None or absent when its inputs are unavailable (PAC-4).
+    """
+    ml = ml or {}
+    if not agg.get("cpu_avg_mhz") and ml.get("frequency_mhz"):
+        agg["cpu_avg_mhz"] = ml["frequency_mhz"]
+        agg["cpu_busy_mhz"] = ml["frequency_mhz"]
+    task_dur_s = ml.get("task_duration_sec") or 0
+    fw_s = ml.get("framework_overhead_sec") or 0
+    attr_uj = ml.get("attributed_energy_uj") or 0
+    spbm_cov = (ml.get("spbm_telemetry_coverage") or {}).get("spbm_sample_coverage_pct")
+    phase_cov = ml.get("phase_sample_coverage_pct")
+    gpu_dynamic = ml.get("gpu_dynamic_energy_uj") or 0
+    gpu_spbm = ml.get("gpu_total_energy_uj") or 0
+    if attr_uj and task_dur_s:
+        agg["avg_task_power_watts"] = round(attr_uj / 1_000_000.0 / task_dur_s, 4)
+    # IOKit samples at 200 ms (5 Hz); used only when SPBM and phase are absent.
+    iokit_cov = None
+    if spbm_cov is None and phase_cov is None:
+        dur_ns = ml.get("task_duration_ns") or 0
+        count = ml.get("energy_sample_count") or 0
+        if dur_ns > 0 and count > 0:
+            iokit_cov = min((count * 200_000_000) / dur_ns * 100, 100.0)
+    agg["energy_sample_coverage_pct"] = (
+        spbm_cov if spbm_cov is not None else
+        phase_cov if phase_cov is not None else iokit_cov)
+    if agg.get("avg_task_power_watts") and fw_s:
+        agg["framework_overhead_energy_uj"] = round(agg["avg_task_power_watts"] * fw_s * 1_000_000)
+    is_spbm = ml.get("spbm_telemetry_coverage") is not None
+    if is_spbm and gpu_dynamic > 0:
+        agg["gpu_attribution_method"] = "dcgm_field156"
+    elif is_spbm and gpu_spbm > 0:
+        agg["gpu_attribution_method"] = "spbm_package_v1"
+    elif ml.get("reader_method_id") == "iokit_power_reader" and gpu_spbm > 0:
+        agg["gpu_attribution_method"] = "iokit_powermetrics"
+    elif not is_spbm and gpu_spbm > 0:
+        agg["gpu_attribution_method"] = "pp1_msr"
+    else:
+        agg["gpu_attribution_method"] = "none"
+    return agg
+
+
+def finalize_run_stats(db, run_id, result):
+    # type: (object, int, dict) -> None
+    """
+    Aggregate, derive, and store run stats; always runs (IMPROVEMENTS 11.3).
+
+    Falls back to the sample count coverage query when no coverage is known.
+    """
+    agg = aggregate_run_stats(
+        run_id,
+        result.get("cpu_samples", []),
+        result.get("interrupt_samples", []),
+        result.get("thermal_samples", []),
+    )
+    derive_run_fields(agg, result.get("ml_features"))
+    db.update_run_stats(run_id, agg)
+    if not agg.get("energy_sample_coverage_pct"):
+        db.runs.update_energy_sample_coverage(run_id)
+
+
 def _get_platform_arch() -> str:
     """
     Read cpu_architecture from config/hw_config.json.
@@ -299,19 +410,9 @@ class RunPersistenceService:
                 )
             except Exception as _e:
                 logger.warning("thermal_samples_v2 insert failed run_id=%d: %s", run_id, _e)
-            # Aggregate stats only after thermal samples exist — matches save_pair() order
-            agg = self._aggregate_run_stats(
-                run_id,
-                result.get("cpu_samples", []),
-                result.get("interrupt_samples", []),
-            )
-            # Preserve frequency_mhz from INSERT if turbostat samples empty (ARM).
-            # cpu_samples are turbostat-derived — absent on aarch64 where
-            # ARMCPUFreqReader data flows via derived.frequency_mhz at INSERT time.
-            if not agg.get("cpu_avg_mhz") and result.get("ml_features", {}).get("frequency_mhz"):
-                agg["cpu_avg_mhz"] = result["ml_features"]["frequency_mhz"]
-                agg["cpu_busy_mhz"] = result["ml_features"]["frequency_mhz"]
-            db.update_run_stats(run_id, agg)
+
+        # One aggregation and derivation for every path, always run (G83, 11.3).
+        finalize_run_stats(db, run_id, result)
 
     def _insert_summary_cpu_row(self, db, run_id: int, result: dict) -> None:
         """
@@ -466,50 +567,6 @@ class RunPersistenceService:
                 })
         return converted
 
-    def _aggregate_run_stats(
-        self,
-        run_id: int,
-        cpu_samples: list,
-        interrupt_samples: list,
-    ) -> dict:
-        """
-        Compute aggregated hardware stats from samples.
-
-        Pure computation — no DB access, no self state. Inlined here to avoid
-        importing ExperimentRunner (circular dependency risk). Logic mirrors
-        ExperimentRunner.aggregate_run_stats() exactly — keep in sync.
-        Returns dict suitable for db.update_run_stats().
-        """
-        stats = {
-            "run_id": run_id,
-            "cpu_busy_mhz": 0.0,
-            "cpu_avg_mhz": 0.0,
-            "package_temp_celsius": 0.0,
-            "max_temp_c": 0.0,
-            "min_temp_c": 0.0,
-            "interrupt_rate": 0.0,
-        }
-
-        if cpu_samples:
-            busy_freqs = [s.get("cpu_busy_mhz", 0) for s in cpu_samples if s.get("cpu_busy_mhz")]
-            avg_freqs  = [s.get("cpu_avg_mhz", 0)  for s in cpu_samples if s.get("cpu_avg_mhz")]
-            # Temperature NOT read from cpu_samples (turbostat) — unreliable
-            # on x86 after version changes and empty on ARM.
-            # ThermalAggregator reads from v_thermal_cpu after run completes.
-            if busy_freqs:
-                stats["cpu_busy_mhz"] = sum(busy_freqs) / len(busy_freqs)
-            if avg_freqs:
-                stats["cpu_avg_mhz"] = sum(avg_freqs) / len(avg_freqs)
-
-        if interrupt_samples:
-            irq_rates = [
-                s.get("interrupts_per_sec", 0)
-                for s in interrupt_samples if s.get("interrupts_per_sec")
-            ]
-            if irq_rates:
-                stats["interrupt_rate"] = sum(irq_rates) / len(irq_rates)
-
-        return stats
 
 
 # Module-level singleton — stateless, safe to share
