@@ -167,6 +167,10 @@ def _get_platform_arch() -> str:
         return ""
 
 
+class PersistenceError(RuntimeError):
+    """A run could not be persisted. Raised so no path can lose a run silently (G88)."""
+
+
 class RunPersistenceService:
     """
     Owns the full lifecycle of persisting one harness result to the DB.
@@ -183,6 +187,7 @@ class RunPersistenceService:
         result: dict,
         workflow_type: str,
         rep_num: int,
+        after_run_row=None,
     ) -> Optional[int]:
         """
         Persist one completed harness result with all samples and ETL.
@@ -202,10 +207,7 @@ class RunPersistenceService:
             run_id (int) or None on failure.
         """
         if workflow_type not in ("linear", "agentic"):
-            logger.warning(
-                "insert_one_run: invalid workflow_type=%r — aborting", workflow_type
-            )
-            return None
+            raise PersistenceError("invalid workflow_type=%r" % (workflow_type,))
 
         # run_number must be stamped before insert so ETL sees it
         result["ml_features"]["run_number"] = rep_num
@@ -213,7 +215,14 @@ class RunPersistenceService:
         with db.transaction():
             run_id = self._insert_run_row(db, exp_id, hw_id, result, workflow_type)
             if run_id is None:
-                return None
+                # Visible on every path (G88); the transaction rolls back.
+                raise PersistenceError(
+                    "insert_run returned None (exp_id=%s, workflow=%s)" % (exp_id, workflow_type)
+                )
+            if after_run_row is not None:
+                # Caller hook inside the transaction, right after the run row:
+                # span flush and attempt span id backfill (EEI-4).
+                after_run_row(run_id)
             self._insert_samples(db, run_id, result)
             self._insert_events(db, run_id, result)
 

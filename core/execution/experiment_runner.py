@@ -49,7 +49,7 @@ from core.execution.arm_cpu_sample_builder import _build_arm_cpu_sample_row
 from core.execution.sample_processor import calculate_thermal_metrics
 from core.attribution.legacy_v1.energy_attribution_etl import compute_energy_attribution
 from core.attribution.legacy_v1.duration_fix_etl import fix_run, fix_run_with_pretask
-from core.execution.run_persistence import finalize_run_stats
+from core.execution.run_persistence import RunPersistenceService
 from core.attribution.legacy_v1.ttft_tpot_etl import populate_run as populate_ttft_tpot
 from core.attribution.conservation_residual import compute_conservation_residual
 from core.vocabularies.agent.span_builder import build_spans_from_result
@@ -63,6 +63,19 @@ from core.execution.expectation.schema import Expectation
 from core.execution.expectation.adapter import TaskExpectationAdapter
 from core.execution import judgment_engine
 from core.execution.judgment_types import JudgmentResult
+
+
+def _span_hook(db, wconn, writer):
+    """
+    Return the after_run_row hook that flushes one SpanWriter for a run.
+
+    Same two calls save_pair and save_single made right after insert_run.
+    """
+    def _hook(run_id):
+        writer.flush_to_db(db, run_id)
+        _backfill_attempt_span_id(wconn, run_id, writer)
+    return _hook
+
 # OutputQualityExtension loaded conditionally via entry point (39.5a).
 # Direct import removed — extension must be declared in alems.extensions
 # and quality.enabled=true in the experiment config to take effect.
@@ -1253,357 +1266,19 @@ class ExperimentRunner:
         build_spans_from_result(_linear_writer, _linear_span_id, linear_result, "linear", _hw_info_spans)
         build_spans_from_result(_agentic_writer, _agentic_span_id, agentic_result, "agentic", _hw_info_spans)
 
+        # All persistence for both runs through the one writer (C3, G77).
+        # Each run commits on its own; spans flush right after each run row.
+        _persist = RunPersistenceService()
+        linear_id = _persist.insert_one_run(
+            db, exp_id, hw_id, linear_result, "linear", rep_num,
+            after_run_row=_span_hook(db, _wconn, _linear_writer),
+        )
+        agentic_id = _persist.insert_one_run(
+            db, exp_id, hw_id, agentic_result, "agentic", rep_num,
+            after_run_row=_span_hook(db, _wconn, _agentic_writer),
+        )
+
         with db.transaction():
-            # Insert linear run
-            linear_id = db.insert_run(exp_id, hw_id, linear_result)
-            record_run_provenance(db, linear_id, linear_result,
-                      reader_mode=linear_result.get("reader_mode"))
-            self._validate_run(db, linear_id, hw_id)
-            # Flush linear span — after insert_run so run_id is known (EEI-4).
-            _linear_writer.flush_to_db(db, linear_id)
-            _backfill_attempt_span_id(_wconn, linear_id, _linear_writer)
-            # Stub row so ETL _backfill_normalization_factors never skips this run
-            _linear_meta = linear_result.get("task_meta", {}) or {}
-            _wconn.execute(
-                "INSERT OR IGNORE INTO normalization_factors (run_id, task_category, workload_type) VALUES (?, ?, ?)",
-                (linear_id, _linear_meta.get("category", "custom"), "linear"),
-            )
-
-            # Linear energy samples
-            if "energy_samples" in linear_result:
-                converted = []
-                for sample in linear_result["energy_samples"]:
-                    if isinstance(sample, dict):
-                        # Chunk 2: new dict format — use directly
-                        converted.append(sample)
-                    elif len(sample) == 2 and isinstance(sample[1], dict):
-                        # backward compat — old tuple format (timestamp, energy_dict)
-                        timestamp, energy_dict = sample
-                        converted.append({
-                            "timestamp_ns":    int(timestamp * 1_000_000_000),
-                            "pkg_energy_uj":   energy_dict.get("PACKAGE", energy_dict.get("package-0", 0)),
-                            "core_energy_uj":  energy_dict.get("CORE", energy_dict.get("CPU_P", energy_dict.get("core", 0))),
-                            "uncore_energy_uj": energy_dict.get("UNCORE", energy_dict.get("uncore", 0)),
-                            "dram_energy_uj":  0,
-                        })
-                if converted:
-                    db.insert_energy_samples(linear_id, converted)
-            # GPU samples — empty list if NoneBackend, safe to call always
-            if "gpu_samples" in linear_result and linear_result["gpu_samples"]:
-                db.insert_gpu_samples(linear_id, linear_result["gpu_samples"])
-                # BUG-02 fix (2026-09-06): this device_telemetry conversion
-                # was incorrectly nested inside the "legacy_samples" branch
-                # below, so it only ran when legacy_samples happened to be
-                # non-empty — completely unrelated to whether real GPU data
-                # existed. Confirmed via live runs: gpu_samples had 4-215
-                # real rows across the last 10 runs, device_telemetry was 0
-                # in every single one, because this block never executed
-                # at all. Moved under the actual gpu_samples condition it
-                # depends on.
-                try:
-                    telemetry = _convert_gpu_to_telemetry(linear_result["gpu_samples"])
-                    if telemetry:
-                        db.insert_device_telemetry(linear_id, telemetry)
-                except Exception as e:
-                    logger.warning("device_telemetry insert failed (linear): %s", e)
-            if "v2_samples" in linear_result and linear_result["v2_samples"]:
-                db.insert_energy_samples_v2(linear_id, linear_result["v2_samples"])
-            if "legacy_samples" in linear_result and linear_result["legacy_samples"]:
-                db.insert_energy_samples(linear_id, linear_result["legacy_samples"])                
-            # SPBM samples — EnergySampleV2 list, empty on non-GN100 platforms
-            if "spbm_samples" in linear_result and linear_result["spbm_samples"]:
-                db.insert_energy_samples_v2(linear_id, linear_result["spbm_samples"])
-            if "rail_result" in linear_result and linear_result["rail_result"]:
-                try:
-                    db.insert_power_rail_samples(linear_id, linear_result["rail_result"].samples)
-                    db.insert_run_power_limits(linear_id, linear_result["rail_result"].limits_snapshot)
-                except Exception as e:
-                    logger.warning("power_rail insert failed (linear): %s", e)    
-            try:
-                from scripts.etl.gpu_spbm_etl import process_one as _pgs
-                _pgs(linear_id, _wconn)
-            except Exception as _e:
-                logger.warning("gpu_spbm_etl failed linear run_id=%d: %s", linear_id, _e)
-            try:
-                from scripts.etl.spbm_telemetry_etl import process_run as _pst
-                _pst(linear_id, linear_result, _wconn)
-            except Exception as _e:
-                logger.warning("spbm_telemetry_etl failed linear run_id=%d: %s", linear_id, _e)
-            # Linear CPU samples
-            if "cpu_samples" in linear_result:
-                db.insert_cpu_samples(linear_id, linear_result["cpu_samples"])
-            # SPEC_03A: NIC samples
-            if linear_result.get("nic_samples"):
-                _insert_nic_samples(db, linear_id, linear_result["nic_samples"], conn=_wconn)
-            # 16D3: ARM — write summary cpu_samples row from PerformanceCounters.
-            # On x86, turbostat already wrote continuous rows above.
-            # On aarch64, turbostat is absent; ARMPMUReader fills PerformanceCounters.
-            # aggregate_hardware_metrics ETL (called below) reads SUM() from cpu_samples
-            # so one summary row is sufficient for paper-level l1/l2/l3 columns in runs.
-            _hw_info = self.get_hardware_info()
-            _caps_arch = (_hw_info.get('cpu_architecture') or '').lower()
-            if _caps_arch == 'aarch64':
-                _arm_row = _build_arm_cpu_sample_row(linear_id, linear_result)
-                if _arm_row:
-                    _r = db.get_run(linear_id)
-                    if _r:
-                        _arm_row['sample_start_ns'] = _r.get('start_time_ns')
-                        _arm_row['sample_end_ns']   = _r.get('end_time_ns')
-                        _arm_row['timestamp_ns']    = _r.get('end_time_ns')
-                    db.insert_cpu_samples(linear_id, [_arm_row])
-            elif platform.system() == 'Darwin':
-                # Darwin: one summary row from KPerfPMUReader (mirrors ARM pattern)
-                _de = linear_result.get('derived_energy', {})
-                _perf = _de.get('performance', {}) if isinstance(_de, dict) else {}
-                _ml = linear_result.get('ml_features', {}) or {}
-                _darwin_row = _build_darwin_cpu_sample_row(linear_id, linear_result)
-                if _darwin_row:
-                    _r = db.get_run(linear_id)
-                    if _r:
-                        _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
-                        _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
-                        _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
-                        _darwin_row['interval_ns'] = (
-                            (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
-                        )
-                    try:
-                        db.insert_cpu_samples(linear_id, [_darwin_row])
-                        logger.info("darwin cpu_samples inserted run_id=%d", linear_id)
-                    except Exception as _e:
-                        logger.warning("darwin cpu_samples insert failed run_id=%d: %s", linear_id, _e)
-            # cpu_idle_states: ARM path — cpuidle sysfs cumulative residency
-            if _caps_arch == 'aarch64':
-                try:
-                    db.cpu_idle.write_from_cpuidle_sysfs(linear_id, platform="grace_aarch64")
-                except Exception as _e:
-                    logger.warning("cpu_idle_states ARM insert failed (linear): %s", _e)
-            else:
-                # cpu_idle_states: x86 path — prefer turbostat, fall back to cpuidle sysfs
-                # AMD Zen 2 turbostat crashes (SIGABRT in rapl_perf_init),
-                # cpu_samples is empty. cpuidle sysfs verified working on AMD.
-                try:
-                    _cpu_vendor = (_hw_info.get('cpu_vendor') or 'intel').lower()
-                    _idle_platform = "amd_x86_64" if _cpu_vendor == 'amd' else "intel_x86_64"
-                    _cpu_samples = linear_result.get("cpu_samples", [])
-                    if _cpu_samples:
-                        db.cpu_idle.write_from_turbostat(
-                            linear_id,
-                            _cpu_samples,
-                            platform=_idle_platform,
-                        )
-                    elif os.path.exists("/sys/devices/system/cpu/cpu0/cpuidle/state0"):
-                        db.cpu_idle.write_from_cpuidle_sysfs(linear_id, platform=_idle_platform)
-                    else:
-                        logger.info("cpu_idle_states: no turbostat data and no cpuidle sysfs, skipping")
-                except Exception as _e:
-                    logger.warning("cpu_idle_states x86 insert failed (linear): %s", _e)
-
-            # Linear interrupt samples
-            if "interrupt_samples" in linear_result:
-                db.insert_interrupt_samples(
-                    linear_id, linear_result["interrupt_samples"]
-                )
-            if "io_samples" in linear_result:
-                db.insert_io_samples(linear_id, linear_result["io_samples"])    
-
-            # Save thermal samples
-            if "thermal_samples" in linear_result:
-                db.insert_thermal_samples(linear_id, linear_result["thermal_samples"])
-                print(
-                    f"🔍 DEBUG - Saving {len(linear_result['thermal_samples'])} thermal samples for run {linear_id}"
-                )
-                # Thermal V2: write per-zone rows to thermal_samples_v2
-                try:
-                    import socket as _socket
-                    db.thermal.insert_thermal_samples_v2(
-                        linear_id,
-                        linear_result["thermal_samples"],
-                        _socket.gethostname().lower(),
-                    )
-                except Exception as _e:
-                    logger.warning("thermal_samples_v2 insert failed (linear): %s", _e)
-                # 16D2a: cooling_samples — end-of-run snapshot of cooling device state
-                try:
-                    import socket as _socket_cool
-                    _n_cool = db.cooling.snapshot_cooling_state(
-                        linear_id,
-                        _socket_cool.gethostname().lower(),
-                    )
-                    logger.debug("cooling_samples: wrote %d rows for run %d", _n_cool, linear_id)
-                except Exception as _e:
-                    logger.warning("cooling_samples insert failed (linear): %s", _e)
-
-                # After inserting samples, update runs with aggregated stats
-                finalize_run_stats(db, linear_id, linear_result)
-
-            # Insert agentic run
-            agentic_id = db.insert_run(exp_id, hw_id, agentic_result)
-            _agentic_writer.flush_to_db(db, agentic_id)
-            record_run_provenance(db, agentic_id, agentic_result,
-                      reader_mode=agentic_result.get("reader_mode"))
-            self._validate_run(db, agentic_id, hw_id)
-            # Stub row so ETL _backfill_normalization_factors never skips this run
-            _agentic_meta = agentic_result.get("task_meta", {}) or {}
-            _wconn.execute(
-                "INSERT OR IGNORE INTO normalization_factors (run_id, task_category, workload_type) VALUES (?, ?, ?)",
-                (agentic_id, _agentic_meta.get("category", "custom"), "agentic"),
-            )
-
-            # Agentic energy samples
-            if "energy_samples" in agentic_result:
-                converted = []
-                for sample in agentic_result["energy_samples"]:
-                    if isinstance(sample, dict):
-                        # Chunk 2: new dict format — use directly
-                        converted.append(sample)
-                    elif len(sample) == 2 and isinstance(sample[1], dict):
-                        # backward compat — old tuple format (timestamp, energy_dict)
-                        timestamp, energy_dict = sample
-                        converted.append({
-                            "timestamp_ns":    int(timestamp * 1_000_000_000),
-                            "pkg_energy_uj":   energy_dict.get("PACKAGE", energy_dict.get("package-0", 0)),
-                            "core_energy_uj":  energy_dict.get("CORE", energy_dict.get("CPU_P", energy_dict.get("core", 0))),
-                            "uncore_energy_uj": energy_dict.get("UNCORE", energy_dict.get("uncore", 0)),
-                            "dram_energy_uj":  0,
-                        })
-                if converted:
-                    db.insert_energy_samples(agentic_id, converted)
-            # GPU samples — empty list if NoneBackend, safe to call always
-            if "gpu_samples" in agentic_result and agentic_result["gpu_samples"]:
-                db.insert_gpu_samples(agentic_id, agentic_result["gpu_samples"])
-                # BUG-02 fix (2026-09-06): moved from under "legacy_samples"
-                # (unrelated condition) to under gpu_samples, where it
-                # actually belongs. See same fix at the linear call site.
-                try:
-                    telemetry = _convert_gpu_to_telemetry(agentic_result["gpu_samples"])
-                    if telemetry:
-                        db.insert_device_telemetry(agentic_id, telemetry)
-                except Exception as e:
-                    logger.warning("device_telemetry insert failed (agentic): %s", e)
-            if "v2_samples" in agentic_result and agentic_result["v2_samples"]:
-                db.insert_energy_samples_v2(agentic_id, agentic_result["v2_samples"])
-            if "legacy_samples" in agentic_result and agentic_result["legacy_samples"]:
-                db.insert_energy_samples(agentic_id, agentic_result["legacy_samples"])             
-            # SPBM samples — EnergySampleV2 list, empty on non-GN100 platforms
-            if "spbm_samples" in agentic_result and agentic_result["spbm_samples"]:
-                db.insert_energy_samples_v2(agentic_id, agentic_result["spbm_samples"])
-            if "rail_result" in agentic_result and agentic_result["rail_result"]:
-                try:
-                    db.insert_power_rail_samples(agentic_id, agentic_result["rail_result"].samples)
-                    db.insert_run_power_limits(agentic_id, agentic_result["rail_result"].limits_snapshot)
-                except Exception as e:
-                    logger.warning("power_rail insert failed (agentic): %s", e)
-            try:
-                from scripts.etl.gpu_spbm_etl import process_one as _pgs
-                _pgs(agentic_id, _wconn)
-            except Exception as _e:
-                logger.warning("gpu_spbm_etl failed agentic run_id=%d: %s", agentic_id, _e)
-            try:
-                from scripts.etl.spbm_telemetry_etl import process_run as _pst
-                _pst(agentic_id, agentic_result, _wconn)
-            except Exception as _e:
-                logger.warning("spbm_telemetry_etl failed agentic run_id=%d: %s", agentic_id, _e)
-            # Agentic CPU samples
-            if "cpu_samples" in agentic_result:
-                db.insert_cpu_samples(agentic_id, agentic_result["cpu_samples"])
-            # SPEC_03A: NIC samples
-            if agentic_result.get("nic_samples"):
-                _insert_nic_samples(db, agentic_id, agentic_result["nic_samples"], conn=_wconn)
-            # 16D3: ARM — write summary cpu_samples row from PerformanceCounters.
-            _hw_info = self.get_hardware_info()
-            _caps_arch = (_hw_info.get('cpu_architecture') or '').lower()
-            if _caps_arch == 'aarch64':
-                _arm_row = _build_arm_cpu_sample_row(agentic_id, agentic_result)
-                if _arm_row:
-                    _r = db.get_run(agentic_id)
-                    if _r:
-                        _arm_row['sample_start_ns'] = _r.get('start_time_ns')
-                        _arm_row['sample_end_ns']   = _r.get('end_time_ns')
-                        _arm_row['timestamp_ns']    = _r.get('end_time_ns')
-                    db.insert_cpu_samples(agentic_id, [_arm_row])
-            elif platform.system() == 'Darwin':
-                _darwin_row = _build_darwin_cpu_sample_row(agentic_id, agentic_result)
-                if _darwin_row:
-                    _r = db.get_run(agentic_id)
-                    if _r:
-                        _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
-                        _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
-                        _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
-                        _darwin_row['interval_ns'] = (
-                            (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
-                        )
-                    try:
-                        db.insert_cpu_samples(agentic_id, [_darwin_row])
-                    except Exception as _e:
-                        logger.warning("darwin cpu_samples insert failed agentic run_id=%d: %s", agentic_id, _e)
-            # cpu_idle_states: ARM path
-            if _caps_arch == 'aarch64':
-                try:
-                    db.cpu_idle.write_from_cpuidle_sysfs(agentic_id, platform="grace_aarch64")
-                except Exception as _e:
-                    logger.warning("cpu_idle_states ARM insert failed (agentic): %s", _e)
-            else:
-                # cpu_idle_states: x86 path — prefer turbostat, fall back to cpuidle sysfs
-                # AMD Zen 2 turbostat crashes (SIGABRT in rapl_perf_init),
-                # cpu_samples is empty. cpuidle sysfs verified working on AMD.
-                try:
-                    _cpu_vendor = (_hw_info.get('cpu_vendor') or 'intel').lower()
-                    _idle_platform = "amd_x86_64" if _cpu_vendor == 'amd' else "intel_x86_64"
-                    _cpu_samples = agentic_result.get("cpu_samples", [])
-                    if _cpu_samples:
-                        db.cpu_idle.write_from_turbostat(
-                            agentic_id,
-                            _cpu_samples,
-                            platform=_idle_platform,
-                        )
-                    elif os.path.exists("/sys/devices/system/cpu/cpu0/cpuidle/state0"):
-                        db.cpu_idle.write_from_cpuidle_sysfs(agentic_id, platform=_idle_platform)
-                    else:
-                        logger.info("cpu_idle_states: no turbostat data and no cpuidle sysfs, skipping")
-                except Exception as _e:
-                    logger.warning("cpu_idle_states x86 insert failed (agentic): %s", _e)
-
-            # Agentic interrupt samples
-            if "interrupt_samples" in agentic_result:
-                db.insert_interrupt_samples(
-                    agentic_id, agentic_result["interrupt_samples"]
-                )
-            if "io_samples" in agentic_result:
-                db.insert_io_samples(agentic_id, agentic_result["io_samples"])    
-
-            if "thermal_samples" in agentic_result:
-                db.insert_thermal_samples(agentic_id, agentic_result["thermal_samples"])
-                print(
-                    f"🔍 DEBUG - Saving {len(agentic_result['thermal_samples'])} thermal samples for run {agentic_id}"
-                )
-                # Thermal V2: write per-zone rows to thermal_samples_v2
-                try:
-                    import socket as _socket
-                    db.thermal.insert_thermal_samples_v2(
-                        agentic_id,
-                        agentic_result["thermal_samples"],
-                        _socket.gethostname().lower(),
-                    )
-                except Exception as _e:
-                    logger.warning("thermal_samples_v2 insert failed (agentic): %s", _e)
-                # 16D2a: cooling_samples — end-of-run snapshot of cooling device state
-                try:
-                    import socket as _socket_cool
-                    _n_cool = db.cooling.snapshot_cooling_state(
-                        agentic_id,
-                        _socket_cool.gethostname().lower(),
-                    )
-                    logger.debug("cooling_samples: wrote %d rows for run %d", _n_cool, agentic_id)
-                except Exception as _e:
-                    logger.warning("cooling_samples insert failed (agentic): %s", _e)
-
-                finalize_run_stats(db, agentic_id, agentic_result)
-
-            # Agentic orchestration events
-            if "orchestration_events" in agentic_result:
-                db.insert_orchestration_events(
-                    agentic_id, agentic_result["orchestration_events"]
-                )
  
             # --- Extension post-run dispatch (35D) ---
             # Selective mode: call active extensions after core commits.
@@ -1613,45 +1288,7 @@ class ExperimentRunner:
                 _dispatch_post_run(db, agentic_id, agentic_result, "agentic")
                 _dispatch_post_run(db, linear_id, linear_result, "linear")
 
-            print(
-                f"🔍 DEBUG - linear pending_interactions count: {len(linear_result.get('pending_interactions', []))}"
-            )
-            print(
-                f"🔍 DEBUG - agentic pending_interactions count: {len(agentic_result.get('pending_interactions', []))}"
-            )
 
-            # Save LLM interactions for linear run
-            if (
-                "pending_interactions" in linear_result
-                and linear_result["pending_interactions"]
-            ):
-                print(
-                    f"   💾 Saving {len(linear_result['pending_interactions'])} LLM interactions for linear run {linear_id}"
-                )
-                for interaction in linear_result["pending_interactions"]:
-                    interaction["run_id"] = linear_id
-                    db.insert_llm_interaction(interaction)
-            try:
-                from scripts.etl.network_energy_etl import process_run as _pne
-                _pne(linear_id, _wconn)
-            except Exception as _e:
-                logger.warning("network_energy_etl failed linear run_id=%d: %s", linear_id, _e)
-            # Save LLM interactions for agentic run
-            if (
-                "pending_interactions" in agentic_result
-                and agentic_result["pending_interactions"]
-            ):
-                print(
-                    f"   💾 Saving {len(agentic_result['pending_interactions'])} LLM interactions for agentic run {agentic_id}"
-                )
-                for interaction in agentic_result["pending_interactions"]:
-                    interaction["run_id"] = agentic_id
-                    db.insert_llm_interaction(interaction)
-            try:
-                from scripts.etl.network_energy_etl import process_run as _pne
-                _pne(agentic_id, _wconn)
-            except Exception as _e:
-                logger.warning("network_energy_etl failed agentic run_id=%d: %s", agentic_id, _e)
             # Tax summary for this pair
             # Use attributed_energy_uj (L2: cpu_fraction x dynamic) — paper unit.
             # layer3_derived["workload"] = dynamic_energy_uj — includes background.
@@ -1716,44 +1353,7 @@ class ExperimentRunner:
             f"   ✅ Pair {rep_num} saved (linear: {linear_id}, agentic: {agentic_id})"
         )
 
-        # ETL runs synchronously — daemon threads were dying before completion
-        compute_phase_attribution(agentic_id, conn=_wconn)
-        aggregate_hardware_metrics(agentic_id, conn=_wconn)
-        aggregate_hardware_metrics(linear_id, conn=_wconn)
-        compute_energy_attribution(agentic_id, conn=_wconn)
-        compute_energy_attribution(linear_id, conn=_wconn)
-        populate_ttft_tpot(agentic_id, conn=_wconn)
-        populate_ttft_tpot(linear_id, conn=_wconn)
-        # v9: duration fix
-        _aml = agentic_result.get("ml_features", {})
-        if _aml.get("rapl_before_pretask") is not None:
-            fix_run_with_pretask(
-                agentic_id,
-                _aml.get("rapl_before_pretask"),
-                _aml.get("rapl_after_task"),
-                _aml.get("pre_task_duration_sec", 0.0),
-                _aml.get("post_task_duration_sec", 0.0),
-                _aml.get("cpu_frac_pre", 0.0),
-                _aml.get("cpu_frac_post", 0.0),
-                conn=_wconn,
-            )
-        else:
-            fix_run(agentic_id, conn=_wconn)
- 
-        _lml = linear_result.get("ml_features", {})
-        if _lml.get("rapl_before_pretask") is not None:
-            fix_run_with_pretask(
-                linear_id,
-                _lml.get("rapl_before_pretask"),
-                _lml.get("rapl_after_task"),
-                _lml.get("pre_task_duration_sec", 0.0),
-                _lml.get("post_task_duration_sec", 0.0),
-                _lml.get("cpu_frac_pre", 0.0),
-                _lml.get("cpu_frac_post", 0.0),
-                conn=_wconn,
-            )
-        else:
-            fix_run(linear_id, conn=_wconn)
+
      
         # ── Goal tracking wiring (8.5-A) ─────────────────────────────────────
         # One goal_execution + goal_attempt row per workflow side.
@@ -1847,10 +1447,7 @@ class ExperimentRunner:
         energy_attribution_etl.populate_attribution_stubs(agentic_id, _wconn)
         _goal_tracker.queue_etl(_wconn, 'run', linear_id, 'energy_attribution_etl')
         _goal_tracker.queue_etl(_wconn, 'run', agentic_id, 'energy_attribution_etl')
-        compute_conservation_residual(linear_id, _wconn)
-        compute_conservation_residual(agentic_id, _wconn)
-        compute_conservation_residual(linear_id, _wconn)
-        compute_conservation_residual(agentic_id, _wconn)
+
         return linear_id, agentic_id
     def _record_goal_pair(
         self,
@@ -2005,161 +1602,11 @@ class ExperimentRunner:
             _span_writer.close_span(_span_id)
             build_spans_from_result(_span_writer, _span_id, result, workflow_type, self.get_hardware_info())
 
-            with db.transaction():
-                run_id = db.insert_run(exp_id, hw_id, result)
-                if run_id is None:
-                    logger.warning("save_single: insert_run returned None — aborting")
-                    return None
-                _span_writer.flush_to_db(db, run_id)
-                _backfill_attempt_span_id(_wconn, run_id, _span_writer)
-
-                record_run_provenance(db, run_id, result,
-                                    reader_mode=result.get("reader_mode"))
-                self._validate_run(db, run_id, hw_id)
-                # Stub row so ETL _backfill_normalization_factors never skips this run
-                _meta = result.get("task_meta", {}) or {}
-                _wconn.execute(
-                    "INSERT OR IGNORE INTO normalization_factors (run_id, task_category, workload_type) VALUES (?, ?, ?)",
-                    (run_id, _meta.get("category", "custom"), workflow_type),
-                )
-
-                # Energy samples — with backward compat tuple conversion
-                if "energy_samples" in result:
-                    converted = []
-                    for sample in result["energy_samples"]:
-                        if isinstance(sample, dict):
-                            converted.append(sample)
-                        elif len(sample) == 2 and isinstance(sample[1], dict):
-                            timestamp, energy_dict = sample
-                            converted.append({
-                                "timestamp_ns":     int(timestamp * 1_000_000_000),
-                                "pkg_energy_uj":    energy_dict.get("PACKAGE", energy_dict.get("package-0", 0)),
-                                "core_energy_uj":   energy_dict.get("CORE", energy_dict.get("CPU_P", energy_dict.get("core", 0))),
-                                "uncore_energy_uj": energy_dict.get("UNCORE", energy_dict.get("uncore", 0)),
-                                "dram_energy_uj":   0,
-                            })
-                    if converted:
-                        db.insert_energy_samples(run_id, converted)
-            # GPU samples — empty list if NoneBackend, safe to call always
-            if "gpu_samples" in result and result["gpu_samples"]:
-                db.insert_gpu_samples(run_id, result["gpu_samples"])
-                # BUG-02 fix (2026-09-06): moved from under "v2_samples"
-                # (unrelated condition — a third, differently-wrong nesting
-                # from the linear/agentic sites) to under gpu_samples,
-                # where it actually belongs.
-                try:
-                    telemetry = _convert_gpu_to_telemetry(result["gpu_samples"])
-                    if telemetry:
-                        db.insert_device_telemetry(run_id, telemetry)
-                except Exception as e:
-                    logger.warning("device_telemetry insert failed (single): %s", e)
-            if "v2_samples" in result and result["v2_samples"]:
-                db.insert_energy_samples_v2(run_id, result["v2_samples"])
-                # SPBM samples — EnergySampleV2 list, empty on non-GN100 platforms
-            if "spbm_samples" in result and result["spbm_samples"]:
-                db.insert_energy_samples_v2(run_id, result["spbm_samples"])
-            # Backward compat — old tuple-format samples from pre-chunk-2 harness versions.
-            # save_pair() handles these on both sides; save_single() must match.
-            if "legacy_samples" in result and result["legacy_samples"]:
-                db.insert_energy_samples(run_id, result["legacy_samples"])
-            if "rail_result" in result and result["rail_result"]:
-                try:
-                    db.insert_power_rail_samples(run_id, result["rail_result"].samples)
-                    db.insert_run_power_limits(run_id, result["rail_result"].limits_snapshot)
-                except Exception as e:
-                    logger.warning("power_rail insert failed (single): %s", e)
-            try:
-                from scripts.etl.gpu_spbm_etl import process_one as _pgs
-                _pgs(run_id, _wconn)
-            except Exception as _e:
-                logger.warning("gpu_spbm_etl failed single run_id=%d: %s", run_id, _e)
-            try:
-                from scripts.etl.spbm_telemetry_etl import process_run as _pst
-                _pst(run_id, result, _wconn)
-            except Exception as _e:
-                logger.warning("spbm_telemetry_etl failed single run_id=%d: %s", run_id, _e)
-            if "cpu_samples" in result:
-                db.insert_cpu_samples(run_id, result["cpu_samples"])
-            if platform.system() == 'Darwin':
-                _darwin_row = _build_darwin_cpu_sample_row(run_id, result)
-                if _darwin_row:
-                    _r = db.get_run(run_id)
-                    if _r:
-                        _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
-                        _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
-                        _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
-                        _darwin_row['interval_ns'] = (
-                            (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
-                        )
-                    try:
-                        db.insert_cpu_samples(run_id, [_darwin_row])
-                    except Exception as _e:
-                        logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
-            # SPEC_03A: NIC samples
-            if result.get("nic_samples"):
-                _insert_nic_samples(db, run_id, result["nic_samples"], conn=_wconn)
-
-            # 16D3: ARM — write summary cpu_samples row from PerformanceCounters.
-            # On x86, turbostat already wrote continuous rows above.
-            # On aarch64, turbostat is absent; ARMPMUReader fills PerformanceCounters.
-            # aggregate_hardware_metrics ETL reads SUM() from cpu_samples,
-            # so one summary row is sufficient for paper-level columns in runs.
-            _hw_info = self.get_hardware_info()
-            _caps_arch = (_hw_info.get('cpu_architecture') or '').lower()
-            if _caps_arch == 'aarch64':
-                _arm_row = _build_arm_cpu_sample_row(run_id, result)
-                if _arm_row:
-                    _r = db.get_run(run_id)
-                    if _r:
-                        _arm_row['sample_start_ns'] = _r.get('start_time_ns')
-                        _arm_row['sample_end_ns']   = _r.get('end_time_ns')
-                        _arm_row['timestamp_ns']    = _r.get('end_time_ns')
-                    db.insert_cpu_samples(run_id, [_arm_row])
-            elif platform.system() == 'Darwin':
-                # Darwin: one summary row from KPerfPMUReader — mirrors ARM pattern.
-                _darwin_row = _build_darwin_cpu_sample_row(run_id, result)
-                if _darwin_row:
-                    _r = db.get_run(run_id)
-                    if _r:
-                        _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
-                        _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
-                        _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
-                        _darwin_row['interval_ns'] = (
-                            (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
-                        )
-                    try:
-                        db.insert_cpu_samples(run_id, [_darwin_row])
-                    except Exception as _e:
-                        logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
-
-            # cpu_idle_states — ARM sysfs path
-            if _caps_arch == 'aarch64':
-                try:
-                    db.cpu_idle.write_from_cpuidle_sysfs(run_id, platform="grace_aarch64")
-                except Exception as _e:
-                    logger.warning("cpu_idle_states ARM insert failed (single): %s", _e)
-            else:
-                # cpu_idle_states — x86 path: prefer turbostat, fall back to cpuidle sysfs.
-                # AMD Zen 2: turbostat crashes (SIGABRT in rapl_perf_init);
-                # cpuidle sysfs verified working on AMD.
-                try:
-                    _cpu_vendor = (_hw_info.get('cpu_vendor') or 'intel').lower()
-                    _idle_platform = "amd_x86_64" if _cpu_vendor == 'amd' else "intel_x86_64"
-                    _cpu_samples_idle = result.get("cpu_samples", [])
-                    if _cpu_samples_idle:
-                        db.cpu_idle.write_from_turbostat(run_id, _cpu_samples_idle, platform=_idle_platform)
-                    elif os.path.exists("/sys/devices/system/cpu/cpu0/cpuidle/state0"):
-                        db.cpu_idle.write_from_cpuidle_sysfs(run_id, platform=_idle_platform)
-                    else:
-                        logger.info("cpu_idle_states: no turbostat data and no cpuidle sysfs, skipping")
-                except Exception as _e:
-                    logger.warning("cpu_idle_states x86 insert failed (single): %s", _e)
-
-            if "interrupt_samples" in result:
-                db.insert_interrupt_samples(run_id, result["interrupt_samples"])
-
-            if "io_samples" in result:
-                db.insert_io_samples(run_id, result["io_samples"])
+            # All persistence through the one writer (C3, G77, G91).
+            run_id = RunPersistenceService().insert_one_run(
+                db, exp_id, hw_id, result, workflow_type, rep_num,
+                after_run_row=_span_hook(db, _wconn, _span_writer),
+            )
 
             # SPEC 35J: energy_uj computation moved OUT of this block —
             # it must run unconditionally (save_pair()'s _get_attributed()
@@ -2186,99 +1633,6 @@ class ExperimentRunner:
             except (KeyError, TypeError):
                 pass
 
-            if "thermal_samples" in result:
-                db.insert_thermal_samples(run_id, result["thermal_samples"])
-                # Thermal V2: per-zone rows — mirrors save_pair() both sides.
-                try:
-                    import socket as _socket
-                    db.thermal.insert_thermal_samples_v2(
-                        run_id,
-                        result["thermal_samples"],
-                        _socket.gethostname().lower(),
-                    )
-                except Exception as _e:
-                    logger.warning("thermal_samples_v2 insert failed (single): %s", _e)
-                # 16D2a: cooling_samples — end-of-run snapshot of cooling device state.
-                try:
-                    import socket as _socket_cool
-                    _n_cool = db.cooling.snapshot_cooling_state(
-                        run_id,
-                        _socket_cool.gethostname().lower(),
-                    )
-                    logger.debug("cooling_samples: wrote %d rows for run %d", _n_cool, run_id)
-                except Exception as _e:
-                    logger.warning("cooling_samples insert failed (single): %s", _e)
-                # Aggregate hardware stats after thermal samples inserted — mirrors save_pair()
-                agg = self.aggregate_run_stats(
-                    run_id,
-                    result.get("cpu_samples", []),
-                    result.get("interrupt_samples", []),
-                    result.get("thermal_samples", []),
-                )
-                _ml = result.get("ml_features") or {}
-                # ARM: preserve frequency_mhz from INSERT when cpu_samples is empty —
-                # aggregate_run_stats returns None for cpu_avg_mhz when no rows exist.
-                if not agg.get("cpu_avg_mhz") and _ml.get("frequency_mhz"):
-                    agg["cpu_avg_mhz"]  = _ml["frequency_mhz"]
-                    agg["cpu_busy_mhz"] = _ml["frequency_mhz"]
-                _task_dur_s  = _ml.get("task_duration_sec") or 0
-                _fw_s        = _ml.get("framework_overhead_sec") or 0
-                _attr_uj     = _ml.get("attributed_energy_uj") or 0
-                _spbm_cov    = (_ml.get("spbm_telemetry_coverage") or {}).get(
-                    "spbm_sample_coverage_pct")
-                _phase_cov   = _ml.get("phase_sample_coverage_pct")
-                _gpu_dynamic = _ml.get("gpu_dynamic_energy_uj") or 0
-                _gpu_spbm    = _ml.get("gpu_total_energy_uj") or 0
-                if _attr_uj and _task_dur_s:
-                    agg["avg_task_power_watts"] = round(
-                        _attr_uj / 1_000_000.0 / _task_dur_s, 4)
-                # IOKit coverage: compute from sample count when SPBM and phase both absent.
-                # IOKit samples at 200ms intervals (5 Hz).
-                _iokit_cov = None
-                if _spbm_cov is None and _phase_cov is None:
-                    _task_dur_ns = _ml.get("task_duration_ns") or 0
-                    _sample_count = _ml.get("energy_sample_count") or 0
-                    if _task_dur_ns > 0 and _sample_count > 0:
-                        _iokit_cov = min(
-                            (_sample_count * 200_000_000) / _task_dur_ns * 100, 100.0
-                        )
-                agg["energy_sample_coverage_pct"] = (
-                    _spbm_cov if _spbm_cov is not None else
-                    _phase_cov if _phase_cov is not None else
-                    _iokit_cov)
-                if agg.get("avg_task_power_watts") and _fw_s:
-                    agg["framework_overhead_energy_uj"] = round(
-                        agg["avg_task_power_watts"] * _fw_s * 1_000_000)
-                _is_spbm     = _ml.get("spbm_telemetry_coverage") is not None
-                if _is_spbm and _gpu_dynamic > 0:
-                    agg["gpu_attribution_method"] = "dcgm_field156"
-                elif _is_spbm and _gpu_spbm > 0:
-                    agg["gpu_attribution_method"] = "spbm_package_v1"
-                elif _ml.get("reader_method_id") == "iokit_power_reader" and _gpu_spbm > 0:
-                    agg["gpu_attribution_method"] = "iokit_powermetrics"
-                elif not _is_spbm and _gpu_spbm > 0:
-                    agg["gpu_attribution_method"] = "pp1_msr"
-                else:
-                    agg["gpu_attribution_method"] = "none"
-                db.update_run_stats(run_id, agg)
-                if not agg.get("energy_sample_coverage_pct"):
-                    db.runs.update_energy_sample_coverage(run_id)
-
-            # Orchestration events — present on agentic side
-            if "orchestration_events" in result:
-                db.insert_orchestration_events(run_id, result["orchestration_events"])
-
-            # LLM interactions — key is pending_interactions, run_id set per interaction
-            if result.get("pending_interactions"):
-                for interaction in result["pending_interactions"]:
-                    interaction["run_id"] = run_id
-                    db.insert_llm_interaction(interaction)
-            # Network energy ETL — mirrors save_pair() call after LLM interactions.
-            try:
-                from scripts.etl.network_energy_etl import process_run as _pne
-                _pne(run_id, _wconn)
-            except Exception as _e:
-                logger.warning("network_energy_etl failed single run_id=%d: %s", run_id, _e)
 
             # (energy_uj/orchestration_uj now computed above, unconditionally,
             # before this thermal_samples check — see SPEC 35J note above)
@@ -2287,27 +1641,6 @@ class ExperimentRunner:
 
             logger.info("save_single: run_id=%d workflow=%s rep=%d", run_id, workflow_type, rep_num)
 
-            # ETL chain — same order as save_pair()
-            compute_phase_attribution(run_id, conn=_wconn)
-            aggregate_hardware_metrics(run_id, conn=_wconn)
-            compute_energy_attribution(run_id, conn=_wconn)
-            populate_ttft_tpot(run_id, conn=_wconn)
-
-            # Duration fix — mirrors save_pair() fix_run_with_pretask block
-            _ml = result.get("ml_features", {})
-            if _ml.get("rapl_before_pretask") is not None:
-                fix_run_with_pretask(
-                    run_id,
-                    _ml.get("rapl_before_pretask"),
-                    _ml.get("rapl_after_task"),
-                    _ml.get("pre_task_duration_sec", 0.0),
-                    _ml.get("post_task_duration_sec", 0.0),
-                    _ml.get("cpu_frac_pre", 0.0),
-                    _ml.get("cpu_frac_post", 0.0),
-                    conn=_wconn,
-                )
-            else:
-                fix_run(run_id, conn=_wconn)
 
             # Goal tracking — single side only
             _backfill_span_outcome(_wconn, run_id, outcome)
@@ -2364,7 +1697,6 @@ class ExperimentRunner:
 
             energy_attribution_etl.populate_attribution_stubs(run_id, _wconn)
             _goal_tracker.queue_etl(_wconn, "run", run_id, "energy_attribution_etl")
-            compute_conservation_residual(run_id, _wconn)
             return run_id
 
     def _save_run_samples(self, db, run_id: int, result: dict) -> None:
