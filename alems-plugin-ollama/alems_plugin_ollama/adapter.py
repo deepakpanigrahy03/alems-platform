@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from core.execution.adapters.base import TextGenABC
+from alems_sdk.generation import TextGenABC
 
 logger = logging.getLogger(__name__)
 

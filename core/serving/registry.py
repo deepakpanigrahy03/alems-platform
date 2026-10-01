@@ -38,6 +38,7 @@ import logging
 from importlib.metadata import entry_points
 from typing import Optional, Type
 
+from core.serving.adapter_config import AdapterConfig
 from core.serving.serving_adapter import ServingEngineAdapter
 
 logger = logging.getLogger(__name__)
@@ -233,7 +234,14 @@ class ServingEngineRegistry:
     def _make(engine_type: str, config: dict) -> ServingEngineAdapter:
         """Instantiate the adapter class for the given engine_type."""
         cls = _REGISTRY[engine_type]
-        return cls(config)
+        if engine_type == "remote_api":
+            # Remote API adapter has no endpoint layers; constructed as before.
+            return cls(config)
+        # Configuration precedence belongs to the runtime (C-ORIGIN): resolve
+        # once here with the same inputs the plugin used to resolve itself
+        # (config block and ENGINE_TYPE), then hand the result to the adapter.
+        endpoint = AdapterConfig.resolve_endpoint(config, engine_type)
+        return cls(config, endpoint=endpoint)
 
     @staticmethod
     def get_all() -> dict[str, Type[ServingEngineAdapter]]:

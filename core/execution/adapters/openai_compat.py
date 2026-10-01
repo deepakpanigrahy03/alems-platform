@@ -29,7 +29,7 @@ from typing import Any, Dict, Optional, Tuple
 import psutil
 import requests
 
-from core.execution.adapters.base import TextGenABC
+from core.execution.adapters.base import BaseAdapterMixin, TextGenABC
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ _OLLAMA_CHAT_PATH = "/api/chat"
 _OAI_CHAT_PATH = "/chat/completions"
 
 
-class OpenAICompatAdapter(TextGenABC):
+class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
  
     # SPEC 35B: serves OpenAI, Groq, NIM, vllm_remote, Ollama.
     # All speak the same OpenAI-compatible HTTP format.

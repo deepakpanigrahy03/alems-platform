@@ -19,12 +19,12 @@ import time
 from typing import Any, Dict, Optional, Tuple
 import os
 
-from core.execution.adapters.base import TextGenABC
+from core.execution.adapters.base import BaseAdapterMixin, TextGenABC
 
 logger = logging.getLogger(__name__)
 
 
-class LlamaCppAdapter(TextGenABC):
+class LlamaCppAdapter(BaseAdapterMixin, TextGenABC):
  
     ENGINE_TYPE: str = "llama_cpp"
     METHOD_ID:   str = "llama_cpp"

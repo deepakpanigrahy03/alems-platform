@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "vLLM serving engine telemetry adapter for A-LEMS"
 requires-python = ">=3.9"
 dependencies = [
-    "alems-platform>=1.0,<2.0",
+    "alems-sdk[serving]>=1.0,<2.0",
     "requests>=2.31.0",
     # prometheus_client for parsing /metrics text format (optional at import)
     # install manually when testbed is live:

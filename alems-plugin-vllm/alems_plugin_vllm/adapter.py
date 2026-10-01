@@ -44,7 +44,7 @@ import logging
 import re
 from typing import Optional
 
-from core.serving.serving_adapter import (
+from alems_sdk.serving import (
     CacheState,
     EngineInfo,
     ExpertTierState,
@@ -54,8 +54,8 @@ from core.serving.serving_adapter import (
     ServingEngineAdapter,
     TokenRateState,
 )
-from core.serving.adapter_config import AdapterConfig
-from core.serving.discovery import CapabilityDiscoveryMixin
+from alems_sdk.serving.config import resolve_endpoint
+from alems_sdk.serving.discovery import CapabilityDiscoveryMixin
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +128,11 @@ class VLLMAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
 
     ENGINE_TYPE = "vllm"
 
-    def __init__(self, config: dict):
-        super().__init__(config)
-        resolved = AdapterConfig.resolve(config, self.ENGINE_TYPE)
+    def __init__(self, config: dict, endpoint=None):
+        # The runtime passes the resolved endpoint (C-ORIGIN). Outside the
+        # runtime fall back to the profile block plus environment (SDK only).
+        super().__init__(config, endpoint)
+        resolved = (endpoint or resolve_endpoint(config, self.ENGINE_TYPE)).as_dict()
         self._endpoint        = resolved["endpoint"]
         self._metrics_path    = resolved["metrics_path"]
         self._health_path     = resolved["health_path"]

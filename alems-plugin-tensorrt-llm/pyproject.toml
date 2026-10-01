@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "NVIDIA TensorRT-LLM telemetry adapter for A-LEMS"
 requires-python = ">=3.9"
 dependencies = [
-    "alems-platform>=1.0,<2.0",
+    "alems-sdk[serving]>=1.0,<2.0",
     "requests>=2.31.0",
 ]
 # Does NOT install TensorRT-LLM.
