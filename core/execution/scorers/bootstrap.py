@@ -21,7 +21,9 @@ AUTHOR: Deepak Panigrahy
 
 import logging
 
-from core.execution.scorers.registry import ScorerRegistry, DuplicateScorerError
+from core.execution.scorers.registry import ScorerRegistry
+from core.registry.loader import load_group
+from alems import __version__ as _CORE_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +34,9 @@ scorer_registry = ScorerRegistry()
 
 def register_all_scorers() -> None:
     """
-    Register all built-in quality scorer adapters.
-
-    Idempotent — skips if already registered.
-    Import errors are caught per scorer so one broken scorer
-    does not prevent others from loading.
+    Register every quality scorer through the single plugin path.
+    Idempotent: skips if already registered.
+    A broken scorer is refused by the loader and never blocks the others.
     """
     if not scorer_registry.is_empty():
         logger.debug("scorer_bootstrap: already registered — skipping")
@@ -44,41 +44,15 @@ def register_all_scorers() -> None:
 
     logger.info("scorer_bootstrap: registering built-in scorers")
 
-    try:
-        from core.execution.scorers.exact_match import ExactMatchScorer
-        scorer_registry.register(ExactMatchScorer)
-    except Exception as exc:
-        logger.error("scorer_bootstrap: failed to register ExactMatchScorer: %s", exc)
+    # Every origin: runtime builtins, pip installed scorers, sandbox local
+    # scorers (design 7.8). Failures are recorded as refusals by the loader
+    # (WP 1a.3 section 5); this bootstrap never interprets them (G67).
+    load_group(
+        "alems.scorers",
+        lambda cls, cfg: scorer_registry.register(cls),
+        _CORE_VERSION,
+    )
 
-    try:
-        from core.execution.scorers.semantic import SemanticScorer
-        scorer_registry.register(SemanticScorer)
-    except Exception as exc:
-        logger.error("scorer_bootstrap: failed to register SemanticScorer: %s", exc)
-
-    try:
-        from core.execution.scorers.llm_judge import LLMJudgeScorer
-        scorer_registry.register(LLMJudgeScorer)
-    except Exception as exc:
-        logger.error("scorer_bootstrap: failed to register LLMJudgeScorer: %s", exc)
- 
-    try:
-        from core.execution.scorers.numeric import NumericScorer
-        scorer_registry.register(NumericScorer)
-    except Exception as exc:
-        logger.error("scorer_bootstrap: failed to register NumericScorer: %s", exc)
- 
-    try:
-        from core.execution.scorers.structural import StructuralScorer
-        scorer_registry.register(StructuralScorer)
-    except Exception as exc:
-        logger.error("scorer_bootstrap: failed to register StructuralScorer: %s", exc)
-
-    try:
-        from core.execution.scorers.unit_test import UnitTestScorer
-        scorer_registry.register(UnitTestScorer)
-    except Exception as exc:
-        logger.error("scorer_bootstrap: failed to register UnitTestScorer: %s", exc)
     logger.info(
         "scorer_bootstrap: registered %d scorers: %s",
         len(scorer_registry.get_all()),
