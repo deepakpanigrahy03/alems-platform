@@ -1,49 +1,37 @@
-# Re-exports from core.readers.*  (strangler facade, D2.2).
-# Every symbol listed here is the SAME object as its core source (verified by test_sdk_reexports.py).
-# Source paths recorded here for auditors; do not copy code.
+"""
+alems_sdk.measurement: one import point for the measurement family contracts.
 
-from core.readers.interfaces import (       # core/readers/interfaces.py
-    BaseReader,
-    EnergyReaderABC,
-    CPUReaderABC,
-    ThermalReaderABC,
-    DiskReaderABC,
-    NICReaderABC,
-)
-from core.models.normalized_energy_reading import (  # core/models/normalized_energy_reading.py
-    NormalizedEnergyReading,
-)
-from core.platform.adapter import (         # core/platform/adapter.py
+Every name is a real object from an SDK module; nothing is conditional and
+nothing is imported from core (G16, INV-14). Since 39.5.1a.2 the reader
+contracts live in alems_sdk.readers, the reading type in
+alems_sdk.energy_reading, the platform contract in alems_sdk.platforms.
+HardwareFingerprint and MeterInventory were never defined anywhere and are
+removed (G17); the detector output contract is the hw_config dict of
+PlatformAdapterABC.detect().
+"""
+
+from alems_sdk.energy_reading import NormalizedEnergyReading
+from alems_sdk.measurement_schema import DomainDescriptor, MeasurementSchema
+from alems_sdk.platforms import (
     PlatformAdapterABC,
+    ProvisionResult,
+    ProvisionStep,
+    VerificationCheck,
+    VerificationResult,
 )
-
-# Optional ABCs: import gracefully so the SDK installs even on machines
-# where optional reader dependencies are absent.
-try:
-    from core.readers.interfaces import (
-        ThermalReaderV2ABC,
-        CoolingReaderABC,
-        TurbostatReaderABC,
-        MSRReaderABC,
-        SchedulerMonitorABC,
-    )
-except ImportError:
-    ThermalReaderV2ABC = None       # type: ignore[assignment,misc]
-    CoolingReaderABC = None         # type: ignore[assignment,misc]
-    TurbostatReaderABC = None       # type: ignore[assignment,misc]
-    MSRReaderABC = None             # type: ignore[assignment,misc]
-    SchedulerMonitorABC = None      # type: ignore[assignment,misc]
-
-# Platform adapter result dataclasses are re-exported alongside the ABC
-# so plugin authors need only one import.
-try:
-    from core.platform.adapter import (
-        HardwareFingerprint,
-        MeterInventory,
-    )
-except ImportError:
-    HardwareFingerprint = None      # type: ignore[assignment,misc]
-    MeterInventory = None           # type: ignore[assignment,misc]
+from alems_sdk.readers import (
+    BaseReader,
+    CoolingReaderABC,
+    CPUReaderABC,
+    DiskReaderABC,
+    EnergyReaderABC,
+    MSRReaderABC,
+    NICReaderABC,
+    SchedulerMonitorABC,
+    ThermalReaderABC,
+    ThermalReaderV2ABC,
+    TurbostatReaderABC,
+)
 
 __all__ = [
     "BaseReader",
@@ -58,7 +46,11 @@ __all__ = [
     "DiskReaderABC",
     "NICReaderABC",
     "NormalizedEnergyReading",
+    "DomainDescriptor",
+    "MeasurementSchema",
     "PlatformAdapterABC",
-    "HardwareFingerprint",
-    "MeterInventory",
+    "ProvisionResult",
+    "ProvisionStep",
+    "VerificationCheck",
+    "VerificationResult",
 ]

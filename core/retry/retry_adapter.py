@@ -35,39 +35,8 @@ logger = logging.getLogger(__name__)
 # ABC
 # ---------------------------------------------------------------------------
 
-class RetryPolicyAdapter(ABC):
-    """
-    Base class for all retry policy engines.
-
-    should_retry() is the single decision point called by GEM after every
-    failed attempt. It must be fast — it runs on the hot path between attempts.
-    All DB writes (logging) must be async or deferred to avoid adding latency.
-    """
-
-    @abstractmethod
-    def should_retry(
-        self,
-        failure_type: str,
-        attempt_number: int,
-        goal_id: int,
-        run_context: dict,
-    ) -> dict:
-        """
-        Decide whether to retry after a failure.
-
-        Args:
-            failure_type:   Canonical failure type string from FailureClassifier.
-            attempt_number: Current attempt number (1-indexed).
-            goal_id:        goal_execution.goal_id for this goal.
-            run_context:    Dict with keys: conn, policy, run_id, attempt_id,
-                            budget_remaining_uj (optional), ear_policy_id (EAR only).
-
-        Returns:
-            dict with keys:
-              'action': 'retry' | 'abort' | 'fallback'
-              'reason': str  (human-readable reason code for logging)
-        """
-        ...
+# Contract lives in the SDK since 39.5.1a.2; implementations below subclass it.
+from alems_sdk.policies import RetryPolicyAdapter  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

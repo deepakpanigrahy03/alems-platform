@@ -9,9 +9,9 @@ from core.platform.adapter import PlatformAdapterABC, ProvisionResult, Verificat
 
 logger = logging.getLogger(__name__)
 _PROVISION_SH = str(Path(__file__).parent.parent.parent.parent / "scripts" / "platforms" / "apple_silicon" / "provision.sh")
+from core.platform.adapter import PlatformRuntimeMixin  # noqa: E402
 
-
-class AppleSiliconAdapter(PlatformAdapterABC):
+class AppleSiliconAdapter(PlatformRuntimeMixin, PlatformAdapterABC):
     """Platform adapter for Apple Silicon macOS (M1/M2/M3)."""
 
     PLATFORM_CLASS: str = "apple_silicon"

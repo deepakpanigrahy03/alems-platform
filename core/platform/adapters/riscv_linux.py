@@ -9,9 +9,9 @@ from core.platform.adapter import PlatformAdapterABC, ProvisionResult, Verificat
 
 logger = logging.getLogger(__name__)
 _PROVISION_SH = str(Path(__file__).parent.parent.parent.parent / "scripts" / "platforms" / "linux_riscv" / "provision.sh")
+from core.platform.adapter import PlatformRuntimeMixin  # noqa: E402
 
-
-class RISCVLinuxAdapter(PlatformAdapterABC):
+class RISCVLinuxAdapter(PlatformRuntimeMixin, PlatformAdapterABC):
     """Platform adapter for RISC-V Linux."""
 
     PLATFORM_CLASS: str = "linux_riscv"

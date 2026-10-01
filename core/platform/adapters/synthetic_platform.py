@@ -11,13 +11,13 @@ import logging
 import os
 import platform
 from typing import Any, Dict, Optional
-
+from core.platform.adapter import PlatformRuntimeMixin  # noqa: E402
 from core.platform.adapter import PlatformAdapterABC, ProvisionResult, VerificationResult
 
 logger = logging.getLogger(__name__)
 
 
-class SyntheticPlatformAdapter(PlatformAdapterABC):
+class SyntheticPlatformAdapter(PlatformRuntimeMixin, PlatformAdapterABC):
     """
     Platform adapter for the synthetic test environment.
 

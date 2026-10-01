@@ -10,8 +10,9 @@ from core.platform.adapter import PlatformAdapterABC, ProvisionResult, Verificat
 logger = logging.getLogger(__name__)
 _PROVISION_SH = str(Path(__file__).parent.parent.parent.parent / "scripts" / "platforms" / "intel_x86" / "provision.sh")
 
+from core.platform.adapter import PlatformRuntimeMixin  # noqa: E402
 
-class IntelLinuxAdapter(PlatformAdapterABC):
+class IntelLinuxAdapter(PlatformRuntimeMixin, PlatformAdapterABC):
     """Platform adapter for Intel Linux x86_64."""
 
     PLATFORM_CLASS: str = "intel_x86"

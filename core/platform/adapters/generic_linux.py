@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from core.platform.adapter import PlatformAdapterABC, ProvisionResult, VerificationResult
-
+from core.platform.adapter import PlatformRuntimeMixin  # noqa: E402
 logger = logging.getLogger(__name__)
 _PROVISION_SH = str(Path(__file__).parent.parent.parent.parent / "scripts" / "platforms" / "linux_x86_unknown" / "provision.sh")
 
 
-class GenericLinuxAdapter(PlatformAdapterABC):
+class GenericLinuxAdapter(PlatformRuntimeMixin, PlatformAdapterABC):
     """Fallback adapter for unknown Linux x86_64 platforms."""
 
     PLATFORM_CLASS: str = "linux_x86_unknown"

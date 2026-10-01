@@ -12,14 +12,14 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from core.platform.adapter import PlatformAdapterABC, ProvisionResult, VerificationResult
-
+from core.platform.adapter import PlatformRuntimeMixin  # noqa: E402
 logger = logging.getLogger(__name__)
 
 _SCRIPTS_DIR = Path(__file__).parent.parent.parent.parent / "scripts"
 _PROVISION_SH = str(_SCRIPTS_DIR / "platforms" / "nvidia_grace" / "provision.sh")
 
 
-class NVIDIAGraceAdapter(PlatformAdapterABC):
+class NVIDIAGraceAdapter(PlatformRuntimeMixin, PlatformAdapterABC):
     """Platform adapter for NVIDIA Grace GB10 (GN100, aarch64 Linux)."""
 
     PLATFORM_CLASS: str = "nvidia_grace"

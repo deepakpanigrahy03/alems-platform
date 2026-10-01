@@ -9,9 +9,9 @@ from core.platform.adapter import PlatformAdapterABC, ProvisionResult, Verificat
 
 logger = logging.getLogger(__name__)
 _PROVISION_SH = str(Path(__file__).parent.parent.parent.parent / "scripts" / "platforms" / "linux_arm" / "provision.sh")
+from core.platform.adapter import PlatformRuntimeMixin  # noqa: E402
 
-
-class ARMLinuxAdapter(PlatformAdapterABC):
+class ARMLinuxAdapter(PlatformRuntimeMixin, PlatformAdapterABC):
     """Platform adapter for generic ARM Linux (non-Grace)."""
 
     PLATFORM_CLASS: str = "linux_arm"

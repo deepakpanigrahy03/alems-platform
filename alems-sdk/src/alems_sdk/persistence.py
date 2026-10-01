@@ -16,19 +16,10 @@ import abc
 from contextlib import contextmanager
 from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple, Union
 
-# Re-exports kept for backward compat (39.1 persistence.py re-exported these).
-# The classes themselves still live in core; they move into alems_sdk only
-# when every internal caller has switched (D2.2 strangler rule).
-try:
-    from core.database.base import DatabaseInterface, DatabaseError  # type: ignore
-    from core.extensions.abc import ExtensionABC, PostRunPayload     # type: ignore
-except ImportError:
-    # Allow alems_sdk to be imported in isolation (conformance kit, external
-    # plugins) without the runtime installed.
-    DatabaseInterface = None   # type: ignore
-    DatabaseError = None       # type: ignore
-    ExtensionABC = None        # type: ignore
-    PostRunPayload = None      # type: ignore
+# Storage and extension contracts live in the SDK since 39.5.1a.2; core paths
+# re-export them. No conditional exports (G16).
+from alems_sdk.extensions import ExtensionABC, PostRunPayload
+from alems_sdk.storage import DatabaseError, DatabaseInterface
 
 __all__ = [
     # backward compat

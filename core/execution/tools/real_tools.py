@@ -62,25 +62,8 @@ def _get_resource_snapshot() -> dict:
 # ToolResult — single return type for all tools
 # ---------------------------------------------------------------------------
 
-@dataclass
-class ToolResult:
-    """
-    Structured result returned by every tool.
-    All measurement fields used by _execute_tool() to populate
-    orchestration_events columns added in migration 035.
-    """
-    success: bool
-    result: Any
-    tool_name: str
-    duration_ns: int
-    io_bytes_read: int = 0
-    io_bytes_written: int = 0
-    input_payload_hash: str = ""
-    output_payload_hash: str = ""
-    row_count: int = 0          # database_query: rows returned
-    cpu_time_ns: int = 0        # getrusage delta — CPU consumed by this tool
-    memory_delta_kb: int = 0    # VmRSS delta — memory consumed by this tool
-    error: str = ""             # populated on failure, empty on success
+# ToolResult is a contract and lives in the SDK since 39.5.1a.2 (G21).
+from alems_sdk.tools import ToolResult  # noqa: E402
 
 
 def _hash(value: str) -> str:

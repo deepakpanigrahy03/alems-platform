@@ -6,12 +6,12 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from core.platform.adapter import PlatformAdapterABC, ProvisionResult, VerificationResult
-
+from core.platform.adapter import PlatformRuntimeMixin  # noqa: E402
 logger = logging.getLogger(__name__)
 _PROVISION_SH = str(Path(__file__).parent.parent.parent.parent / "scripts" / "platforms" / "amd_x86" / "provision.sh")
 
 
-class AMDLinuxAdapter(PlatformAdapterABC):
+class AMDLinuxAdapter(PlatformRuntimeMixin, PlatformAdapterABC):
     """Platform adapter for AMD Linux x86_64."""
 
     PLATFORM_CLASS: str = "amd_x86"

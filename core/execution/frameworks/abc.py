@@ -1,103 +1,15 @@
-#!/usr/bin/env python3
 """
-================================================================================
-FRAMEWORK ADAPTER ABC  —  core/execution/frameworks/abc.py
-================================================================================
+Compatibility path (39.5.1a.2): the contract now lives in alems_sdk.frameworks (D2.1).
 
-PURPOSE:
-    Interface for pluggable agent framework adapters (LangChain, CrewAI,
-    AutoGen, A2A, and the existing builtin agentic runtime).
-
-    Selection is by exact FRAMEWORK_TYPE string match from experiment
-    config, same as engines (registry.get(key)) — no can_handle()/
-    PRIORITY needed.
-
-    NOT INCLUDED HERE: the builtin adapter that wraps AgenticExecutor,
-    and the harness.py call-site change to use this registry. Both
-    require reviewing AgenticExecutor's constructor and harness.py's
-    executor construction path first — deferred pending that review,
-    tracked as the next step, not silently dropped.
-
-AUTHOR: Deepak Panigrahy
-SPEC:   35G Section 5
-================================================================================
+Every name of the SDK module, private ones included, is bound here as the
+identical object, so existing imports, isinstance checks and registry keys are
+unchanged (D2.2, Rule S). New code imports from alems_sdk.frameworks.
 """
 
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
-from typing import Any, Dict, List
+import alems_sdk.frameworks as _sdk_module
 
-from core.execution.tools.abc import ToolProviderABC
-
-
-@dataclass
-class FrameworkResult:
-    """
-    Result of one framework's execute_task() call.
-
-    metadata is the escape hatch for framework-specific fields the
-    generic schema doesn't cover — e.g. the builtin adapter can set
-    metadata to the exact dict its wrapped AgenticExecutor already
-    returns, so nothing downstream of harness.py needs to change
-    shape just because the framework became pluggable.
-    """
-    output: str
-    success: bool
-    total_duration_ms: float
-    steps: List[Dict[str, Any]] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-
-class FrameworkAdapterABC(ABC):
-    """
-    Base class for all agent framework adapters.
-
-    Subclasses declare FRAMEWORK_TYPE as a class attribute
-    (e.g. "builtin", "langchain", "crewai", "a2a") and are registered
-    into FrameworkRegistry keyed by that string.
-    """
-
-    FRAMEWORK_TYPE: str = ""
-
-    @abstractmethod
-    def execute_task(
-        self,
-        task_config: Dict[str, Any],
-        tools: List[ToolProviderABC],
-        engine: Any,
-    ) -> FrameworkResult:
-        """
-        Execute one task through this framework.
-
-        The measurement harness wraps this entire call — energy is
-        read before and after, never inside. This adapter must not
-        perform its own energy measurement (INV-1, INV-2).
-
-        Args:
-            task_config: task definition dict (prompt, tool_graph, etc.)
-            tools: tool providers available to this task, resolved
-                from ToolRegistry by the caller before this call.
-            engine: TextGenABC/MediaABC instance already resolved by
-                ModelFactory — this adapter does not resolve its own
-                engine.
-
-        Returns:
-            FrameworkResult with per-step breakdown for energy
-            attribution.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_name(self) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_framework_type(self) -> str:
-        raise NotImplementedError
-
-    @abstractmethod
-    def is_available(self) -> bool:
-        raise NotImplementedError
-
-    def get_config_schema(self) -> Dict[str, Any]:
-        return {}
+# Bind every attribute of the SDK module except dunder metadata, so names this
+# shim does not list explicitly (constants, helpers) keep resolving.
+globals().update(
+    {k: v for k, v in vars(_sdk_module).items() if not k.startswith("__")}
+)

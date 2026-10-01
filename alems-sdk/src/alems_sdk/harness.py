@@ -1,28 +1,37 @@
-# Re-exports from core harness ABCs.
-# Sources: core/retry/retry_adapter.py, core/recovery/recovery_adapter.py,
-#          core/injection/injection_engine.py, core/telemetry/cache_collector.py,
-#          core/execution/{scorers,tools,frameworks,outputs}/abc.py,
-#          core/execution/tools/selector_abc.py
+"""
+alems_sdk.harness: one import point for the execution family contracts.
 
-from core.retry.retry_adapter import RetryPolicyAdapter
-from core.recovery.recovery_adapter import (
-    RecoveryPolicyAdapter,
-    RecoveryDecision,
+Contracts only (G6): retry and recovery policies, injection engine, cache
+telemetry collector, scorer, tool provider and selector, framework adapter,
+output adapter. Implementations stay in core. Every name is a real object;
+nothing is conditional and nothing is imported from core (G16, INV-14).
+"""
+
+from alems_sdk.cache_telemetry import (
+    CacheStateSnapshot,
+    CacheTelemetryCollector,
+    StateReuseEvent,
 )
-from core.injection.injection_engine import InjectionEngine
-from core.telemetry.cache_collector import CacheTelemetryCollector
-from core.execution.scorers.abc import ScorerABC
-from core.execution.tools.abc import ToolProviderABC, ToolDefinition, ToolExecutionContext
-from core.execution.tools.selector_abc import ToolSelectorABC
-from core.execution.frameworks.abc import FrameworkAdapterABC, FrameworkResult
-from core.execution.outputs.abc import OutputAdapterABC
-
-# Optional: StateReuseEvent and CacheStateSnapshot may live in extensions.
-try:
-    from core.telemetry.cache_collector import StateReuseEvent, CacheStateSnapshot
-except ImportError:
-    StateReuseEvent = None          # type: ignore[assignment,misc]
-    CacheStateSnapshot = None       # type: ignore[assignment,misc]
+from alems_sdk.frameworks import FrameworkAdapterABC, FrameworkResult
+from alems_sdk.injection import InjectionEngine
+from alems_sdk.outputs import ExportResult, OutputAdapterABC
+from alems_sdk.policies import (
+    RecoveryDecision,
+    RecoveryPolicyAdapter,
+    RetryPolicyAdapter,
+)
+from alems_sdk.scoring import ScorerABC
+from alems_sdk.tool_selection import (
+    ToolSelectionContext,
+    ToolSelectionResult,
+    ToolSelectorABC,
+)
+from alems_sdk.tools import (
+    ToolDefinition,
+    ToolExecutionContext,
+    ToolProviderABC,
+    ToolResult,
+)
 
 __all__ = [
     "RetryPolicyAdapter",
@@ -36,8 +45,12 @@ __all__ = [
     "ToolProviderABC",
     "ToolDefinition",
     "ToolExecutionContext",
+    "ToolResult",
     "ToolSelectorABC",
+    "ToolSelectionContext",
+    "ToolSelectionResult",
     "FrameworkAdapterABC",
     "FrameworkResult",
     "OutputAdapterABC",
+    "ExportResult",
 ]
