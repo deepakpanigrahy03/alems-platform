@@ -768,12 +768,15 @@ class ExperimentRunner:
         baseline_config = self.settings.get("experiment", {}).get("baseline", {})
         force_remeasure = baseline_config.get("force_remeasure", False)
         # Resolve cache path via machine-aware 3-layer logic (BDC-4)
-        from scripts.tools.path_loader import get_baseline_cache_path
+        from core.utils.idle_baseline import get_baseline_cache_path
         cache_file = get_baseline_cache_path()
  
         # Check if cache file exists
         cache_path = Path(cache_file)
-        cache_exists = cache_path.exists()
+        # Store scoped resolution (G27): the reusable baseline is the newest one
+        # in this run's own store, never a file that other stores also write.
+        stored = None if force_remeasure else harness.baseline_mgr.get_latest()
+        cache_exists = stored is not None
         
         # Determine if we need to measure
         needs_measure = force_remeasure or not cache_exists
@@ -817,12 +820,12 @@ class ExperimentRunner:
                 return None
         else:
             # Load from cache if not already in memory
-            if not harness.baseline:
+            # Always the store's own baseline: a baseline already in memory may
+            # have been loaded from a cache written by another store.
+            if not harness.baseline or harness.baseline.baseline_id != stored.baseline_id:
                 try:
-                    with open(cache_path, 'r') as f:
-                        data = json.load(f)
-                        harness.baseline = BaselineMeasurement.from_dict(data)
-                    print(f"\n📏 Loaded baseline from cache: {harness.baseline.baseline_id}")
+                    harness.baseline = stored
+                    print(f"\n📏 Loaded baseline from store: {harness.baseline.baseline_id}")
                 except Exception as e:
                     print(f"\n⚠️ Failed to load baseline from cache: {e}")
                     return None

@@ -169,11 +169,9 @@ def get_baseline_cache_path():
         Path string for idle_baseline.json on this machine.
     """
     _source_alemsrc()
-    base = os.environ.get("ALEMS_DATA_ROOT")
-    if base:
-        # Layer 1: machine-specific directory alongside experiments.db
-        machine_id = socket.gethostname().lower()
-        return os.path.join(base, machine_id, "idle_baseline.json")
+    # Store scoped (G27): one authority for per store paths, StoreContext.
+    from core.utils.idle_baseline import get_baseline_cache_path as _store_cache
+    return _store_cache()
 
     # Layer 2: read from app_settings.yaml
     project_root = Path(__file__).parent.parent.parent

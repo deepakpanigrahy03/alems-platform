@@ -53,7 +53,7 @@ experiment:
     duration_seconds: 30
     num_samples: 3
     pre_wait_seconds: 10
-    cache_file: "data/idle_baseline.json"
+    # cache_file removed: the cache is store scoped (<store folder>/baselines/).
     measure_gpu: true
   # true for production, false to use cache  
   

@@ -59,18 +59,10 @@ class BaselineManager:
         """
         import os, socket as _socket
         if base_dir is None:
-            # Sandbox isolation: when ALEMS_STORE is set, baselines live
-            # next to the sandbox store so each sandbox is fully isolated.
-            store_env = os.environ.get("ALEMS_STORE", "")
-            if store_env:
-                self.base_dir = Path(store_env).parent / "baselines"
-            else:
-                data_root = os.environ.get("ALEMS_DATA_ROOT", "")
-                if data_root:
-                    host = _socket.gethostname().lower()
-                    self.base_dir = Path(data_root) / host / "baselines"
-                else:
-                    self.base_dir = Path(project_root) / "data" / "baselines"
+            # Store scoped (G27, G28): baselines live beside the store they
+            # belong to, for adopted environments and sandboxes alike.
+            from core.storage.store_context import baselines_dir
+            self.base_dir = baselines_dir()
         else:
             self.base_dir = Path(project_root) / base_dir
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -79,7 +71,14 @@ class BaselineManager:
         # NEW: Database connection for experiment tracking
         # ====================================================================
         self.config_loader = ConfigLoader()
-        self.db_config = self.config_loader.get_db_config()
+        # Pin to the active store explicitly (INV-B1): a baseline must live in
+        # the same store as the runs that reference it. Copy so the shared
+        # loader config is never mutated.
+        import copy
+        from core.storage.resolver import resolve_store
+        self.db_config = copy.deepcopy(self.config_loader.get_db_config())
+        if self.db_config.get("engine", "sqlite") == "sqlite":
+            self.db_config.setdefault("sqlite", {})["path"] = resolve_store()
         self.db = DatabaseManager(self.db_config)
 
         logger.info(f"BaselineManager initialized with dir: {self.base_dir}")
@@ -88,9 +87,7 @@ class BaselineManager:
         """
         Save a baseline measurement to disk AND database.
         """
-        print(f"🔍 DEBUG - save() method ENTERED for baseline {baseline.baseline_id}")
-        print(f"🔍 DEBUG3 - save() entry - object ID: {id(baseline)}")
-        print(f"🔍 DEBUG3 - save() entry - metadata: {baseline.metadata}")
+        logger.debug("save(): baseline %s", baseline.baseline_id)
 
         # Save to JSON file
 
@@ -104,20 +101,15 @@ class BaselineManager:
 
         # Insert into database
         baseline_dict = baseline.to_dict()
-        print(
-            f"🔍 DEBUG - baseline_dict metadata before DB insert: {baseline_dict.get('metadata')}"
-        )
-
         try:
-            result = self.db.insert_baseline(baseline_dict)
-            print(f"🔍 DEBUG - Insert result: {result}")
-            logger.info(f"Saved baseline {baseline.baseline_id} to database")
+            self.db.insert_baseline(baseline_dict)
+            logger.info("Saved baseline %s to store", baseline.baseline_id)
         except Exception as e:
-            print(f"🔍 DEBUG - Database insert EXCEPTION: {type(e).__name__}: {e}")
-            import traceback
-
-            traceback.print_exc()
-            logger.warning(f"Failed to save baseline to database: {e}")
+            # Fail here, not later as a foreign key error on the run insert:
+            # a run must never reference a baseline its store does not hold.
+            logger.error("Failed to save baseline %s to store: %s",
+                         baseline.baseline_id, e)
+            raise
 
         return str(filepath)
 
@@ -168,7 +160,9 @@ class BaselineManager:
         # ====================================================================
         # Step 1: Get most recent baseline_id from idle_baselines
         try:
-            result = self.db.execute(
+            # The adapter (DatabaseInterface.execute -> list of dicts) is
+            # self.db.db; DatabaseManager itself has no execute (G32).
+            result = self.db.db.execute(
                 "SELECT * FROM idle_baselines ORDER BY timestamp DESC LIMIT 1"
             )
             if not result or len(result) == 0:
@@ -177,7 +171,7 @@ class BaselineManager:
  
             # Step 2: Load all domains from normalized table (v61 path)
             # Returns canonical uppercase keys: PACKAGE, CORE, CPU_P, CPU_E, GPU etc.
-            domain_rows = self.db.execute(
+            domain_rows = self.db.db.execute(
                 """
                 SELECT ed.name AS domain_name, ibd.power_watts, ibd.std_watts
                 FROM idle_baseline_domains ibd
@@ -227,17 +221,18 @@ class BaselineManager:
             )
  
         except Exception as e:
-            logger.debug("No baseline in database: %s", e)
+            # An empty store is normal (measure); any other failure is a defect
+            # and must be visible, never swallowed at DEBUG (DC-3, G32).
+            if isinstance(e, ValueError):
+                logger.info("No baseline in store: %s", e)
+            else:
+                logger.error("Baseline lookup failed: %s: %s", type(e).__name__, e)
 
         # ====================================================================
         # Fallback to filesystem (backward compatibility)
         # ====================================================================
-        json_files = list(self.base_dir.glob("*.json"))
-        if json_files:
-            latest_file = max(json_files, key=lambda p: p.stat().st_mtime)
-            baseline_id = latest_file.stem
-            return self.load(baseline_id)
-
+        # No filesystem fallback (G27, INV-B1): JSON files are exports and may
+        # describe another store's baseline. No stored baseline means measure.
         return None
 
     # ... rest of existing methods (load, list_baselines, measure_new) remain the same ...

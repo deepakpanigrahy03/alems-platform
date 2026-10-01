@@ -140,7 +140,10 @@ def resolve_store(explicit: Optional[str] = None) -> str:
             "set ALEMS_DATA_ROOT in ~/.alemsrc or run 'alems sandbox create'."
         )
         _fallback_warned = True
-    return str(Path("data/experiments.db").resolve())
+    # Last resort anchored to the engine root, never to the current directory
+    # (G30): the same command from any directory resolves the same store.
+    _engine_root = Path(__file__).resolve().parents[2]
+    return str(_engine_root / "data" / "experiments.db")
 
 
 def _store_from_project_dir(project_dir: Path) -> Optional[str]:

@@ -118,30 +118,11 @@ def get_baseline_cache_path():
                     key, _, val = line[7:].partition("=")
                     os.environ.setdefault(key.strip(), val.strip())
 
-    base = os.environ.get("ALEMS_DATA_ROOT")
-    if base:
-        # Layer 1: machine-specific directory alongside experiments.db
-        machine_id = socket.gethostname().lower()
-        return os.path.join(base, machine_id, "idle_baseline.json")
-
-    # Layer 2: read from app_settings.yaml
-    try:
-        import yaml
-        settings_path = project_root / "config" / "app_settings.yaml"
-        if settings_path.exists():
-            with open(settings_path) as f:
-                settings = yaml.safe_load(f) or {}
-            cache_file = (settings
-                          .get("experiment", {})
-                          .get("baseline", {})
-                          .get("cache_file", ""))
-            if cache_file:
-                return str(project_root / cache_file)
-    except Exception as e:
-        logger.debug("get_baseline_cache_path: yaml read failed: %s", e)
-
-    # Layer 3: hardcoded fallback
-    return str(project_root / "data" / "idle_baseline.json")
+    # Store scoped (G27): the cache belongs to the store it was measured for,
+    # <store folder>/baselines/idle_baseline.json. A host level file was shared
+    # by every store on the machine and leaked baselines between them.
+    from core.storage.store_context import baseline_cache_path
+    return str(baseline_cache_path())
 
 
 # Module-level default resolved once at import time
