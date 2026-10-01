@@ -25,11 +25,7 @@ AUTHOR: Deepak Panigrahy
 """
 
 from core.serving.registry import ServingEngineRegistry
-from core.serving.remote_api_adapter import RemoteAPIAdapter
-
-# Register the only built-in adapter.
-# vLLMAdapter and others are NOT registered here — they live in pip plugins.
-ServingEngineRegistry.register(RemoteAPIAdapter)
+ServingEngineRegistry.discover()
 
 # Discover all installed engine plugins via entry points.
 # This is safe to call here because register() above already ran —

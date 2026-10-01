@@ -35,7 +35,7 @@ SPEC:   35G Section 6
 import logging
 
 from core.database.factory import DatabaseFactory
-from core.plugin_discovery import discover_plugins
+from core.registry.loader import load_group
 from alems import __version__ as _CORE_VERSION
 
 logger = logging.getLogger(__name__)
@@ -81,11 +81,8 @@ def register_external_database_plugins() -> None:
         logger.debug("database_plugin_bootstrap: already registered — skipping")
         return
 
-    names = discover_plugins(
-        group="alems.databases",
-        register_fn=_register_fn,
-        core_version=_CORE_VERSION,
-    )
+    # Every origin; the runtime declares no database entry point yet (G69).
+    names = load_group("alems.databases", _register_fn, _CORE_VERSION)
     if names:
         logger.info(
             "database_plugin_bootstrap: %d external database engine(s) "

@@ -126,6 +126,16 @@ def load_group(
         # Stage load.
         try:
             cls = ep.load()
+        except ModuleNotFoundError as exc:
+            # Missing third party dependency: expected on other platforms.
+            # Missing module of the plugin's own package: a broken install.
+            own_root = ep.value.split(":")[0].split(".")[0]
+            missing_root = (exc.name or "").split(".")[0]
+            if missing_root and missing_root != own_root:
+                _refuse(group, name, "unavailable", exc, explicit, level=logging.INFO)
+            else:
+                _refuse(group, name, "load", exc, explicit)
+            continue
         except Exception as exc:
             _refuse(group, name, "load", exc, explicit)
             continue

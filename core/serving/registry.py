@@ -80,48 +80,17 @@ class ServingEngineRegistry:
             return
         _DISCOVERED = True
 
-        try:
-            eps = entry_points(group=SERVING_ENGINE_EP_GROUP)
-        except Exception as exc:
-            logger.warning(
-                "ServingEngineRegistry.discover: failed to query entry "
-                "points for group '%s': %s. No plugins loaded.",
-                SERVING_ENGINE_EP_GROUP,
-                exc,
-            )
-            return
+        # Single plugin path (WP 1a.3): manifest, conformance and config
+        # gating. The subclass check is this family's register policy.
+        from core.registry.loader import load_group
+        from alems import __version__ as core_version
 
-        for ep in eps:
-            try:
-                cls = ep.load()
-            except Exception as exc:
-                logger.warning(
-                    "ServingEngineRegistry.discover: failed to load "
-                    "plugin '%s' from '%s': %s. Skipping.",
-                    ep.name,
-                    ep.value,
-                    exc,
-                )
-                continue
+        def _register(cls, config: dict = None) -> None:
+            if not (isinstance(cls, type) and issubclass(cls, ServingEngineAdapter)):
+                raise TypeError("%r does not subclass ServingEngineAdapter" % (cls,))
+            ServingEngineRegistry.register(cls)
 
-            if not issubclass(cls, ServingEngineAdapter):
-                logger.warning(
-                    "ServingEngineRegistry.discover: '%s' does not "
-                    "subclass ServingEngineAdapter. Skipping.",
-                    ep.name,
-                )
-                continue
-
-            try:
-                ServingEngineRegistry.register(cls)
-            except ValueError as exc:
-                # DuplicateRegistrationError — surface immediately.
-                logger.error(
-                    "ServingEngineRegistry.discover: registration failed "
-                    "for plugin '%s': %s",
-                    ep.name,
-                    exc,
-                )
+        load_group(SERVING_ENGINE_EP_GROUP, _register, core_version)
 
         logger.info(
             "ServingEngineRegistry.discover: complete. "
