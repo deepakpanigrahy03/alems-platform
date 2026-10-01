@@ -1210,18 +1210,22 @@ class ExperimentRunner:
 
         # Check if already in database
         try:
-            result = db.execute(
+            # db is a DatabaseManager; the query adapter is db.db and returns a
+            # list of dicts (G34, same defect class as G32).
+            result = db.db.execute(
                 "SELECT 1 FROM idle_baselines WHERE baseline_id = ?",
                 (harness.baseline.baseline_id,),
             )
-            if result.fetchone():
+            if result:
                 print(
                     f"✅ Baseline {harness.baseline.baseline_id} already exists in database"
                 )
                 self._baseline_saved = True
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            # Visible, never swallowed (DC-3): the insert below is still safe
+            # because it uses INSERT OR IGNORE.
+            logger.error("Baseline existence check failed: %s: %s", type(e).__name__, e)
 
         # Save baseline
         try:
