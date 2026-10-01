@@ -15,7 +15,9 @@ Usage:
     PYTHONPATH=. venv/bin/python scripts/tools/registry_snapshot.py OUT.txt
 """
 
+import argparse
 import hashlib
+from pathlib import Path
 import importlib
 import inspect
 import sys
@@ -129,9 +131,33 @@ def main(out_path: str) -> int:
     lines = sorted(set(lines))
     with open(out_path, "w") as fh:
         fh.write("\n".join(lines) + "\n")
-    print("%d registrations written to %s" % (len(lines), out_path))
+    # Summary goes to stderr so stdout never mixes with evidence (C-CLI rule 2).
+    print("%d registrations written to %s" % (len(lines), out_path), file=sys.stderr)
     return 0
 
 
+# Repo root: this file sits at <root>/scripts/tools/registry_snapshot.py.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _cli() -> int:
+    """
+    Parse arguments and refuse evidence paths inside the repository (G60).
+
+    Returns:
+        Exit code: main() result, 2 on usage error (argparse), 3 when the
+        output path resolves inside the repo (C-CLI environment error).
+    """
+    parser = argparse.ArgumentParser(description="Write the registry snapshot.")
+    parser.add_argument("--out", required=True, help="snapshot file outside the repo")
+    args = parser.parse_args()
+    out = Path(args.out).expanduser().resolve()
+    # Evidence never lives in the engine checkout; it would be committed or lost.
+    if out == _REPO_ROOT or _REPO_ROOT in out.parents:
+        print("refused: --out %s is inside the repo %s" % (out, _REPO_ROOT), file=sys.stderr)
+        return 3
+    return main(str(out))
+
+
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else "registry_snapshot.txt"))
+    sys.exit(_cli())
