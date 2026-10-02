@@ -47,7 +47,7 @@ import threading
 logger = logging.getLogger(__name__)
 
 from scripts.tools.path_loader import get_alems_db_path
-from scripts.etl.energy_window_resolver import EnergyWindowResolverFactory, SpbmV2Resolver
+from core.attribution.energy_window import EnergyWindowResolverFactory, SpbmV2Resolver
 
 DEFAULT_DB = Path(get_alems_db_path())
 

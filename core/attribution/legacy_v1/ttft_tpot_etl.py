@@ -17,6 +17,7 @@ import argparse
 import logging
 import sqlite3
 from pathlib import Path
+from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 from scripts.tools.path_loader import get_alems_db_path
@@ -31,19 +32,19 @@ def _conn() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     return conn
 
-def _compute_prefill_energy(conn, run_id: int, first_token_time_ns: int, request_start_ns: int) -> int:
+def _compute_prefill_energy(conn, run_id, first_token_time_ns, request_start_ns):
+    # type: (sqlite3.Connection, int, Optional[int], Optional[int]) -> Optional[int]
     """
-    Sum pkg RAPL energy during prefill window (request_start to first_token).
-    Uses energy_samples table — sample_start_ns/sample_end_ns overlap window.
-    """
-    row = conn.execute("""
-        SELECT SUM(pkg_end_uj - pkg_start_uj)
-        FROM energy_samples
-        WHERE run_id = ?
-          AND sample_end_ns   <= ?
-    """, (run_id, first_token_time_ns)).fetchone()
+    Package energy of one prefill window [request_start_ns, first_token_time_ns].
 
-    return row[0] if row and row[0] else 0
+    G119: the old version ignored request_start and summed every legacy RAPL
+    sample from run start, and returned 0 on v2 platforms (GN100, Apple).
+    Now one platform neutral computation; None when not computable (INV-E1).
+    """
+    from core.attribution.energy_window import window_energy_for_run
+    result = window_energy_for_run(
+        conn.cursor(), run_id, request_start_ns, first_token_time_ns)
+    return result.energy_uj
 
 def populate_run(run_id: int, conn=None) -> bool:
     """
@@ -63,7 +64,7 @@ def populate_run(run_id: int, conn=None) -> bool:
     try:
         # ── 1. prefill_energy_uj per interaction ──────────────────────────
         interactions = conn.execute("""
-            SELECT interaction_id, first_token_time_ns
+            SELECT interaction_id, first_token_time_ns, request_start_ns
             FROM llm_interactions
             WHERE run_id              = ?
               AND streaming_enabled   = 1
@@ -72,7 +73,7 @@ def populate_run(run_id: int, conn=None) -> bool:
         """, (run_id,)).fetchall()
         for row in interactions:
             energy = _compute_prefill_energy(
-                conn, run_id, row["first_token_time_ns"], 0
+                conn, run_id, row["first_token_time_ns"], row["request_start_ns"]
             )
             conn.execute("""
                 UPDATE llm_interactions
@@ -123,7 +124,7 @@ def main() -> None:
         conn = _conn()
         # Step 1: write prefill_energy_uj for all streaming interactions
         interactions = conn.execute("""
-            SELECT li.interaction_id, li.run_id, li.first_token_time_ns
+            SELECT li.interaction_id, li.run_id, li.first_token_time_ns, li.request_start_ns
             FROM llm_interactions li
             WHERE li.streaming_enabled    = 1
               AND li.first_token_time_ns  IS NOT NULL
@@ -131,7 +132,7 @@ def main() -> None:
         """).fetchall()
         for row in interactions:
             energy = _compute_prefill_energy(
-                conn, row["run_id"], row["first_token_time_ns"], 0
+                conn, row["run_id"], row["first_token_time_ns"], row["request_start_ns"]
             )
             conn.execute("""
                 UPDATE llm_interactions

@@ -1,6 +1,9 @@
 """
-scripts/etl/energy_window_resolver.py
+core/attribution/energy_window.py
 ================================================================================
+Moved from scripts/etl/energy_window_resolver.py in 39.5.1 1d.1 (core must not
+import scripts, CH39-3). The old path is a re export shim until 1f.
+
 PURPOSE:
     Platform-aware energy window resolvers for pre-task and post-task energy
     attribution. Each platform stores energy samples differently — this module
@@ -40,7 +43,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import List, NamedTuple, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,121 @@ class WindowEnergyResult:
             f"raw={self.raw_uj}µJ method={self.method} "
             f"dur={self.duration_ns//1_000_000}ms)"
         )
+
+
+# ---------------------------------------------------------------------------
+# Normalized samples and proportional overlap (39.5.1 1d.1)
+# ---------------------------------------------------------------------------
+# Platform differences end at Sample: every resolver turns its own storage
+# format into (start_ns, end_ns, energy_uj) intervals. The overlap math below
+# is written once and is identical on Intel, AMD, GN100 and Apple Silicon.
+
+class Sample(NamedTuple):
+    """One energy sample interval in a platform neutral form."""
+    start_ns: int
+    end_ns: int
+    energy_uj: float
+
+
+class WindowEnergy(NamedTuple):
+    """
+    Energy attributed to an arbitrary time window.
+
+    energy_uj:  None when no sample overlaps the window (INV-E1: never 0).
+    coverage:   share of the window covered by sample time, 0.0 to 1.0.
+    n_samples:  samples that overlap the window.
+    method:     provenance label of the computation.
+    """
+    energy_uj: Optional[int]
+    coverage: Optional[float]
+    n_samples: int
+    method: str = "PROPORTIONAL_OVERLAP"
+
+
+def energy_in_window(samples, start_ns, end_ns):
+    # type: (List[Sample], int, int) -> WindowEnergy
+    """
+    Sum sample energy over [start_ns, end_ns] by proportional overlap.
+
+    Each sample contributes energy times (overlap time / sample time). This
+    assumes flat power inside one sample interval, the same assumption as the
+    Bug 14 bracketing rule, applied to every overlapping sample instead of
+    only one bracket.
+
+    Args:
+        samples:  normalized samples, any order.
+        start_ns: window start (ns).
+        end_ns:   window end (ns), must be after start_ns.
+
+    Returns:
+        WindowEnergy; energy_uj None when the window is empty or uncovered.
+    """
+    if start_ns is None or end_ns is None or end_ns <= start_ns:
+        # An empty or inverted window has no defined energy.
+        return WindowEnergy(None, None, 0)
+    total_uj = 0.0
+    covered_ns = 0
+    n = 0
+    for s in samples:
+        dur_ns = s.end_ns - s.start_ns
+        if dur_ns <= 0:
+            continue  # malformed sample, cannot be apportioned
+        overlap_ns = min(s.end_ns, end_ns) - max(s.start_ns, start_ns)
+        if overlap_ns <= 0:
+            continue
+        # Negative deltas (counter wrap) are clamped, never subtracted.
+        total_uj += max(0.0, float(s.energy_uj)) * overlap_ns / dur_ns
+        covered_ns += overlap_ns
+        n += 1
+    if n == 0:
+        return WindowEnergy(None, None, 0)
+    coverage = min(1.0, covered_ns / float(end_ns - start_ns))
+    return WindowEnergy(int(round(total_uj)), coverage, n)
+
+
+def _v2_domain_samples(cursor, run_id, domain_id, start_ns, end_ns, midpoint):
+    # type: (sqlite3.Cursor, int, int, int, int, bool) -> List[Sample]
+    """
+    Samples of one domain from energy_sample_domains joined to energy_samples_v2.
+
+    energy_sample_domains holds per interval deltas; timing comes from v2.
+    midpoint=True: timestamp_ns is the interval midpoint (SPBM convention).
+    midpoint=False: timestamp_ns is the interval end.
+    """
+    cursor.execute("""
+        SELECT esv.timestamp_ns, esv.interval_ns, esd.energy_uj
+        FROM energy_sample_domains esd
+        JOIN energy_samples_v2 esv ON esv.sample_id = esd.sample_id
+        WHERE esd.run_id = ? AND esd.domain_id = ?
+          AND esv.timestamp_ns + esv.interval_ns > ?
+          AND esv.timestamp_ns - esv.interval_ns < ?
+    """, (run_id, domain_id, start_ns, end_ns))
+    out = []
+    for ts, interval_ns, energy in cursor.fetchall():
+        if not interval_ns or energy is None:
+            continue
+        if midpoint:
+            s0, s1 = ts - interval_ns // 2, ts + interval_ns // 2
+        else:
+            s0, s1 = ts - interval_ns, ts
+        out.append(Sample(int(s0), int(s1), float(energy)))
+    return out
+
+
+def window_energy_for_run(cursor, run_id, start_ns, end_ns, platform_class=None):
+    # type: (sqlite3.Cursor, int, int, int, Optional[str]) -> WindowEnergy
+    """
+    Energy of any window of a run, on any platform.
+
+    The factory selects the resolver (PAC-2); the resolver normalizes its
+    samples; energy_in_window does the math. Callers never branch on platform.
+    """
+    if start_ns is None or end_ns is None or end_ns <= start_ns:
+        return WindowEnergy(None, None, 0)
+    resolver = EnergyWindowResolverFactory.detect(
+        cursor, run_id, False, platform_class=platform_class)
+    samples = resolver.samples_in_range(cursor, run_id, start_ns, end_ns)
+    return energy_in_window(samples, start_ns, end_ns)
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +271,14 @@ class EnergyWindowResolverABC(ABC):
         """
 
     @abstractmethod
+    def samples_in_range(self, cursor, run_id, start_ns, end_ns):
+        # type: (sqlite3.Cursor, int, int, int) -> List[Sample]
+        """
+        Return this platform's samples overlapping [start_ns, end_ns],
+        normalized to Sample. Empty list when the platform has no data.
+        """
+
+    @abstractmethod
     def name(self) -> str:
         """Human-readable resolver name for logging."""
 
@@ -179,6 +305,10 @@ class NullResolver(EnergyWindowResolverABC):
                           t1_ns, post_task_duration_sec, cpu_frac_post):
         """No data — return None."""
         return None
+
+    def samples_in_range(self, cursor, run_id, start_ns, end_ns):
+        """No energy source on this platform: no samples."""
+        return []
 
     def name(self) -> str:
         return "NullResolver"
@@ -270,6 +400,21 @@ class RaplLegacyResolver(EnergyWindowResolverABC):
             method="MEASURED_SUM",
             duration_ns=dur_ns,
         )
+
+    def samples_in_range(self, cursor, run_id, start_ns, end_ns):
+        """
+        energy_samples rows overlapping the window. Each row carries its own
+        interval and cumulative pkg counters; energy is the counter delta.
+        """
+        cursor.execute("""
+            SELECT sample_start_ns, sample_end_ns, pkg_end_uj - pkg_start_uj
+            FROM energy_samples
+            WHERE run_id = ?
+              AND sample_start_ns < ? AND sample_end_ns > ?
+              AND pkg_start_uj IS NOT NULL AND pkg_end_uj IS NOT NULL
+        """, (run_id, end_ns, start_ns))
+        return [Sample(int(a), int(b), float(e))
+                for a, b, e in cursor.fetchall() if a is not None and b is not None]
 
     def name(self) -> str:
         return "RaplLegacyResolver"
@@ -390,6 +535,11 @@ class SpbmV2Resolver(EnergyWindowResolverABC):
             duration_ns=dur_ns,
         )
 
+    def samples_in_range(self, cursor, run_id, start_ns, end_ns):
+        """Package domain samples; SPBM timestamps are interval midpoints."""
+        return _v2_domain_samples(
+            cursor, run_id, self._pkg_domain_id, start_ns, end_ns, midpoint=True)
+
     def name(self) -> str:
         return f"SpbmV2Resolver(domain={self._pkg_domain_id})"
 
@@ -496,6 +646,16 @@ class IokitV2Resolver(EnergyWindowResolverABC):
         )
         return None
 
+    # Timestamp convention of IOKit rows in energy_samples_v2. Set from the
+    # writer code (handover check H1); one line to change if it is interval end.
+    TIMESTAMP_IS_MIDPOINT = True
+
+    def samples_in_range(self, cursor, run_id, start_ns, end_ns):
+        """Primary IOKit domain samples (child of the unified root)."""
+        return _v2_domain_samples(
+            cursor, run_id, self._pkg_domain_id, start_ns, end_ns,
+            midpoint=self.TIMESTAMP_IS_MIDPOINT)
+
     def name(self) -> str:
         return f"IokitV2Resolver(domain={self._pkg_domain_id})"
 
@@ -584,19 +744,14 @@ class EnergyWindowResolverFactory:
         Read platform_class from hw_config.json.
         Returns 'unknown' if file missing or key absent — factory falls back to DB detection.
         """
-        import json
-        from pathlib import Path
-        hw_config_path = Path("config/hw_config.json")
-        if not hw_config_path.exists():
-            logger.debug("hw_config.json not found — falling back to DB detection")
-            return "unknown"
+        # Engine local host facts through the core accessor, never cwd relative.
+        from core.storage.resolver import resolve_hw_config
         try:
-            with open(hw_config_path) as f:
-                cfg = json.load(f)
-            return cfg.get("platform_class", "unknown")
+            cfg = resolve_hw_config() or {}
         except Exception as e:
-            logger.warning("hw_config.json read failed: %s — falling back to DB detection", e)
+            logger.warning("hw_config read failed: %s, falling back to DB detection", e)
             return "unknown"
+        return cfg.get("platform_class", "unknown")
 
     @classmethod
     def detect(
@@ -604,6 +759,7 @@ class EnergyWindowResolverFactory:
         cursor: sqlite3.Cursor,
         run_id: int,
         has_point_reads: bool,
+        platform_class: Optional[str] = None,
     ) -> EnergyWindowResolverABC:
         """
         Detect platform and return the appropriate resolver.
@@ -620,7 +776,8 @@ class EnergyWindowResolverFactory:
         Returns:
             Concrete EnergyWindowResolverABC. Never None.
         """
-        platform_class = cls._load_platform_class()
+        if platform_class is None:
+            platform_class = cls._load_platform_class()
         resolver_family = cls._PLATFORM_CLASS_MAP.get(platform_class, "unknown")
 
         if resolver_family == "rapl_legacy":
