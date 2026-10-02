@@ -568,133 +568,6 @@ operationally impossible. Investigate immediately.
 Any new measurement column added to runs or cpu_samples must have a
 corresponding check in `scripts/test_exp_integrity.py` that flags
 all-zero values as a WARNING after 10+ consecutive runs.
-
----
-
-## 10. Turbostat Compliance (TC)
-*Added after Bug 5: kernel upgrade regression, env_id 39->40, 2026-05-08*
-
-### Rule TC-1: No Hardcoded Turbostat Binary Path
-NEVER write or read `real_binary` in hw_config.json.
-TurbostatReader resolves binary at runtime via `platform.release()`.
-A static path breaks silently on every kernel upgrade.
-
-```python
-# WRONG — breaks on kernel upgrade
-self.turbostat_path = config["turbostat"]["real_binary"]
-
-# RIGHT — self-healing, always current kernel
-self.turbostat_path = self._find_turbostat()  # uses platform.release()
-```
-
-### Rule TC-2: TURBOSTAT_COLUMNS is Single Source of Truth
-Column mappings live ONLY in `core/readers/turbostat_resolver.py`.
-Never in hw_config.json, turbostat_override.yaml, or any other file.
-Changing a mapping = bump version suffix in downstream method_id.
-
-```python
-# WRONG — columns from config file, can drift
-self.column_map = config.get("turbostat", {}).get("columns", {})
-
-# RIGHT — from code constant, versioned in git
-from core.readers.turbostat_resolver import TURBOSTAT_COLUMNS
-self.column_map = TURBOSTAT_COLUMNS
-```
-
-### Rule TC-3: Always --select, Never --show
-`--select` filters turbostat output to exactly the requested columns.
-`--show` returns all columns — format varies across kernel versions.
-Always use `--select` with `get_select_string()` from turbostat_resolver.
-
-```bash
-# WRONG — format varies across kernel versions
-turbostat --show all
-
-# RIGHT — deterministic output format
-turbostat --Summary --select Busy%,PkgTmp,CPU%c6,...
-```
-
-### Rule TC-4: TurbostatReader via Factory Only (PAC-2)
-TurbostatReader must only be instantiated via `ReaderFactory.get_turbostat_reader()`.
-Never directly in energy_engine.py or anywhere else.
-Factory handles platform conditional (Linux x86 vs macOS vs other).
-
-```python
-# WRONG — direct instantiation, PAC-2 violation
-self.turbostat = TurbostatReader(config)
-
-# RIGHT — factory, platform-aware
-self.turbostat = ReaderFactory.get_turbostat_reader(config)
-```
-
-### Rule TC-5: detect_hardware.py Must Not Write real_binary
-detect_hardware.py runs once at setup. It must not write `real_binary`
-to hw_config.json — that path becomes stale on kernel upgrade.
-detect_hardware.py writes hardware topology only (RAPL paths, CPU flags, etc).
-
----
-
-## 11. Python Version Compatibility (PVC)
-*Added after turbostat fix session — reproducibility requires broad Python compat*
-
-### Rule PVC-1: Minimum Python Version is 3.9
-All code must run on Python 3.9+.
-Target: any machine a reviewer might use to reproduce results.
-
-### Rule PVC-2: No 3.10+ Type Hint Syntax
-```python
-# WRONG — Python 3.10+ only
-def foo(x: int | None) -> tuple[str, int]: ...
-
-# RIGHT — Python 3.9 compatible
-from typing import Optional, Tuple
-def foo(x: Optional[int]) -> Tuple[str, int]: ...
-```
-
-### Rule PVC-3: Use # type: comments for inline hints in complex functions
-```python
-def resolve():
-    # type: () -> Tuple[Optional[str], str]
-    ...
-```
-
-### Rule PVC-4: No match/case Statements
-`match/case` is Python 3.10+. Use `if/elif/else`.
-
-### Rule PVC-5: Test on Python 3.9 Before Handoff
-```bash
-python3.9 -c "import core.readers.turbostat_resolver; print('OK')"
-python3.9 -m core.execution.tests.test_harness \
-  --task-id gsm8k_basic --repetitions 1 --provider local
-```
-
----
-
-## 12. Forensic Audit Design (FAD)
-*Added after Bug 5 discovery — environment_config forensic tracing*
-
-### Rule FAD-1: environment_config is the Forensic Anchor
-Every experiment records kernel_version + git_commit + env_id.
-When a measurement anomaly is detected, first query:
-```sql
-SELECT e.exp_id, ec.kernel_version, ec.git_commit, ec.created_at
-FROM experiments e
-JOIN environment_config ec ON ec.env_id = e.env_id
-WHERE e.exp_id BETWEEN X AND Y
-ORDER BY e.exp_id;
-```
-This identifies the exact infrastructure change that caused the anomaly.
-
-### Rule FAD-2: Silent Zeros Are Bugs
-Any measurement column returning 0.0 for ALL runs after a certain
-experiment ID must be treated as a measurement bug, not a hardware result.
-0.0 package_temp is thermally impossible. 0.0 C-state residency is
-operationally impossible. Investigate immediately.
-
-### Rule FAD-3: New Measurement Columns Must Have Sentinel Detection
-Any new measurement column added to runs or cpu_samples must have a
-corresponding check in `scripts/test_exp_integrity.py` that flags
-all-zero values as a WARNING after 10+ consecutive runs.
 ## 13. Measurement Integrity Compliance (MIC)
  
 ### Rule MIC-1: NULL != 0.0 — Never Store Missing as Zero
@@ -730,7 +603,7 @@ regenerate `env_hash` with new schema_version in `environment.json`.
 
 ## Rule: test_harness.py and run_experiment.py must stay in sync
 Any change to core execution flow in `core/execution/tests/test_harness.py`
-must be mirrored in `scripts/run_experiment.py` (and vice versa).
+must be mirrored in `core/execution/tests/run_experiment.py` (and vice versa).
 These serve different purposes (single vs multi task) but share the same
 harness call patterns. Divergence causes silent measurement inconsistencies.
 Applies to: run_agentic(), run_linear(), tool_graph wiring, save_pair(),
@@ -1067,4 +940,10 @@ All three must appear in both files after 39.4 wiring is complete.
 
 ### Rule EPS-3: New Execution Paths Must Be Declared
 Any new execution path that calls insert_run() must be registered in
-this compliance section and wired for spans before the chunk closes.
+### Rule VM-1: Proof Scales With Impact
+Major change (touches a run path, a stored or derived value, or the schema):
+real runs on 3 paths (save_pair, save_single, execute_goal) x 2 locations
+(engine root, a sandbox) x 4 machines (GN100, Lenovo, AMD, Mac).
+Small change (documentation, CLI text, logging, hygiene, dead code removal):
+tests plus one smoke run on one machine.
+Every phase gate runs the full matrix regardless. Unit tests support; they never replace runs.

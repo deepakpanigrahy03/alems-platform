@@ -118,8 +118,12 @@ class TaxRepository:
             linear_orchestration_uj: Linear orchestration overhead
             agentic_orchestration_uj: Agentic orchestration overhead
         """
-        tax_uj = agentic_uj - linear_uj
-        tax_percent = (tax_uj / agentic_uj * 100) if agentic_uj > 0 else 0
+        # E4: an unknown side means an unknown tax (INV-E1); never a made up 0.
+        if linear_uj is None or agentic_uj is None:
+            tax_uj, tax_percent = None, None
+        else:
+            tax_uj = agentic_uj - linear_uj
+            tax_percent = (tax_uj / agentic_uj * 100) if agentic_uj > 0 else None
 
         self.db.conn.execute(
             """

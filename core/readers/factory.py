@@ -106,7 +106,7 @@ class ReaderFactory:
         config = config or {}
         mode   = caps.measurement_mode
 
-        logger.info(
+        logger.debug(
             "ReaderFactory: selecting energy reader for mode=%s os=%s arch=%s",
             mode, caps.os, caps.arch,
         )
@@ -117,8 +117,8 @@ class ReaderFactory:
             if not energy_registry.is_empty():
                 winner_cls = energy_registry.select(caps)
                 logger.info(
-                    "ReaderFactory[energy]: registry selected %s",
-                    winner_cls.__name__,
+                    "ReaderFactory[energy]: %s (mode=%s os=%s arch=%s)",
+                    winner_cls.__name__, mode, caps.os, caps.arch,
                 )
                 # SPBMEnergyReader needs hwmon_path injected from caps.
                 if winner_cls.__name__ == "SPBMEnergyReader":

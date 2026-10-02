@@ -35,6 +35,8 @@ for _i in 1 2 3 4 5 6 7 8; do
 done
 cd "$ALEMS_ROOT"
 export PYTHONPATH="${ALEMS_ROOT}"
+# G11: never import from ~/.local (a foreign editable alems_sdk shadowed the engine).
+export PYTHONNOUSERSITE=1
 if [ -n "${VIRTUAL_ENV:-}" ] && [ "${VIRTUAL_ENV}" != "${ALEMS_ROOT}/venv" ]; then
     deactivate 2>/dev/null || true
 fi
@@ -215,8 +217,10 @@ db.create_tables()
                 # Run this after git clone on a new machine, or when
                 # entry points seem stale (alems run finds no readers).
                 echo "  Installing plugin packages editable..."
+                # G10: SDK first; the runtime depends on it.
+                venv/bin/pip install -e "${ALEMS_ROOT}/alems-sdk"
                 venv/bin/pip install -e "${ALEMS_ROOT}"
-                for pkg_dir in alems-sdk alems-plugin-*/; do
+                for pkg_dir in alems-plugin-*/; do
                     if [ -f "${pkg_dir}/pyproject.toml" ]; then
                         pkg_name=$(grep "^name" ${pkg_dir}/pyproject.toml | cut -d= -f2 | tr -d ' "' | tr - _)
                         if ! venv/bin/pip show "$pkg_name" > /dev/null 2>&1; then
@@ -231,17 +235,9 @@ db.create_tables()
                 ;;
 
             status)
-                echo ""
-                echo "  ┌─────────────────────────────────────────────────┐"
-                echo "  │  A-LEMS Environment Status                      │"
-                echo "  └─────────────────────────────────────────────────┘"
-                echo "  Platform:  $(_platform)"
-                echo "  Env:       $(_env)"
-                echo "  DB:        $(_db)"
-                echo "  Branch:    $(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown')"
-                echo "  Commit:    $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
-                echo "  Schema:    v$(_schema_version)"
-                echo "  Python:    $(python3 --version 2>&1)"
+                _python_cli dev status
+                exit $?
+                python3 -m core.cli.main dev env || true
                 echo "  Plugins:"
                 for pkg_dir in alems-plugin-*/; do
                     if [ -f "${pkg_dir}/pyproject.toml" ]; then
@@ -272,6 +268,7 @@ db.create_tables()
                 echo "  alems dev pull      — git pull + smart schema sync"
                 echo "  alems dev sync      — sync schema/configs (after manual git pull)"
                 echo "  alems dev status    — show platform, DB, branch, schema version"
+                echo "  alems dev env       — interpreter, user site, SDK origin and version"
                 echo "  alems dev install   — run full install"
                 echo "  alems dev migrate        — show pending migrations"
                 echo "  alems dev migrate --run  — apply pending migrations"

@@ -27,6 +27,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 export PYTHONPATH="${PROJECT_ROOT}"
+# G11: engine installs never see the user site.
+export PYTHONNOUSERSITE=1
+_usersite="$(python3 -c 'import site; print(site.getusersitepackages())' 2>/dev/null || true)"
+if [ -n "${_usersite}" ] && ls "${_usersite}" 2>/dev/null | grep -qi "alems"; then
+    echo "  ❌ alems packages found in the user site: ${_usersite}"
+    ls "${_usersite}" | grep -i alems | sed 's/^/     /'
+    echo "  Remove them first (they shadow this engine), then rerun install."
+    exit 1
+fi
 
 # ── Step 0: Detect platform ──────────────────────────────────────────
 # Run a fast hardware probe to get platform_class from detect_hardware.py.
@@ -630,8 +639,10 @@ else:
 # engines, scorers, and harness components on any machine.
 echo "[+] Installing plugin packages editable..."
 cd "${PLATFORM_DIR}"
+# G10: order alems-sdk, runtime, plugins; the runtime depends on the SDK.
+venv/bin/pip install -e "${PROJECT_ROOT}/alems-sdk"
 venv/bin/pip install -e "${PROJECT_ROOT}"
-for pkg_dir in alems-sdk alems-plugin-*/; do
+for pkg_dir in alems-plugin-*/; do
     if [ -f "${pkg_dir}/pyproject.toml" ]; then
         echo "    pip install -e ${pkg_dir}"
         venv/bin/pip install -e "${pkg_dir}"

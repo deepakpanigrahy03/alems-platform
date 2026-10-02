@@ -26,10 +26,25 @@ def handle_dev(argv: List[str]) -> int:
     sub = argv[0]
     if sub == "audit":
         return _cmd_audit(argv[1:])
+    if sub == "status":
+        return _cmd_status()
 
     # Other dev subcommands (pull, sync, status, install) are handled by scripts/alems bash.
     print(f"alems dev: unknown subcommand '{sub}' (may be a bash command, use scripts/alems)", file=sys.stderr)
     return 1
+
+
+def _cmd_status() -> int:
+    """alems dev status: one report from core (G14); bash only delegates."""
+    from core.cli.dev_status import collect_status, format_status
+    status = collect_status()
+    print("")
+    print("  A-LEMS Environment Status")
+    for line in format_status(status):
+        print(line)
+    print("")
+    # Exit 3 = environment error (C-CLI rule 3): foreign SDK, user site, missing plugin.
+    return 0 if status.ok else 3
 
 
 def _cmd_audit(argv: List[str]) -> int:

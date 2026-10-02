@@ -849,18 +849,6 @@ class ExperimentRunner:
         return harness.baseline
 
 
-
-    def aggregate_run_stats(
-        self, run_id: int, cpu_samples: List[Dict], interrupt_samples: List[Dict],
-        thermal_samples: List[Dict] = None,
-    ) -> Dict:
-        """
-        Compute aggregated statistics for a run from samples.
-        Delegates to run_persistence.aggregate_run_stats (single implementation).
-        """
-        from core.execution.run_persistence import aggregate_run_stats as _agg
-        return _agg(run_id, cpu_samples, interrupt_samples, thermal_samples)
-
     # ========================================================================
     # DUPLICATE CODE 3: Database setup (similar in both scripts)
     # ========================================================================
@@ -1292,24 +1280,11 @@ class ExperimentRunner:
             # Tax summary for this pair
             # Use attributed_energy_uj (L2: cpu_fraction x dynamic) — paper unit.
             # layer3_derived["workload"] = dynamic_energy_uj — includes background.
-            def _get_attributed(result):
-                ml = result.get("ml_features", {}) or {}
-                uj = int(ml.get("attributed_energy_uj") or 0)
-                if not uj:
-                    _dyn  = ml.get("dynamic_energy_uj") or 0
-                    _frac = ml.get("cpu_fraction") or 0.0
-                    uj = int(_dyn * _frac)
-                if not uj:
-                    uj = result["layer3_derived"]["energy_uj"]["workload"]
-                return uj
-            linear_uj  = _get_attributed(linear_result)
-            agentic_uj = _get_attributed(agentic_result)
-            linear_orchestration_uj = linear_result["ml_features"].get(
-                "orchestration_tax_uj", 0
-            )
-            agentic_orchestration_uj = agentic_result["ml_features"].get(
-                "orchestration_tax_uj", 0
-            )
+            # E4: one rule for all three paths (run_persistence); NULL, never a substitute.
+            from core.execution.run_persistence import (
+                attributed_energy_or_none, orchestration_energy_or_none)
+            linear_uj  = attributed_energy_or_none(linear_result)
+            agentic_uj = attributed_energy_or_none(agentic_result)
 
             print(
                 f"🔍 DEBUG - linear_orchestration_uj from ml_features: {linear_result['ml_features'].get('orchestration_tax_uj')}"
@@ -1318,12 +1293,8 @@ class ExperimentRunner:
                 f"🔍 DEBUG - agentic_orchestration_uj from ml_features: {agentic_result['ml_features'].get('orchestration_tax_uj')}"
             )
 
-            linear_orchestration_uj = linear_result["layer3_derived"]["energy_uj"].get(
-                "orchestration_tax", 0
-            )
-            agentic_orchestration_uj = agentic_result["layer3_derived"][
-                "energy_uj"
-            ].get("orchestration_tax", 0)
+            linear_orchestration_uj  = orchestration_energy_or_none(linear_result)
+            agentic_orchestration_uj = orchestration_energy_or_none(agentic_result)
             # GPU PP1 energy per workflow side — None on non-Tiger-Lake
             linear_gpu_uj  = linear_result["ml_features"].get("gpu_dynamic_energy_uj")
             agentic_gpu_uj = agentic_result["ml_features"].get("gpu_dynamic_energy_uj")            
@@ -1609,29 +1580,16 @@ class ExperimentRunner:
             )
 
             # SPEC 35J: energy_uj computation moved OUT of this block —
-            # it must run unconditionally (save_pair()'s _get_attributed()
+            # it must run unconditionally (save_pair()'s attributed energy rule
             # is never gated on thermal_samples presence either). Keeping
             # it inside here caused a real UnboundLocalError crash on
             # --workflow-mode agentic, the first time this path was ever
             # exercised, when thermal_samples was absent from result.
-            _ml_energy = result.get("ml_features", {}) or {}
-            energy_uj = int(_ml_energy.get("attributed_energy_uj") or 0)
-            if not energy_uj:
-                _dyn = _ml_energy.get("dynamic_energy_uj") or 0
-                _frac = _ml_energy.get("cpu_fraction") or 0.0
-                energy_uj = int(_dyn * _frac)
-            if not energy_uj:
-                try:
-                    energy_uj = result["layer3_derived"]["energy_uj"]["workload"]
-                except (KeyError, TypeError):
-                    energy_uj = 0
-            orchestration_uj = 0
-            try:
-                orchestration_uj = result["layer3_derived"]["energy_uj"].get(
-                    "orchestration_tax", 0
-                )
-            except (KeyError, TypeError):
-                pass
+            # E4: same rule as save_pair and execute_goal.
+            from core.execution.run_persistence import (
+                attributed_energy_or_none, orchestration_energy_or_none)
+            energy_uj = attributed_energy_or_none(result)
+            orchestration_uj = orchestration_energy_or_none(result)
 
 
             # (energy_uj/orchestration_uj now computed above, unconditionally,
@@ -1699,122 +1657,3 @@ class ExperimentRunner:
             _goal_tracker.queue_etl(_wconn, "run", run_id, "energy_attribution_etl")
             return run_id
 
-    def _save_run_samples(self, db, run_id: int, result: dict) -> None:
-        """
-        Insert all sample tables for one completed run.
-
-        Called by both save_pair() and save_single() — single place for
-        all sample insertion logic. Mirrors the existing per-side blocks
-        in save_pair() exactly. Safe to call inside or outside a transaction.
-
-        Args:
-            db:     DB adapter with insert_* methods.
-            run_id: The run_id just inserted by db.insert_run().
-            result: Full harness result dict for this side.
-        """
-        # Provenance — must be first after insert_run
-        record_run_provenance(db, run_id, result,
-                            reader_mode=result.get("reader_mode"))
-        self._validate_run(db, run_id, None)
-
-        # Energy samples — convert old tuple format for backward compat
-        if "energy_samples" in result:
-            converted = []
-            for sample in result["energy_samples"]:
-                if isinstance(sample, dict):
-                    converted.append(sample)
-                elif len(sample) == 2 and isinstance(sample[1], dict):
-                    timestamp, energy_dict = sample
-                    converted.append({
-                        "timestamp_ns":     int(timestamp * 1_000_000_000),
-                        "pkg_energy_uj":    energy_dict.get("PACKAGE", energy_dict.get("package-0", 0)),
-                        "core_energy_uj":   energy_dict.get("CORE", energy_dict.get("CPU_P", energy_dict.get("core", 0))),
-                        "uncore_energy_uj": energy_dict.get("UNCORE", energy_dict.get("uncore", 0)),
-                        "dram_energy_uj":   0,
-                    })
-            if converted:
-                db.insert_energy_samples(run_id, converted)
-
-        if "cpu_samples" in result:
-            db.insert_cpu_samples(run_id, result["cpu_samples"])
-        if platform.system() == 'Darwin':
-            _darwin_row = _build_darwin_cpu_sample_row(run_id, result)
-            if _darwin_row:
-                _r = db.get_run(run_id)
-                if _r:
-                    _darwin_row['sample_start_ns'] = _r.get('start_time_ns')
-                    _darwin_row['sample_end_ns']   = _r.get('end_time_ns')
-                    _darwin_row['timestamp_ns']    = _r.get('end_time_ns')
-                    _darwin_row['interval_ns'] = (
-                        (_r.get('end_time_ns') or 0) - (_r.get('start_time_ns') or 0)
-                    )
-                try:
-                    db.insert_cpu_samples(run_id, [_darwin_row])
-                except Exception as _e:
-                    logger.warning("darwin cpu_samples insert failed run_id=%d: %s", run_id, _e)
-
-        if "interrupt_samples" in result:
-            db.insert_interrupt_samples(run_id, result["interrupt_samples"])
-
-        if "io_samples" in result:
-            db.insert_io_samples(run_id, result["io_samples"])
-
-        if "thermal_samples" in result:
-            db.insert_thermal_samples(run_id, result["thermal_samples"])
-            # Aggregate hardware stats after thermal samples inserted
-            _agg2 = self.aggregate_run_stats(
-                run_id,
-                result.get("cpu_samples", []),
-                result.get("interrupt_samples", []),
-                result.get("thermal_samples", []),
-            )
-            _ml2 = result.get("ml_features") or {}
-            _task_dur_s2  = _ml2.get("task_duration_sec") or 0
-            _fw_s2        = _ml2.get("framework_overhead_sec") or 0
-            _attr_uj2     = _ml2.get("attributed_energy_uj") or 0
-            _spbm_cov2    = (_ml2.get("spbm_telemetry_coverage") or {}).get(
-                "spbm_sample_coverage_pct")
-            _phase_cov2   = _ml2.get("phase_sample_coverage_pct")
-            _gpu_dynamic2 = _ml2.get("gpu_dynamic_energy_uj") or 0
-            _gpu_spbm2    = _ml2.get("gpu_total_energy_uj") or 0
-            if _attr_uj2 and _task_dur_s2:
-                _agg2["avg_task_power_watts"] = round(
-                    _attr_uj2 / 1_000_000.0 / _task_dur_s2, 4)
-            _agg2["energy_sample_coverage_pct"] = (
-                _spbm_cov2 if _spbm_cov2 is not None else _phase_cov2)
-            if _agg2.get("avg_task_power_watts") and _fw_s2:
-                _agg2["framework_overhead_energy_uj"] = round(
-                    _agg2["avg_task_power_watts"] * _fw_s2 * 1_000_000)
-            _is_spbm2     = _ml2.get("spbm_telemetry_coverage") is not None
-            if _is_spbm2 and _gpu_dynamic2 > 0:
-                _agg2["gpu_attribution_method"] = "dcgm_field156"
-            elif _is_spbm2 and _gpu_spbm2 > 0:
-                _agg2["gpu_attribution_method"] = "spbm_package_v1"
-            elif _ml2.get("reader_method_id") == "iokit_power_reader" and _gpu_spbm2 > 0:
-                _agg2["gpu_attribution_method"] = "iokit_powermetrics"
-            elif not _is_spbm2 and _gpu_spbm2 > 0:
-                _agg2["gpu_attribution_method"] = "pp1_msr"
-            else:
-                _agg2["gpu_attribution_method"] = "none"
-            if hasattr(db, "update_run_stats"):
-                db.update_run_stats(run_id, _agg2)
-                if not _agg2.get("energy_sample_coverage_pct"):
-                    db.runs.update_energy_sample_coverage(run_id)
-
-        # Orchestration events — agentic only in practice, safe to call on linear
-        if "orchestration_events" in result:
-            db.insert_orchestration_events(run_id, result["orchestration_events"])
-
-        # LLM interactions
-        if "llm_interactions" in result:
-            for interaction in result["llm_interactions"]:
-                db.insert_llm_interaction(interaction)
-
-        # --- Extension post-run dispatch (35D) ---
-        if not _extension_manager.is_legacy_mode():
-            _dispatch_post_run(db, run_id, result, result.get("workflow_type", "linear"))                
-        try:
-            from scripts.etl.network_energy_etl import process_run as _pne
-            _pne(run_id, db.db.conn)
-        except Exception as _e:
-            logger.warning("network_energy_etl failed single run_id=%d: %s", run_id, _e)

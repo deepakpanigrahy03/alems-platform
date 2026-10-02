@@ -48,12 +48,13 @@ def aggregate_run_stats(run_id, cpu_samples, interrupt_samples, thermal_samples=
 
     stats = {
         "run_id": run_id,
-        "cpu_busy_mhz": 0.0,
-        "cpu_avg_mhz": 0.0,
-        "package_temp_celsius": 0.0,
-        "max_temp_c": 0.0,
-        "min_temp_c": 0.0,
-        "interrupt_rate": 0.0,
+        # G90: None until measured; 0.0 stored "not measured" as a value (INV-E1).
+        "cpu_busy_mhz": None,
+        "cpu_avg_mhz": None,
+        "package_temp_celsius": None,
+        "max_temp_c": None,
+        "min_temp_c": None,
+        "interrupt_rate": None,
     }
     if cpu_samples:
         busy = [s.get("cpu_busy_mhz", 0) for s in cpu_samples if s.get("cpu_busy_mhz")]
@@ -73,6 +74,38 @@ def aggregate_run_stats(run_id, cpu_samples, interrupt_samples, thermal_samples=
         if rates:
             stats["interrupt_rate"] = sum(rates) / len(rates)
     return stats
+
+
+def attributed_energy_or_none(result):
+    # type: (Optional[dict]) -> Optional[int]
+    """
+    Attributed workload energy (E_attr) of one run or attempt.
+
+    The only quantity allowed for goal and attempt energy (INV-E5). Returns the
+    harness value, a measured 0 included; None when the result or the value is
+    absent. Never substitutes dynamic, workload or 0 (E4, INV-E1).
+    """
+    if not result:
+        return None
+    value = (result.get("ml_features") or {}).get("attributed_energy_uj")
+    if value is None:
+        import logging
+        logging.getLogger(__name__).warning(
+            "attributed_energy_uj absent: goal and attempt energy stored as NULL")
+        return None
+    return int(value)
+
+
+def orchestration_energy_or_none(result):
+    # type: (Optional[dict]) -> Optional[int]
+    """Orchestration energy as stored today (layer3 orchestration_tax); None when absent."""
+    if not result:
+        return None
+    try:
+        value = result["layer3_derived"]["energy_uj"].get("orchestration_tax")
+    except (KeyError, TypeError, AttributeError):
+        return None
+    return None if value is None else int(value)
 
 
 def derive_run_fields(agg, ml):

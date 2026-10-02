@@ -178,14 +178,7 @@ def execute_goal(
     # goal_attempt.energy_uj = E_attributed per attempt (process share of workload)
     # goal_execution.total_energy_uj = SUM(E_attributed across all attempts)
     # This is the paper unit of analysis — not E_dynamic which includes background
-    _acc_keys = [
-        "pkg_energy_uj", "core_energy_uj", "uncore_energy_uj",
-        "dram_energy_uj", "dynamic_energy_uj", "idle_energy_uj",
-        "attributed_energy_uj", "orchestration_tax_uj",
-        # GPU PP1 energy — None on non-Tiger-Lake, accumulated across attempts
-        "gpu_total_energy_uj", "gpu_dynamic_energy_uj",
-    ]
-    accumulated_energy = {k: 0 for k in _acc_keys}
+
     for attempt_num in range(1, max_attempts + 1):
         is_retry    = attempt_num > 1
         attempts_made += 1
@@ -357,10 +350,13 @@ def execute_goal(
         # Accumulate per-attempt energy into running total
         if result is not None:
             ml = result.get("ml_features", {}) or {}
-            for k in _acc_keys:
-                accumulated_energy[k] += int(ml.get(k, 0) or 0)
 
-        energy_uj, orchestration_uj = _extract_energy(result)
+
+        # E4: same rule as save_pair and save_single.
+        from core.execution.run_persistence import (
+            attributed_energy_or_none, orchestration_energy_or_none)
+        energy_uj = attributed_energy_or_none(result)
+        orchestration_uj = orchestration_energy_or_none(result)
 
         goal_tracker.finish_attempt(
             conn=conn,
@@ -845,54 +841,3 @@ def _record_attempt_failure(
     )
 
 
-def _extract_energy(result: dict) -> tuple[int, int]:
-    """
-    Extract attributed and orchestration energy from harness result dict.
-
-    Uses attributed_energy_uj (cpu_fraction x dynamic) as the paper unit
-    of analysis — not dynamic_energy_uj which includes background processes.
-
-    goal_attempt.energy_uj = E_attributed of this attempt.
-    goal_execution.total_energy_uj = SUM(E_attributed across all attempts).
-    This is the correct denominator for all paper fractions.
-
-    Returns (energy_uj, orchestration_uj) as integers.
-    Returns (0, 0) if result is None or keys missing — never raises.
-    """
-    if result is None:
-        return 0, 0
-    try:
-        ml = result.get("ml_features", {}) or {}
- 
-        # Primary: attributed_energy_uj set by both linear (line 550) and
-        # agentic (line 1053) harness paths via cpu_fraction x dynamic
-        energy_uj = ml.get("attributed_energy_uj")
- 
-        if not energy_uj:
-            # Secondary: recompute from ml_features fields — handles case where
-            # attributed key present but zero due to cpu_fraction timing edge
-            dyn  = ml.get("dynamic_energy_uj") or 0
-            frac = ml.get("cpu_fraction") or 0.0
-            if dyn and frac:
-                energy_uj = int(dyn * frac)
-                logger.warning(
-                    "_extract_energy: attributed_energy_uj missing/zero — "
-                    "recomputed from dynamic×cpu_fraction: %d µJ", energy_uj
-                )
- 
-        if not energy_uj:
-            # Last resort: dynamic is less accurate (includes background processes)
-            # Logged as warning so fallback frequency is visible in paper review
-            energy_uj = result["layer3_derived"]["energy_uj"]["workload"]
-            logger.warning(
-                "_extract_energy: falling back to dynamic_energy_uj — "
-                "ml_features.attributed_energy_uj and cpu_fraction both absent"
-            )
- 
-        orchestration_uj = result["layer3_derived"]["energy_uj"].get(
-            "orchestration_tax", 0
-        )
-        return int(energy_uj or 0), int(orchestration_uj or 0)
-    except (KeyError, TypeError):
-        logger.debug("_extract_energy: result missing energy data — returning zeros")
-        return 0, 0

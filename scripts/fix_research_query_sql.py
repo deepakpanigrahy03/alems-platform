@@ -18,7 +18,7 @@ import re
 import os
 
 from scripts.tools.path_loader import get_alems_db_path
-DB_PATH = os.getenv("ALEMS_DB_PATH", get_alems_db_path())
+DB_PATH = get_alems_db_path()  # G110: no environment override; resolver only
 
 def split_sql_text(raw: str):
     """

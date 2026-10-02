@@ -103,6 +103,7 @@ writers:
   - core/attribution/
   - core/thermal/
   - core/vocabularies/
+  - core/validation/corrections.py       # registered corrections, writes via InProcessWriter
   - scripts/tools/alems_migrate.py
   - scripts/tools/audit/replay.py        # writes scratch stores only (Leg S)
 

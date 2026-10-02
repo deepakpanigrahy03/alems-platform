@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 # Default DB path — override with --db-path flag
 from scripts.tools.path_loader import get_alems_db_path
+from typing import Optional
 DEFAULT_DB_PATH = get_alems_db_path()
 
 
@@ -76,9 +77,8 @@ def process_one(goal_id: int, conn) -> None:
         return
 
     total_energy_uj = _sum_attempt_energies(attempts)
-    # GPU total — SUM(gpu_energy_uj) across attempts, None if all NULL
-    _gpu_vals = [a[4] for a in attempts if a[4] is not None]
-    gpu_total_uj = sum(_gpu_vals) if _gpu_vals else None
+    # GPU total: same rule; on platforms without GPU energy all are NULL, so NULL.
+    gpu_total_uj = _sum_known_or_none([a[4] for a in attempts])
 
 
     # Failed goals — no winning attempt means all energy was wasted.
@@ -190,15 +190,21 @@ def backfill_all(db_path: str, force: bool = False) -> None:
 
 # ── Private computation helpers ───────────────────────────────────────────────
 
-def _sum_attempt_energies(attempts: list) -> int:
+def _sum_known_or_none(values):
+    # type: (list) -> Optional[int]
     """
-    Sum energy_uj across all attempts. NULL attempt energy treated as 0.
-    Returns None if all attempts have NULL energy (no data yet).
+    Exact sum when every value is known; None when any value is None or the
+    list is empty. SQL SUM and "NULL as 0" would hide an unknown attempt and
+    understate the goal (E4, INV-E1, INV-E4).
     """
-    values = [a[3] for a in attempts if a[3] is not None]
-    if not values:
+    if not values or any(v is None for v in values):
         return None
     return sum(values)
+
+
+def _sum_attempt_energies(attempts: list):
+    """Goal energy: sum of attempt energy_uj, None if any attempt is unknown."""
+    return _sum_known_or_none([a[3] for a in attempts])
 
 
 def _get_winning_energy(winning_attempts: list):

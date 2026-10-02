@@ -37,6 +37,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true", help="machine output, schema alems.validate.persistence/1")
     p.add_argument("--repair", action="store_true", help="remove identical duplicates (plan only without --yes)")
     p.add_argument("--yes", action="store_true", help="apply the repair after a backup next to the store")
+    p.add_argument("--no-backup", action="store_true",
+                   help="skip the store backup (test data only; needs --yes)")
     return p
 
 
@@ -70,7 +72,10 @@ def _run_repair(a) -> int:
     if not a.yes:
         print("plan only; rerun with --yes to back up and apply", file=sys.stderr)
         return 5
-    print("backup %s" % _backup(a.store))
+    if getattr(a, "no_backup", False):
+        print("backup skipped (--no-backup): repair runs in one transaction; no undo after success")
+    else:
+        print("backup %s" % _backup(a.store))
     # Administrative repair on a raw connection: transitional exception until the
     # store writer exposes administrative transactions (G35, 39.5.5).
     con = sqlite3.connect(a.store)

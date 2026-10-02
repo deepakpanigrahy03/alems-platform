@@ -89,8 +89,7 @@ def main():
             "env_id": env_id,
             "session_start": datetime.now().isoformat(),
         }
-        Path("config/current_session.json").write_text(json.dumps(session, indent=2))
-        print(f"\n✅ Session saved to config/current_session.json")
+        # G112: current_session.json removed; nothing read it.
 
     db.close()
 

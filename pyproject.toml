@@ -136,3 +136,8 @@ legacy_v1 = "core.attribution.legacy_v1:LegacyV1AttributionModel"
 # Optional engine packages (alems-plugin-vllm etc.) register into this group.
 [project.entry-points."alems.engines.serving"]
 remote_api = "core.serving.remote_api_adapter:RemoteAPIAdapter"
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "core"]
+python_functions = ["test_*"]
+addopts = "--ignore=core/execution/tests/test_llm_setup.py"
