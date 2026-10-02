@@ -48,16 +48,10 @@ def main():
         hw_id = load_hardware(db, Path("config/hardware.json"))
         print(f"✅ Hardware ID: {hw_id}")
 
-    # Save session
-    if hw_id:
-        Path("config/current_session.json").write_text(
-            json.dumps({"hw_id": hw_id, "session_start": str(datetime.now())})
-        )
-
     db.close()
 
 
 if __name__ == "__main__":
-    from datetime import datetime
+
 
     main()

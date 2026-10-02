@@ -366,6 +366,15 @@ def _cmd_info(argv: List[str]) -> int:
     print(f"name:           {manifest.get('name')}")
     print(f"sandbox_id:     {manifest.get('sandbox_id')}")
     print(f"engine_version: {manifest.get('engine_version')}")
+    # A7: the manifest names an engine, but the launcher may have run another
+    # one (missing path, engines.yaml fallback). Show both so a mismatch is
+    # visible before a run, not discovered in provenance afterwards.
+    manifest_engine = manifest.get("engine")
+    running_engine = _engine_root().resolve()
+    print(f"engine:         {manifest_engine}")
+    print(f"running engine: {running_engine}")
+    if manifest_engine and Path(manifest_engine).expanduser().resolve() != running_engine:
+        print("WARN: running engine differs from the manifest engine", file=sys.stderr)
     print(f"store:          {store_path}")
     print(f"lock:           runtime={lock.get('runtime_version')} "
           f"schema={lock.get('core_schema_version')}")
