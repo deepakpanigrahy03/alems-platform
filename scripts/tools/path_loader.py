@@ -25,16 +25,14 @@ def _source_alemsrc():
     Uses setdefault so shell environment always wins over rc file.
     Called automatically by get_alems_db_path() and get_baseline_cache_path().
     """
-    alemsrc = os.path.expanduser("~/.alemsrc")
-    if not os.path.exists(alemsrc):
-        return
-    with open(alemsrc) as f:
-        for line in f:
-            line = line.strip()
-            if not line.startswith("export "):
-                continue                     # skip comments and blank lines
-            key, _, val = line[7:].partition("=")
-            os.environ.setdefault(key.strip(), val.strip())
+    # One implementation in core (G28). The engine root is put on sys.path
+    # first because this file is often run as a script from scripts/tools/.
+    import sys
+    _root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+    from core.storage.alemsrc import load_alemsrc
+    load_alemsrc()
 
 
 def get_alems_db_path():

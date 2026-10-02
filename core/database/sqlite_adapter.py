@@ -69,7 +69,7 @@ from .schema import (CREATE_SANDBOX_IDENTITY, CREATE_CPU_SAMPLES, CREATE_ENERGY_
                      CREATE_LLM_INTERACTIONS, CREATE_ML_VIEW,
                      CREATE_ORCHESTRATION_ANALYSIS,
                      CREATE_ORCHESTRATION_EVENTS, CREATE_RUNS,
-                     CREATE_RUNS_INDEXES, CREATE_TAX_INDEXES,
+                     CREATE_RUNS_INDEXES, CREATE_TAX_INDEXES, CREATE_NATURAL_KEY_INDEXES,
                      CREATE_TAX_SUMMARY, TASK_CATEGORIES_SCHEMA,
                      THERMAL_SAMPLES_SCHEMA, CREATE_RESEARCH_METRICS_VIEW, ENERGY_SAMPLES_WITH_POWER_VIEW,
                      CREATE_MEASUREMENT_METHOD_REGISTRY,
@@ -458,6 +458,9 @@ class SQLiteAdapter(DatabaseInterface):
         self.conn.executescript(CREATE_WRITER_IDEMPOTENCY)
         self.conn.executescript(CREATE_SANDBOX_IDENTITY)
         self.conn.executescript(CREATE_SCHEMA_NAMESPACE_TABLES)     
+        # INV-D1 enforced by the store (v117). Last, because it needs every
+        # sample, interaction and event table and its key columns to exist.
+        self.conn.executescript(CREATE_NATURAL_KEY_INDEXES)     
 
 
         # Commit explicitly (DDL should be committed)

@@ -36,7 +36,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # Deprecation warning issued once per process for the data/experiments.db fallback.
-_fallback_warned = False
+
 
 # ---------------------------------------------------------------------------
 # Store resolution
@@ -57,13 +57,10 @@ def resolve_store(explicit: Optional[str] = None) -> str:
     Raises:
         RuntimeError: when no layer resolves and the fallback is also absent.
     """
-    # Source alemsrc so ALEMS_DATA_ROOT is in env before any layer check.
-    # Import only _source_alemsrc — never get_alems_db_path (circular).
-    try:
-        from scripts.tools.path_loader import _source_alemsrc  # type: ignore
-        _source_alemsrc()
-    except Exception:
-        pass
+    # Load ~/.alemsrc so ALEMS_DATA_ROOT is in env before any layer check.
+    # Core implementation (G28): works from any sys.path; core never imports scripts.
+    from core.storage.alemsrc import load_alemsrc
+    load_alemsrc()
 
     # Layer 1: explicit argument.
     if explicit:
@@ -132,18 +129,13 @@ def resolve_store(explicit: Optional[str] = None) -> str:
     except Exception as exc:
         logger.debug("resolve_store: ALEMS_DATA_ROOT layer failed: %s", exc)
 
-    # Layer 7: hardcoded fallback — data/experiments.db relative to cwd.
-    global _fallback_warned
-    if not _fallback_warned:
-        logger.warning(
-            "resolve_store: falling back to data/experiments.db — "
-            "set ALEMS_DATA_ROOT in ~/.alemsrc or run 'alems sandbox create'."
-        )
-        _fallback_warned = True
-    # Last resort anchored to the engine root, never to the current directory
-    # (G30): the same command from any directory resolves the same store.
-    _engine_root = Path(__file__).resolve().parents[2]
-    return str(_engine_root / "data" / "experiments.db")
+    # Layer 7 removed (G28): a guessed store is worse than no store, because a
+    # command would then read or migrate the wrong database without noticing.
+    # The repo store stays reachable explicitly: --store or ALEMS_STORE.
+    raise RuntimeError(
+        "resolve_store: no store resolved. Set ALEMS_DATA_ROOT in ~/.alemsrc, "
+        "run inside a sandbox ('alems sandbox create'), or pass --store / ALEMS_STORE."
+    )
 
 
 def _store_from_project_dir(project_dir: Path) -> Optional[str]:

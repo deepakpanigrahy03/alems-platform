@@ -1,0 +1,38 @@
+# Comparison profiles for derived value diffs (core/validation/derived_profiles.yaml).
+# key: logical row identity (never a generated id); ignore: excluded with reason;
+# every other column is compared. Columns written by the duration fix are
+# not replayable (G102); A' and B' both skip it, so it cancels in the diff.
+# AUTHOR: Deepak Panigrahy
+version: 1
+tables:
+  runs:
+    key: [run_id]
+    ignore:
+      global_run_id: identity, not derived
+      created_at: timestamp
+  energy_attribution:
+    key: [run_id]
+    ignore:
+      created_at: timestamp
+      updated_at: timestamp
+  orchestration_events:
+    key: [run_id, step_index, phase, event_type, start_time_ns, tool_name]
+    ignore:
+      event_id: generated id
+      created_at: timestamp
+      global_run_id: identity
+  network_energy_attribution:
+    key: [run_id, strategy_used]
+    ignore:
+      id: generated id
+      created_at: timestamp
+  attribution_residual:
+    key: [run_id, domain, window_label]
+    ignore:
+      residual_id: generated id
+      created_at: timestamp
+  orchestration_tax_summary:
+    key: [linear_run_id, agentic_run_id]
+    run_column: agentic_run_id
+    ignore:
+      global_run_id: identity

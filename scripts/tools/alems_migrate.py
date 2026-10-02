@@ -22,6 +22,7 @@ import socket
 import sqlite3
 import subprocess
 import sys
+import os
 import time
 from pathlib import Path
 
@@ -1243,6 +1244,10 @@ def main() -> int:
         help="Apply all pending migrations. Without this flag, shows plan only.",
     )
     parser.add_argument(
+        "--store", default=None,
+        help="Store to migrate (path to experiments.db). Default: the resolved store.",
+    )
+    parser.add_argument(
         "--env-mode", choices=["prod", "dev", "integration", "preprod"],
         default=None,
         help="Environment mode. dev: heals checksum mismatches. prod: fatal on mismatch. "
@@ -1273,7 +1278,8 @@ def main() -> int:
     hostname = get_hostname()
     machine_id = get_machine_id()
     commit = get_repo_commit()
-    db_path = get_db_path()
+    # Explicit store wins (G28); otherwise the normal resolution.
+    db_path = os.path.abspath(args.store) if args.store else get_db_path()
     try:
         from core.storage.inprocess_writer import _ProjectLock
         _mig_lock = _ProjectLock(db_path, timeout_s=60.0)

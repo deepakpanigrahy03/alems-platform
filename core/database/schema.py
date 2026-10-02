@@ -1403,6 +1403,25 @@ CREATE INDEX IF NOT EXISTS idx_runs_interrupt ON runs(interrupt_rate);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_unique ON runs(exp_id, run_number, workflow_type);
 """
 
+# INV-D1 enforced by the store (v117): natural keys from
+# core/validation/persistence_keys.yaml. Executed after every table exists.
+CREATE_NATURAL_KEY_INDEXES = """
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nk_energy_samples_v2
+    ON energy_samples_v2(run_id, source_id, timestamp_ns);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nk_interrupt_samples
+    ON interrupt_samples(run_id, timestamp_ns);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nk_io_samples
+    ON io_samples(run_id, device, sample_start_ns);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nk_thermal_samples
+    ON thermal_samples(run_id, timestamp_ns);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nk_energy_derived_metrics
+    ON energy_derived_metrics(run_id, sample_id, metric_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nk_llm_interactions
+    ON llm_interactions(run_id, step_index, request_start_ns);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_nk_orchestration_events
+    ON orchestration_events(run_id, step_index, phase, event_type, start_time_ns);
+"""
+
 # ========================================================================
 # Table 5: orchestration_events
 # ========================================================================

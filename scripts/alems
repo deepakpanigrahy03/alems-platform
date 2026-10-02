@@ -375,6 +375,11 @@ print(resolve_store())
             integrity)
                 python3 scripts/test_exp_integrity.py "$@"
                 ;;
+            persistence)
+                # Store from the resolver, never a literal path (EEI-2 extension).
+                _store=$(python3 -c "import sys; sys.path.insert(0,'scripts/tools'); from path_loader import get_alems_db_path; print(get_alems_db_path())")
+                python3 -m core.validation.cli --store "$_store" "$@"
+                ;;
             energy)
                 python3 scripts/validate_energy_chain_v2.py "$@"
                 ;;
@@ -432,6 +437,7 @@ print(resolve_store())
         echo "    alems validate attribution        — attribution validation"
         echo "    alems validate boundaries         — attempt boundary validation"
         echo "    alems validate report             — energy chain report"
+        echo "    alems validate persistence        — INV-D1, INV-D2, coverage (--runs, --against, --json)"
         echo ""
         echo "  Plugin and schema commands:"
         echo "    alems plugins                     — list installed plugins"

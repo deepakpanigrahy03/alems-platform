@@ -1,0 +1,118 @@
+# Persistence declarations for INV-D1, INV-D2 and the write site lint.
+# Location: core/validation/persistence_keys.yaml
+# AUTHOR: Deepak Panigrahy
+#
+# tables: every run linked table of the core store.
+#   link        run | attempt | goal | span | sample (how a row reaches a run)
+#   run_columns columns that hold a run id (link run only; default [run_id]).
+#               global_run_id is never a link: it is a cross store identity.
+#   key         natural key for INV-D1; unique_index means a UNIQUE index or
+#               primary key enforces it; null means not evaluable (reason given).
+# Keys are implementation (master section 4 note); a key that produces false
+# positives on real stores is revised here and the change recorded in the handover.
+version: 1
+
+tables:
+  # samples
+  cooling_samples:       {link: run, key: [run_id, device_id, timestamp_ns]}
+  cpu_samples:           {link: run, key: [run_id, timestamp_ns, measurement_source]}
+  cpu_idle_states:       {link: run, key: unique_index}
+  device_telemetry:      {link: run, key: [run_id, source_id, device_type, timestamp_ns]}
+  energy_samples:        {link: run, key: [run_id, timestamp_ns]}
+  energy_samples_v2:     {link: run, key: [run_id, source_id, timestamp_ns]}
+  energy_sample_domains: {link: run, key: [run_id, sample_id, domain_id, source_id]}
+  energy_derived_metrics: {link: run, key: [run_id, sample_id, metric_name]}
+  gpu_samples:           {link: run, key: [run_id, gpu_index, sample_start_ns]}
+  interrupt_samples:     {link: run, key: [run_id, timestamp_ns]}
+  io_samples:            {link: run, key: [run_id, device, sample_start_ns]}
+  nic_samples:           {link: run, key: [run_id, interface, sample_ns]}
+  power_rail_samples:    {link: run, key: [run_id, rail_id, timestamp_ns]}
+  thermal_samples:       {link: run, key: [run_id, timestamp_ns]}
+  thermal_samples_v2:    {link: run, key: [run_id, zone_id, timestamp_ns]}
+  power_limit_events:    {link: run, key: [run_id, limit_id, timestamp_ns]}
+  run_power_limits:      {link: run, key: [run_id, limit_id]}
+
+  # events, interactions, spans
+  llm_interactions:
+    link: run
+    key: [run_id, step_index, request_start_ns]
+    repair_ignore: [created_at, prefill_energy_uj]   # ETL filled one copy only (G99)
+  orchestration_events:
+    link: run
+    key: [run_id, step_index, phase, event_type, start_time_ns]
+    repair_ignore: [created_at, attempt_id, span_id]  # backfill filled one copy only (G98)
+  spans:                 {link: run, key: [run_id, vocabulary, kind, name, start_ns]}
+  span_attributes:       {link: span, key: unique_index}
+  state_reuse_events:    {link: run, key: [run_id, attempt_id, recovery_id, reuse_type]}
+  tool_selection_events:
+    link: run
+    key: null
+    reason: no event time or sequence column; repeated selections in one run are legitimate
+  ear_decision_log:      {link: attempt, key: [attempt_id, attempt_number, failure_type_id, action]}   # run_id NULL by design (EEI-4)
+  failure_injection_log: {link: attempt, key: [attempt_id, rule_index, draw_number]}
+  cache_state_snapshots: {link: attempt, key: [attempt_id, engine_name, cache_type, timestamp_ns]}
+  serving_runtime_snapshots: {link: attempt, key: [attempt_id, engine_name, snapshot_type, timestamp_ns]}
+  hallucination_events:  {link: attempt, key: [attempt_id, interaction_id, hallucination_type]}
+  tool_failure_events:   {link: attempt, key: [attempt_id, orchestration_event_id, tool_name, failure_type]}
+
+  # goals
+  goal_attempt:          {link: run, key: unique_index}
+  goal_output:           {link: run, key: [goal_id, attempt_id, step_index]}
+  goal_execution:
+    link: run
+    run_columns: [first_run_id, winning_run_id]
+    key: null
+    reason: goal identity is generated per goal; duplication is evaluated on goal_attempt
+
+  # run level derived rows
+  runs:                  {link: run, key: unique_index}
+  orchestration_tax_summary:
+    link: run
+    run_columns: [linear_run_id, agentic_run_id]
+    key: unique_index
+  energy_attribution:    {link: run, key: [run_id]}
+  network_energy_attribution: {link: run, key: [run_id, strategy_used]}
+  attribution_residual:  {link: run, key: [run_id, domain, window_label]}
+  normalization_factors: {link: run, key: [run_id]}
+  run_quality:           {link: run, key: [run_id, quality_version]}
+  run_outliers:          {link: run, key: unique_index}
+  measurement_methodology: {link: run, key: [run_id, metric_id, method_id]}
+  audit_log:
+    link: run
+    key: null
+    reason: append only log; repeated identical entries are legitimate
+
+# Rows that reference a run linked row by its primary key. Used by the duplicate
+# repair (late written columns of a table: repair_ignore in its entry): delete when the child was duplicated together with its parent,
+# repoint when the child must survive and follow the kept parent.
+children:
+  energy_samples_v2:
+    - {table: energy_sample_domains, column: sample_id, action: delete}
+    - {table: energy_derived_metrics, column: sample_id, action: delete}
+  orchestration_events:
+    - {table: tool_failure_events, column: orchestration_event_id, action: repoint}
+    - {table: hallucination_events, column: orchestration_event_id, action: repoint}
+  llm_interactions:
+    - {table: hallucination_events, column: interaction_id, action: repoint}
+
+# Modules allowed to write run linked tables (path prefixes, relative to the engine root).
+writers:
+  - core/database/
+  - core/storage/
+  - core/execution/run_persistence.py
+  - core/attribution/
+  - core/thermal/
+  - core/vocabularies/
+  - scripts/tools/alems_migrate.py
+  - scripts/tools/audit/replay.py        # writes scratch stores only (Leg S)
+
+# Known write sites outside the writer modules. Each carries an open gap id; the
+# lint fails on any site not listed here. Remove an entry when its gap closes.
+exceptions:
+  core/execution/experiment_runner.py: L13      # nic_samples via raw connection
+  core/execution/goal_execution_manager.py: G96
+  core/execution/goal_tracker.py: G96
+  core/execution/hallucination_detector.py: G96
+  core/execution/tools/retrieval_selector.py: G96
+  core/retry/retry_adapter.py: G96
+  scripts/etl/: G81                              # ETL behind a contract in 39.5.5
