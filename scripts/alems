@@ -338,7 +338,11 @@ print(resolve_store())
         MIGRATE_OUT=$(python3 scripts/tools/alems_migrate.py 2>&1)
         if echo "$MIGRATE_OUT" | grep -q "migrations to apply" && ! echo "$MIGRATE_OUT" | grep -q "Total: 0"; then
             echo ""
-            echo "  error: pending migrations detected. Run: alems dev migrate --run"
+            if [ -n "$SANDBOX_ROOT" ]; then
+                echo "  error: pending migrations detected. Run: alems sandbox upgrade --run"
+            else
+                echo "  error: pending migrations detected. Run: alems dev migrate --run"
+            fi
             echo ""
             echo "$MIGRATE_OUT" | grep -E "v[0-9]+|Total:"
             exit 1

@@ -487,38 +487,79 @@ def _cmd_doctor(argv: List[str]) -> int:
 
 def _cmd_upgrade(argv: List[str]) -> int:
     """
-    Show what upgrade would do. With --run: apply it.
-    Foundation phase: --run not yet implemented (39.2 is dry-run only).
-    """
-    dry_run = "--dry-run" in argv or "--run" not in argv
+    Plan, and with --run apply, a sandbox upgrade (G127).
 
+    Up to date only when the running engine version equals the locked one,
+    the store schema equals the lock schema, and no migration is pending.
+    --run: back up the store, migrate with the one migration runner
+    (scripts/tools/alems_migrate.py), verify, then rewrite the lock.
+    """
+    import subprocess
+    apply_changes = "--run" in argv
     sandbox_path, manifest, lock, store_path = _load_current_sandbox()
     if manifest is None:
         print("no sandbox found. cd into a sandbox directory first.", file=sys.stderr)
         return 1
-
-    running_version = _get_running_engine_version()
-    locked_version = lock.get("runtime_version")
-
-    print(f"sandbox upgrade plan")
-    print(f"  sandbox:         {sandbox_path}")
-    print(f"  locked engine:   {locked_version}")
-    print(f"  running engine:  {running_version}")
-
-    if locked_version == running_version:
+    running = _get_running_engine_version()
+    locked = lock.get("runtime_version")
+    db_v, lock_v, pending = _schema_state(store_path, lock)
+    print("sandbox upgrade plan")
+    print("  sandbox:         %s" % sandbox_path)
+    print("  engine:          locked %s, running %s" % (locked, running))
+    print("  schema:          lock %s, store %s, pending %d" % (lock_v, db_v, len(pending)))
+    for name in pending:
+        print("    pending:       %s" % name)
+    if running == locked and db_v == lock_v and not pending:
         print("  status:          up to date, nothing to do")
         return 0
-
-    print(f"  action:          update lock from {locked_version} to {running_version}")
-    print(f"  schema:          run pending migrations")
-
-    if dry_run:
-        print("\n(dry-run: no changes made. Pass --run to apply.)")
+    if not apply_changes:
+        print("\n(plan only: nothing changed. Run: alems sandbox upgrade --run)")
         return 0
+    print("  backup:          %s" % _backup_store(store_path))
+    # One migration runner for engine and sandbox stores; no second implementation.
+    rc = subprocess.run(
+        [sys.executable, str(_engine_root() / "scripts" / "tools" / "alems_migrate.py"),
+         "--run", "--store", str(store_path)],
+        cwd=str(_engine_root())).returncode
+    db_v, _old, pending = _schema_state(store_path, lock)
+    if rc != 0 or pending:
+        print("error: migration failed or incomplete (rc=%s, pending=%d); store backup kept"
+              % (rc, len(pending)), file=sys.stderr)
+        return 3
+    lock["core_schema_version"] = db_v
+    lock["runtime_version"] = running
+    (sandbox_path / "alems.lock").write_text(_yaml_dump(lock))
+    print("  done:            lock schema %s, engine %s" % (db_v, running))
+    return 0
 
-    # --run path: not implemented in foundation phase
-    print("error: --run not yet implemented in this phase", file=sys.stderr)
-    return 1
+
+def _schema_state(store_path, lock):
+    """(store schema, lock schema, pending migration names): the doctor check 7 inputs."""
+    import sqlite3
+    from core.versioning import _schema_versions
+    from scripts.tools.alems_migrate import SCHEMA_DIR, discover_repo_files, preflight
+    db_v = _schema_versions(str(store_path)).get("core_schema_version")
+    conn = sqlite3.connect(str(store_path))
+    try:
+        pending = preflight(conn, "schema", discover_repo_files(SCHEMA_DIR, "v")) or []
+    finally:
+        conn.close()
+    names = [getattr(p, "name", None) or str(p) for p in pending]
+    return db_v, lock.get("core_schema_version"), names
+
+
+def _backup_store(store_path) -> str:
+    """Consistent copy next to the store (SQLite backup API) before any upgrade."""
+    import sqlite3
+    import time
+    target = "%s.pre_upgrade_%d.bak" % (store_path, int(time.time()))
+    src = sqlite3.connect(str(store_path))
+    dst = sqlite3.connect(target)
+    with dst:
+        src.backup(dst)
+    dst.close()
+    src.close()
+    return target
 
 
 # ---------------------------------------------------------------------------
