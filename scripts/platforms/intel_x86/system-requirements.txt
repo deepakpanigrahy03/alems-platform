@@ -1,4 +1,5 @@
 # intel_x86 platform additions (beyond common)
-linux-tools-common
-linux-tools-generic
-msr-tools
+# Generic names; real packages per distro in scripts/platforms/packages.map
+perf
+kernel-tools
+msr

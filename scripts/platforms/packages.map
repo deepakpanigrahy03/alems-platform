@@ -1,0 +1,39 @@
+# A-LEMS package map (G146), read by scripts/lib/pkg.sh.
+# Columns: os_id  generic_name  package(s)
+# os_id is /etc/os-release ID or an ID_LIKE entry; macos for brew.
+# A generic name with no line for this OS installs under its own name.
+# "-" means this OS does not package the tool. KERNEL expands to uname -r.
+# Adding an OS: add its lines here. No code change.
+
+# Ubuntu and derivatives (identical to the pre G146 package names)
+ubuntu  perf             linux-tools-common
+ubuntu  kernel-tools     linux-tools-generic
+ubuntu  turbostat        linux-tools-KERNEL
+ubuntu  msr              msr-tools
+
+# Debian and derivatives
+debian  perf             linux-perf
+debian  kernel-tools     -
+debian  turbostat        linux-cpupower
+debian  msr              msr-tools
+
+# Fedora, RHEL family
+fedora  perf             perf
+fedora  kernel-tools     -
+fedora  turbostat        kernel-tools
+fedora  msr              msr-tools
+fedora  python3-dev      python3-devel
+fedora  python3-venv     python3
+fedora  build-essential  gcc gcc-c++ make
+fedora  sqlite3          sqlite
+
+# Arch family
+arch    perf             perf
+arch    kernel-tools     -
+arch    msr              msr-tools
+arch    python3          python
+arch    python3-pip      python-pip
+arch    python3-venv     python
+arch    python3-dev      python
+arch    build-essential  base-devel
+arch    sqlite3          sqlite

@@ -110,39 +110,17 @@ echo "[0.5/12] Checking prerequisites for platform: ${PLATFORM}..."
 PREREQ_FAILED=0
 
 # Detect package manager once for all hint messages below.
-if command -v apt-get &>/dev/null; then
-    PKG_INSTALL="sudo apt install -y"
-    PKG_DEV="python3-dev"
-    PKG_BUILD="build-essential"
-    PKG_SQLITE="sqlite3"
-    PKG_VENV="python3-venv"
-    PKG_PERF="linux-tools-common"
-    PKG_MSR="msr-tools"
-elif command -v dnf &>/dev/null; then
-    PKG_INSTALL="sudo dnf install -y"
-    PKG_DEV="python3-devel"
-    PKG_BUILD="gcc gcc-c++"
-    PKG_SQLITE="sqlite"
-    PKG_VENV="python3"
-    PKG_PERF="perf"
-    PKG_MSR="msr-tools"
-elif command -v pacman &>/dev/null; then
-    PKG_INSTALL="sudo pacman -S --noconfirm"
-    PKG_DEV="python"
-    PKG_BUILD="base-devel"
-    PKG_SQLITE="sqlite"
-    PKG_VENV="python"
-    PKG_PERF="perf"
-    PKG_MSR="msr-tools"
-else
-    PKG_INSTALL="<your-package-manager> install"
-    PKG_DEV="python3-dev"
-    PKG_BUILD="build-essential"
-    PKG_SQLITE="sqlite3"
-    PKG_VENV="python3-venv"
-    PKG_PERF="linux-tools-common"
-    PKG_MSR="msr-tools"
-fi
+# G146: real package names come from scripts/platforms/packages.map for this
+# OS (os-release ID, then ID_LIKE); one table for every distro.
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/pkg.sh"
+pkg_detect
+PKG_INSTALL="${ALEMS_PKG_INSTALL}"
+PKG_DEV="$(pkg_name python3-dev)"
+PKG_BUILD="$(pkg_name build-essential)"
+PKG_SQLITE="$(pkg_name sqlite3)"
+PKG_VENV="$(pkg_name python3-venv)"
+PKG_PERF="$(pkg_name perf)"
+PKG_MSR="$(pkg_name msr)"
 
 # ── Resolve a supported Python (3.13 > 3.12 > 3.11) ─────────────────
 # Bleeding-edge system python (3.14+) breaks C extension wheels (lxml,
@@ -221,7 +199,7 @@ case "$PLATFORM" in
         ;;
     intel_x86)
         check_tool "perf"       "required" "${PKG_INSTALL} ${PKG_PERF}"
-        check_tool "turbostat"  "optional" "${PKG_INSTALL} linux-tools-$(uname -r)"
+        check_tool "turbostat"  "optional" "${PKG_INSTALL} $(pkg_name turbostat)"
         check_tool "rdmsr"      "optional" "${PKG_INSTALL} ${PKG_MSR} (enables MSR/C-state readings)"
         ;;
     amd_x86)
@@ -246,8 +224,8 @@ if [ "$PREREQ_FAILED" -eq 1 ]; then
     echo "  ❌ Required tools missing. Run the install hints above, then:"
     echo "     bash scripts/install.sh"
     echo ""
-    echo "  Tip: on apt systems you can install all at once:"
-    echo "     sudo apt install -y build-essential sqlite3 ${PKG_PERF} ${PKG_MSR}"
+    echo "  Tip: install all at once:"
+    echo "     ${PKG_INSTALL} ${PKG_BUILD} ${PKG_SQLITE} ${PKG_PERF} ${PKG_MSR}"
     exit 1
 fi
 echo "  Prerequisites OK"
@@ -258,7 +236,7 @@ echo ""
 # like psutil. Install system deps first, then create venv.
 echo "[1/12] System build dependencies..."
 if [ "${OS}" = "Linux" ]; then
-    ${PKG_INSTALL} ${PKG_DEV} ${PKG_VENV} ${PKG_BUILD} 2>/dev/null || true
+    pkg_install_names python3-dev python3-venv build-essential || exit 1
 fi
 
 # ── Step 1b: Python venv ─────────────────────────────────────────────

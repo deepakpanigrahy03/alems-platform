@@ -11,9 +11,9 @@ case "$SUBCOMMAND" in
     deps)
         echo "  Apple Silicon: installing system dependencies via brew..."
         if command -v brew &>/dev/null; then
-            brew install \
-                $(grep -v '^#' "${SCRIPT_DIR}/system-requirements.txt" | grep -v '^$' | tr '\n' ' ') \
-                2>/dev/null || true
+            # G146: same resolver as Linux; brew errors are shown and stop the install.
+            source "${PROJECT_ROOT}/scripts/lib/pkg.sh"
+            pkg_install_files "${SCRIPT_DIR}/system-requirements.txt" || exit 1
         else
             echo "  ❌ Homebrew not found. Install from https://brew.sh"
             exit 1

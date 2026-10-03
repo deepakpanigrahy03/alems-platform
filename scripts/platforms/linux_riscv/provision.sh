@@ -12,9 +12,11 @@ SUBCOMMAND="${1:-all}"
 case "$SUBCOMMAND" in
     deps)
         echo "  RISC-V Linux: installing system dependencies..."
-        sudo apt install -y \
-            $(grep -v '^#' "${PROJECT_ROOT}/system-requirements-linux-common.txt" | grep -v '^$' | tr '\n' ' ') \
-            2>/dev/null || true
+        # G146: generic names mapped per distro; install errors stop the install.
+        source "${PROJECT_ROOT}/scripts/lib/pkg.sh"
+        pkg_install_files \
+            "${PROJECT_ROOT}/system-requirements-linux-common.txt" \
+            || exit 1
 
         echo "  Installing Python dependencies..."
         REQS_HASH=$(cat "${PROJECT_ROOT}/requirements.txt" "${SCRIPT_DIR}/requirements.txt" 2>/dev/null \

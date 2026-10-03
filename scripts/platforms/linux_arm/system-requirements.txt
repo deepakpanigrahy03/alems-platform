@@ -1,2 +1,3 @@
 # linux_arm platform additions (beyond common)
-linux-tools-common
+# Generic names; real packages per distro in scripts/platforms/packages.map
+perf
