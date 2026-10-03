@@ -302,6 +302,13 @@ else
     pip install -r requirements.txt
 fi
 
+# G143: later steps (data root, DB init, migrations) import core, which needs
+# alems_sdk. Install SDK then runtime here, in that order (G10). Plugins are
+# installed at the end of the script.
+echo "[2b/12] alems-sdk and runtime (editable)..."
+venv/bin/pip install -e "${PROJECT_ROOT}/alems-sdk"
+venv/bin/pip install -e "${PROJECT_ROOT}"
+
 # ── Step 3: Permissions ──────────────────────────────────────────────
 echo "[3/12] Permissions..."
 if [ -f "${PLATFORM_DIR}/provision.sh" ]; then
