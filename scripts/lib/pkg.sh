@@ -84,11 +84,20 @@ pkg_install_names() {
         return 0
     fi
     echo "  Installing (${ALEMS_PKG_MGR}): $pkgs"
-    if ! ${ALEMS_PKG_INSTALL} $pkgs; then
-        echo "  ERROR: system package install failed: $pkgs"
-        echo "  OS ids: ${ALEMS_OS_IDS:-none}. Correct names in scripts/platforms/packages.map"
-        return 1
+    if ${ALEMS_PKG_INSTALL} $pkgs; then
+        return 0
     fi
+    # A stale apt index gives 404 on old package versions; refresh once, retry.
+    if [ "${ALEMS_PKG_MGR}" = "apt" ]; then
+        echo "  Install failed; refreshing package index and retrying once..."
+        if sudo apt-get update -qq && ${ALEMS_PKG_INSTALL} $pkgs; then
+            return 0
+        fi
+    fi
+    echo "  ERROR: system package install failed: $pkgs"
+    echo "  See the package manager error above. If a name is unknown for this OS"
+    echo "  (ids: ${ALEMS_OS_IDS:-none}), add a line to scripts/platforms/packages.map"
+    return 1
 }
 
 pkg_install_files() {
