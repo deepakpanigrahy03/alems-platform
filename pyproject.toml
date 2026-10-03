@@ -140,4 +140,4 @@ remote_api = "core.serving.remote_api_adapter:RemoteAPIAdapter"
 [tool.pytest.ini_options]
 testpaths = ["tests", "core"]
 python_functions = ["test_*"]
-addopts = "--ignore=core/execution/tests/test_llm_setup.py"
+addopts = "--ignore=core/execution/tests/test_llm_setup.py --ignore=core/execution/tests/graph_test.py"

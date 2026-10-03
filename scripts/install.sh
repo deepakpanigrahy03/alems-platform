@@ -665,7 +665,8 @@ else:
 # This registers entry points so the registry can discover readers,
 # engines, scorers, and harness components on any machine.
 echo "[+] Installing plugin packages editable..."
-cd "${PLATFORM_DIR}"
+# G143: plugins live in the repo root, not in the platform folder.
+cd "${PROJECT_ROOT}"
 # G10: order alems-sdk, runtime, plugins; the runtime depends on the SDK.
 # G143: absolute pip path; the working directory has changed by this step.
 "${PROJECT_ROOT}/venv/bin/pip" install -e "${PROJECT_ROOT}/alems-sdk"
