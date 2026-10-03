@@ -77,6 +77,15 @@ tables:
   run_quality:           {link: run, key: [run_id, quality_version]}
   run_outliers:          {link: run, key: unique_index}
   measurement_methodology: {link: run, key: [run_id, metric_id, method_id]}
+  # Legacy tables present only in older stores (G130); empty on current stores.
+  agent_decision_tree:   {link: run, key: [run_id, step_index, decision_type]}
+  outliers:              {link: run, key: [run_id, column_name, detected_at]}
+  tags:                  {link: run, key: [run_id, exp_id, label]}   # run_id NULL for experiment tags
+  hypotheses:
+    link: run
+    run_columns: [key_run_id]
+    key: null
+    reason: researcher notes; free text rows, not measurements
   audit_log:
     link: run
     key: null

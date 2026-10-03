@@ -29,6 +29,7 @@ nav:
     - API Keys: getting-started/api-keys.md
     - Quick Start: getting-started/quick-start.md
     - Troubleshooting: getting-started/troubleshooting.md
+    - Sandbox and Engine: getting-started/sandbox-and-engine.md
 
   - Concepts:
     - Platform Detection: concepts/platform-detection.md
@@ -42,6 +43,7 @@ nav:
     - Database Schema: developer/database-schema.md
     - Schema Namespaces: developer/schema-namespaces.md
     - Schema Migration: developer/schema-migration.md
+    - Store Repair: developer/store-repair.md
     - Energy Chain: developer/energy-chain.md
     - Adding a Platform: developer/adding-a-platform.md
     - Adding a Reader: developer/adding-a-reader.md
@@ -80,6 +82,8 @@ nav:
     - Run Quality: research/run-quality.md
     - Experiment Classification: research/experiment-classification.md
     - Goal Execution: research/goal-execution.md
+    - Energy Accounting: research/energy-accounting.md
+    - Invariant Catalog: research/invariants.md
     - Output Quality: research/output-quality.md
     - Tool Failure: research/tool-failure.md
     - Failure Injection Guide: research/failure-injection-guide.md

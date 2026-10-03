@@ -658,7 +658,7 @@ def _execute_goal_impl(
     # in _persist_attempts stage 2 (run_derived) with each attempt's own result.
     # The old loop here re-applied the final attempt's point reads and durations
     # to every run of the goal (cross attempt values in a run row, C1 violation).
-    
+
     if _own_writer:
         writer.close()
     return goal_id
@@ -712,6 +712,16 @@ def execute_goal(
                                   derived=False)
             except Exception as perr:  # never mask the original exception
                 logger.error("execute_goal: raw persistence on exception path failed: %s", perr)
+        # G100 (new rows): a goal that raised must not stay 'running'. Close it as
+        # failed with the attempts already measured; never mask the original error.
+        if state["conn"] is not None and state["goal_id"] is not None:
+            try:
+                goal_tracker.finish_goal(
+                    conn=state["conn"], goal_id=state["goal_id"], success=False,
+                    winning_run_id=None, total_attempts=len(state["measured"]),
+                )
+            except Exception as gerr:
+                logger.error("execute_goal: closing goal on exception path failed: %s", gerr)
         raise
 
 

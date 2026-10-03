@@ -771,7 +771,18 @@ def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod")
 
     pending_schema = preflight(conn, "schema", schema_files, env_mode=env_mode)
     for version in pending_schema:
-        apply_one(conn, schema_files[version], version, "schema", hostname, machine_id, commit)
+        try:
+            apply_one(conn, schema_files[version], version, "schema", hostname, machine_id, commit)
+        except Exception as exc:
+            # G128: a new unique index refuses rows that are already duplicated
+            # (INV-D1). Name the fix instead of surfacing a raw SQLite error.
+            if "UNIQUE constraint failed" in str(exc):
+                raise MigrationError(
+                    "%s: duplicate rows block a unique index (%s). "
+                    "Fix: alems validate persistence --repair --yes, then rerun the migration."
+                    % (schema_files[version].name, exc)
+                ) from exc
+            raise
         print(f"Applied schema {schema_files[version].name}")
 
     pending_seed = preflight(conn, "seed", seed_files, env_mode=env_mode)

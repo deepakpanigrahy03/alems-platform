@@ -16,6 +16,34 @@
 
 catalog:
 
+  - topic: "Goal, attempt, run accounting; one run per attempt; retries; pre and post task windows; v_runs_goal"
+    file: research/energy-accounting.md
+    audience: researcher
+    status: current
+    last_validated: "2026-10-03"
+    nav_entry: "Energy Accounting: research/energy-accounting.md"
+
+  - topic: "Invariant catalog, alems validate invariants, INV ids, exit codes"
+    file: research/invariants.md
+    audience: researcher
+    status: current
+    last_validated: "2026-10-03"
+    nav_entry: "Invariant Catalog: research/invariants.md"
+
+  - topic: "Sandbox versus engine, alems sandbox info, upgrade, dev status"
+    file: getting-started/sandbox-and-engine.md
+    audience: user
+    status: current
+    last_validated: "2026-10-03"
+    nav_entry: "Sandbox and Engine: getting-started/sandbox-and-engine.md"
+
+  - topic: "Duplicate repair, registered corrections, orphan rows"
+    file: developer/store-repair.md
+    audience: developer
+    status: current
+    last_validated: "2026-10-03"
+    nav_entry: "Store Repair: developer/store-repair.md"
+
   # ── Getting Started ────────────────────────────────────────────────────────
 
   - topic: "Installation, prerequisites, install steps, post-install verification, migration system"

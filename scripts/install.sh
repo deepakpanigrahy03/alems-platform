@@ -591,6 +591,26 @@ fi
 # Measure once during install so first experiment run never hits
 # foreign key constraint from missing baseline_id in idle_baselines.
 # Skipped on platforms where energy_measurement != direct.
+# Host readiness (L18 to L23): report every host prerequisite a measurement
+# needs, so a fresh install shows gaps before the first experiment.
+# Reports only; fixes stay in fix_permissions.sh (privileged, run once).
+echo "[12c/12] Host readiness check..."
+_ok()   { echo "  OK    $1"; }
+_warn() { echo "  WARN  $1"; }
+if [ "$(uname -s)" = "Linux" ]; then
+    _par=$(cat /proc/sys/kernel/perf_event_paranoid 2>/dev/null || echo "?")
+    if [ "$_par" = "-1" ]; then _ok "perf_event_paranoid=-1"; else _warn "perf_event_paranoid=${_par}; run: sudo bash scripts/fix_permissions.sh"; fi
+    if [ -f /etc/sysctl.d/99-a-lems.conf ]; then _ok "perf_event_paranoid persists across reboot"; else _warn "no /etc/sysctl.d/99-a-lems.conf; setting is lost on reboot"; fi
+    if [ -e /sys/class/powercap/intel-rapl:0/energy_uj ]; then
+        if [ -r /sys/class/powercap/intel-rapl:0/energy_uj ]; then _ok "RAPL energy readable"; else _warn "RAPL energy not readable; run fix_permissions.sh"; fi
+    fi
+    _ts="/usr/lib/linux-tools/$(uname -r)/turbostat"
+    if [ -x "$_ts" ]; then
+        if getcap "$_ts" 2>/dev/null | grep -q cap_sys_rawio; then _ok "turbostat capability set for kernel $(uname -r)"; else _warn "turbostat lacks cap_sys_rawio for kernel $(uname -r); run fix_permissions.sh"; fi
+    fi
+fi
+if [ -f "${PROJECT_ROOT}/config/hw_config.json" ]; then _ok "engine hw_config.json present"; else _warn "config/hw_config.json missing; run: python3 scripts/detect_hardware.py"; fi
+if [ -n "${HF_TOKEN:-}" ] || [ -f "$HOME/.cache/huggingface/token" ]; then _ok "Hugging Face token present"; else _warn "no Hugging Face token; gated benchmarks need: huggingface-cli login"; fi
 echo "[12/12] Idle baseline measurement..."
 python3 -c "
 import sys, os

@@ -381,6 +381,11 @@ print(resolve_store())
                 _store=$(python3 -c "import sys; sys.path.insert(0,'scripts/tools'); from path_loader import get_alems_db_path; print(get_alems_db_path())")
                 python3 -m core.validation.cli --store "$_store" "$@"
                 ;;
+            corrections)
+                # Registered data corrections; plan by default, --apply writes after backup.
+                _store=$(python3 -c "import sys; sys.path.insert(0,'scripts/tools'); from path_loader import get_alems_db_path; print(get_alems_db_path())")
+                python3 -m core.validation.corrections --store "$_store" "$@"
+                ;;
             invariants)
                 # Invariant catalog (C-INV). Store from the same resolver as persistence.
                 _store=$(python3 -c "import sys; sys.path.insert(0,'scripts/tools'); from path_loader import get_alems_db_path; print(get_alems_db_path())")
