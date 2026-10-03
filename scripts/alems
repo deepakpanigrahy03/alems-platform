@@ -381,6 +381,11 @@ print(resolve_store())
                 _store=$(python3 -c "import sys; sys.path.insert(0,'scripts/tools'); from path_loader import get_alems_db_path; print(get_alems_db_path())")
                 python3 -m core.validation.cli --store "$_store" "$@"
                 ;;
+            invariants)
+                # Invariant catalog (C-INV). Store from the same resolver as persistence.
+                _store=$(python3 -c "import sys; sys.path.insert(0,'scripts/tools'); from path_loader import get_alems_db_path; print(get_alems_db_path())")
+                python3 -m core.integrity.catalog --store "$_store" "$@"
+                ;;
             energy)
                 python3 scripts/validate_energy_chain_v2.py "$@"
                 ;;
@@ -399,6 +404,7 @@ print(resolve_store())
             *)
                 echo "Usage: alems validate <subcommand>"
                 echo "  integrity    -- experiment integrity check"
+                echo "  invariants   -- invariant catalog (C-INV), --since RUN_ID, --json, --out FILE"
                 echo "  energy       -- energy chain validation"
                 echo "  phase        -- phase attribution validation"
                 echo "  attribution  -- chunk61 attribution validation"
