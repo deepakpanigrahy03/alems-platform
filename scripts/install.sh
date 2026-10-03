@@ -492,20 +492,14 @@ print('  Tables created')
 
 # ── Step 7: Universal seed data ──────────────────────────────────────
 echo "[7/12] Universal seed data..."
-SEED_DIR="migrations/seed"
-if [ -d "$SEED_DIR" ]; then
-    for f in "$SEED_DIR"/s*.sql; do
-        [ -f "$f" ] || continue
-        sqlite3 "$DB_PATH" < "$f"
-        echo "  Applied $(basename "$f")"
-    done
-else
-    echo "  WARNING: ${SEED_DIR}/ not found, skipping seed data"
-fi
+# G145: seeds are applied once and recorded by the migrator in step 8.
+echo "  Applied with migrations in step 8"
 
 # ── Step 8: Schema migrations ────────────────────────────────────────
 echo "[8/12] Schema migrations..."
-python3 scripts/tools/alems_migrate.py
+# G145: apply and record migrations and seeds; plan only mode recorded nothing.
+python3 scripts/tools/alems_migrate.py --store "${DB_PATH}" --run \
+    || { echo "  ERROR: migrations failed"; exit 1; }
 echo "  Migrations applied"
 
 # ── Step 9: Platform-specific seed data ──────────────────────────────
