@@ -1,0 +1,251 @@
+# Invariant catalog v1 (contract C-INV, master v8 section 4).
+# Location: core/integrity/invariants.yaml
+# AUTHOR: Deepak Panigrahy
+#
+# Statements are copied from the master; meaning changes only by master amendment.
+# Each sql returns violating rows as (key, detail). Parameters:
+#   :since  only runs with run_id > since are checked (0 = whole store)
+#   :tol    tolerance in microjoules (below)
+# kind: sql | all_zero | delegated
+version: 1
+
+# Declared numeric tolerance: integer microjoule rounding of the per term
+# conversions (each term is rounded once). Replaced by the per meter tolerance
+# of D12.1 (resolution plus repeatability noise) when the meter inventory
+# declares it. Never tuned to make data pass.
+tolerance_uj: 1000
+
+invariants:
+
+  - id: INV-E1
+    statement: "If a measurement is unavailable, its value is NULL and is never represented by zero. A measured zero is valid."
+    scope: column
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    note: "Checks the columns where zero is physically impossible (G90) and attempt energy stored as 0 for an unknown run energy (E4)."
+    sql: |
+      SELECT 'run:' || run_id, 'zero in a column that cannot be measured as zero'
+      FROM runs
+      WHERE run_id > :since
+        AND (cpu_avg_mhz = 0 OR cpu_busy_mhz = 0 OR package_temp_celsius = 0
+             OR max_temp_c = 0 OR min_temp_c = 0 OR interrupt_rate = 0)
+      UNION ALL
+      SELECT 'attempt:' || a.attempt_id, 'attempt energy 0 while run attributed is NULL'
+      FROM goal_attempt a JOIN runs r ON r.run_id = a.run_id
+      WHERE a.run_id > :since AND a.energy_uj = 0 AND r.attributed_energy_uj IS NULL
+
+  - id: INV-E2
+    statement: "E_attr(r,m,w) <= E_dyn(r,m,w) <= E_pkg(r,m,w), same r, m, w"
+    scope: run, meter, window
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    sql: |
+      SELECT 'run:' || run_id,
+             'attr=' || attributed_energy_uj || ' dyn=' || dynamic_energy_uj || ' pkg=' || pkg_energy_uj
+      FROM runs
+      WHERE run_id > :since
+        AND attributed_energy_uj IS NOT NULL AND dynamic_energy_uj IS NOT NULL
+        AND pkg_energy_uj IS NOT NULL
+        AND (attributed_energy_uj > dynamic_energy_uj + :tol
+             OR dynamic_energy_uj > pkg_energy_uj + :tol)
+
+  - id: INV-C1
+    statement: "Ladder conservation: E_pkg = E_idle + E_other + sum_p E_ph + E_res within declared tolerance, where every term is computed independently from its own source (never a copy of E_pkg)"
+    scope: run, meter, window
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    note: >
+      E_other = E_dyn - E_attr and E_res = E_attr - sum_p E_ph are defined as
+      differences, so the ladder holds exactly when (a) E_dyn = max(0, E_pkg - E_idle)
+      and (b) INV-C2 holds. This entry checks (a) with E_pkg, E_idle
+      (baseline_energy_uj, captured as idle power times window) and E_dyn each read
+      from its own stored column. Recomputing E_idle from idle_baselines is a
+      later refinement (needs the declared window duration).
+    sql: |
+      SELECT 'run:' || run_id,
+             'pkg=' || pkg_energy_uj || ' idle=' || baseline_energy_uj || ' dyn=' || dynamic_energy_uj
+      FROM runs
+      WHERE run_id > :since
+        AND pkg_energy_uj IS NOT NULL AND baseline_energy_uj IS NOT NULL
+        AND dynamic_energy_uj IS NOT NULL
+        AND ABS(dynamic_energy_uj - MAX(0, pkg_energy_uj - baseline_energy_uj)) > :tol
+
+  - id: INV-C2
+    statement: "Phase partition: sum_p E_ph + E_res = E_attr within tolerance, and E_res >= -tolerance"
+    scope: run, meter, window
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    note: "Phases of an unknown E_attr are a violation: the partition then splits another quantity (G126)."
+    sql: |
+      SELECT 'run:' || run_id,
+             CASE WHEN attributed_energy_uj IS NULL
+                  THEN 'phases present but attributed is NULL'
+                  ELSE 'phases=' || (COALESCE(planning_energy_uj,0) + COALESCE(execution_energy_uj,0)
+                        + COALESCE(synthesis_energy_uj,0) + COALESCE(inter_phase_energy_uj,0))
+                       || ' attr=' || attributed_energy_uj END
+      FROM runs
+      WHERE run_id > :since
+        AND (planning_energy_uj IS NOT NULL OR execution_energy_uj IS NOT NULL
+             OR synthesis_energy_uj IS NOT NULL OR inter_phase_energy_uj IS NOT NULL)
+        AND (attributed_energy_uj IS NULL
+             OR COALESCE(planning_energy_uj,0) + COALESCE(execution_energy_uj,0)
+                + COALESCE(synthesis_energy_uj,0) + COALESCE(inter_phase_energy_uj,0)
+                > attributed_energy_uj + :tol)
+
+  - id: INV-E3
+    statement: "A successful goal has non NULL, positive energy"
+    scope: goal
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    sql: |
+      SELECT 'goal:' || g.goal_id, 'success with energy ' || COALESCE(g.total_energy_uj, 'NULL')
+      FROM goal_execution g
+      WHERE g.success = 1
+        AND (g.total_energy_uj IS NULL OR g.total_energy_uj <= 0)
+        AND EXISTS (SELECT 1 FROM goal_attempt a WHERE a.goal_id = g.goal_id AND a.run_id > :since)
+
+  - id: INV-E4
+    statement: "Goal energy equals the sum of its attempts' energy within tolerance"
+    scope: goal
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    note: "If any attempt energy is NULL the goal total must be NULL (1d rule)."
+    sql: |
+      SELECT 'goal:' || g.goal_id,
+             'goal=' || COALESCE(g.total_energy_uj, 'NULL') || ' attempts=' || COALESCE(s.e, 'NULL')
+             || ' known=' || s.n_known || '/' || s.n
+      FROM goal_execution g
+      JOIN (SELECT goal_id, SUM(energy_uj) AS e, COUNT(energy_uj) AS n_known,
+                   COUNT(*) AS n, MAX(run_id) AS max_run
+            FROM goal_attempt GROUP BY goal_id) s ON s.goal_id = g.goal_id
+      WHERE s.max_run > :since
+        AND ((s.n_known = s.n AND (g.total_energy_uj IS NULL OR ABS(g.total_energy_uj - s.e) > :tol))
+             OR (s.n_known < s.n AND g.total_energy_uj IS NOT NULL))
+
+  - id: INV-E5
+    statement: "Goal and attempt energy derive only from E_attr; no substitution by any other quantity"
+    scope: goal, attempt
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    note: "Decision G85: the final attempt on a run equals that run's attributed energy (both NULL or equal). Earlier attempts have no stored source to compare; their sum is covered by INV-E4."
+    sql: |
+      SELECT 'attempt:' || a.attempt_id,
+             'attempt=' || COALESCE(a.energy_uj, 'NULL') || ' run_attr=' || COALESCE(r.attributed_energy_uj, 'NULL')
+      FROM goal_attempt a JOIN runs r ON r.run_id = a.run_id
+      WHERE a.run_id > :since AND a.run_id > 0
+        -- G85: the run row is the window of the last attempt on that run;
+        -- earlier attempts carry their own window and are checked by INV-E4.
+        AND a.attempt_number = (SELECT MAX(b.attempt_number) FROM goal_attempt b
+                                WHERE b.goal_id = a.goal_id AND b.run_id = a.run_id)
+        AND NOT ((a.energy_uj IS NULL AND r.attributed_energy_uj IS NULL)
+                 OR (a.energy_uj IS NOT NULL AND r.attributed_energy_uj IS NOT NULL
+                     AND ABS(a.energy_uj - r.attributed_energy_uj) <= :tol))
+
+  - id: INV-B1
+    statement: "Every run's baseline id exists in the same store"
+    scope: run
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    sql: |
+      SELECT 'run:' || r.run_id, 'baseline ' || r.baseline_id || ' not in this store'
+      FROM runs r
+      WHERE r.run_id > :since AND r.baseline_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM idle_baselines b WHERE b.baseline_id = r.baseline_id)
+
+  - id: INV-S1a
+    statement: "Span tree well formed (single root per trace, parents exist, children within parent interval)"
+    scope: trace
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    sql: |
+      SELECT 'span:' || s.span_id, 'parent missing'
+      FROM spans s
+      WHERE s.run_id > :since AND s.parent_span_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM spans p WHERE p.span_id = s.parent_span_id)
+      UNION ALL
+      SELECT 'trace:' || trace_id, 'roots=' || SUM(parent_span_id IS NULL)
+      FROM spans WHERE run_id > :since
+      GROUP BY trace_id HAVING SUM(parent_span_id IS NULL) <> 1
+      UNION ALL
+      SELECT 'span:' || s.span_id, 'outside parent interval'
+      FROM spans s JOIN spans p ON p.span_id = s.parent_span_id
+      WHERE s.run_id > :since
+        AND (s.start_ns < p.start_ns
+             OR (s.end_ns IS NOT NULL AND p.end_ns IS NOT NULL AND s.end_ns > p.end_ns))
+
+  - id: INV-M1
+    statement: "Sample coverage of the attribution window at least 80 percent"
+    scope: run
+    severity: warn
+    introduced_in: 39.5.1
+    kind: sql
+    sql: |
+      SELECT 'run:' || run_id, 'coverage=' || energy_sample_coverage_pct
+      FROM runs
+      WHERE run_id > :since AND energy_sample_coverage_pct IS NOT NULL
+        AND energy_sample_coverage_pct < 80
+
+  - id: INV-Z1
+    statement: "No measurement column all zero across 10 or more consecutive runs"
+    scope: store
+    severity: warn
+    introduced_in: 39.5.1
+    kind: all_zero
+    window: 10
+    columns: [pkg_energy_uj, dynamic_energy_uj, attributed_energy_uj, cpu_avg_mhz,
+              package_temp_celsius, interrupt_rate, gpu_total_energy_uj]
+
+  - id: INV-A1
+    statement: "Every attempt that reached t0 references its own run; no two attempts share a run"
+    scope: attempt
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    sql: |
+      SELECT 'run:' || run_id, 'attempts=' || COUNT(*)
+      FROM goal_attempt
+      WHERE run_id > :since
+      GROUP BY run_id HAVING COUNT(*) > 1
+
+  - id: INV-A2
+    statement: "All samples of an attempt's run lie within that attempt's [started_at_ns, finished_at_ns], subject to the declared reader alignment tolerance"
+    scope: attempt
+    severity: fail
+    introduced_in: 39.5.1
+    kind: sql
+    sql: |
+      SELECT 'attempt:' || ga.attempt_id, 'samples outside window=' || COUNT(*)
+      FROM goal_attempt ga
+      JOIN (SELECT run_id, timestamp_ns FROM energy_samples_v2
+            UNION ALL SELECT run_id, timestamp_ns FROM thermal_samples) s
+        ON s.run_id = ga.run_id
+      WHERE ga.run_id > :since
+        AND ga.started_at_ns IS NOT NULL AND ga.finished_at_ns IS NOT NULL
+        AND (s.timestamp_ns < ga.started_at_ns - :atol
+             OR s.timestamp_ns > ga.finished_at_ns + :atol)
+      GROUP BY ga.attempt_id
+
+  - id: INV-D1
+    statement: "No run linked row is stored more than once: within every run linked table, rows are unique on that table's declared natural key"
+    scope: run, table
+    severity: fail
+    introduced_in: 39.5.1
+    kind: delegated
+    command: "alems validate persistence"
+
+  - id: INV-D2
+    statement: "Every row of a run linked table references a run that exists in the same store"
+    scope: row
+    severity: fail
+    introduced_in: 39.5.1
+    kind: delegated
+    command: "alems validate persistence"

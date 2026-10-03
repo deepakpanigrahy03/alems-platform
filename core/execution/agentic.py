@@ -1000,7 +1000,7 @@ You can use tools like calculator or web search if needed.
                 # Legacy FailureInjector path — backward compat
                 if _injector.maybe_inject_tool_failure(
                     tool_name=name,
-                    rep_num=getattr(self, "_current_run_id", 1),
+                    rep_num=getattr(self, "_current_rep_num", 1),
                     attempt_num=getattr(self, "_current_attempt", 1),
                 ):
                     logger.info("FailureInjector: tool failure injected for %s", name)

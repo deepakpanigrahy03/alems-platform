@@ -55,6 +55,9 @@ def test_every_execution_path_uses_the_one_writer():
         with open(os.path.join(REPO, rel), "r", encoding="utf-8") as fh:
             funcs = _functions(ast.parse(fh.read()))
         assert name in funcs, "%s not found in %s" % (name, rel)
-        if not _reaches(funcs, name, "insert_one_run"):
+        # G137: execute_goal persists each attempt through the same service in
+        # two stages (persist_raw, run_derived); both are the one writer.
+        if not (_reaches(funcs, name, "insert_one_run")
+                or _reaches(funcs, name, "persist_raw")):
             missing.append("%s:%s" % (rel, name))
     assert not missing, "paths bypassing RunPersistenceService: %s" % missing

@@ -1400,7 +1400,7 @@ CREATE INDEX IF NOT EXISTS idx_runs_hw_id ON runs(hw_id);
 CREATE INDEX IF NOT EXISTS idx_runs_energy ON runs(total_energy_uj);
 CREATE INDEX IF NOT EXISTS idx_runs_ipc ON runs(ipc);
 CREATE INDEX IF NOT EXISTS idx_runs_interrupt ON runs(interrupt_rate);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_unique ON runs(exp_id, run_number, workflow_type);
+DROP INDEX IF EXISTS idx_runs_unique;  -- G137: one run per attempt; rule removed in v118
 """
 
 # INV-D1 enforced by the store (v117): natural keys from
@@ -2431,6 +2431,12 @@ WHERE
     AND r.run_id NOT IN (
         SELECT DISTINCT run_id FROM run_outliers WHERE review_status = 'confirmed'
     );
+
+-- G137: runs with their goal meaning, no goal columns in runs (C2).
+CREATE VIEW IF NOT EXISTS v_runs_goal AS
+SELECT r.*, ga.goal_id, ga.attempt_id, ga.attempt_number, ga.outcome, ga.is_winning
+FROM runs r
+LEFT JOIN goal_attempt ga ON ga.run_id = r.run_id;
 """
  
 CREATE_V_RUNS_UNFILTERED = """

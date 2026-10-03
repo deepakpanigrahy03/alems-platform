@@ -46,6 +46,9 @@ from core.execution.darwin_cpu_sample_builder import _build_darwin_cpu_sample_ro
 from core.execution.failure_classifier import FailureClassifier
 from core.database.tool_failure_recorder import record_tool_failure
 from core.execution.run_persistence import insert_one_run
+import copy  # G140: per attempt result snapshot
+from core.execution import run_persistence as _rp  # G137 stage 1 and 2
+from core.execution.run_persistence import PersistenceError  # A+4, G88
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +80,7 @@ _TOOL_FAILURE_TYPE_MAP = {
 }
 
 
-def execute_goal(
+def _execute_goal_impl(
     db,
     exp_id: int,
     hw_id: int,
@@ -95,6 +98,7 @@ def execute_goal(
     cache_collector=None,
     writer=None,
     quality_enabled: bool = False,
+    _state=None,
 ) -> Optional[int]:
     """
     Execute one goal (one workflow side) with full retry support.
@@ -131,6 +135,12 @@ def execute_goal(
         writer = _IPW(_rs())
         writer.open()
     conn        = writer.conn
+    # A+ (G137): closed attempt windows wait here until the goal ends; the
+    # wrapper reads the same list if the goal raises.
+    if _state is None:
+        _state = {"measured": [], "conn": None, "goal_id": None}
+    _state["conn"] = conn
+    measured = _state["measured"]
     task_id     = task.get("id", "unknown")
     task_name   = task.get("name", task_id)
     task_meta   = task.get("meta", {}) or {}
@@ -152,6 +162,7 @@ def execute_goal(
     if goal_id is None:
         logger.warning("execute_goal: start_goal returned None — aborting")
         return None
+    _state["goal_id"] = goal_id
  
     # Wire exp_id into injector now that experiment exists in DB.
     # SHA-256 stable seed requires exp_id — must be set before any injection calls.
@@ -222,7 +233,9 @@ def execute_goal(
                 # harness starts and energy measurement is running
                 if failure_injector is not None:
                     executor.failure_injector = failure_injector
-                    executor._current_run_id = rep_num
+                    # G139: a repetition number is never a run id (C6); run ids
+                    # exist only after persistence (EEI-4).
+                    executor._current_rep_num = rep_num
                     executor._current_attempt = attempt_num
                 # Bug 7 fix: set attempt_id on executor so _emit_event
                 # tags every orchestration event with the correct attempt boundary.
@@ -368,6 +381,15 @@ def execute_goal(
             compute_uj=None,
             failure_type=failure_type,
         )
+        # A+ eligibility: the harness returned, so t1 was reached and the
+        # window is closed. Pre t0 failures (result None) get no run.
+        if result is not None:
+            # G140: the harness reuses inner objects between calls (point reads,
+            # timing, CPU summaries); a later attempt would overwrite this one's
+            # values. Keep an independent snapshot taken when the window closed.
+            measured.append({"attempt_id": attempt_id, "attempt_num": attempt_num,
+                             "outcome": outcome, "result": copy.deepcopy(result),
+                             "run_id": None})
  
         # Flush ScenarioInjector pending log to failure_injection_log.
         # Batch INSERT after finish_attempt() — attempt_id is now committed.
@@ -397,8 +419,8 @@ def execute_goal(
         if outcome == "success":
             winning_result = result
             logger.info(
-                "execute_goal: goal=%d succeeded attempt=%d run_id=%d",
-                goal_id, attempt_num, run_id,
+                "execute_goal: goal=%d succeeded attempt=%d",
+                goal_id, attempt_num,
             )
             break
 
@@ -594,87 +616,11 @@ def execute_goal(
             )
      
     final_result = winning_result or last_result
-    run_id = None
-    final_result = winning_result or last_result
-    # Decision A (G85): a run row describes one measurement window, the
-    # final attempt, so energy and time come from the same interval.
-    # Totals across attempts live only in goal_attempt and goal_execution
-    # (goal_execution_etl sums goal_attempt.energy_uj, INV-E4).
-    run_id = None
-    if final_result is not None:
-        # Same task_meta save_pair and save_single attach: the whole task dict,
-        # so scoring, goal_output and task columns work on this path (G86).
-        final_result["task_meta"] = task
-        run_id = insert_one_run(db, exp_id, hw_id, final_result, workflow_type, rep_num)
-    if run_id:
-        all_run_ids = [run_id]
-        winning_run_id = run_id if winning_result is not None else None
-        # Flush span for this run — after insert_one_run so run_id is known (EEI-4).
-        try:
-            from core.vocabularies.agent.span_writer import SpanWriter
-            from core.vocabularies.agent.span_builder import build_spans_from_result
-            _span_writer = SpanWriter()
-            _span_id = _span_writer.open_span("run", f"{workflow_type}:goal:{goal_id}")
-            _span_writer.close_span(_span_id)
-            if failed_attempt_events:
-                final_result["span_failed_events"] = failed_attempt_events
-            build_spans_from_result(_span_writer, _span_id, final_result, workflow_type, db.get_hardware_info() if hasattr(db, 'get_hardware_info') else {})
-            with db.transaction():
-                _span_writer.flush_to_db(db, run_id)
-            # Backfill attempt span_id on goal_attempt for quality annotation join.
-            try:
-                _attempt_span = next(
-                    (r for r in _span_writer._spans if r.kind == "attempt"), None
-                )
-                if _attempt_span:
-                    conn.execute(
-                        "UPDATE goal_attempt SET span_id = ? WHERE run_id = ? AND span_id IS NULL",
-                        (_attempt_span.span_id, run_id),
-                    )
-                    conn.commit()
-            except Exception as _bfe:
-                logger.warning("execute_goal: backfill attempt span_id failed: %s", _bfe)
-            # Backfill outcome on goal and attempt spans.
-            try:
-                from core.execution.experiment_runner import _backfill_span_outcome
-                _final_outcome = "success" if winning_result is not None else "failure"
-                _backfill_span_outcome(conn, run_id, _final_outcome)
-            except Exception as _ofe:
-                logger.warning("execute_goal: backfill span outcome failed: %s", _ofe)
-        except Exception as _span_exc:
-            logger.warning("execute_goal: span flush failed: %s", _span_exc)
-        # Update all goal_attempt rows with the real run_id now that it exists
-        try:
-            conn.execute(
-                "UPDATE goal_attempt SET run_id = ? WHERE goal_id = ? AND (run_id IS NULL OR run_id = -1)",
-                (run_id, goal_id),
-            )
-            conn.commit()
-        except Exception as exc:
-            logger.warning("execute_goal: failed to backfill run_id on attempts: %s", exc)
-
-        # B1: backfill attempt_id on orchestration_events for execute_goal path.
-        # Bug 7 fix sets _current_attempt_id before run_agentic() so events are
-        # emitted with attempt_id in memory, but the DB write uses run_id as FK
-        # and attempt_id is backfilled here after run_id exists.
-        try:
-            conn.execute(
-                """
-                UPDATE orchestration_events
-                SET attempt_id = (
-                    SELECT attempt_id FROM goal_attempt
-                    WHERE goal_id = ? AND run_id = ?
-                    LIMIT 1
-                )
-                WHERE run_id = ? AND attempt_id IS NULL
-                """,
-                (goal_id, run_id, run_id),
-            )
-            conn.commit()
-        except Exception as exc:
-            logger.warning(
-                "execute_goal: failed to backfill attempt_id on orchestration_events: %s", exc
-            )
+    # G137 A+: every closed attempt window becomes its own run (C1, C3);
+    # attempt energy is read back from its own run (C4).
+    winning_run_id, all_run_ids, _persist_failed = _persist_attempts(
+        db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num, task, measured,
+    )
 
 
     # All persistence for this run happened in insert_one_run above
@@ -692,6 +638,12 @@ def execute_goal(
     # ETL — goal energy rollup after all attempts recorded
     goal_execution_etl.process_one(goal_id, conn)
 
+    # A+4: committed attempts stay; the caller must not report success.
+    if _persist_failed:
+        raise PersistenceError(
+            "INCOMPLETE_PERSISTENCE goal=%d attempts=%s" % (goal_id, _persist_failed)
+        )
+
     # goal_output and quality scores: the same call save_pair and save_single
     # make, after the goal ETL so attempt ids are committed (G76).
     if final_result is not None:
@@ -702,41 +654,159 @@ def execute_goal(
     # ETL runs synchronously above — queue_etl removed to prevent
     # pending entries that never get marked done (N40 fix)
  
-    # Attribution stubs on ALL runs — failed retry runs contain wasted energy signal
-    # Paper thesis: overhead_energy_uj sums across all failed attempts per goal
-    for rid in all_run_ids:
-        energy_attribution_etl.populate_attribution_stubs(rid, conn)
-        # Bug 10 + 11 fix: run full attribution computation on execute_goal path.
-        try:
-            energy_attribution_etl.compute_energy_attribution(rid, conn=conn)
-        except Exception as _e:
-            logger.warning("energy_attribution_etl failed for run=%d: %s", rid, _e)
-        try:
-            phase_attribution_etl.compute_phase_attribution(rid, conn=conn)
-        except Exception as _e:
-            logger.warning("phase_attribution_etl failed for run=%d: %s", rid, _e)
-        # Bug 11 fix: pre/post task energy populated by duration_fix_etl, not
-        # energy_attribution_etl. Values captured by harness live in final_result
-        # ml_features — extract and call fix_run_with_pretask here.
-        try:
-            if final_result is not None:
-                _ml = final_result.get("ml_features", {}) or {}
-                duration_fix_etl.fix_run_with_pretask(
-                    run_id=rid,
-                    rapl_before_pretask=_ml.get("rapl_before_pretask"),
-                    rapl_after_task=_ml.get("rapl_after_task"),
-                    pre_task_duration_sec=_ml.get("pre_task_duration_sec") or 0.0,
-                    post_task_duration_sec=_ml.get("post_task_duration_sec") or 0.0,
-                    cpu_frac_pre=_ml.get("cpu_frac_pre") or 0.0,
-                    cpu_frac_post=_ml.get("cpu_frac_post") or 0.0,
-                    conn=conn,
-                )
-        except Exception as _e:
-            logger.warning("duration_fix_etl failed for run=%d: %s", rid, _e)
-
+    # G140: per run attribution, phase attribution and duration fix already ran
+    # in _persist_attempts stage 2 (run_derived) with each attempt's own result.
+    # The old loop here re-applied the final attempt's point reads and durations
+    # to every run of the goal (cross attempt values in a run row, C1 violation).
+    
     if _own_writer:
         writer.close()
     return goal_id
+
+def execute_goal(
+    db,
+    exp_id: int,
+    hw_id: int,
+    harness,
+    executor,
+    task: dict,
+    workflow_type: str,
+    rep_num: int,
+    goal_tracker,
+    policy,
+    failure_injector=None,
+    repetitions: int = 1,
+    retry_adapter=None,
+    recovery_policy_id: str = "full_restart",
+    cache_collector=None,
+    writer=None,
+    quality_enabled: bool = False,
+) -> Optional[int]:
+    """
+    Execute one goal with retries; A+ persistence (DESIGN_39_5_1_G137_v3).
+
+    Attempts are measured back to back with no I/O between them. If the goal
+    raises, every attempt already measured is persisted raw (stage 1) and the
+    original exception is re raised unchanged; persistence errors are logged
+    and never replace it (A+4).
+
+    Returns:
+        goal_id (int) or None on unrecoverable failure.
+    """
+    state = {"measured": [], "conn": None, "goal_id": None}
+    try:
+        return _execute_goal_impl(
+            db, exp_id, hw_id, harness, executor, task, workflow_type, rep_num,
+            goal_tracker, policy, failure_injector=failure_injector,
+            repetitions=repetitions, retry_adapter=retry_adapter,
+            recovery_policy_id=recovery_policy_id, cache_collector=cache_collector,
+            writer=writer, quality_enabled=quality_enabled, _state=state,
+        )
+    except BaseException:
+        pending = [m for m in state["measured"]
+                   if m["run_id"] is None and not m.get("failed")]
+        if pending and state["conn"] is not None:
+            try:
+                _persist_attempts(db, state["conn"], exp_id, hw_id, state["goal_id"],
+                                  workflow_type, rep_num, task, state["measured"],
+                                  derived=False)
+            except Exception as perr:  # never mask the original exception
+                logger.error("execute_goal: raw persistence on exception path failed: %s", perr)
+        raise
+
+
+def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
+                      task, measured, derived=True):
+    """
+    Persist every closed attempt window as its own run (G137 section 4).
+
+    Stage 1 per attempt: run row, samples, events (one commit each), then the
+    attempt is linked by attempt_id. Stage 2 per committed run: derived steps,
+    spans, attempt energy read back from the run, event attempt link.
+
+    Returns:
+        (winning_run_id, run_ids, failed_attempt_ids)
+    """
+    failed = []
+    trace = {"trace_id": None, "root_span_id": None}  # one trace per goal
+    for m in measured:
+        if m["run_id"] is not None or m.get("failed"):
+            continue
+        m["result"]["task_meta"] = task  # same task_meta as save_pair (G86)
+        try:
+            m["run_id"] = _rp.persist_raw(db, exp_id, hw_id, m["result"], workflow_type, rep_num)
+            # Link by attempt_id only; never by goal_id (G137 section 6).
+            conn.execute("UPDATE goal_attempt SET run_id = ? WHERE attempt_id = ?",
+                         (m["run_id"], m["attempt_id"]))
+            conn.commit()
+        except Exception as exc:
+            m["failed"] = True
+            failed.append(m["attempt_id"])
+            logger.error("execute_goal: goal=%s attempt=%d INCOMPLETE_PERSISTENCE: %s",
+                         goal_id, m["attempt_num"], exc)
+    run_ids = [m["run_id"] for m in measured if m["run_id"] is not None]
+    winning = next((m["run_id"] for m in measured
+                    if m["outcome"] == "success" and m["run_id"] is not None), None)
+    if not derived:
+        return winning, run_ids, failed
+
+    for m in measured:
+        rid = m["run_id"]
+        if rid is None:
+            continue
+        try:
+            _rp.run_derived(db, rid, m["result"])
+        except Exception as exc:  # raw stays committed (A+3)
+            logger.error("execute_goal: run=%d derived steps failed: %s", rid, exc)
+            continue
+        _write_attempt_spans(db, conn, rid, m, workflow_type, goal_id, trace)
+        # C4: attempt energy comes from its own committed, attributed run.
+        conn.execute(
+            "UPDATE goal_attempt SET energy_uj = "
+            "(SELECT attributed_energy_uj FROM runs WHERE run_id = ?) WHERE attempt_id = ?",
+            (rid, m["attempt_id"]))
+        conn.execute(
+            "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
+            (m["attempt_id"], rid))
+        conn.commit()
+    return winning, run_ids, failed
+
+
+def _write_attempt_spans(db, conn, run_id, m, workflow_type, goal_id, trace):
+    """
+    Spans of one attempt run inside the goal's single trace.
+
+    The first attempt's run span is the trace root; later attempts' run spans
+    are its children, so a goal trace has one root (G136, goal part).
+    Never raises: spans are observability, not measurement.
+    """
+    try:
+        import uuid
+        from core.vocabularies.agent.span_writer import SpanWriter
+        from core.vocabularies.agent.span_builder import build_spans_from_result
+        from core.execution.experiment_runner import _backfill_span_outcome  # late: cycle
+        if trace["trace_id"] is None:
+            trace["trace_id"] = uuid.uuid4().hex
+        writer = SpanWriter(trace["trace_id"])
+        span_id = writer.open_span(
+            "run", f"{workflow_type}:goal:{goal_id}:attempt:{m['attempt_num']}",
+            parent_span_id=trace["root_span_id"])
+        writer.close_span(span_id)
+        if trace["root_span_id"] is None:
+            trace["root_span_id"] = span_id
+        hw = db.get_hardware_info() if hasattr(db, "get_hardware_info") else {}
+        build_spans_from_result(writer, span_id, m["result"], workflow_type, hw)
+        with db.transaction():
+            writer.flush_to_db(db, run_id)
+        attempt_span = next((r for r in writer._spans if r.kind == "attempt"), None)
+        if attempt_span is not None:
+            conn.execute("UPDATE goal_attempt SET span_id = ? WHERE attempt_id = ?",
+                         (attempt_span.span_id, m["attempt_id"]))
+            conn.commit()
+        _backfill_span_outcome(conn, run_id, m["outcome"])
+    except Exception as exc:
+        logger.warning("execute_goal: spans for run=%d failed: %s", run_id, exc)
+
 
 def _flush_injection_log(
     conn,

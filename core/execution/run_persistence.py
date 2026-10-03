@@ -242,6 +242,34 @@ class RunPersistenceService:
         if workflow_type not in ("linear", "agentic"):
             raise PersistenceError("invalid workflow_type=%r" % (workflow_type,))
 
+        # Same order as before: raw transaction, then derived steps (G137 split).
+        run_id = self.persist_raw(db, exp_id, hw_id, result, workflow_type,
+                                  rep_num, after_run_row)
+        self.run_derived(db, run_id, result)
+        return run_id
+
+    def persist_raw(
+        self,
+        db,
+        exp_id: int,
+        hw_id: int,
+        result: dict,
+        workflow_type: str,
+        rep_num: int,
+        after_run_row=None,
+    ) -> int:
+        """
+        Stage 1 (G137): run row, samples and events in one transaction.
+
+        Durable raw data first; nothing here depends on an ETL, so a failing
+        derived step can never roll this back.
+
+        Returns:
+            run_id of the committed run.
+        """
+        if workflow_type not in ("linear", "agentic"):
+            raise PersistenceError("invalid workflow_type=%r" % (workflow_type,))
+
         # run_number must be stamped before insert so ETL sees it
         result["ml_features"]["run_number"] = rep_num
 
@@ -258,7 +286,13 @@ class RunPersistenceService:
                 after_run_row(run_id)
             self._insert_samples(db, run_id, result)
             self._insert_events(db, run_id, result)
+        return run_id
 
+    def run_derived(self, db, run_id: int, result: dict) -> None:
+        """
+        Stage 2 (G137): steps that read committed samples, ETL, duration fix,
+        residual. Runs only after persist_raw committed.
+        """
         # Steps that commit on their own or read committed samples (G73).
         self._insert_after_commit(db, run_id, result)
 
@@ -266,8 +300,6 @@ class RunPersistenceService:
         self._run_post_etl(run_id)
         self._apply_duration_fix(run_id, result)
         self._compute_residual(run_id, db)
-
-        return run_id
 
     # ── Private helpers — each does exactly one thing ─────────────────────────
 
@@ -630,3 +662,13 @@ def insert_one_run(
     no need to instantiate the service directly.
     """
     return _persistence.insert_one_run(db, exp_id, hw_id, result, workflow_type, rep_num)
+
+
+def persist_raw(db, exp_id, hw_id, result, workflow_type, rep_num):
+    """Module wrapper: stage 1 of one attempt run (G137)."""
+    return _persistence.persist_raw(db, exp_id, hw_id, result, workflow_type, rep_num)
+
+
+def run_derived(db, run_id, result):
+    """Module wrapper: stage 2 of one committed run (G137)."""
+    return _persistence.run_derived(db, run_id, result)

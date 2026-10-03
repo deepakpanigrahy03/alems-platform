@@ -1385,6 +1385,29 @@ class ExperimentRunner:
                         (_agentic_run_ts[0], _agentic_run_ts[1], _agentic_attempt[0])
                     )
                 _wconn.commit()
+        # G142: the linear attempt needs the same backfill as agentic above; it
+        # was created post run, so its times were bookkeeping times, not the
+        # measured window (found by INV-A2).
+        if linear_goal_id is not None:
+            _linear_attempt = _wconn.execute(
+                "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
+                (linear_id,)
+            ).fetchone()
+            if _linear_attempt:
+                _linear_run_ts = _wconn.execute(
+                    "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+                    (linear_id,)
+                ).fetchone()
+                _wconn.execute(
+                    "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
+                    (_linear_attempt[0], linear_id)
+                )
+                if _linear_run_ts:
+                    _wconn.execute(
+                        "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
+                        (_linear_run_ts[0], _linear_run_ts[1], _linear_attempt[0])
+                    )
+                _wconn.commit()
         # ETL runs sync — after both goals recorded so normalization_factors
         # sees the full picture for this experiment repetition.
         if linear_goal_id is not None:
@@ -1505,7 +1528,19 @@ class ExperimentRunner:
             failure_type=failure_type,
             gpu_energy_uj=gpu_energy_uj,
         )
- 
+        # G142: this attempt is recorded after its run, so start_attempt and
+        # finish_attempt stamped bookkeeping times. Its window is the run's
+        # measured window; one place for pair (both sides) and single.
+        _ts = conn.execute(
+            "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ?", (run_id,)
+        ).fetchone()
+        if _ts and _ts[0] is not None and _ts[1] is not None:
+            conn.execute(
+                "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
+                (_ts[0], _ts[1], attempt_id),
+            )
+            conn.commit()
+
         success = (outcome == "success")
         _goal_tracker.finish_goal(
             conn=conn,

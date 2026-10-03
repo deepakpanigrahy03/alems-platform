@@ -335,13 +335,14 @@ class GoalTracker:
                     failure_cause    = ?,
                     failure_type     = ?,
                     finished_at      = ?,
+                    finished_at_ns   = ?,
                     updated_at       = ?
                 WHERE attempt_id = ?
             """
             params = (
                 outcome, status, is_winning,
                 energy_uj, orchestration_uj, compute_uj,
-                failure_cause, failure_type, now, now,
+                failure_cause, failure_type, now, time.time_ns(), now,
                 attempt_id,
             )
         try:

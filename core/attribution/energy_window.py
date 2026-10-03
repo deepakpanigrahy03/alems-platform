@@ -43,7 +43,8 @@ from __future__ import annotations
 import logging
 import sqlite3
 from abc import ABC, abstractmethod
-from typing import List, NamedTuple, Optional
+from typing import List, NamedTuple, Optional, Tuple
+
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,46 @@ def energy_in_window(samples, start_ns, end_ns):
         return WindowEnergy(None, None, 0)
     coverage = min(1.0, covered_ns / float(end_ns - start_ns))
     return WindowEnergy(int(round(total_uj)), coverage, n)
+
+
+def window_energy_nearest(samples, start_ns, end_ns):
+    # type: (List[Sample], int, int) -> Optional[Tuple[int, str]]
+    """
+    Energy of [start_ns, end_ns] when samples may not cover the whole window.
+
+    Covered time: proportional overlap (energy_in_window rule). Uncovered time:
+    mean power of the nearest sample before and the nearest sample after the
+    window (whichever exist), times the uncovered duration. That part is
+    INFERRED, flagged by the method string.
+
+    Returns:
+        (energy_uj, method) or None when no sample exists near the window.
+    """
+    span = end_ns - start_ns
+    if span <= 0 or not samples:
+        return None
+    measured, covered = 0.0, 0
+    for s in samples:
+        dur = s.end_ns - s.start_ns
+        ov = min(s.end_ns, end_ns) - max(s.start_ns, start_ns)
+        if dur > 0 and ov > 0:
+            measured += s.energy_uj * ov / dur
+            covered += ov
+    gap = span - min(covered, span)
+    if gap <= 0:
+        return int(measured), "MEASURED_OVERLAP"
+    # Nearest sample on each side of the window (an overlapping one counts).
+    before = [s for s in samples if s.start_ns < end_ns and s.end_ns > s.start_ns]
+    after = [s for s in samples if s.end_ns > start_ns and s.end_ns > s.start_ns]
+    near = []
+    if before:
+        near.append(max(before, key=lambda s: s.end_ns))
+    if after:
+        near.append(min(after, key=lambda s: s.start_ns))
+    if not near:
+        return None
+    power = sum(s.energy_uj / (s.end_ns - s.start_ns) for s in near) / len(near)
+    return int(measured + power * gap), "MEASURED_PLUS_NEAREST"
 
 
 def _v2_domain_samples(cursor, run_id, domain_id, start_ns, end_ns, midpoint):
@@ -495,7 +536,12 @@ class SpbmV2Resolver(EnergyWindowResolverABC):
         if rapl_at_t0_uj is None:
             logger.debug("Run %d: SpbmV2 pre_task — NULL (no t0 anchor, historical run)", run_id)
             return None
-        raw_uj = max(0, rapl_at_t0_uj - rapl_before_uj)
+        if rapl_at_t0_uj < rapl_before_uj:
+            # A t0 read below the pre read is not energy, it is a broken window
+            # (counter reset or mismatched reads). Unknown is NULL, never 0 (INV-E1).
+            logger.warning("Run %d: SpbmV2 pre_task — t0 read below pre read, NULL", run_id)
+            return None
+        raw_uj = rapl_at_t0_uj - rapl_before_uj
         dur_ns = int(pre_task_duration_sec * 1_000_000_000)
         return WindowEnergyResult(
             raw_uj=raw_uj,
@@ -514,24 +560,27 @@ class SpbmV2Resolver(EnergyWindowResolverABC):
         cpu_frac_post: float,
     ) -> Optional[WindowEnergyResult]:
         """
-        Post-task = SUM of domain deltas for samples after t1.
-        On GN100 sampling stops at stop_measurement() — typically 0 or 1 sample.
-        """
-        cursor.execute("""
-            SELECT COALESCE(SUM(esd.energy_uj), 0)
-            FROM energy_sample_domains esd
-            JOIN energy_samples_v2 esv2 ON esv2.sample_id = esd.sample_id
-            WHERE esd.run_id = ?
-              AND esd.domain_id = ?
-              AND esv2.timestamp_ns > ?
-        """, (run_id, self._pkg_domain_id, t1_ns))
-        raw_uj = int(cursor.fetchone()[0] or 0)
-        dur_ns = int(post_task_duration_sec * 1_000_000_000)
+        Post-task energy over [t1, t1 + post duration] (G140).
 
+        Sampling stops at stop_measurement(), so the window is at most partly
+        covered: the straddling sample is prorated, the rest uses nearest sample
+        power (window_energy_nearest). The old sum counted the whole last
+        sample, including task time, and missed the uncovered post time.
+        """
+        dur_ns = int(post_task_duration_sec * 1_000_000_000)
+        if dur_ns <= 0:
+            return None
+        # Look one second around the window for nearest samples.
+        samples = self.samples_in_range(cursor, run_id, t1_ns - 1_000_000_000,
+                                        t1_ns + dur_ns + 1_000_000_000)
+        res = window_energy_nearest(samples, t1_ns, t1_ns + dur_ns)
+        if res is None:
+            return None  # unknown is NULL (INV-E1)
+        raw_uj, method = res
         return WindowEnergyResult(
             raw_uj=raw_uj,
             attributed_uj=raw_uj,
-            method="MEASURED_SUM",
+            method=method,
             duration_ns=dur_ns,
         )
 
