@@ -306,8 +306,8 @@ fi
 # alems_sdk. Install SDK then runtime here, in that order (G10). Plugins are
 # installed at the end of the script.
 echo "[2b/12] alems-sdk and runtime (editable)..."
-venv/bin/pip install -e "${PROJECT_ROOT}/alems-sdk"
-venv/bin/pip install -e "${PROJECT_ROOT}"
+"${PROJECT_ROOT}/venv/bin/pip" install -e "${PROJECT_ROOT}/alems-sdk"
+"${PROJECT_ROOT}/venv/bin/pip" install -e "${PROJECT_ROOT}"
 
 # ── Step 3: Permissions ──────────────────────────────────────────────
 echo "[3/12] Permissions..."
@@ -667,12 +667,13 @@ else:
 echo "[+] Installing plugin packages editable..."
 cd "${PLATFORM_DIR}"
 # G10: order alems-sdk, runtime, plugins; the runtime depends on the SDK.
-venv/bin/pip install -e "${PROJECT_ROOT}/alems-sdk"
-venv/bin/pip install -e "${PROJECT_ROOT}"
+# G143: absolute pip path; the working directory has changed by this step.
+"${PROJECT_ROOT}/venv/bin/pip" install -e "${PROJECT_ROOT}/alems-sdk"
+"${PROJECT_ROOT}/venv/bin/pip" install -e "${PROJECT_ROOT}"
 for pkg_dir in alems-plugin-*/; do
     if [ -f "${pkg_dir}/pyproject.toml" ]; then
         echo "    pip install -e ${pkg_dir}"
-        venv/bin/pip install -e "${pkg_dir}"
+        "${PROJECT_ROOT}/venv/bin/pip" install -e "${pkg_dir}"
     fi
 done
 echo "    Plugin packages installed."
