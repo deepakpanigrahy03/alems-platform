@@ -29,8 +29,10 @@ invariants:
       FROM runs
       WHERE run_id > :since
         AND start_time_ns > 1000000000 * (
-              SELECT CAST(strftime('%s', applied_at) AS INTEGER)
-              FROM schema_version WHERE version = 119)
+              SELECT CAST(strftime('%s', MIN(applied_at)) AS INTEGER)
+              FROM migration_history
+              WHERE version = 119 AND type = 'schema' AND source = 'core'
+                AND status = 'applied')
         AND measurement_log_level IS NULL
   - id: INV-E1
     statement: "If a measurement is unavailable, its value is NULL and is never represented by zero. A measured zero is valid."

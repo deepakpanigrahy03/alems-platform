@@ -37,6 +37,14 @@ def _db(rows, goals, attempts, spans):
     conn.executescript(SCHEMA)
     conn.execute("INSERT INTO idle_baselines VALUES ('b1')")
     conn.executemany("INSERT INTO runs VALUES (" + ",".join("?" * 18) + ")", rows)
+    # v119 columns arrive after these rows exist, as on a real store, so the
+    # rows predate the column and INV-P1 skips them (start_time_ns NULL).
+    conn.execute("ALTER TABLE runs ADD COLUMN start_time_ns INT")
+    conn.execute("ALTER TABLE runs ADD COLUMN measurement_log_level TEXT")
+    conn.execute("CREATE TABLE migration_history (version INT, type TEXT, source TEXT, "
+                 "status TEXT, applied_at TEXT)")
+    conn.execute("INSERT INTO migration_history VALUES "
+                 "(119, 'schema', 'core', 'applied', '2026-10-03 22:50:49')")
     conn.executemany("INSERT INTO goal_execution VALUES (?,?,?)", goals)
     conn.executemany("INSERT INTO goal_attempt (attempt_id, goal_id, run_id, energy_uj) VALUES (?,?,?,?)",
                      attempts)

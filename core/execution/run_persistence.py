@@ -27,6 +27,19 @@ from core.attribution.legacy_v1.energy_attribution_etl import compute_energy_att
 from core.attribution.legacy_v1.duration_fix_etl import fix_run, fix_run_with_pretask
 from core.attribution.legacy_v1.ttft_tpot_etl import populate_run as populate_ttft_tpot
 from core.attribution.conservation_residual import compute_conservation_residual
+from contextlib import nullcontext
+
+
+def _stage(stages, stage_id):
+    """Stage context when a recorder is bound, else a no op (39.5.2c)."""
+    if stages is None:
+        return nullcontext({"counts": {}, "outcome": None, "reason": None})
+    return stages.stage(stage_id)
+
+
+def _tx(stages):
+    """Transaction scope of the recorder, else a no op (39.5.2c)."""
+    return nullcontext() if stages is None else stages.tx_scope()
 
 
 logger = logging.getLogger(__name__)
@@ -221,6 +234,7 @@ class RunPersistenceService:
         workflow_type: str,
         rep_num: int,
         after_run_row=None,
+        stages=None,
     ) -> Optional[int]:
         """
         Persist one completed harness result with all samples and ETL.
@@ -244,8 +258,8 @@ class RunPersistenceService:
 
         # Same order as before: raw transaction, then derived steps (G137 split).
         run_id = self.persist_raw(db, exp_id, hw_id, result, workflow_type,
-                                  rep_num, after_run_row)
-        self.run_derived(db, run_id, result)
+                                  rep_num, after_run_row, stages=stages)
+        self.run_derived(db, run_id, result, stages=stages)
         return run_id
 
     def persist_raw(
@@ -257,6 +271,7 @@ class RunPersistenceService:
         workflow_type: str,
         rep_num: int,
         after_run_row=None,
+        stages=None,
     ) -> int:
         """
         Stage 1 (G137): run row, samples and events in one transaction.
@@ -273,33 +288,44 @@ class RunPersistenceService:
         # run_number must be stamped before insert so ETL sees it
         result["ml_features"]["run_number"] = rep_num
 
-        with db.transaction():
-            run_id = self._insert_run_row(db, exp_id, hw_id, result, workflow_type)
-            if run_id is None:
-                # Visible on every path (G88); the transaction rolls back.
-                raise PersistenceError(
-                    "insert_run returned None (exp_id=%s, workflow=%s)" % (exp_id, workflow_type)
-                )
+        # tx_scope wraps the transaction so a rollback downgrades every stage
+        # recorded inside it (their writes did not survive).
+        with _tx(stages), db.transaction():
+            with _stage(stages, "persist_run") as _s:
+                run_id = self._insert_run_row(db, exp_id, hw_id, result, workflow_type)
+                if run_id is None:
+                    # Visible on every path (G88); the transaction rolls back.
+                    raise PersistenceError(
+                        "insert_run returned None (exp_id=%s, workflow=%s)" % (exp_id, workflow_type)
+                    )
+                _s["counts"] = {"runs": 1}
             if after_run_row is not None:
                 # Caller hook inside the transaction, right after the run row:
                 # span flush and attempt span id backfill (EEI-4).
-                after_run_row(run_id)
-            self._insert_samples(db, run_id, result)
-            self._insert_events(db, run_id, result)
+                with _stage(stages, "spans"):
+                    after_run_row(run_id)
+            with _stage(stages, "persist_samples"):
+                self._insert_samples(db, run_id, result)
+                self._insert_events(db, run_id, result)
         return run_id
 
-    def run_derived(self, db, run_id: int, result: dict) -> None:
+    def run_derived(self, db, run_id: int, result: dict, stages=None) -> None:
         """
         Stage 2 (G137): steps that read committed samples, ETL, duration fix,
         residual. Runs only after persist_raw committed.
         """
         # Steps that commit on their own or read committed samples (G73).
-        self._insert_after_commit(db, run_id, result)
+        # NIC samples and hardware telemetry ETLs: first part of etl_hardware.
+        with _stage(stages, "etl_hardware"):
+            self._insert_after_commit(db, run_id, result)
 
         # ETL runs outside transaction — each ETL function is idempotent
-        self._run_post_etl(run_id)
-        self._apply_duration_fix(run_id, result)
-        self._compute_residual(run_id, db)
+        self._run_post_etl(run_id, stages)
+        # Duration fix corrects attributed energy: last part of attribution.
+        with _stage(stages, "attribution"):
+            self._apply_duration_fix(run_id, result)
+        with _stage(stages, "residual"):
+            self._compute_residual(run_id, db)
 
     # ── Private helpers — each does exactly one thing ─────────────────────────
 
@@ -571,17 +597,20 @@ class RunPersistenceService:
                 interaction["run_id"] = run_id  # stamp run_id before insert
                 db.insert_llm_interaction(interaction)
 
-    def _run_post_etl(self, run_id: int) -> None:
+    def _run_post_etl(self, run_id: int, stages=None) -> None:
         """
         Run full ETL chain for one run. Same order as save_pair().
         All ETL functions are idempotent — safe to rerun on same run_id.
         Sync only — no async, no threads (confirmed: experiment_runner has zero async).
         """
-        compute_phase_attribution(run_id)       # step 1: event_energy_uj on orchestration_events
-        aggregate_hardware_metrics(run_id)      # step 2: run aggregate columns
-        populate_tool_failure_wasted_energy(run_id)  # step 3: copy event_energy_uj → tfe.wasted_energy_uj
-        compute_energy_attribution(run_id)      # step 4: reads tfe for failed_tool_energy_uj
-        populate_ttft_tpot(run_id)              # step 5: token timing metrics
+        with _stage(stages, "etl_phase"):
+            compute_phase_attribution(run_id)       # step 1: event_energy_uj on orchestration_events
+        with _stage(stages, "etl_hardware"):
+            aggregate_hardware_metrics(run_id)      # step 2: run aggregate columns
+        with _stage(stages, "attribution"):
+            populate_tool_failure_wasted_energy(run_id)  # step 3: copy event_energy_uj → tfe.wasted_energy_uj
+            compute_energy_attribution(run_id)      # step 4: reads tfe for failed_tool_energy_uj
+            populate_ttft_tpot(run_id)              # step 5: token timing metrics
 
 
     def _apply_duration_fix(self, run_id: int, result: dict) -> None:
