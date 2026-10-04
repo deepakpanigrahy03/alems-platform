@@ -25,6 +25,9 @@ CREATE TABLE energy_samples_v2 (run_id INT, timestamp_ns INT);
 CREATE TABLE thermal_samples (run_id INT, timestamp_ns INT);
 CREATE TABLE spans (span_id TEXT, trace_id TEXT, parent_span_id TEXT, run_id INT,
   start_ns INT, end_ns INT);
+CREATE TABLE stage_graph (graph_hash TEXT PRIMARY KEY, definition TEXT);
+CREATE TABLE stage_event (event_id TEXT, run_uid TEXT, run_id INT, stage_id TEXT,
+  scope TEXT, graph_hash TEXT);
 """
 
 # A clean run: pkg 10 J, idle 4 J, dyn 6 J, attr 3 J, phases 2.5 J.
@@ -41,6 +44,7 @@ def _db(rows, goals, attempts, spans):
     # rows predate the column and INV-P1 skips them (start_time_ns NULL).
     conn.execute("ALTER TABLE runs ADD COLUMN start_time_ns INT")
     conn.execute("ALTER TABLE runs ADD COLUMN measurement_log_level TEXT")
+    conn.execute("ALTER TABLE runs ADD COLUMN global_run_id TEXT")
     conn.execute("CREATE TABLE migration_history (version INT, type TEXT, source TEXT, "
                  "status TEXT, applied_at TEXT)")
     conn.execute("INSERT INTO migration_history VALUES "

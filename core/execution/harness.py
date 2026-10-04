@@ -315,6 +315,9 @@ class ExperimentHarness:
         # 39.5.2b gate entry: before the complete SPEC_39_4 3a sequence, nothing
         # inserted between its steps (amended SPEC_39_5_2 section 4).
         from core.observability import gate as _obs_gate
+        # 39.5.2c run identity: created before the gate, never inside 3a.
+        import uuid as _uuid
+        _run_uid = str(_uuid.uuid4())
         _obs_gate.enter()
         self.energy_engine.scheduler.reset_interrupt_samples()
         # Measure network latency for cloud models
@@ -836,6 +839,8 @@ class ExperimentHarness:
             dprint("⚠️ No last_samples attribute found in energy_engine")
 
         dprint(f"✅ Harness complete: {derived.workload_energy_j:.4f}J workload energy")
+        # 39.5.2c: run identity travels with the result (runs.global_run_id).
+        result.setdefault("ml_features", {})["global_run_id"] = _run_uid
         return result
 
     def run_agentic(
@@ -870,6 +875,9 @@ class ExperimentHarness:
         # 39.5.2b gate entry: before the complete SPEC_39_4 3a sequence, nothing
         # inserted between its steps (amended SPEC_39_5_2 section 4).
         from core.observability import gate as _obs_gate
+        # 39.5.2c run identity: created before the gate, never inside 3a.
+        import uuid as _uuid
+        _run_uid = str(_uuid.uuid4())
         _obs_gate.enter()
         self.energy_engine.scheduler.reset_interrupt_samples()
         # Measure network latency for cloud models
@@ -1491,6 +1499,8 @@ class ExperimentHarness:
                 f"🔍 DEBUG - Number of thermal samples: {len(result['thermal_samples'])}"
             )
         print(f"✅ Harness complete: {derived.workload_energy_j:.4f}J workload energy")
+        # 39.5.2c: run identity travels with the result (runs.global_run_id).
+        result.setdefault("ml_features", {})["global_run_id"] = _run_uid
         return result
 
     def run_comparison(

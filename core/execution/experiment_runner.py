@@ -1260,8 +1260,10 @@ class ExperimentRunner:
         # C-EV stage recorders, one per run (39.5.2c). Rows are written after
         # both runs, also when persistence raises; the exception propagates.
         from core.observability.stages import StageRecorder, persist_after_run, stage_or_noop
-        _lin_st = StageRecorder("save_pair")
-        _agt_st = StageRecorder("save_pair")
+        _lin_st = StageRecorder("save_pair",
+                                run_uid=linear_result["ml_features"].get("global_run_id"))
+        _agt_st = StageRecorder("save_pair",
+                                run_uid=agentic_result["ml_features"].get("global_run_id"))
         try:
             linear_id = _persist.insert_one_run(
                 db, exp_id, hw_id, linear_result, "linear", rep_num,
@@ -1638,7 +1640,8 @@ class ExperimentRunner:
             # C-EV stage recorder (39.5.2c); rows written after the run, also
             # when persistence raises; the exception propagates.
             from core.observability.stages import StageRecorder, persist_after_run, stage_or_noop
-            _st = StageRecorder("save_single")
+            _st = StageRecorder("save_single",
+                                run_uid=result.get("ml_features", {}).get("global_run_id"))
             try:
                 run_id = RunPersistenceService().insert_one_run(
                     db, exp_id, hw_id, result, workflow_type, rep_num,

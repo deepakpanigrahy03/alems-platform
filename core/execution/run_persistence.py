@@ -298,6 +298,11 @@ class RunPersistenceService:
                     raise PersistenceError(
                         "insert_run returned None (exp_id=%s, workflow=%s)" % (exp_id, workflow_type)
                     )
+                # Run identity (39.5.2c): same transaction as the run row.
+                _uid = result.get("ml_features", {}).get("global_run_id")
+                if _uid:
+                    db.db.execute("UPDATE runs SET global_run_id = ? WHERE run_id = ?",
+                                  (_uid, run_id))
                 _s["counts"] = {"runs": 1}
             if after_run_row is not None:
                 # Caller hook inside the transaction, right after the run row:

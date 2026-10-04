@@ -765,7 +765,8 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
             continue
         m["result"]["task_meta"] = task  # same task_meta as save_pair (G86)
         # C-EV stage recorder per attempt run (39.5.2c).
-        m["stages"] = StageRecorder("execute_goal")
+        m["stages"] = StageRecorder(
+            "execute_goal", run_uid=m["result"].get("ml_features", {}).get("global_run_id"))
         try:
             m["run_id"] = _rp.persist_raw(db, exp_id, hw_id, m["result"], workflow_type, rep_num,
                                           stages=m["stages"])

@@ -34,6 +34,57 @@ invariants:
               WHERE version = 119 AND type = 'schema' AND source = 'core'
                 AND status = 'applied')
         AND measurement_log_level IS NULL
+  - id: INV-EV1
+    statement: "Every run's stage rows are exactly the node set of its declared stage graph: one row per node, no duplicates, none missing (SPEC 39.5.2 section 5 rule 3)."
+    scope: run
+    severity: fail
+    introduced_in: 39.5.2
+    kind: sql
+    note: "Implements master 5.1 and SPEC 39.5.2 section 5 in the catalog; listed for master consolidation. Rows with run_id NULL come from runs whose persistence failed and are still checked by EV1 and EV2."
+    sql: |
+      SELECT 'run_uid:' || s.run_uid, 'stage rows do not match graph nodes'
+      FROM stage_event s JOIN stage_graph g ON g.graph_hash = s.graph_hash
+      WHERE COALESCE(s.run_id, 0) > :since OR s.run_id IS NULL
+      GROUP BY s.run_uid, g.graph_hash
+      HAVING COUNT(*) <> json_array_length(json_extract(MAX(g.definition), '$.nodes'))
+          OR COUNT(*) <> COUNT(DISTINCT s.stage_id)
+  - id: INV-EV2
+    statement: "Every stage row names a node of its graph, with the scope the graph declares for that node (scope is graph derived, never caller supplied)."
+    scope: row
+    severity: fail
+    introduced_in: 39.5.2
+    kind: sql
+    note: "Implements master 5.1 and SPEC 39.5.2 section 5 in the catalog; listed for master consolidation. Rows with run_id NULL come from runs whose persistence failed and are still checked by EV1 and EV2."
+    sql: |
+      SELECT 'event:' || s.event_id, 'stage not in graph or scope differs from graph'
+      FROM stage_event s JOIN stage_graph g ON g.graph_hash = s.graph_hash
+      WHERE (COALESCE(s.run_id, 0) > :since OR s.run_id IS NULL)
+        AND NOT EXISTS (SELECT 1 FROM json_each(g.definition, '$.nodes') n
+                        WHERE json_extract(n.value, '$.stage_id') = s.stage_id
+                          AND json_extract(n.value, '$.scope') = s.scope)
+  - id: INV-EV3
+    statement: "Every stage row with a run_id references a run in the same store (INV-D2 applied to stage_event, whose run link is nullable by design)."
+    scope: row
+    severity: fail
+    introduced_in: 39.5.2
+    kind: sql
+    note: "Implements master 5.1 and SPEC 39.5.2 section 5 in the catalog; listed for master consolidation. Rows with run_id NULL come from runs whose persistence failed and are still checked by EV1 and EV2."
+    sql: |
+      SELECT 'event:' || s.event_id, 'stage row points to a missing run'
+      FROM stage_event s
+      WHERE s.run_id > :since AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.run_id = s.run_id)
+  - id: INV-EV4
+    statement: "A run's identity runs.global_run_id equals the run_uid of its stage rows (master 13.2; run_uid is stored as global_run_id)."
+    scope: run
+    severity: fail
+    introduced_in: 39.5.2
+    kind: sql
+    note: "Implements master 5.1 and SPEC 39.5.2 section 5 in the catalog; listed for master consolidation. Rows with run_id NULL come from runs whose persistence failed and are still checked by EV1 and EV2."
+    sql: |
+      SELECT 'run:' || r.run_id, 'run identity differs from its stage rows'
+      FROM stage_event s JOIN runs r ON r.run_id = s.run_id
+      WHERE s.run_id > :since AND r.global_run_id IS NOT NULL AND r.global_run_id <> s.run_uid
+      GROUP BY r.run_id
   - id: INV-E1
     statement: "If a measurement is unavailable, its value is NULL and is never represented by zero. A measured zero is valid."
     scope: column
@@ -164,6 +215,15 @@ invariants:
         AND NOT ((a.energy_uj IS NULL AND r.attributed_energy_uj IS NULL)
                  OR (a.energy_uj IS NOT NULL AND r.attributed_energy_uj IS NOT NULL
                      AND ABS(a.energy_uj - r.attributed_energy_uj) <= :tol))
+      UNION ALL
+      -- An attempt without an existing run has no E_attr, so its energy must
+      -- be NULL; any value is a substitution (39.5.2c finding, cause in 39.5.5).
+      -- Runless attempts have no run_id to scope by :since, so all are checked.
+      SELECT 'attempt:' || a.attempt_id,
+             'energy=' || a.energy_uj || ' without a run (run_id=' || COALESCE(a.run_id, 'NULL') || ')'
+      FROM goal_attempt a
+      WHERE a.energy_uj IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM runs r WHERE r.run_id = a.run_id)
 
   - id: INV-B1
     statement: "Every run's baseline id exists in the same store"
