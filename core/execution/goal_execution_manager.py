@@ -725,6 +725,15 @@ def execute_goal(
         raise
 
 
+from core.observability.stages import StageRecorder, persist_after_run, stage_or_noop
+
+
+def _persist_stage_rows(db, measured):
+    """Write each attempt's stage rows after its persistence (39.5.2c)."""
+    for m in measured:
+        persist_after_run(m.pop("stages", None), db)
+
+
 def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
                       task, measured, derived=True):
     """
@@ -743,8 +752,12 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
         if m["run_id"] is not None or m.get("failed"):
             continue
         m["result"]["task_meta"] = task  # same task_meta as save_pair (G86)
+        # C-EV stage recorder per attempt run (39.5.2c).
+        m["stages"] = StageRecorder("execute_goal")
         try:
-            m["run_id"] = _rp.persist_raw(db, exp_id, hw_id, m["result"], workflow_type, rep_num)
+            m["run_id"] = _rp.persist_raw(db, exp_id, hw_id, m["result"], workflow_type, rep_num,
+                                          stages=m["stages"])
+            m["stages"].attach_run_id(m["run_id"])
             # Link by attempt_id only; never by goal_id (G137 section 6).
             conn.execute("UPDATE goal_attempt SET run_id = ? WHERE attempt_id = ?",
                          (m["run_id"], m["attempt_id"]))
@@ -758,6 +771,7 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
     winning = next((m["run_id"] for m in measured
                     if m["outcome"] == "success" and m["run_id"] is not None), None)
     if not derived:
+        _persist_stage_rows(db, measured)
         return winning, run_ids, failed
 
     for m in measured:
@@ -765,11 +779,12 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
         if rid is None:
             continue
         try:
-            _rp.run_derived(db, rid, m["result"])
+            _rp.run_derived(db, rid, m["result"], stages=m.get("stages"))
         except Exception as exc:  # raw stays committed (A+3)
             logger.error("execute_goal: run=%d derived steps failed: %s", rid, exc)
             continue
-        _write_attempt_spans(db, conn, rid, m, workflow_type, goal_id, trace)
+        with stage_or_noop(m.get("stages"), "spans"):
+            _write_attempt_spans(db, conn, rid, m, workflow_type, goal_id, trace)
         # C4: attempt energy comes from its own committed, attributed run.
         conn.execute(
             "UPDATE goal_attempt SET energy_uj = "
@@ -779,6 +794,7 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
             "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
             (m["attempt_id"], rid))
         conn.commit()
+    _persist_stage_rows(db, measured)
     return winning, run_ids, failed
 
 

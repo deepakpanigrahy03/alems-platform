@@ -693,11 +693,12 @@ def insert_one_run(
     return _persistence.insert_one_run(db, exp_id, hw_id, result, workflow_type, rep_num)
 
 
-def persist_raw(db, exp_id, hw_id, result, workflow_type, rep_num):
-    """Module wrapper: stage 1 of one attempt run (G137)."""
-    return _persistence.persist_raw(db, exp_id, hw_id, result, workflow_type, rep_num)
+def persist_raw(db, exp_id, hw_id, result, workflow_type, rep_num, stages=None):
+    """Module wrapper: stage 1 of one attempt run (G137); stages per 39.5.2c."""
+    return _persistence.persist_raw(db, exp_id, hw_id, result, workflow_type, rep_num,
+                                    stages=stages)
 
 
-def run_derived(db, run_id, result):
-    """Module wrapper: stage 2 of one committed run (G137)."""
-    return _persistence.run_derived(db, run_id, result)
+def run_derived(db, run_id, result, stages=None):
+    """Module wrapper: stage 2 of one committed run (G137); stages per 39.5.2c."""
+    return _persistence.run_derived(db, run_id, result, stages=stages)

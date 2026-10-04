@@ -172,3 +172,48 @@ def test_multi_part_stage_merges_worst_status():
         pass
     ev = r.events["etl_hardware"]
     assert ev["status"] == "failed" and ev["counts"] == {"nic_samples": 3}
+
+
+
+class _Adapter(object):
+    """Adapter shape used by the run paths: db.db.conn plus transaction()."""
+
+    def __init__(self, conn):
+        self.db = type("Inner", (), {"conn": conn})()
+        self._conn = conn
+
+    def transaction(self):
+        return self._conn  # sqlite3 connection commits or rolls back as a context
+
+
+def _store():
+    con = sqlite3.connect(":memory:")
+    con.execute("CREATE TABLE runs (run_id INTEGER PRIMARY KEY)")
+    con.execute("INSERT INTO runs VALUES (5)")
+    con.execute("CREATE TABLE schema_version (version INTEGER, applied_at TEXT, description TEXT)")
+    con.executescript(open(MIG).read())
+    return con
+
+
+def test_persist_after_run_writes_rows():
+    """Rows land with run_id; unreached stages are closed as skipped."""
+    con = _store()
+    r = st.StageRecorder("save_single")
+    with r.stage("persist_run") as i:
+        i["counts"] = {"runs": 1}
+    r.attach_run_id(5)
+    assert st.persist_after_run(r, _Adapter(con)) == 10
+    assert con.execute("SELECT COUNT(*) FROM stage_event WHERE run_id = 5").fetchone()[0] == 10
+
+
+def test_persist_after_run_never_raises():
+    """A broken store is logged, never raised into the run."""
+    r = st.StageRecorder("save_single")
+    with r.stage("persist_run"):
+        pass
+    assert st.persist_after_run(r, object()) == 0
+
+
+def test_empty_recorder_writes_nothing():
+    """No stage seen: no orphan rows."""
+    assert st.persist_after_run(st.StageRecorder("save_single"), _Adapter(_store())) == 0    

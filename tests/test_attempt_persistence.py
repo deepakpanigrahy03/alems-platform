@@ -44,14 +44,14 @@ def fake_persistence(monkeypatch):
     conn = _conn()
     calls = {"derived": []}
 
-    def persist_raw(db, exp_id, hw_id, result, workflow_type, rep_num):
+    def persist_raw(db, exp_id, hw_id, result, workflow_type, rep_num, stages=None):
         if result.get("boom"):
             raise RuntimeError("disk full")
         cur = conn.execute("INSERT INTO runs (attributed_energy_uj) VALUES (?)", (result["e"],))
         conn.commit()
         return cur.lastrowid
 
-    def run_derived(db, run_id, result):
+    def run_derived(db, run_id, result, stages=None):
         calls["derived"].append(run_id)
 
     monkeypatch.setattr(gem._rp, "persist_raw", persist_raw)

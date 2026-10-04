@@ -1257,14 +1257,27 @@ class ExperimentRunner:
         # All persistence for both runs through the one writer (C3, G77).
         # Each run commits on its own; spans flush right after each run row.
         _persist = RunPersistenceService()
-        linear_id = _persist.insert_one_run(
-            db, exp_id, hw_id, linear_result, "linear", rep_num,
-            after_run_row=_span_hook(db, _wconn, _linear_writer),
-        )
-        agentic_id = _persist.insert_one_run(
-            db, exp_id, hw_id, agentic_result, "agentic", rep_num,
-            after_run_row=_span_hook(db, _wconn, _agentic_writer),
-        )
+        # C-EV stage recorders, one per run (39.5.2c). Rows are written after
+        # both runs, also when persistence raises; the exception propagates.
+        from core.observability.stages import StageRecorder, persist_after_run
+        _lin_st = StageRecorder("save_pair")
+        _agt_st = StageRecorder("save_pair")
+        try:
+            linear_id = _persist.insert_one_run(
+                db, exp_id, hw_id, linear_result, "linear", rep_num,
+                after_run_row=_span_hook(db, _wconn, _linear_writer),
+                stages=_lin_st,
+            )
+            _lin_st.attach_run_id(linear_id)
+            agentic_id = _persist.insert_one_run(
+                db, exp_id, hw_id, agentic_result, "agentic", rep_num,
+                after_run_row=_span_hook(db, _wconn, _agentic_writer),
+                stages=_agt_st,
+            )
+            _agt_st.attach_run_id(agentic_id)
+        finally:
+            persist_after_run(_lin_st, db)
+            persist_after_run(_agt_st, db)
 
         with db.transaction():
  
@@ -1609,10 +1622,19 @@ class ExperimentRunner:
             build_spans_from_result(_span_writer, _span_id, result, workflow_type, self.get_hardware_info())
 
             # All persistence through the one writer (C3, G77, G91).
-            run_id = RunPersistenceService().insert_one_run(
-                db, exp_id, hw_id, result, workflow_type, rep_num,
-                after_run_row=_span_hook(db, _wconn, _span_writer),
-            )
+            # C-EV stage recorder (39.5.2c); rows written after the run, also
+            # when persistence raises; the exception propagates.
+            from core.observability.stages import StageRecorder, persist_after_run
+            _st = StageRecorder("save_single")
+            try:
+                run_id = RunPersistenceService().insert_one_run(
+                    db, exp_id, hw_id, result, workflow_type, rep_num,
+                    after_run_row=_span_hook(db, _wconn, _span_writer),
+                    stages=_st,
+                )
+                _st.attach_run_id(run_id)
+            finally:
+                persist_after_run(_st, db)
 
             # SPEC 35J: energy_uj computation moved OUT of this block —
             # it must run unconditionally (save_pair()'s attributed energy rule

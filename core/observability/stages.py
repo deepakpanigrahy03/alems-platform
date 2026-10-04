@@ -15,10 +15,11 @@ Design choices (lead decisions, WP 2c):
    the run always ends with a complete, terminal stage set.
 """
 import json
+import logging
 import os
 import time
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 from typing import Callable, Dict, Iterator, List, Optional
 
@@ -78,7 +79,9 @@ class StageRecorder(object):
         """First required predecessor whose terminal status blocks."""
         for dep in sg.requires_of(self.graph_id, stage_id):
             ev = self.events.get(dep)
-            if ev is not None and ev["status"] in _BLOCKING:
+            # A not_reached stage is an instrumentation gap, not a failure,
+            # so it never blocks a dependent stage.
+            if ev is not None and ev["status"] in _BLOCKING and ev.get("reason") != "not_reached":
                 return dep
         return None
 
@@ -258,3 +261,32 @@ def persist(recorder, execute_many):
     rows = recorder.rows()
     execute_many(INSERT_EVENT, rows)
     return len(rows)
+
+_log = logging.getLogger("alems.observability.stages")
+
+
+def stage_or_noop(stages, stage_id):
+    """Stage context when a recorder is bound, else a no op context."""
+    if stages is None:
+        return nullcontext({"counts": {}, "outcome": None, "reason": None})
+    return stages.stage(stage_id)
+
+
+def persist_after_run(recorder, db):
+    # type: (Optional[StageRecorder], object) -> int
+    """
+    Write a recorder's rows through the store's writer connection in one
+    transaction, after the run. Observability is subordinate (master 5.2a):
+    any failure is logged and swallowed, never raised into the run path.
+    A recorder that saw no stage at all writes nothing (no orphan rows).
+    """
+    if recorder is None or not recorder.events:
+        return 0
+    try:
+        inner = getattr(db, "db", None)
+        conn = getattr(inner, "conn", None) or getattr(db, "conn", None)
+        with db.transaction():
+            return persist(recorder, lambda sql, rows: conn.executemany(sql, rows))
+    except Exception as exc:  # never alters the run (5.2a)
+        _log.warning("stage rows not persisted run_uid=%s: %s", recorder.run_uid, exc)
+        return 0
