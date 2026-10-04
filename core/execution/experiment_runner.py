@@ -1259,7 +1259,7 @@ class ExperimentRunner:
         _persist = RunPersistenceService()
         # C-EV stage recorders, one per run (39.5.2c). Rows are written after
         # both runs, also when persistence raises; the exception propagates.
-        from core.observability.stages import StageRecorder, persist_after_run
+        from core.observability.stages import StageRecorder, persist_after_run, stage_or_noop
         _lin_st = StageRecorder("save_pair")
         _agt_st = StageRecorder("save_pair")
         try:
@@ -1276,8 +1276,8 @@ class ExperimentRunner:
             )
             _agt_st.attach_run_id(agentic_id)
         finally:
-            persist_after_run(_lin_st, db)
-            persist_after_run(_agt_st, db)
+            persist_after_run(_lin_st, db, final=False)
+            persist_after_run(_agt_st, db, final=False)
 
         with db.transaction():
  
@@ -1439,15 +1439,28 @@ class ExperimentRunner:
         # Called AFTER goal_execution ETL so attempt_ids are committed.
         # Quality judge runs after core energy_uj is committed (Observer Energy).
         _qe = getattr(self.args, "quality_enabled", False) if hasattr(self, "args") else False
-        if linear_goal_id is not None:
-            _run_quality_scoring(db=db, goal_id=linear_goal_id, result=linear_result,
-                                 workflow_type="linear", conn=_wconn, quality_enabled=_qe)
-        if agentic_goal_id is not None:
-            _run_quality_scoring(db=db, goal_id=agentic_goal_id, result=agentic_result,
-                                 workflow_type="agentic", conn=_wconn, quality_enabled=_qe)
-        # Quality annotations on attempt spans.
-        _write_quality_annotations(db, _wconn, linear_id)
-        _write_quality_annotations(db, _wconn, agentic_id)
+        # quality stage per run; phase 2 closes both stage sets (39.5.2c).
+        try:
+            if linear_goal_id is not None:
+                with stage_or_noop(_lin_st, "quality"):
+                    _run_quality_scoring(db=db, goal_id=linear_goal_id, result=linear_result,
+                                         workflow_type="linear", conn=_wconn, quality_enabled=_qe)
+            else:
+                _lin_st.skip("quality", "no_goal")
+            if agentic_goal_id is not None:
+                with stage_or_noop(_agt_st, "quality"):
+                    _run_quality_scoring(db=db, goal_id=agentic_goal_id, result=agentic_result,
+                                         workflow_type="agentic", conn=_wconn, quality_enabled=_qe)
+            else:
+                _agt_st.skip("quality", "no_goal")
+            # Quality annotations on attempt spans.
+            with stage_or_noop(_lin_st, "quality"):
+                _write_quality_annotations(db, _wconn, linear_id)
+            with stage_or_noop(_agt_st, "quality"):
+                _write_quality_annotations(db, _wconn, agentic_id)
+        finally:
+            persist_after_run(_lin_st, db)
+            persist_after_run(_agt_st, db)
 
         # Attribution stubs — runs sync after goal rows exist
         energy_attribution_etl.populate_attribution_stubs(linear_id, _wconn)
@@ -1624,7 +1637,7 @@ class ExperimentRunner:
             # All persistence through the one writer (C3, G77, G91).
             # C-EV stage recorder (39.5.2c); rows written after the run, also
             # when persistence raises; the exception propagates.
-            from core.observability.stages import StageRecorder, persist_after_run
+            from core.observability.stages import StageRecorder, persist_after_run, stage_or_noop
             _st = StageRecorder("save_single")
             try:
                 run_id = RunPersistenceService().insert_one_run(
@@ -1634,7 +1647,7 @@ class ExperimentRunner:
                 )
                 _st.attach_run_id(run_id)
             finally:
-                persist_after_run(_st, db)
+                persist_after_run(_st, db, final=False)
 
             # SPEC 35J: energy_uj computation moved OUT of this block —
             # it must run unconditionally (save_pair()'s attributed energy rule
@@ -1704,11 +1717,19 @@ class ExperimentRunner:
 
             # --- Quality scoring (8.5C) ---
             _qe = getattr(self.args, "quality_enabled", False) if hasattr(self, "args") else False
-            if goal_id is not None:
-                _run_quality_scoring(db=db, goal_id=goal_id, result=result,
-                                     workflow_type=result.get("workflow_type", "linear"),
-                                     conn=_wconn, quality_enabled=_qe)
-            _write_quality_annotations(db, _wconn, run_id)
+            # quality stage; phase 2 closes the stage set (39.5.2c).
+            try:
+                if goal_id is not None:
+                    with stage_or_noop(_st, "quality"):
+                        _run_quality_scoring(db=db, goal_id=goal_id, result=result,
+                                             workflow_type=result.get("workflow_type", "linear"),
+                                             conn=_wconn, quality_enabled=_qe)
+                else:
+                    _st.skip("quality", "no_goal")
+                with stage_or_noop(_st, "quality"):
+                    _write_quality_annotations(db, _wconn, run_id)
+            finally:
+                persist_after_run(_st, db)
 
             energy_attribution_etl.populate_attribution_stubs(run_id, _wconn)
             _goal_tracker.queue_etl(_wconn, "run", run_id, "energy_attribution_etl")

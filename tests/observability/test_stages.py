@@ -21,11 +21,11 @@ def _repo_root():
 MIG = os.path.join(_repo_root(), "migrations", "schema", "v120_stage_event.sql")
 
 DESIGN_15_3 = {
+    # Graph 1.1.0: stages the v1 paths actually execute (39.5.2c step 3c).
     "save_pair": {"persist_run", "persist_samples", "spans", "attribution", "residual",
-                  "quality", "etl_phase", "etl_hardware", "integrity", "outputs"},
-    "execute_goal": {"setup", "baseline", "measure", "persist_run", "persist_samples",
-                     "spans", "attribution", "residual", "quality", "integrity",
-                     "etl_phase", "etl_hardware"},  # D-2c-1: ETL runs in run_derived
+                  "quality", "etl_phase", "etl_hardware"},
+    "execute_goal": {"persist_run", "persist_samples", "spans", "attribution", "residual",
+                     "quality", "etl_phase", "etl_hardware"},
 }
 DESIGN_15_3["save_single"] = DESIGN_15_3["save_pair"]
 
@@ -118,14 +118,14 @@ def test_persist_roundtrip_and_order():
     con.executescript(open(MIG).read())
     for _ in range(2):
         r = st.StageRecorder("execute_goal")
-        with r.stage("setup"):
+        with r.stage("persist_run"):
             pass
         r.attach_run_id(7)
         st.persist(r, lambda sql, rows: con.executemany(sql, rows))
     assert con.execute("SELECT COUNT(*) FROM stage_graph").fetchone()[0] == 1
     seqs = [x[0] for x in con.execute(
         "SELECT event_seq FROM stage_event WHERE run_uid=? ORDER BY rowid", (r.run_uid,))]
-    assert seqs == sorted(seqs) and len(seqs) == 12
+    assert seqs == sorted(seqs) and len(seqs) == 8
 
 
 def test_persist_refused_inside_window(monkeypatch):
@@ -174,7 +174,6 @@ def test_multi_part_stage_merges_worst_status():
     assert ev["status"] == "failed" and ev["counts"] == {"nic_samples": 3}
 
 
-
 class _Adapter(object):
     """Adapter shape used by the run paths: db.db.conn plus transaction()."""
 
@@ -202,8 +201,8 @@ def test_persist_after_run_writes_rows():
     with r.stage("persist_run") as i:
         i["counts"] = {"runs": 1}
     r.attach_run_id(5)
-    assert st.persist_after_run(r, _Adapter(con)) == 10
-    assert con.execute("SELECT COUNT(*) FROM stage_event WHERE run_id = 5").fetchone()[0] == 10
+    assert st.persist_after_run(r, _Adapter(con)) == 8
+    assert con.execute("SELECT COUNT(*) FROM stage_event WHERE run_id = 5").fetchone()[0] == 8
 
 
 def test_persist_after_run_never_raises():
@@ -216,4 +215,26 @@ def test_persist_after_run_never_raises():
 
 def test_empty_recorder_writes_nothing():
     """No stage seen: no orphan rows."""
-    assert st.persist_after_run(st.StageRecorder("save_single"), _Adapter(_store())) == 0    
+    assert st.persist_after_run(st.StageRecorder("save_single"), _Adapter(_store())) == 0
+
+
+def test_two_phase_writing_never_duplicates():
+    """Phase 1 writes finished stages; phase 2 adds the rest; no row twice."""
+    con = _store()
+    r = st.StageRecorder("save_single")
+    with r.stage("persist_run") as i:
+        i["counts"] = {"runs": 1}
+    r.attach_run_id(5)
+    assert st.persist_after_run(r, _Adapter(con), final=False) == 1
+    with r.stage("quality"):
+        pass
+    assert st.persist_after_run(r, _Adapter(con)) == 7
+    assert con.execute("SELECT COUNT(*) FROM stage_event").fetchone()[0] == 8
+
+
+def test_not_reached_never_blocks():
+    """An unreached predecessor is a gap, not a failure."""
+    r = st.StageRecorder("save_single")
+    r.finalize()
+    assert r.events["persist_samples"]["reason"] == "not_reached"
+    assert r.events["attribution"]["status"] == "skipped"

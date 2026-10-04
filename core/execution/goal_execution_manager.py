@@ -646,11 +646,23 @@ def _execute_goal_impl(
 
     # goal_output and quality scores: the same call save_pair and save_single
     # make, after the goal ETL so attempt ids are committed (G76).
-    if final_result is not None:
-        from core.execution.experiment_runner import _run_quality_scoring  # late: cycle
-        _run_quality_scoring(db=db, goal_id=goal_id, result=final_result,
-                             workflow_type=workflow_type, conn=conn,
-                             quality_enabled=quality_enabled)
+    # quality is goal scoped: recorded on the winning attempt's run (39.5.2c).
+    _recs = [m.pop("stages", None) for m in measured]
+    _win = next((r for r in _recs if r is not None and r.run_id == winning_run_id), None)
+    try:
+        if final_result is not None:
+            from core.execution.experiment_runner import _run_quality_scoring  # late: cycle
+            with stage_or_noop(_win, "quality"):
+                _run_quality_scoring(db=db, goal_id=goal_id, result=final_result,
+                                     workflow_type=workflow_type, conn=conn,
+                                     quality_enabled=quality_enabled)
+    finally:
+        for _r in _recs:
+            if _r is None:
+                continue
+            # skip merges harmlessly into a quality row already recorded
+            _r.skip("quality", "no_result" if _r is _win else "goal_scored_on_winner")
+            persist_after_run(_r, db)
     # ETL runs synchronously above — queue_etl removed to prevent
     # pending entries that never get marked done (N40 fix)
  
@@ -729,9 +741,9 @@ from core.observability.stages import StageRecorder, persist_after_run, stage_or
 
 
 def _persist_stage_rows(db, measured):
-    """Write each attempt's stage rows after its persistence (39.5.2c)."""
+    """Phase 1: write each attempt's finished stages; recorders stay for quality."""
     for m in measured:
-        persist_after_run(m.pop("stages", None), db)
+        persist_after_run(m.get("stages"), db, final=False)
 
 
 def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,

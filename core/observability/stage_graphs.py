@@ -65,8 +65,6 @@ def _post_run_nodes(pair):
         _node("quality", empty_ok=True, unavailable_ok=True),
         _node("etl_phase", empty_ok=True, scope=shared),
         _node("etl_hardware", empty_ok=True, scope=shared),
-        _node("integrity", scope=shared),
-        _node("outputs", empty_ok=True, scope=shared),
     ]
 
 
@@ -86,36 +84,35 @@ def _post_run_edges():
         _req("persist_samples", "attribution", ("energy_samples",)),
         _req("attribution", "residual", ("energy_attribution",)),
         _req("persist_run", "quality", ("runs",)),
-        _req("persist_run", "integrity", ("runs",)),
-        _req("persist_run", "outputs", ("runs",)),
     ]
 
 
 def _execute_goal():
     # type: () -> Dict[str, object]
     """
-    execute_goal: setup and baseline are goal scoped (P2). The ETL stages
-    run here too (run_derived), which corrects design 15.3 (deviation D-2c-1).
-    Spans are written after run_derived in this path.
+    execute_goal (1.1.0): the persistence core plus quality, which is goal
+    scoped (scored once on the final result, recorded on the winning run).
+    setup, baseline, measure happen in the harness before persistence and
+    belong to the 39.5.5 pipeline; they are not v1 persistence stages.
     """
-    nodes = [_node("setup", scope="goal"), _node("baseline", scope="goal"),
-             _node("measure")] + [n for n in _post_run_nodes(False)
-                                  if n["stage_id"] != "outputs"]
-    edges = [_req("setup", "measure"), _req("baseline", "measure", ("idle_baselines",)),
-             _req("measure", "persist_run", ("samples_in_memory",))]
-    edges += [e for e in _post_run_edges() if e["to"] != "outputs"]
-    edges.append(_ord("residual", "spans"))
-    return {"graph_id": "execute_goal", "graph_version": "1.0.0",
+    nodes = _post_run_nodes(False)
+    for n in nodes:
+        if n["stage_id"] == "quality":
+            n["scope"] = "goal"
+    edges = _post_run_edges() + [_ord("residual", "spans"), _ord("spans", "quality")]
+    return {"graph_id": "execute_goal", "graph_version": "1.1.0",
             "nodes": nodes, "edges": edges}
 
 
 GRAPHS = {
-    "save_pair": {"graph_id": "save_pair", "graph_version": "1.0.0",
+    "save_pair": {"graph_id": "save_pair", "graph_version": "1.1.0",
                   "nodes": _post_run_nodes(True),
-                  "edges": _post_run_edges() + [_ord("spans", "persist_samples")]},
-    "save_single": {"graph_id": "save_single", "graph_version": "1.0.0",
+                  "edges": _post_run_edges() + [_ord("spans", "persist_samples"),
+                                                _ord("residual", "quality")]},
+    "save_single": {"graph_id": "save_single", "graph_version": "1.1.0",
                     "nodes": _post_run_nodes(False),
-                    "edges": _post_run_edges() + [_ord("spans", "persist_samples")]},
+                    "edges": _post_run_edges() + [_ord("spans", "persist_samples"),
+                                                _ord("residual", "quality")]},
     "execute_goal": _execute_goal(),
 }
 

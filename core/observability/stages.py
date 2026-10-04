@@ -68,6 +68,8 @@ class StageRecorder(object):
         self.events = {}  # type: Dict[str, Dict[str, object]]
         # Stage ids recorded inside an open transaction scope (None when no scope).
         self._tx = None  # type: Optional[List[str]]
+        # Stage ids already written to the store (two phase writing, 3c).
+        self._written = set()  # type: set
 
     def attach_run_id(self, run_id):
         # type: (int) -> None
@@ -219,10 +221,10 @@ class StageRecorder(object):
 
     def rows(self):
         # type: () -> List[tuple]
-        """Rows in event_seq order for the stage_event insert."""
+        """Rows not yet written, in event_seq order, for the stage_event insert."""
         now = datetime.now(timezone.utc).isoformat()
-        evs = sorted(self.events.values(), key=lambda e: (e["event_seq"] is None,
-                                                          e["event_seq"] or 0))
+        evs = sorted((e for e in self.events.values() if e["stage_id"] not in self._written),
+                     key=lambda e: (e["event_seq"] is None, e["event_seq"] or 0))
         return [(e["event_id"], e["run_uid"], self.run_id, e["sandbox_id"],
                  e["stage_id"], e["stage_version"], e["status"], e["outcome"],
                  e["reason"], e["event_seq"], e["pid"], e["start_ns"], e["end_ns"],
@@ -242,8 +244,8 @@ INSERT_EVENT = ("INSERT INTO stage_event (event_id, run_uid, run_id, sandbox_id,
                 "(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 
 
-def persist(recorder, execute_many):
-    # type: (StageRecorder, Callable[[str, List[tuple]], None]) -> int
+def persist(recorder, execute_many, final=True):
+    # type: (StageRecorder, Callable[[str, List[tuple]], None], bool) -> int
     """
     Write the graph (idempotent) and all stage rows through the writer.
 
@@ -253,14 +255,18 @@ def persist(recorder, execute_many):
     """
     if gate.is_inside():
         raise StageContractError("persist inside measurement window")
-    recorder.finalize()
+    if final:
+        recorder.finalize()  # close unreached stages only on the last write
     g = sg.GRAPHS[recorder.graph_id]
     now = datetime.now(timezone.utc).isoformat()
     execute_many(INSERT_GRAPH, [(recorder.graph_hash, g["graph_id"], g["graph_version"],
                                  sg.canonical_json(g), now, recorder.graph_hash)])
     rows = recorder.rows()
-    execute_many(INSERT_EVENT, rows)
+    if rows:
+        execute_many(INSERT_EVENT, rows)
+    recorder._written.update(r[4] for r in rows)  # r[4] is stage_id
     return len(rows)
+
 
 _log = logging.getLogger("alems.observability.stages")
 
@@ -272,13 +278,15 @@ def stage_or_noop(stages, stage_id):
     return stages.stage(stage_id)
 
 
-def persist_after_run(recorder, db):
-    # type: (Optional[StageRecorder], object) -> int
+def persist_after_run(recorder, db, final=True):
+    # type: (Optional[StageRecorder], object, bool) -> int
     """
     Write a recorder's rows through the store's writer connection in one
     transaction, after the run. Observability is subordinate (master 5.2a):
     any failure is logged and swallowed, never raised into the run path.
     A recorder that saw no stage at all writes nothing (no orphan rows).
+    final=False writes the stages finished so far (phase 1); final=True also
+    closes unreached stages (phase 2). A row is never written twice.
     """
     if recorder is None or not recorder.events:
         return 0
@@ -286,7 +294,7 @@ def persist_after_run(recorder, db):
         inner = getattr(db, "db", None)
         conn = getattr(inner, "conn", None) or getattr(db, "conn", None)
         with db.transaction():
-            return persist(recorder, lambda sql, rows: conn.executemany(sql, rows))
+            return persist(recorder, lambda sql, rows: conn.executemany(sql, rows), final)
     except Exception as exc:  # never alters the run (5.2a)
         _log.warning("stage rows not persisted run_uid=%s: %s", recorder.run_uid, exc)
         return 0
