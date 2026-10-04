@@ -559,6 +559,9 @@ def main():
     """
     args = parse_arguments()
     apply_config(args)
+    # 39.5.2a: mirror run_experiment.py (sync rule); --debug selects log mode debug.
+    from core.observability import setup_logging
+    setup_logging("run", cli={"mode": "debug"} if args.debug else None)
  
     if args.debug:
         set_debug(True)
@@ -573,6 +576,9 @@ def main():
     setup = _setup_experiment(args)
     all_linear, all_agentic, all_taxes = _run_experiment(setup, args)
     _display_results(all_linear, all_agentic, all_taxes, args)
+    # 39.5.2a: per run logs written after all measurement windows.
+    from core.observability import flush_run_log
+    flush_run_log()
  
     return 0
 

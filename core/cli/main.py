@@ -32,6 +32,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
+    # 39.5.2a: global logging options are consumed only before the command word.
+    argv, log_cli = _pop_logging_options(argv)
+    from core.observability import setup_logging
+    try:
+        setup_logging("cli", cli=log_cli)
+    except ValueError as exc:
+        # C-CLI rule 3: an invalid option value is a usage error.
+        print(f"alems: {exc}", file=sys.stderr)
+        return 2
+
     # Lazy-import subcommands so they register themselves.
     _load_builtin_commands()
 
@@ -49,6 +59,34 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
     return handler(argv[1:])
+
+
+def _pop_logging_options(argv: List[str]):
+    """
+    Remove leading global logging options (C-CLI global options).
+
+    Only options before the first non option word are consumed, so a
+    subcommand's own --verbose is never taken.
+
+    Returns:
+        (remaining argv, cli layer dict for setup_logging)
+    """
+    layer: dict = {}
+    rest = list(argv)
+    while rest and rest[0].startswith("--"):
+        opt = rest[0]
+        if opt == "--quiet":
+            layer["mode"] = "quiet"
+        elif opt == "--verbose":
+            layer["mode"] = "verbose"
+        elif opt in ("--log-level", "--log-components") and len(rest) > 1:
+            key = "level" if opt == "--log-level" else "components"
+            layer[key] = rest[1]
+            rest.pop(0)
+        else:
+            break  # not ours (for example --help); leave for dispatch
+        rest.pop(0)
+    return rest, layer
 
 
 def _load_builtin_commands() -> None:

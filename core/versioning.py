@@ -118,7 +118,8 @@ def _schema_versions(db_path: str) -> Dict[str, Any]:
         conn.row_factory = sqlite3.Row
         try:
             rows = conn.execute(
-                "SELECT version, source FROM migration_history WHERE status = 'applied'"
+                "SELECT version, source FROM migration_history "
+                "WHERE status = 'applied' AND type = 'schema'"
             ).fetchall()
         finally:
             conn.close()

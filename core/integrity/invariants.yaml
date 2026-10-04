@@ -17,6 +17,21 @@ tolerance_uj: 1000
 
 invariants:
 
+  - id: INV-P1
+    statement: "Measurement runs record measurement_log_level (the effective level inside [t0, t1]); Leg H and paper runs have it above DEBUG."
+    scope: run
+    severity: fail
+    introduced_in: 39.5.2
+    kind: sql
+    note: "Evaluates runs started after v119 was applied; older rows predate the column (disposition: predates column). The above DEBUG part needs a paper grade marker on runs and is added with 39.5.3; until then this checks presence only."
+    sql: |
+      SELECT 'run:' || run_id, 'measurement_log_level not recorded'
+      FROM runs
+      WHERE run_id > :since
+        AND start_time_ns > 1000000000 * (
+              SELECT CAST(strftime('%s', applied_at) AS INTEGER)
+              FROM schema_version WHERE version = 119)
+        AND measurement_log_level IS NULL
   - id: INV-E1
     statement: "If a measurement is unavailable, its value is NULL and is never represented by zero. A measured zero is valid."
     scope: column

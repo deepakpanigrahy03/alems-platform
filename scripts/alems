@@ -15,6 +15,22 @@
 # Never add dev-workflow commands outside 'alems dev'.
 set -euo pipefail
 
+# 39.5.2a: global logging options, consumed only before the command word and
+# passed to every subcommand (bash or Python) through the ALEMS_LOG_* environment layer.
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --quiet)   export ALEMS_LOG_MODE=quiet; shift ;;
+        --verbose) export ALEMS_LOG_MODE=verbose; shift ;;
+        --log-level)
+            [ $# -ge 2 ] || { echo "alems: --log-level needs a value" >&2; exit 2; }
+            export ALEMS_LOG_LEVEL="$2"; shift 2 ;;
+        --log-components)
+            [ $# -ge 2 ] || { echo "alems: --log-components needs a value" >&2; exit 2; }
+            export ALEMS_LOG_COMPONENTS="$2"; shift 2 ;;
+        *) break ;;
+    esac
+done
+
 # ── Resolve project root and activate venv ───────────────────────────
 ALEMS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."
 export ALEMS_CALLER_DIR="$(pwd)"

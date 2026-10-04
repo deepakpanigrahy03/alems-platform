@@ -32,7 +32,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from .base import DatabaseError, DatabaseInterface
-from .schema import (CREATE_SANDBOX_IDENTITY, CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALITY,
+from .schema import (CREATE_STAGE_GRAPH, CREATE_STAGE_EVENT, CREATE_SANDBOX_IDENTITY, CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALITY,
                      CREATE_SPANS, CREATE_SPAN_PLACEMENTS, CREATE_SPAN_LINKS,
                      CREATE_SPAN_EVENTS, CREATE_SPAN_ATTRIBUTES, CREATE_SPAN_ANNOTATIONS,
                      CREATE_ATTRIBUTION_RESIDUAL,
@@ -320,6 +320,9 @@ class SQLiteAdapter(DatabaseInterface):
             ("energy_sources",       "error_bound", "TEXT"),
             ("energy_attribution",   "isolation_level", "TEXT DEFAULT 'exclusive'"),
             ("energy_attribution",   "idle_policy",     "TEXT DEFAULT 'legacy_baseline_subtraction'"),
+            ("runs",                 "measurement_log_level",       "TEXT"),
+            ("runs",                 "measurement_log_config_hash", "TEXT"),
+            ("runs",                 "observability_overflow",      "INTEGER"),
         ]
         for table, column, typedef in _col_additions:
             existing = [r[1] for r in
@@ -457,6 +460,10 @@ class SQLiteAdapter(DatabaseInterface):
         self.conn.executescript(CREATE_EXTENSION_REGISTRY)
         self.conn.executescript(CREATE_WRITER_IDEMPOTENCY)
         self.conn.executescript(CREATE_SANDBOX_IDENTITY)
+        # C-EV stage tables (v120). stage_event references runs and stage_graph,
+        # so both exist before this point; graph first.
+        self.conn.executescript(CREATE_STAGE_GRAPH)
+        self.conn.executescript(CREATE_STAGE_EVENT)
         self.conn.executescript(CREATE_SCHEMA_NAMESPACE_TABLES)     
         # INV-D1 enforced by the store (v117). Last, because it needs every
         # sample, interaction and event table and its key columns to exist.

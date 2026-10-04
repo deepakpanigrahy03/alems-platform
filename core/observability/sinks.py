@@ -40,6 +40,7 @@ def record_to_dict(record: logging.LogRecord) -> Dict[str, Any]:
         "logger": record.name,
         "msg": record.getMessage(),
         "pid": record.process,
+        "event_seq": getattr(record, "event_seq", None),
     }
     for name in FIELDS:
         out[name] = getattr(record, name, None)

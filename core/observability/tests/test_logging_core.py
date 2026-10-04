@@ -130,6 +130,14 @@ def test_normal_console_is_warning():
     assert cfg.console_level == logging.WARNING
 
 
+def test_bad_setting_cli_raises_run_falls_back(monkeypatch):
+    monkeypatch.setenv("ALEMS_LOG_LEVEL", "BOGUS")
+    with pytest.raises(ValueError):
+        setup.setup_logging("cli")
+    cfg = setup.setup_logging("run")
+    assert cfg.mode == "normal" and cfg.console_level == logging.WARNING
+
+
 def test_config_hash_stable():
     a = levels.resolve_config([{"components": "b=INFO,a=DEBUG"}])
     b = levels.resolve_config([{"components": "a=DEBUG,b=INFO"}])

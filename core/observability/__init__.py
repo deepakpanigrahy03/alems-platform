@@ -10,6 +10,7 @@ no function here raises into the caller for an observability failure
 from core.observability.context import bind, get_context, set_base_context
 from core.observability.extras import register_extra_keys
 from core.observability.setup import flush_run_log, setup_logging, shutdown_logging
+from core.observability import gate
 
 __all__ = [
     "bind",
@@ -19,4 +20,5 @@ __all__ = [
     "setup_logging",
     "flush_run_log",
     "shutdown_logging",
+    "gate",
 ]

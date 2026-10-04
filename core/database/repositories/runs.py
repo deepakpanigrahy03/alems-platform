@@ -359,7 +359,8 @@ class RunsRepository:
                 rapl_before_pretask_uj, rapl_at_t0_uj, rapl_after_task_uj,
                 post_task_duration_ns, post_task_energy_uj,
                 framework_overhead_energy_uj,gpu_total_energy_uj, gpu_baseline_energy_uj,
-                gpu_dynamic_energy_uj, gpu_pct_of_pkg,gpu_dynamic_method, gpu_idle_power_w_used
+                gpu_dynamic_energy_uj, gpu_pct_of_pkg,gpu_dynamic_method, gpu_idle_power_w_used,
+                measurement_log_level, measurement_log_config_hash, observability_overflow
 
             ) VALUES (
                 ?, ?, ?, ?, ?,
@@ -394,7 +395,8 @@ class RunsRepository:
                 ? , ?, ?, ?, ?, ?,
                 ?, ?, ?,
                 ?, ?, ?,
-                ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?,
+                ?, ?, ?
             )
         """
 
@@ -530,6 +532,9 @@ class RunsRepository:
             ml.get("gpu_pct_of_pkg"),
             ml.get("gpu_dynamic_method"),       # provenance: RUN_LOCAL_IDLE or EXTERNAL_IDLE_BASELINE
             ml.get("gpu_idle_power_w_used"),    # provenance: actual idle power value used, watts                                         
+            ml.get("measurement_log_level"),        # 39.5.2b: level inside the gate (INV-P1)
+            ml.get("measurement_log_config_hash"),  # 39.5.2b: effective logging config hash
+            ml.get("observability_overflow"),       # 39.5.2b: NULL not recorded, 0 none, 1 overflow
         )
 
         try:

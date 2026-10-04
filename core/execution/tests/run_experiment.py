@@ -646,6 +646,10 @@ def display_master_summary(all_results):
 def main():
     """Main entry point - minimal logic."""
     args = parse_arguments()
+    # 39.5.2a: run entry point; console plus per run memory buffer, no file I/O
+    # during the run. Settings come from ALEMS_LOG_* (environment layer).
+    from core.observability import setup_logging
+    setup_logging("run")
     try:
         apply_config(args)
     except FileNotFoundError as e:
@@ -713,6 +717,9 @@ def main():
         print(f"\n💾 Results saved to: {filename}")
 
     print("\n✅ All experiments complete!")
+    # 39.5.2a: per run logs are written only here, after every measurement window.
+    from core.observability import flush_run_log
+    flush_run_log()
     return 0
 
 

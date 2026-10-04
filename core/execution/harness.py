@@ -312,6 +312,10 @@ class ExperimentHarness:
         dprint(f"\n{'='*70}")
         dprint(f"🔬 HARNESS: Starting LINEAR measurement")
         dprint(f"{'='*70}")
+        # 39.5.2b gate entry: before the complete SPEC_39_4 3a sequence, nothing
+        # inserted between its steps (amended SPEC_39_5_2 section 4).
+        from core.observability import gate as _obs_gate
+        _obs_gate.enter()
         self.energy_engine.scheduler.reset_interrupt_samples()
         # Measure network latency for cloud models
         network_metrics = {}
@@ -381,6 +385,8 @@ class ExperimentHarness:
 
         # legacy field kept for backward compat
         run_duration_sec = task_duration_sec
+        # 39.5.2b gate exit: after the duration computations; held records flush here.
+        _obs_window = _obs_gate.exit()
 
         dprint(
             f"🔍 DEBUG EXECUTION TIME - Linear compute: {exec_result.get('execution_time_ms', 0)} ms"
@@ -618,6 +624,10 @@ class ExperimentHarness:
                 "framework_overhead_sec": framework_overhead_sec,
                 "total_run_duration_sec": run_end_perf - _pre_task_start_perf,
                 "pre_task_duration_sec":  pre_task_duration_sec,
+                # 39.5.2b window provenance (None when the gate never engaged)
+                "measurement_log_level":       _obs_window["measurement_log_level"],
+                "measurement_log_config_hash": _obs_window["measurement_log_config_hash"],
+                "observability_overflow":      _obs_window["observability_overflow"],
                 "post_task_duration_sec": post_task_duration_sec,
                 "rapl_before_pretask":    _rapl_before_pretask,   # Dict or None
                 "rapl_at_t0":             _rapl_at_t0,             # Dict or None — t0 anchor
@@ -857,6 +867,10 @@ class ExperimentHarness:
         dprint(f"\n{'='*70}")
         dprint(f"🔬 HARNESS: Starting AGENTIC measurement")
         dprint(f"{'='*70}")
+        # 39.5.2b gate entry: before the complete SPEC_39_4 3a sequence, nothing
+        # inserted between its steps (amended SPEC_39_5_2 section 4).
+        from core.observability import gate as _obs_gate
+        _obs_gate.enter()
         self.energy_engine.scheduler.reset_interrupt_samples()
         # Measure network latency for cloud models
         network_metrics = {}
@@ -959,6 +973,8 @@ class ExperimentHarness:
         framework_overhead_sec = pre_task_duration_sec + post_task_duration_sec
         # legacy field kept for backward compat
         run_duration_sec = task_duration_sec
+        # 39.5.2b gate exit: after the duration computations; held records flush here.
+        _obs_window = _obs_gate.exit()
  
         # ====================================================================
         # DEBUG: Check what's available in energy_engine
@@ -1201,6 +1217,10 @@ class ExperimentHarness:
                 "framework_overhead_sec": framework_overhead_sec,
                 "total_run_duration_sec": run_end_perf - _pre_task_start_perf,
                 "pre_task_duration_sec": pre_task_duration_sec,
+                # 39.5.2b window provenance (None when the gate never engaged)
+                "measurement_log_level":       _obs_window["measurement_log_level"],
+                "measurement_log_config_hash": _obs_window["measurement_log_config_hash"],
+                "observability_overflow":      _obs_window["observability_overflow"],
                 "post_task_duration_sec":  post_task_duration_sec,
                 "rapl_before_pretask":     _rapl_before_pretask,   # Dict or None
                 "rapl_at_t0":              _rapl_at_t0,             # Dict or None — t0 anchor

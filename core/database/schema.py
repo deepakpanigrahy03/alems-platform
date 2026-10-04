@@ -1348,6 +1348,9 @@ CREATE TABLE IF NOT EXISTS runs (
     -- ── Pre-task window (t_before → t0) ──────────────────────────────────────
     rapl_before_pretask_uj        INTEGER,  -- raw RAPL pkg before instrumentation reads
     rapl_at_t0_uj                 INTEGER,  -- raw RAPL pkg at start_measurement() — t0 anchor
+    measurement_log_level         TEXT,     -- v119: effective log level inside the gate (INV-P1)
+    measurement_log_config_hash   TEXT,     -- v119: hash of the effective logging config
+    observability_overflow        INTEGER,  -- v119: NULL not recorded, 0 none, 1 non lossy overflow
     pre_task_energy_uj            INTEGER,  -- attributed: (delta - baseline) * cpu_frac
     pre_task_duration_ns          INTEGER,  -- t0 - t_before
 
@@ -3735,6 +3738,50 @@ CREATE TABLE IF NOT EXISTS attribution_residual (
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 CREATE INDEX IF NOT EXISTS idx_residual_run ON attribution_residual(run_id);
+"""
+
+# C-EV stage events and declared stage graphs (v120, 39.5.2c).
+# Contract plumbing (master 5.1); 39.5.5 continues stage_event as stage_run.
+CREATE_STAGE_GRAPH = """
+CREATE TABLE IF NOT EXISTS stage_graph (
+    graph_hash     TEXT PRIMARY KEY,          -- SHA-256 of canonical definition
+    graph_id       TEXT NOT NULL,             -- save_pair | save_single | execute_goal
+    graph_version  TEXT NOT NULL,             -- semver; immutable per version
+    definition     TEXT NOT NULL,             -- canonical JSON (nodes, edges)
+    created_at     TEXT NOT NULL
+);
+"""
+
+CREATE_STAGE_EVENT = """
+CREATE TABLE IF NOT EXISTS stage_event (
+    event_id        TEXT PRIMARY KEY,         -- UUID assigned in memory
+    run_uid         TEXT NOT NULL,            -- identity (master 13.2)
+    run_id          INTEGER REFERENCES runs(run_id),  -- nullable link (EEI-4)
+    sandbox_id      TEXT,
+    stage_id        TEXT NOT NULL CHECK (stage_id IN ('setup','baseline','measure','persist_run',
+                        'persist_samples','spans','attribution','residual','quality','hooks',
+                        'etl_phase','etl_hardware','integrity','outputs')),
+    stage_version   TEXT NOT NULL,
+    status          TEXT NOT NULL CHECK (status IN ('pending','running','succeeded','failed',
+                        'skipped','skipped_dependency')),
+    outcome         TEXT CHECK (outcome IS NULL OR outcome IN ('empty','unavailable','partial')),
+    reason          TEXT,
+    event_seq       INTEGER,                  -- per process gate counter
+    pid             INTEGER NOT NULL,
+    start_ns        INTEGER,
+    end_ns          INTEGER,
+    counts          TEXT,                     -- JSON object table -> rows
+    error_ref       TEXT,                     -- C-ERR error_id (2d)
+    parent_stage_id TEXT,
+    graph_hash      TEXT NOT NULL REFERENCES stage_graph(graph_hash),
+    blocked_by      TEXT,                     -- stage_id causing skipped_dependency
+    scope           TEXT NOT NULL DEFAULT 'run' CHECK (scope IN ('run','pair','goal')),
+    created_at      TEXT NOT NULL,
+    UNIQUE (run_uid, stage_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stage_event_run_id ON stage_event(run_id);
+CREATE INDEX IF NOT EXISTS idx_stage_event_status ON stage_event(status);
 """
 
 CREATE_SCHEMA_NAMESPACE_TABLES = """
