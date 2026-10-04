@@ -466,6 +466,7 @@ print(resolve_store())
         echo "    alems validate boundaries         — attempt boundary validation"
         echo "    alems validate report             — energy chain report"
         echo "    alems validate persistence        — INV-D1, INV-D2, coverage (--runs, --against, --json)"
+        echo "    alems validate invariants         — invariant catalog, Leg C (--since, --store, --json)"
         echo ""
         echo "  Plugin and schema commands:"
         echo "    alems plugins                     — list installed plugins"
