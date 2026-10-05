@@ -443,7 +443,7 @@ sudo modprobe coretemp
 
 ```bash
 # Enable debug output
-export A_LEMS_DEBUG=1
+export ALEMS_LOG_MODE=debug   # legacy A_LEMS_DEBUG=1 is still accepted
 
 # Run with verbose flag
 python -m core.execution.tests.run_experiment \

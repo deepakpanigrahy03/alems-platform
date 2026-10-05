@@ -120,6 +120,29 @@ def env_layer(environ: Optional[Mapping[str, str]] = None) -> Dict[str, object]:
     return layer
 
 
+def legacy_debug_layer(environ: Optional[Mapping[str, str]] = None) -> Dict[str, object]:
+    """
+    Map the retired core.utils.debug variables onto a layer (39.5.2e).
+
+    A_LEMS_DEBUG=1 selects debug mode. A_LEMS_DEBUG_MODULES (comma separated
+    short module names such as msr_reader) selects DEBUG for those components;
+    ComponentFilter matches a dotless rule against the last logger name
+    segment, so short names keep working. Component overrides reach the file
+    sinks only (setup design), so module debug is read with alems logs.
+    A_LEMS_DEBUG_FILE is ignored; setup warns once.
+
+    Placed below env_layer in precedence, so ALEMS_LOG_* always wins.
+    """
+    env = os.environ if environ is None else environ
+    layer = {}
+    if env.get("A_LEMS_DEBUG", "").strip().lower() in ("1", "true", "yes", "on"):
+        layer["mode"] = "debug"
+    mods = [m.strip() for m in env.get("A_LEMS_DEBUG_MODULES", "").split(",") if m.strip()]
+    if mods:
+        layer["components"] = ",".join("%s=DEBUG" % m for m in mods)
+    return layer
+
+
 def resolve_config(layers: Iterable[Optional[Mapping[str, object]]]) -> LogConfig:
     """
     Apply layers lowest first and return the effective configuration.
@@ -184,8 +207,12 @@ class ComponentFilter(logging.Filter):
 
     def threshold(self, name: str) -> int:
         """Effective threshold for a logger name."""
+        # A dotless rule (legacy short module name) matches the last segment.
+        last = name.rsplit(".", 1)[-1]
         for prefix, lvl in self.rules:
             if name == prefix or name.startswith(prefix + "."):
+                return lvl
+            if "." not in prefix and last == prefix:
                 return lvl
         return self.base_level
 

@@ -58,20 +58,98 @@ class JsonLinesFormatter(logging.Formatter):
         return json.dumps(record_to_dict(record), default=str)
 
 
+# Progress logger shown on the console in normal mode (39.5.2e rule 2.9).
+PROGRESS_LOGGER = "alems.progress"
+
+# ANSI colors for levels; applied only on a TTY (approved console format).
+_LEVEL_COLORS = {"WARNING": "\033[33m", "ERROR": "\033[31m", "CRITICAL": "\033[1;31m"}
+_RESET = "\033[0m"
+
+
+def _is_progress(name: str) -> bool:
+    """True for the progress logger and its children."""
+    return name == PROGRESS_LOGGER or name.startswith(PROGRESS_LOGGER + ".")
+
+
+def use_color(stream: Any) -> bool:
+    """
+    Decide whether to color output on a stream.
+
+    Color only on an interactive terminal; NO_COLOR (no-color.org) or a pipe,
+    file, cron, or CI stream turns it off, so logs stay plain text.
+    """
+    if os.environ.get("NO_COLOR"):
+        return False
+    try:
+        return bool(stream.isatty())
+    except Exception:  # noqa: BLE001  a stream without isatty is not a TTY
+        return False
+
+
+class ConsoleFilter(logging.Filter):
+    """
+    Console threshold plus the progress exception.
+
+    Records at or above the mode level pass; alems.progress INFO also passes
+    in every mode except quiet, so normal mode shows progress and warnings
+    (design 39.5.2 section 4).
+    """
+
+    def __init__(self, level: int, mode: str):
+        super().__init__()
+        self.level = level
+        self.show_progress = mode != "quiet"
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Keep threshold records and, unless quiet, progress records."""
+        if record.levelno >= self.level:
+            return True
+        return self.show_progress and record.levelno >= logging.INFO and _is_progress(record.name)
+
+
+class ConsoleFormatter(logging.Formatter):
+    """
+    Human console layout (approved 39.5.2e plan section 10).
+
+    progress: message only, so run blocks align.
+    WARNING and above: level padded to 8 in column 0, colored on a TTY.
+    other detail (verbose, debug): indented with the component in brackets.
+    """
+
+    def __init__(self, color: bool):
+        super().__init__("%(message)s")
+        self.color = color
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format one record; formatting runs at flush, never inside [t0, t1]."""
+        # super().format adds exception text when exc_info is set.
+        text = super().format(record)
+        if record.levelno >= logging.WARNING:
+            line = "%-8s %s" % (record.levelname, text)
+            code = _LEVEL_COLORS.get(record.levelname)
+            if self.color and code:
+                return code + line + _RESET
+            return line
+        if _is_progress(record.name):
+            return text
+        # Strip the core. prefix: the component reads like the design names.
+        name = record.name[5:] if record.name.startswith("core.") else record.name
+        return "    [%s] %s" % (name, text)
+
+
 def console_handler(level: int, mode: str) -> logging.Handler:
     """
     Console handler on stderr.
 
-    quiet and normal print only the message, matching Python's last resort
-    handler output that users see today; verbose and debug add level and
-    logger name for investigation.
+    stdout is reserved for renderer results (--json stays pipeable); all
+    operational output goes here, filtered by ConsoleFilter.
     """
     handler = logging.StreamHandler(sys.stderr)
-    handler.setLevel(level)
-    fmt = "%(message)s"
-    if mode in ("verbose", "debug"):
-        fmt = "%(levelname)s %(name)s: %(message)s"
-    handler.setFormatter(logging.Formatter(fmt))
+    # The handler must admit INFO so progress can pass in normal mode; the
+    # filter applies the real threshold.
+    handler.setLevel(level if mode == "quiet" else min(level, logging.INFO))
+    handler.addFilter(ConsoleFilter(level, mode))
+    handler.setFormatter(ConsoleFormatter(use_color(sys.stderr)))
     return handler
 
 

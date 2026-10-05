@@ -59,7 +59,7 @@ from core.models.baseline_measurement import BaselineMeasurement
 from core.models.raw_energy_measurement import RawEnergyMeasurement
 from core.utils.core_pinner import CorePinner
 # Import utilities
-from core.utils.debug import dprint, init_debug_from_env
+
 from core.utils.validators import MeasurementValidator
 
 # ====================================================================
@@ -86,15 +86,16 @@ from core.readers.sensor_reader import SensorReader
 # TurbostatReader now via ReaderFactory.get_turbostat_reader() — PAC-2 compliant
 from core.utils.core_pinner import CorePinner
 # Import utilities
-from core.utils.debug import dprint, init_debug_from_env
+
 # Import baseline utilities (will be used by analysis layer, not here)
 from core.utils.idle_baseline import measure_idle_baseline as measure_baseline
 from core.utils.validators import MeasurementValidator
 
-# Initialize debug system
-init_debug_from_env()
+
 
 logger = logging.getLogger(__name__)
+# Run progress shown in normal mode (39.5.2e rule 2.9).
+progress = logging.getLogger("alems.progress")
 
 
 class EnergyEngine:
@@ -123,19 +124,12 @@ class EnergyEngine:
 
         The constructor instantiates all readers and sets up logging.
         """
-        dprint("Initializing EnergyEngine")
-        dprint("\n" + "=" * 60)
-        dprint("🔍 ENERGY ENGINE CONFIG DEBUG")
-        dprint("=" * 60)
-        dprint(f"Config type: {type(config)}")
-        dprint(f"Config keys: {list(config.keys())}")
-        dprint(f"'rapl' in config: {'rapl' in config}")
+        logger.debug("initializing EnergyEngine, config type %s", type(config))
+        logger.debug("config keys: %s", list(config.keys()))
         if "rapl" in config:
-            dprint(f"rapl paths: {config['rapl'].get('paths', {})}")
-        dprint(f"'settings' in config: {'settings' in config}")
+            logger.debug("rapl paths: %s", config["rapl"].get("paths", {}))
         if "settings" in config:
-            dprint(f"settings keys: {list(config['settings'].keys())}")
-        dprint("=" * 60 + "\n")
+            logger.debug("settings keys: %s", list(config["settings"].keys()))
 
         # interrupt initializations
         self.collect_interrupt_samples = True
@@ -306,9 +300,9 @@ class EnergyEngine:
 
         self.current_run_id = None
 
-        dprint(
-            "EnergyEngine initialized",
-            readers={
+        logger.info(
+            "EnergyEngine initialized, readers %s",
+            {
                 "rapl": self.rapl is not None,
                 "perf": getattr(self.perf, 'perf_available', getattr(self.perf, '_available', False)),
                 "turbostat": self._platform_caps.has_turbostat,
@@ -403,7 +397,7 @@ class EnergyEngine:
         if cores is None:
             cores = self.pinned_cores
         self.core_pinner.pin_to_cores(cores)
-        dprint(f"Pinned to cores {cores}")
+        logger.info("pinned to cores %s", cores)
 
     # ------------------------------------------------------------------------
     # Idle baseline measurement (Req 1.45) – uses research‑grade utility
@@ -432,7 +426,7 @@ class EnergyEngine:
             return None
 
         # Measure baseline using utility (returns BaselineMeasurement object)
-        dprint(f"🔍 DEBUG - force_remeasure value: {force_remeasure}")
+        logger.debug("force_remeasure: %s", force_remeasure)
         baseline = measure_baseline(
             energy_reader=self.rapl,      # self.rapl IS SPBMEnergyReader on GN100 — factory set this
             core_pinner=self.core_pinner,
@@ -449,19 +443,17 @@ class EnergyEngine:
 
 
         # DEBUG: Object ID after measure_baseline
-        print(f"🔍 DEBUG1 - baseline object ID after measure_baseline: {id(baseline)}")
-        print(
-            f"🔍 DEBUG1 - baseline metadata after measure_baseline: {baseline.metadata}"
-        )
+        logger.debug("baseline object id after measure_baseline: %s", id(baseline))
+        logger.debug("baseline metadata after measure_baseline: %s", baseline.metadata)
 
         # Update baseline_id with PID to ensure uniqueness
         baseline.baseline_id = f"baseline_{int(time.time())}_{os.getpid()}"
         baseline.timestamp = time.time()
 
         # DEBUG: Object ID after updates
-        print(f"🔍 DEBUG1 - baseline object ID after updates: {id(baseline)}")
-        print(f"🔍 DEBUG1 - baseline metadata after updates: {baseline.metadata}")
-        print(f"🔍 DEBUG1 - baseline.__dict__: {baseline.__dict__}")
+        logger.debug("baseline object id after updates: %s", id(baseline))
+        logger.debug("baseline metadata after updates: %s", baseline.metadata)
+        logger.debug("baseline attributes: %s", baseline.__dict__)
 
         self.idle_baseline = baseline
         return baseline
@@ -610,7 +602,7 @@ class EnergyEngine:
             target=self._sampling_loop, name="EnergyEngine-Sampler", daemon=True
         )
         self._sampling_thread.start()
-        dprint("Started high‑frequency sampling")
+        logger.debug("started high frequency sampling")
 
     def _stop_sampling(self) -> List[tuple]:
         """Stop sampling and retrieve all collected samples."""
@@ -626,7 +618,7 @@ class EnergyEngine:
             except queue.Empty:
                 break
 
-        dprint(f"Stopped sampling, collected {len(samples)} samples")
+        logger.info("high frequency samples collected: %d", len(samples))
         return samples
 
     def set_workload_pid(self, pid: int) -> None:
@@ -743,13 +735,14 @@ class EnergyEngine:
                 # None (AMD vendor gate, or both MSR reads failed) — guard
                 # before subscripting instead of crashing on any platform.
                 if msr_thermal_start is not None:
-                    print(f"\n🔥 THERMAL SNAPSHOT - START:")
-                    print(f"   Package: {msr_thermal_start['package']}")
-                    print(f"   Core: {msr_thermal_start['core']}")
-                    logger.debug(f"MSR thermal start: {msr_thermal_start}")
+                    # Inside the gate: buffered, formatted after t1 (master 5.2a).
+                    logger.info(
+                        "msr thermal start package %s core %s",
+                        msr_thermal_start["package"], msr_thermal_start["core"],
+                    )
+                    logger.debug("msr thermal start: %s", msr_thermal_start)
             except Exception as e:
-                print(f"❌ Failed to capture start MSR thermal: {e}")
-                logger.warning(f"Could not capture start MSR thermal: {e}")
+                logger.warning("could not capture start msr thermal: %s", e)
 
         # GPU PP1 start counter — None on non-Tiger-Lake platforms
         gpu_start_uj = ReaderFactory.get_gpu_energy_uj(self.rapl)
@@ -853,7 +846,7 @@ class EnergyEngine:
             daemon=True,
         )
         self._side_sampling_thread.start()
-        dprint(f"Started measurement {self.measurement_id}")
+        logger.debug("started measurement %s", self.measurement_id)
         return self.measurement_id
 
     def _compute_gpu_total(
@@ -1196,13 +1189,13 @@ class EnergyEngine:
             try:
                 msr_thermal_end = self.msr.snapshot_thermal_state()
                 if msr_thermal_end is not None:
-                    print(f"\n🔥 THERMAL SNAPSHOT - END:")
-                    print(f"   Package: {msr_thermal_end['package']}")
-                    print(f"   Core: {msr_thermal_end['core']}")
-                    logger.debug(f"MSR thermal end: {msr_thermal_end}")
+                    logger.info(
+                        "msr thermal end package %s core %s",
+                        msr_thermal_end["package"], msr_thermal_end["core"],
+                    )
+                    logger.debug("msr thermal end: %s", msr_thermal_end)
             except Exception as e:
-                print(f"❌ Failed to capture end MSR thermal: {e}")
-                logger.warning(f"Could not capture end MSR thermal: {e}")
+                logger.warning("could not capture end msr thermal: %s", e)
 
         # ====================================================================
         # Calculate C-state deltas (per-run, not cumulative)
@@ -1257,10 +1250,8 @@ class EnergyEngine:
             else:
                 scheduler_delta[key] = scheduler_end[key]
                 # ADD THIS DEBUG
-        print(f"🔍 DEBUG scheduler_delta keys: {list(scheduler_delta.keys())}")
-        print(
-            f"🔍 DEBUG run queue value: {scheduler_delta.get('runnable', 'NOT FOUND')}"
-        )
+        logger.debug("scheduler_delta keys: %s", list(scheduler_delta.keys()))
+        logger.info("run queue %s", scheduler_delta.get("runnable", "not found"))
 
         # ====================================================================
         # STEP 4: Calculate actual sampling rate
@@ -1321,11 +1312,9 @@ class EnergyEngine:
                     )
 
                 # Debug prints
-                print(f"🟢 ENGINE_ID: {id(msr_metrics)}")
-                print(
-                    f"🟢 ENGINE_VALUE: c2={msr_metrics.get('c2_time_seconds', 0):.3f}s"
-                )
-                print(f"🟢 ENGINE_KEYS: {list(msr_metrics.keys())}")
+                logger.debug("msr_metrics object id: %s", id(msr_metrics))
+                logger.info("msr c2 time %.3f s", msr_metrics.get("c2_time_seconds", 0))
+                logger.debug("msr_metrics keys: %s", list(msr_metrics.keys()))
 
             except Exception as e:
                 logger.warning(f"MSR measurement failed: {e}")
@@ -1371,10 +1360,10 @@ class EnergyEngine:
             thermal_since_boot = end_combined_log
 
         # Print derived metrics for verification (temporary)
-        print(f"\n🔥 THERMAL DERIVED:")
-        print(f"   during_experiment: {thermal_during_experiment}")
-        print(f"   now_active: {thermal_now_active}")
-        print(f"   since_boot: {thermal_since_boot}")
+        logger.info(
+            "thermal derived during_experiment %s now_active %s since_boot %s",
+            thermal_during_experiment, thermal_now_active, thermal_since_boot,
+        )
 
         # ====================================================================
         # STEP 8: Build raw measurement object
@@ -1465,127 +1454,122 @@ class EnergyEngine:
         """
         Print a comprehensive summary of all collected data.
         """
-        print("\n" + "=" * 70)
-        print("📊 ENERGY ENGINE COMPLETE SUMMARY")
-        print("=" * 70)
+        # Called from stop_measurement inside the gate: no output I/O; records
+        # buffer and format after t1. No work at all when INFO is off.
+        if not logger.isEnabledFor(logging.INFO):
+            return
+        logger.info("energy engine summary")
 
         # 1. Timing
-        print(f"\n⏱️  Duration: {measurement.duration_seconds:.3f}s")
-        print(
-            f"   Start: {measurement.start_time:.3f}, End: {measurement.end_time:.3f}"
+        logger.info(
+            "duration %.3f s (start %.3f, end %.3f)",
+            measurement.duration_seconds, measurement.start_time, measurement.end_time,
         )
 
         # 2. RAPL Energy (snapshot deltas)
         rapl_start = measurement.rapl_start_uj
         rapl_end = measurement.rapl_end_uj
-        print("\n⚡ RAPL Energy (µJ):")
+        # one line per RAPL domain follows (snapshot deltas)
         for domain in set(rapl_start.keys()) | set(rapl_end.keys()):
             start_val = rapl_start.get(domain, 0)
             end_val = rapl_end.get(domain, 0)
             delta = end_val - start_val
-            print(f"   {domain}: {delta:>12} µJ ({delta/1e6:.6f} J)")
+            logger.info("rapl %s %d uJ (%.6f J)", domain, delta, delta / 1e6)
 
         # 3. perf counters – using correct attribute names
         if measurement.perf:
             perf = measurement.perf
-            print("\n📈 Performance Counters:")
+            # perf counters follow, one line each
             # Instructions
             if hasattr(perf, "instructions_retired"):
-                print(f"   Instructions: {perf.instructions_retired:,}")
+                logger.info("perf instructions %d", perf.instructions_retired)
             # Cycles
             if hasattr(perf, "cpu_cycles"):
-                print(f"   Cycles:       {perf.cpu_cycles:,}")
+                logger.info("perf cycles %d", perf.cpu_cycles)
             # IPC (method)
             if hasattr(perf, "instructions_per_cycle"):
-                print(f"   IPC:          {perf.instructions_per_cycle():.2f}")
+                logger.info("perf ipc %.2f", perf.instructions_per_cycle())
             # Cache
             if hasattr(perf, "cache_references"):
-                print(f"   Cache Refs:   {perf.cache_references:,}")
+                logger.info("perf cache references %d", perf.cache_references)
             if hasattr(perf, "cache_misses"):
-                print(f"   Cache Misses: {perf.cache_misses:,}")
+                logger.info("perf cache misses %d", perf.cache_misses)
                 if perf.cache_references:
                     miss_rate = perf.cache_misses / perf.cache_references
-                    print(f"   Miss Rate:    {miss_rate:.2%}")
+                    logger.info("perf cache miss rate %.2f%%", miss_rate * 100)
             # Page faults
             major = getattr(perf, "major_page_faults", 0)
             minor = getattr(perf, "minor_page_faults", 0)
             if major or minor:
-                print(f"   Page Faults:  {major+minor} (major={major}, minor={minor})")
+                logger.info("perf page faults %d (major %d, minor %d)", major + minor, major, minor)
             # Context switches
             vol = getattr(perf, "context_switches_voluntary", 0)
             invol = getattr(perf, "context_switches_involuntary", 0)
             if vol or invol:
-                print(f"   Ctx Switches: vol={vol}, invol={invol}")
+                logger.info("perf context switches voluntary %d involuntary %d", vol, invol)
             # Thread migrations
             if hasattr(perf, "thread_migrations"):
-                print(f"   Migrations:   {perf.thread_migrations:,}")
+                logger.info("perf thread migrations %d", perf.thread_migrations)
 
         # 4. Turbostat continuous data
         if measurement.turbostat and measurement.turbostat.get("dataframe") is not None:
             df = measurement.turbostat["dataframe"]
             summary = measurement.turbostat.get("summary", {})
-            print(
-                "\n🌡️ Turbostat Summary (over {:.2f}s, {} samples):".format(
-                    measurement.turbostat.get("duration_seconds", 0),
-                    measurement.turbostat.get("num_samples", 0),
-                )
+            logger.info(
+                "turbostat summary over %.2f s, %s samples",
+                measurement.turbostat.get("duration_seconds", 0),
+                measurement.turbostat.get("num_samples", 0),
             )
             # C‑states
             cstates = [k for k in summary if k.endswith("_mean") and k.startswith("C")]
             if cstates:
-                print("   C‑state residencies (%):")
                 for c in sorted(cstates):
-                    print(f"      {c}: {summary[c]:.2f}")
+                    logger.info("turbostat residency %s %.2f%%", c, summary[c])
             # Frequency
             if "frequency_mean" in summary:
-                print(
-                    f"   Frequency (MHz): mean={summary['frequency_mean']:.0f}, "
-                    f"min={summary.get('frequency_min', 0):.0f}, "
-                    f"max={summary.get('frequency_max', 0):.0f}, "
-                    f"std={summary.get('frequency_stddev', 0):.2f}"
+                logger.info(
+                    "turbostat frequency MHz mean %.0f min %.0f max %.0f std %.2f",
+                    summary["frequency_mean"], summary.get("frequency_min", 0),
+                    summary.get("frequency_max", 0), summary.get("frequency_stddev", 0),
                 )
             # Temperature
             if "package_temp_mean" in summary:
-                print(f"   Package Temp (°C): mean={summary['package_temp_mean']:.1f}")
-            # Print first few turbostat samples
-            if len(df) > 0:
-                print("\n   First 3 turbostat samples:")
+                logger.info("turbostat package temp mean %.1f C", summary["package_temp_mean"])
+            # First turbostat rows are a dump: debug only, and only built when enabled.
+            if len(df) > 0 and logger.isEnabledFor(logging.DEBUG):
                 for i in range(min(3, len(df))):
-                    row = df.iloc[i].to_dict()
-                    print(f"      Sample {i+1}: {row}")
+                    logger.debug("turbostat sample %d: %s", i + 1, df.iloc[i].to_dict())
 
         # 5. MSR metrics
         if measurement.msr_metrics:
             msr = measurement.msr_metrics
-            print("\n🔧 MSR Metrics:")
+            # msr metrics follow, one line each
             ring_bus = msr.get("ring_bus", {})
             if ring_bus:
-                print(
-                    f"   Ring Bus Frequency: {ring_bus.get('current_mhz', 0):.1f} MHz"
-                )
+                logger.info("msr ring bus frequency %.1f MHz", ring_bus.get("current_mhz", 0))
             if "wakeup_latency_us" in msr:
-                print(f"   Wake‑up Latency: {msr['wakeup_latency_us']:.2f} µs")
+                logger.info("msr wake up latency %.2f us", msr["wakeup_latency_us"])
             if "thermal_throttle" in msr:
-                print(f"   Thermal Throttle Flag: {msr['thermal_throttle']}")
+                logger.info("msr thermal throttle flag %s", msr["thermal_throttle"])
 
         # 6. Scheduler metrics
         if measurement.scheduler_metrics:
             sched = measurement.scheduler_metrics
-            print("\n🔄 Scheduler Metrics:")
-            print(f"   Voluntary Ctx Sw:   {sched.get('voluntary_switches', 0)}")
-            print(f"   Involuntary Ctx Sw: {sched.get('involuntary_switches', 0)}")
-            print(f"   Thread Migrations:  {sched.get('thread_migrations', 0)}")
-            print(f"   Run Queue Length:    {sched.get('runnable', 0):.2f}")
-            print(f"   Kernel Time:         {sched.get('system_time', 0):.2f} ms")
-            print(f"   User Time:           {sched.get('user_time', 0):.2f} ms")
+            logger.info(
+                "scheduler switches voluntary %s involuntary %s, migrations %s",
+                sched.get("voluntary_switches", 0), sched.get("involuntary_switches", 0),
+                sched.get("thread_migrations", 0),
+            )
+            logger.info(
+                "scheduler run queue %.2f, kernel %.2f ms, user %.2f ms",
+                sched.get("runnable", 0), sched.get("system_time", 0), sched.get("user_time", 0),
+            )
 
         # 7. High‑frequency samples
         if measurement.samples:
-            print(f"\n📊 High‑Frequency Samples: {len(measurement.samples)} collected")
+            logger.info("high frequency samples in measurement: %d", len(measurement.samples))
             if len(measurement.samples) > 0:
-                print("   First sample:", measurement.samples[0])
-
-        print("\n" + "=" * 70)
+                logger.debug("first sample: %s", measurement.samples[0])
 
     # ------------------------------------------------------------------------
     # Context manager interface
@@ -1635,11 +1619,11 @@ class EnergyEngine:
         if cool_down is None:
             cool_down = self.cool_down_seconds
 
-        dprint(f"Running {iterations} iterations with {cool_down}s cool‑down")
+        progress.info("iterations %d  cool down %s s", iterations, cool_down)
 
         results = []
         for i in range(iterations):
-            dprint(f"Run {i+1}/{iterations}")
+            progress.info("iteration %d/%d", i + 1, iterations)
             with self as engine:
                 result = func(*args, **kwargs)
             results.append(self.measurement)
@@ -1690,7 +1674,7 @@ class EnergyEngine:
         if output_file:
             with open(output_file, "w") as f:
                 json.dump(output, f, indent=2, default=str)
-            dprint(f"Saved results to {output_file}")
+            progress.info("results saved  %s", output_file)
 
         return output
 
@@ -1725,9 +1709,9 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    print("\n" + "=" * 70)
-    print("ENERGY ENGINE TEST – RAW MEASUREMENTS ONLY")
-    print("=" * 70)
+    from core.observability.console import get_console
+    con = get_console()
+    con.section("energy engine test, raw measurements only")
 
     # Load configuration from Module 0
     config_loader = ConfigLoader()
@@ -1744,15 +1728,14 @@ if __name__ == "__main__":
 
     # Create engine
     engine = EnergyEngine(config)
-    print(f"📊 {engine}")
+    con.line(str(engine))
 
     # Measure idle baseline (optional – stored as metadata)
-    print("\n📝 Measuring idle baseline (2 samples of 2s each for quick test)...")
+    con.line("measuring idle baseline (2 samples of 2 s each)")
     baseline = engine.measure_idle_baseline(
         duration_seconds=2, num_samples=2, pre_wait_seconds=2
     )
-    print(f"Idle baseline: {baseline} W")
-    print(f"   (This baseline is stored as metadata, NOT applied to raw data)")
+    con.kv("idle baseline", "%s W (metadata only, not applied to raw data)" % baseline)
 
     # Simple workload for testing
     def dummy_workload():
@@ -1761,31 +1744,23 @@ if __name__ == "__main__":
         return "done"
 
     # Single measurement – returns RAW data only
-    print("\n📝 Running single measurement (RAW data)...")
+    con.line("running single measurement (raw data)")
     with engine as m:
         result = dummy_workload()
 
-    print(f"Result: {result}")
-    print(f"Raw package energy: {engine.measurement.package_energy_uj / 1e6:.4f} J")
-    print(f"Raw core energy: {engine.measurement.core_energy_uj / 1e6:.4f} J")
+    con.kv("result", result)
+    con.kv("raw package energy", "%.4f J" % (engine.measurement.package_energy_uj / 1e6))
+    con.kv("raw core energy", "%.4f J" % (engine.measurement.core_energy_uj / 1e6))
 
     if engine.measurement.metadata.get("baseline_available"):
-        print(
-            f"Baseline available: {engine.measurement.metadata['baseline_power_watts']} W"
-        )
-        print(f"   (Use EnergyAnalyzer to compute corrected values)")
+        con.kv("baseline available", "%s W (EnergyAnalyzer computes corrected values)" % engine.measurement.metadata["baseline_power_watts"])
 
     # Multiple runs
-    print("\n📝 Running 3 iterations with 2 second cool-down...")
+    con.line("running 3 iterations with 2 s cool down")
     stats = engine.run_multiple(dummy_workload, iterations=3, cool_down=2)
 
-    print("\n📊 Summary Statistics (RAW values):")
+    con.section("summary statistics (raw values)")
     for metric, values in stats["summary"].items():
-        print(
-            f"   {metric}: mean={values['mean']:.2f} {values['unit']}, "
-            f"stdev={values['stdev']:.2f}"
-        )
+        con.kv(metric, "mean %.2f %s, stdev %.2f" % (values["mean"], values["unit"], values["stdev"]))
 
-    print("\n" + "=" * 70)
-    print("✅ Test complete – Raw measurements only, baseline stored separately!")
-    print("=" * 70)
+    con.line("test complete: raw measurements only, baseline stored separately")

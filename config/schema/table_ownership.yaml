@@ -1,4 +1,114 @@
 tables:
+  attribution_residual:
+    evidence: conservation residual per run, domain, window; written post run (E20, repair in 39.5.5)
+    golden_class: derived
+    kind: table
+    natural_key:
+    - run_id
+    - domain
+    - window_label
+    owner: attribution
+    run_linkage: run_id
+  sandbox_identity:
+    evidence: store identity record (design 7.6); written by sandbox create and adopt
+    golden_class: meta
+    kind: table
+    natural_key:
+    - sandbox_id
+    owner: core
+    run_linkage: none
+  schema_namespace_tables:
+    evidence: namespace ownership registry (design D5.2); written by namespace adoption
+    golden_class: meta
+    kind: table
+    natural_key:
+    - namespace
+    - object_name
+    owner: core
+    run_linkage: none
+  span_annotations:
+    evidence: versioned enrichment of closed spans (design D8.5b)
+    golden_class: derived
+    kind: table
+    natural_key:
+    - span_id
+    - annotation_type
+    - annotation_version
+    - source
+    owner: core
+    run_linkage: spans.run_id
+  span_attributes:
+    evidence: span key value attributes; written by the span writer at run time (39.4)
+    golden_class: raw
+    kind: table
+    natural_key:
+    - span_id
+    - key
+    owner: core
+    run_linkage: spans.run_id
+  span_events:
+    evidence: timestamped span events; written by the span writer at run time (39.4)
+    golden_class: raw
+    kind: table
+    natural_key:
+    - span_id
+    - event_type
+    - ts_ns
+    owner: core
+    run_linkage: spans.run_id
+  span_links:
+    evidence: links between spans; written by the span writer at run time (39.4)
+    golden_class: raw
+    kind: table
+    natural_key:
+    - span_id
+    - linked_span_id
+    - link_type
+    owner: core
+    run_linkage: spans.run_id
+  span_placements:
+    evidence: device and phase placement of spans (design D8.2); written at run time (39.4)
+    golden_class: raw
+    kind: table
+    natural_key:
+    - span_id
+    - node
+    - device
+    - phase
+    owner: core
+    run_linkage: spans.run_id
+  spans:
+    evidence: span contract table (design D8.1); written by the span writer at run time (39.4)
+    golden_class: raw
+    kind: table
+    natural_key:
+    - span_id
+    owner: core
+    run_linkage: run_id
+  stage_event:
+    evidence: C-EV stage lifecycle (master 5.1), observability control plane, excluded from measurement; compared by invariant profile (SPEC 39.5.2 section 5)
+    golden_class: meta
+    kind: table
+    natural_key:
+    - run_uid
+    - stage_id
+    owner: core
+    run_linkage: run_id
+  stage_graph:
+    evidence: versioned stage graph definitions keyed by content hash (39.5.2c, 2d)
+    golden_class: config
+    kind: table
+    natural_key:
+    - graph_hash
+    owner: core
+    run_linkage: none
+  v_runs_goal:
+    evidence: runs joined with goal attempt identity and outcome
+    golden_class: derived
+    kind: view
+    natural_key: []
+    owner: core
+    run_linkage: run_id
   analysis_domain_config:
     evidence: no run_id; drives GUI analysis page layout; seeded by GUI migrations
     golden_class: gui

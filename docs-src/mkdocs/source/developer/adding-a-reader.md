@@ -553,7 +553,7 @@ def read(self):
 ### Debug Mode
 
 ```bash
-export A_LEMS_DEBUG=1
+export ALEMS_LOG_MODE=debug   # legacy A_LEMS_DEBUG=1 is still accepted
 python -m core.execution.tests.test_harness --task-id simple
 ```
 

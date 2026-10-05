@@ -15,7 +15,7 @@ PURPOSE:
 AUTHOR: Deepak Panigrahy
 ================================================================================
 """
-
+import logging
 # Guards against printing the same family's summary twice if a bootstrap
 # module's register_all_*() is called more than once in one process
 # (this already happens for engines — model_factory.py's own guard
@@ -46,11 +46,13 @@ def print_adapter_summary(
     external_names = list(external_names)
     total = len(builtin_names) + len(external_names)
 
+    # Import time output must not reach stdout (pollutes --json); detail tier.
+    _log = logging.getLogger(__name__)
     if external_names:
-        print(
-            f"[A-LEMS] {component}: {total} adapter(s) registered "
-            f"({len(builtin_names)} built-in, {len(external_names)} plugin: "
-            f"{', '.join(sorted(external_names))})"
+        _log.info(
+            "%s: %d adapter(s) registered (%d built in, %d plugin: %s)",
+            component, total, len(builtin_names), len(external_names),
+            ", ".join(sorted(external_names)),
         )
     else:
-        print(f"[A-LEMS] {component}: {total} adapter(s) registered (built-in only)")
+        _log.info("%s: %d adapter(s) registered (built in only)", component, total)

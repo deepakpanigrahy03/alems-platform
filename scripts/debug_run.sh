@@ -10,9 +10,9 @@ Usage:
     ./scripts/debug_run.sh --file=/tmp/debug.log core/readers/msr_reader.py
 
 Environment variables set by this script:
-    A_LEMS_DEBUG=1
-    A_LEMS_DEBUG_MODULES=...
-    A_LEMS_DEBUG_FILE=...
+    ALEMS_LOG_MODE=debug
+    ALEMS_LOG_COMPONENTS=<module>=DEBUG,...   (short module names accepted)
+    ALEMS_LOG_DIR=<directory of --file>
 """
 
 # Colors for help text
@@ -78,18 +78,20 @@ if [ ! -f "$SCRIPT" ]; then
 fi
 
 # Set environment variables
-export A_LEMS_DEBUG=1
+export ALEMS_LOG_MODE=debug
 
 if [ -n "$MODULES" ]; then
-    export A_LEMS_DEBUG_MODULES="$MODULES"
-    echo -e "${YELLOW}🐛 Debug enabled for modules: $MODULES${NC}"
+    # Short module names match the last logger segment (39.5.2e).
+    export ALEMS_LOG_COMPONENTS="$(echo "$MODULES" | sed 's/\([^,]*\)/\1=DEBUG/g')"
+    echo -e "${YELLOW}debug enabled for modules: $MODULES${NC}"
 else
-    echo -e "${YELLOW}🐛 Debug enabled for ALL modules${NC}"
+    echo -e "${YELLOW}debug enabled for all modules${NC}"
 fi
 
 if [ -n "$DEBUG_FILE" ]; then
-    export A_LEMS_DEBUG_FILE="$DEBUG_FILE"
-    echo -e "${YELLOW}📝 Debug output to: $DEBUG_FILE${NC}"
+    # Logs are JSON lines in a directory; --file selects that directory.
+    export ALEMS_LOG_DIR="$(dirname "$DEBUG_FILE")"
+    echo -e "${YELLOW}logs written under: $ALEMS_LOG_DIR${NC}"
 fi
 
 # Create debug file directory if needed
@@ -97,7 +99,7 @@ if [ -n "$DEBUG_FILE" ]; then
     mkdir -p "$(dirname "$DEBUG_FILE")"
 fi
 
-echo -e "${GREEN}🚀 Running: $SCRIPT${NC}"
+echo -e "${GREEN}running: $SCRIPT${NC}"
 echo ""
 
 # Run the script

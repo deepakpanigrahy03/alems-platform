@@ -75,7 +75,6 @@ from core.execution.sample_processor import (calculate_thermal_metrics,
                                              process_energy_samples)
 from core.sustainability.calculator import SustainabilityCalculator
 from core.utils.baseline_manager import BaselineManager
-from core.utils.debug import dprint
 from core.utils.proc_reader import (
 read_total_cpu_ticks,
 read_process_cpu_ticks,
@@ -83,6 +82,11 @@ compute_cpu_fraction,
 )
 
 logger = logging.getLogger(__name__)
+# Run progress shown on the console in normal mode (plan 39.5.2e rule 2.9).
+progress = logging.getLogger("alems.progress")
+# User result output (summaries, reports) goes to stdout via the renderer.
+from core.observability.console import get_console as _get_console
+console = _get_console()
 
 def _perf_field(perf, field, default=0):
     """
@@ -216,9 +220,7 @@ class ExperimentHarness:
 
         if not self.baseline:
             logger.warning("No baseline found. Run baseline measurement first.")
-            dprint(
-                "⚠️ No baseline – energy values will not be corrected for idle power"
-            )
+            logger.info("no baseline: energy values will not be corrected for idle power")
 
         logger.info("ExperimentHarness initialized")
 
@@ -309,9 +311,7 @@ class ExperimentHarness:
             2. Baseline from BaselineManager (Layer 2)
             3. DerivedEnergyMeasurement from EnergyAnalyzer (Layer 3) ← USED FOR METRICS
         """
-        dprint(f"\n{'='*70}")
-        dprint(f"🔬 HARNESS: Starting LINEAR measurement")
-        dprint(f"{'='*70}")
+        progress.info("measure start  linear")
         # 39.5.2b gate entry: before the complete SPEC_39_4 3a sequence, nothing
         # inserted between its steps (amended SPEC_39_5_2 section 4).
         from core.observability import gate as _obs_gate
@@ -324,7 +324,8 @@ class ExperimentHarness:
         network_metrics = {}
         if is_cloud:
             network_metrics = _measure_network_latency()
-            dprint(f"📡 Network DNS: {network_metrics.get('dns_latency_ms', 0):.1f}ms")
+            # Inside the gate: the record is buffered and formatted after t1 (5.2a).
+            logger.info("network dns %.1f ms", network_metrics.get("dns_latency_ms", 0))
         # ====================================================================
         # Capture system state BEFORE run (M3-1 through M3-6)
         # ====================================================================
@@ -391,19 +392,19 @@ class ExperimentHarness:
         # 39.5.2b gate exit: after the duration computations; held records flush here.
         _obs_window = _obs_gate.exit()
 
-        dprint(
-            f"🔍 DEBUG EXECUTION TIME - Linear compute: {exec_result.get('execution_time_ms', 0)} ms"
+        logger.info(
+            "linear compute %s ms, measured duration %.1f ms",
+            exec_result.get("execution_time_ms", 0), run_duration_sec * 1000,
         )
-        dprint(f"🔍 DEBUG TOTAL MEASUREMENT - Duration: {run_duration_sec*1000:.1f} ms")
 
         # ====================================================================
         # DEBUG: Check what's available in energy_engine
         # ====================================================================
-        dprint(f"🔍 DEBUG - energy_engine attributes: {dir(self.energy_engine)}")
+        logger.debug("energy_engine attributes: %s", dir(self.energy_engine))
         if hasattr(self.energy_engine, "samples"):
-            dprint(f"🔍 DEBUG - samples keys: {self.energy_engine.last_samples.keys()}")
+            logger.debug("samples keys: %s", self.energy_engine.last_samples.keys())
         else:
-            dprint("🔍 DEBUG - energy_engine has NO 'samples' attribute")
+            logger.debug("energy_engine has no 'samples' attribute")
 
         # ====================================================================
         # Load canonical metrics from override file
@@ -422,11 +423,9 @@ class ExperimentHarness:
                     override_config = yaml.safe_load(f)
                 canonical_metrics = override_config.get("canonical_metrics", {})
                 store_extra = override_config.get("store_extra_in_json", True)
-                dprint(
-                    f"📋 Loaded {len(canonical_metrics)} canonical metrics from override file"
-                )
+                logger.info("loaded %d canonical metrics from override file", len(canonical_metrics))
             except Exception as e:
-                dprint(f"⚠️ Failed to load override file: {e}")
+                logger.warning("failed to load override file: %s", e)
 
         # ====================================================================
         # Load canonical metrics from override file
@@ -445,11 +444,9 @@ class ExperimentHarness:
                     override_config = yaml.safe_load(f)
                 canonical_metrics = override_config.get("canonical_metrics", {})
                 store_extra = override_config.get("store_extra_in_json", True)
-                dprint(
-                    f"📋 Loaded {len(canonical_metrics)} canonical metrics from override file"
-                )
+                logger.info("loaded %d canonical metrics from override file", len(canonical_metrics))
             except Exception as e:
-                dprint(f"⚠️ Failed to load override file: {e}")
+                logger.warning("failed to load override file: %s", e)
 
         # ====================================================================
         # Get samples from energy engine
@@ -582,9 +579,12 @@ class ExperimentHarness:
         duration = raw_energy.duration_seconds
         interrupt_rate = get_interrupt_rate(intr_before, intr_after, duration)
 
-        dprint(f"🔍 LINEAR HARNESS - total_bytes_sent: {exec_result.get('total_bytes_sent', 'NOT FOUND')}")
-        dprint(f"🔍 LINEAR HARNESS - total_bytes_recv: {exec_result.get('total_bytes_recv', 'NOT FOUND')}")
-        dprint(f"🔍 LINEAR HARNESS - total_tcp_retransmits: {exec_result.get('total_tcp_retransmits', 'NOT FOUND')}")
+        logger.info(
+            "network bytes sent %s, received %s, tcp retransmits %s",
+            exec_result.get("total_bytes_sent", "not found"),
+            exec_result.get("total_bytes_recv", "not found"),
+            exec_result.get("total_tcp_retransmits", "not found"),
+        )
 
         result = {
             "experiment_id": exec_result.get("experiment_id"),
@@ -824,21 +824,23 @@ class ExperimentHarness:
             result["spbm_samples"]   = list(self.energy_engine.last_spbm_samples)
             result["v2_samples"]     = list(self.energy_engine.last_v2_samples)
             result["rail_result"]    = self.energy_engine.last_rail_result
-            dprint(
-                f"📊 Added {len(self.energy_engine.last_samples)} energy samples to result"
-            )
+            logger.info("energy samples added to result: %d", len(self.energy_engine.last_samples))
         else:
-            dprint("⚠️ No last_samples attribute found in energy_engine")
+            logger.warning("energy_engine has no last_samples attribute")
 
         if hasattr(self.energy_engine, "last_interrupt_samples"):
             result["interrupt_samples"] = self.energy_engine.last_interrupt_samples
-            dprint(
-                f"📊 Added {len(self.energy_engine.last_interrupt_samples)} energy samples to result"
+            logger.info(
+                "interrupt samples added to result: %d",
+                len(self.energy_engine.last_interrupt_samples),
             )
         else:
-            dprint("⚠️ No last_samples attribute found in energy_engine")
+            logger.warning("energy_engine has no last_interrupt_samples attribute")
 
-        dprint(f"✅ Harness complete: {derived.workload_energy_j:.4f}J workload energy")
+        progress.info(
+            "measure  linear  %.2f s  dynamic %.4f J",
+            task_duration_sec, derived.workload_energy_j,
+        )
         # 39.5.2c: run identity travels with the result (runs.global_run_id).
         result.setdefault("ml_features", {})["global_run_id"] = _run_uid
         return result
@@ -869,9 +871,7 @@ class ExperimentHarness:
 
         Uses the same 3‑layer architecture and returns ALL THREE LAYERS.
         """
-        dprint(f"\n{'='*70}")
-        dprint(f"🔬 HARNESS: Starting AGENTIC measurement")
-        dprint(f"{'='*70}")
+        progress.info("measure start  agentic")
         # 39.5.2b gate entry: before the complete SPEC_39_4 3a sequence, nothing
         # inserted between its steps (amended SPEC_39_5_2 section 4).
         from core.observability import gate as _obs_gate
@@ -884,7 +884,8 @@ class ExperimentHarness:
         network_metrics = {}
         if is_cloud:
             network_metrics = _measure_network_latency()
-            dprint(f"📡 Network DNS: {network_metrics.get('dns_latency_ms', 0):.1f}ms")
+            # Inside the gate: the record is buffered and formatted after t1 (5.2a).
+            logger.info("network dns %.1f ms", network_metrics.get("dns_latency_ms", 0))
         # ====================================================================
         # Capture system state BEFORE run (M3-1 through M3-6)
         # ====================================================================
@@ -987,18 +988,13 @@ class ExperimentHarness:
         # ====================================================================
         # DEBUG: Check what's available in energy_engine
         # ====================================================================
-        dprint(f"🔍 DEBUG - energy_engine attributes: {dir(self.energy_engine)}")
+        logger.debug("energy_engine attributes: %s", dir(self.energy_engine))
         if hasattr(self.energy_engine, "last_samples"):
-            dprint(f"🔍 DEBUG - samples keys: {self.energy_engine.last_samples}")
+            logger.debug("last_samples: %s", self.energy_engine.last_samples)
             if self.energy_engine.last_samples:
-                dprint(
-                    f"🔍 DEBUG - first sample type: {type(self.energy_engine.last_samples[0])}"
-                )
-                dprint(
-                    f"🔍 DEBUG - first sample type: {type(self.energy_engine.last_samples[0])}"
-                )
+                logger.debug("first sample type: %s", type(self.energy_engine.last_samples[0]))
         else:
-            dprint("🔍 DEBUG - energy_engine has NO 'samples' attribute")
+            logger.debug("energy_engine has no 'last_samples' attribute")
 
         # ====================================================================
         # Load canonical metrics from override file
@@ -1017,11 +1013,9 @@ class ExperimentHarness:
                     override_config = yaml.safe_load(f)
                 canonical_metrics = override_config.get("canonical_metrics", {})
                 store_extra = override_config.get("store_extra_in_json", True)
-                dprint(
-                    f"📋 Loaded {len(canonical_metrics)} canonical metrics from override file"
-                )
+                logger.info("loaded %d canonical metrics from override file", len(canonical_metrics))
             except Exception as e:
-                dprint(f"⚠️ Failed to load override file: {e}")
+                logger.warning("failed to load override file: %s", e)
 
         energy_samples, interrupt_samples, io_samples = process_energy_samples(self.energy_engine)
         cpu_samples = process_cpu_samples(raw_energy, canonical_metrics, store_extra)
@@ -1149,19 +1143,13 @@ class ExperimentHarness:
         # ====================================================================
         # DEBUG: Check token data before building ml_features
         # ====================================================================
-        dprint(f"🔍 DEBUG*** - agentic exec_result keys: {exec_result.keys()}")
-        dprint(
-            f"🔍 DEBUG ***- agentic tokens in exec_result: {exec_result.get('tokens', {})}"
+        logger.debug("agentic exec_result keys: %s", exec_result.keys())
+        _tok = exec_result.get("tokens", {})
+        progress.info(
+            "tokens  in %s  out %s  total %s",
+            _tok.get("prompt"), _tok.get("completion"), _tok.get("total"),
         )
-        dprint(
-            f"🔍 DEBUG*** - agentic token total: {exec_result.get('tokens', {}).get('total')}"
-        )
-        dprint(
-            f"🔍 DEBUG*** - agentic token prompt: {exec_result.get('tokens', {}).get('prompt')}"
-        )
-        dprint(
-            f"🔍 DEBUG*** - agentic token completion: {exec_result.get('tokens', {}).get('completion')}"
-        )
+        logger.debug("agentic tokens: %s", _tok)
         # ====================================================================
         # NEW: Capture orchestration events from executor
         # ====================================================================
@@ -1170,13 +1158,11 @@ class ExperimentHarness:
             orchestration_events = (
                 executor._events.copy()
             )  # Copy to prevent modification
-            print(
-                f"🔍 DEBUG - Captured {len(orchestration_events)} orchestration events from executor"
-            )
+            logger.info("orchestration events captured from executor: %d", len(orchestration_events))
             # Clear events to prevent mixing between runs
             executor._events = []
         else:
-            print("🔍 DEBUG - No orchestration events found in executor")
+            logger.info("no orchestration events found in executor")
 
 
 
@@ -1464,41 +1450,34 @@ class ExperimentHarness:
             result["v2_samples"]     = list(self.energy_engine.last_v2_samples)
             result["legacy_samples"]     = list(self.energy_engine.last_legacy_samples)
             result["rail_result"]    = self.energy_engine.last_rail_result
-            dprint(
-                f"📊 Added {len(self.energy_engine.last_samples)} energy samples to result"
-            )
+            logger.info("energy samples added to result: %d", len(self.energy_engine.last_samples))
         else:
-            dprint("⚠️ No last_samples attribute found in energy_engine")
+            logger.warning("energy_engine has no last_samples attribute")
 
         if hasattr(self.energy_engine, "last_interrupt_samples"):
             result["interrupt_samples"] = self.energy_engine.last_interrupt_samples
-            dprint(
-                f"📊 Added {len(self.energy_engine.last_interrupt_samples)} energy samples to result"
+            logger.info(
+                "interrupt samples added to result: %d",
+                len(self.energy_engine.last_interrupt_samples),
             )
         else:
-            dprint("⚠️ No last_samples attribute found in energy_engine")
+            logger.warning("energy_engine has no last_interrupt_samples attribute")
 
         # ====================================================================
         # DEBUG - Check orchestration events before returning
         # ====================================================================
-        print(
-            f"🔍 DEBUG HARNESS - orchestration_events in result: {'orchestration_events' in result}"
-        )
+        logger.debug("orchestration_events in result: %s", "orchestration_events" in result)
         if "orchestration_events" in result:
-            print(
-                f"🔍 DEBUG HARNESS - Number of events: {len(result['orchestration_events'])}"
-            )
+            logger.info("orchestration events in result: %d", len(result["orchestration_events"]))
             if len(result["orchestration_events"]) > 0:
-                print(
-                    f"🔍 DEBUG HARNESS - First event keys: {result['orchestration_events'][0].keys()}"
-                )
-        # Debug to check if thermal_samples is in result
-        dprint(f"🔍 DEBUG - thermal_samples in result: {'thermal_samples' in result}")
+                logger.debug("first event keys: %s", result["orchestration_events"][0].keys())
+        logger.debug("thermal_samples in result: %s", "thermal_samples" in result)
         if "thermal_samples" in result:
-            dprint(
-                f"🔍 DEBUG - Number of thermal samples: {len(result['thermal_samples'])}"
-            )
-        print(f"✅ Harness complete: {derived.workload_energy_j:.4f}J workload energy")
+            logger.info("thermal samples in result: %d", len(result["thermal_samples"]))
+        progress.info(
+            "measure  agentic  %.2f s  dynamic %.4f J",
+            task_duration_sec, derived.workload_energy_j,
+        )
         # 39.5.2c: run identity travels with the result (runs.global_run_id).
         result.setdefault("ml_features", {})["global_run_id"] = _run_uid
         return result
@@ -1526,11 +1505,9 @@ class ExperimentHarness:
 
         Returns results with ALL THREE LAYERS for each run.
         """
-        dprint(f"\n{'#'*70}")
-        dprint(f"📊 COMPARISON EXPERIMENT: Linear vs Agentic")
-        dprint(f"   Task: {task[:100]}")
-        dprint(f"   Repetitions: {n_repetitions}")
-        dprint(f"{'#'*70}")
+        progress.info("comparison  linear vs agentic  repetitions %d", n_repetitions)
+        logger.info("task length %d chars", len(task))
+        logger.debug("task: %.80s", task)
 
         # ====================================================================
         # Initialize results collection
@@ -1553,7 +1530,7 @@ class ExperimentHarness:
 
         # Warmup run (optional, recommended)
         if include_warmup:
-            dprint(f"\n🔥 Warmup phase (results discarded)")
+            progress.info("repetition %d/%d", i + 1, n_repetitions)
             _warmup_run(linear_executor, task, is_agentic=False)
             time.sleep(cool_down)
             _warmup_run(agentic_executor, task, is_agentic=True)
@@ -1565,9 +1542,7 @@ class ExperimentHarness:
         all_taxes = []
 
         for i in range(n_repetitions):
-            dprint(f"\n{'─'*50}")
-            dprint(f"📋 Repetition {i+1}/{n_repetitions}")
-            dprint(f"{'─'*50}")
+            progress.info("repetition %d/%d", i + 1, n_repetitions)
 
             # Determine workflow order for this repetition
             first_workflow, second_workflow = get_workflow_order(i + 1)
@@ -1631,27 +1606,23 @@ class ExperimentHarness:
 
             # Cool‑down between repetitions (except last)
             if i < n_repetitions - 1:
-                dprint(f"⏳ Cool‑down: {cool_down}s")
+                progress.info("cool down %s s", cool_down)
                 time.sleep(cool_down)
 
             # ====================================================================
             # YOUR EXISTING TAX CALCULATION CODE (PRESERVED)
             # ====================================================================
             ##temporary debug
-            print(
-                f"🔍 DEBUG: linear_result['layer3_derived'] keys = {linear_result['layer3_derived'].keys()}"
-            )
+            logger.debug("linear layer3_derived keys: %s", linear_result["layer3_derived"].keys())
 
             # Compute tax for this pair (using Layer 3 workload energy)
             linear_layer3 = linear_result["layer3_derived"]
             agentic_layer3 = agentic_result["layer3_derived"]
 
             # Debug to see actual structure
-            print(f"🔍 DEBUG: linear_layer3 keys = {list(linear_layer3.keys())}")
+            logger.debug("linear_layer3 keys: %s", list(linear_layer3.keys()))
             if "energy_uj" in linear_layer3:
-                print(
-                    f"🔍 DEBUG: energy_uj keys = {list(linear_layer3['energy_uj'].keys())}"
-                )
+                logger.debug("energy_uj keys: %s", list(linear_layer3["energy_uj"].keys()))
 
             # Extract linear workload energy from the nested structure
             if (
@@ -1692,17 +1663,18 @@ class ExperimentHarness:
                     self._collected_samples["orchestration_events_by_run"].append(
                         agentic_result["orchestration_events"]
                     )
-                    dprint(
-                        f"   📝 Collected {len(agentic_result['orchestration_events'])} orchestration events"
+                    logger.info(
+                        "orchestration events collected: %d",
+                        len(agentic_result["orchestration_events"]),
                     )
                 else:
-                    dprint("   ⚠️ No orchestration events in agentic_result")
+                    logger.info("no orchestration events in agentic result")
                     # Add empty list to maintain alignment (ADD THIS BACK)
                     if "orchestration_events_by_run" not in self._collected_samples:
                         self._collected_samples["orchestration_events_by_run"] = []
                     self._collected_samples["orchestration_events_by_run"].append([])
             except Exception as e:
-                dprint(f"   ⚠️ Error collecting events: {e}")
+                logger.warning("error collecting orchestration events: %s", e)
                 if "orchestration_events_by_run" not in self._collected_samples:
                     self._collected_samples["orchestration_events_by_run"] = []
                 self._collected_samples["orchestration_events_by_run"].append([])
@@ -1733,8 +1705,9 @@ class ExperimentHarness:
                     if duration > 0:
                         heat_flux = temp_rise / duration  # °C per second
                         run["ml_features"]["heat_flux"] = heat_flux
-                        dprint(
-                            f"🔥 Heat flux: {heat_flux:.2f}°C/s for run {run['ml_features'].get('run_number', '?')}"
+                        logger.info(
+                            "heat flux %.2f C/s for run %s",
+                            heat_flux, run["ml_features"].get("run_number", "?"),
                         )
 
         # ====================================================================
@@ -1775,19 +1748,18 @@ class ExperimentHarness:
                     run["interrupt_samples"]
                 )
 
-        dprint(
-            f"📊 Grouped samples: energy={len(self._collected_samples['energy_samples_by_run'])}, "
-            f"cpu={len(self._collected_samples['cpu_samples_by_run'])}, "
-            f"interrupt={len(self._collected_samples['interrupt_samples_by_run'])}"
+        logger.info(
+            "grouped samples energy=%d cpu=%d interrupt=%d",
+            len(self._collected_samples["energy_samples_by_run"]),
+            len(self._collected_samples["cpu_samples_by_run"]),
+            len(self._collected_samples["interrupt_samples_by_run"]),
         )
 
         # ====================================================================
         # Statistical analysis
         # ====================================================================
 
-        print(
-            f"🔍 Agentic interrupt samples count: {len(agentic_result.get('interrupt_samples', []))}"
-        )
+        logger.info("agentic interrupt samples: %d", len(agentic_result.get("interrupt_samples", [])))
 
         # Extract energy values from Layer 3 (DerivedEnergyMeasurement)
 
@@ -1814,12 +1786,13 @@ class ExperimentHarness:
         for i, result in enumerate(all_agentic):
             if result and "orchestration_events" in result:
                 raw_agentic_events.append(result["orchestration_events"])
-                dprint(
-                    f"🔍 DEBUG - Collected {len(result['orchestration_events'])} orchestration events from agentic run {i+1}"
+                logger.info(
+                    "orchestration events from agentic run %d: %d",
+                    i + 1, len(result["orchestration_events"]),
                 )
             else:
                 raw_agentic_events.append([])
-                dprint(f"🔍 DEBUG - No orchestration events in agentic run {i+1}")
+                logger.info("no orchestration events in agentic run %d", i + 1)
 
         # ====================================================================
         # Build grouped samples after the loop
@@ -1855,7 +1828,7 @@ class ExperimentHarness:
 
         # Add events for agentic runs (using raw_agentic_events collected above)
         orchestration_events_by_run.extend(raw_agentic_events)
-        dprint(f"📊 Added {len(raw_agentic_events)} agentic event groups")
+        logger.info("agentic event groups added: %d", len(raw_agentic_events))
 
         results = {
             "task": task,
@@ -1920,35 +1893,28 @@ class ExperimentHarness:
             )
             results["orchestration_events_by_run"] = orchestration_events_by_run
 
-            dprint(
-                f"📊 Added samples to final results: energy={len(results['energy_samples'])}, "
-                f"cpu={len(results['cpu_samples'])}, interrupt={len(results['interrupt_samples'])}"
+            logger.info(
+                "final result samples energy=%d cpu=%d interrupt=%d",
+                len(results["energy_samples"]), len(results["cpu_samples"]),
+                len(results["interrupt_samples"]),
             )
 
         # Print summary
-        dprint(f"\n{'#'*70}")
-        dprint(f"📊 EXPERIMENT SUMMARY")
-        dprint(f"{'#'*70}")
-        dprint(
-            f"   Linear energy:   {results['statistics']['linear_energy_j']['mean']:.4f} ± {results['statistics']['linear_energy_j']['std']:.4f} J"
-        )
-        dprint(
-            f"   Agentic energy:  {results['statistics']['agentic_energy_j']['mean']:.4f} ± {results['statistics']['agentic_energy_j']['std']:.4f} J"
-        )
-        dprint(
-            f"   Orchestration tax: {results['statistics']['orchestration_tax']['mean']:.2f}x "
-            f"[95% CI: {results['statistics']['orchestration_tax']['ci_lower']:.2f}, {results['statistics']['orchestration_tax']['ci_upper']:.2f}]"
-        )
-        dprint(
-            f"   Energy per token: Linear={results['statistics']['linear_energy_per_token']['mean']:.6f} J/tok, Agentic={results['statistics']['agentic_energy_per_token']['mean']:.6f} J/tok"
-        )
-        dprint(f"{'#'*70}")
+        _st = results["statistics"]
+        console.section("experiment summary")
+        console.kv("linear energy", "%.4f ± %.4f J" % (
+            _st["linear_energy_j"]["mean"], _st["linear_energy_j"]["std"]))
+        console.kv("agentic energy", "%.4f ± %.4f J" % (
+            _st["agentic_energy_j"]["mean"], _st["agentic_energy_j"]["std"]))
+        console.kv("orchestration tax", "%.2fx  95%% CI [%.2f, %.2f]" % (
+            _st["orchestration_tax"]["mean"], _st["orchestration_tax"]["ci_lower"],
+            _st["orchestration_tax"]["ci_upper"]))
+        console.kv("energy per token", "linear %.6f J/tok  agentic %.6f J/tok" % (
+            _st["linear_energy_per_token"]["mean"], _st["agentic_energy_per_token"]["mean"]))
         # ====================================================================
         # Display ALL hardware parameters from Layer 1 (25 requirements)
         # ====================================================================
-        print("\n" + "=" * 70)
-        print("🔧 HARDWARE PARAMETERS DEEP DIVE (Layer 1 - All 25 Requirements)")
-        print("=" * 70)
+        console.section("hardware parameters (layer 1, all 25 requirements)")
 
         # display_hardware(all_linear, "LINEAR")
         # display_hardware(all_agentic, "AGENTIC")
@@ -1994,12 +1960,13 @@ class ExperimentHarness:
                 carbon_mean = carbon_total / count
                 energy_mean = energy_total / count
 
-                print(f"\n   📊 {label} Workflow ({count} runs):")
-                print(f"      Grid region: {runs[0].get('country_code', 'US')}")
-                print(f"      Energy:  {energy_mean:.6f} J")  # ← NEW
-                print(f"      Carbon:  {carbon_mean:.6f} g CO₂e")
-                print(f"      Water:   {water_total/count:.6f} ml")
-                print(f"      Methane: {methane_total/count:.6f} g CH₄")
+                console.line("")
+                console.line("%s workflow (%d runs)" % (label, count), indent=1)
+                console.kv("grid region", runs[0].get("country_code", "US"), indent=2)
+                console.kv("energy", "%.6f J" % energy_mean, indent=2)
+                console.kv("carbon", "%.6f g CO2e" % carbon_mean, indent=2)
+                console.kv("water", "%.6f ml" % (water_total / count), indent=2)
+                console.kv("methane", "%.6f g CH4" % (methane_total / count), indent=2)
 
             return {
                 "energy": energy_total / count if count > 0 else 0,  # ← NEW
@@ -2033,29 +2000,24 @@ class ExperimentHarness:
                 else 0
             )
 
-            print(f"\n   📈 DERIVED METRICS")
-            print(f"   " + "-" * 50)
-            print(f"   [2.8] Wait-Tax Per Query:")
-            print(f"         Energy: {wait_tax_energy:.4f} J")
-            print(
-                f"         Carbon: {(agentic_stats['carbon'] - linear_stats['carbon'])*1000:.3f} mg"
-            )
-
-            print(f"\n   [2.11] Reasoning-to-Waste:")
-            print(f"         Reasoning: {reasoning_ratio:.1f}%")
-            print(f"         Waste:     {100-reasoning_ratio:.1f}%")
-
+            console.section("derived metrics")
+            console.line("[2.8] wait tax per query", indent=1)
+            console.kv("energy", "%.4f J" % wait_tax_energy, indent=2)
+            console.kv("carbon", "%.3f mg" % (
+                (agentic_stats["carbon"] - linear_stats["carbon"]) * 1000), indent=2)
+            console.line("[2.11] reasoning to waste", indent=1)
+            console.kv("reasoning", "%.1f%%" % reasoning_ratio, indent=2)
+            console.kv("waste", "%.1f%%" % (100 - reasoning_ratio), indent=2)
             # Energy Scarcity Index (Req 2.13)
-            print(f"\n   [2.13] Energy Scarcity Index:")
-            print(f"         Linear:  {linear_stats['energy']/3.6e6/10:.8f}")
-            print(f"         Agentic: {agentic_stats['energy']/3.6e6/10:.8f}")
+            console.line("[2.13] energy scarcity index", indent=1)
+            console.kv("linear", "%.8f" % (linear_stats["energy"] / 3.6e6 / 10), indent=2)
+            console.kv("agentic", "%.8f" % (agentic_stats["energy"] / 3.6e6 / 10), indent=2)
 
         # ====================================================================
         # SECTION 4: MODULE 3 EXECUTION METRICS
         # ====================================================================
         if all_agentic:
-            print("\n   🤖 EXECUTION METRICS [Module 3]")
-            print("   " + "-" * 50)
+            console.section("execution metrics (module 3)")
 
             total_llm = 0
             total_tools = 0
@@ -2082,25 +2044,19 @@ class ExperimentHarness:
 
             count = len(all_agentic)
             if count > 0:
-                print(
-                    f"\n      [3.2] Complexity Level: {agentic_stats.get('complexity_level', 1)}"
-                )
-                print(f"      [3.2] Complexity Score: {complexity_sum/count:.3f}")
-                print(f"\n      [3.6] Phase Breakdown:")
-                print(f"         Planning:  {total_plan/count:6.1f} ms")
-                print(f"         Execution: {total_exec/count:6.1f} ms")
-                print(f"         Synthesis: {total_syn/count:6.1f} ms")
-                print(f"         {'─'*30}")
-                print(
-                    f"         TOTAL:     {(total_plan+total_exec+total_syn)/count:6.1f} ms"
-                )
+                console.kv("[3.2] complexity level", agentic_stats.get("complexity_level", 1), indent=1, width=24)
+                console.kv("[3.2] complexity score", "%.3f" % (complexity_sum / count), indent=1, width=24)
+                console.line("[3.6] phase breakdown", indent=1)
+                console.kv("planning", "%6.1f ms" % (total_plan / count), indent=2)
+                console.kv("execution", "%6.1f ms" % (total_exec / count), indent=2)
+                console.kv("synthesis", "%6.1f ms" % (total_syn / count), indent=2)
+                console.kv("total", "%6.1f ms" % ((total_plan + total_exec + total_syn) / count), indent=2)
+                console.line("workload characteristics", indent=1)
+                console.kv("llm calls", "%.1f" % (total_llm / count), indent=2)
+                console.kv("tool calls", "%.1f" % (total_tools / count), indent=2)
+                console.kv("steps", "%.1f" % (total_steps / count), indent=2)
 
-                print(f"\n      Workload Characteristics:")
-                print(f"         LLM Calls:  {total_llm/count:.1f}")
-                print(f"         Tool Calls: {total_tools/count:.1f}")
-                print(f"         Steps:      {total_steps/count:.1f}")
-
-        print("=" * 70)
+        console.line("")
 
         # ====================================================================
         # Create ML-ready dataset from all runs
@@ -2131,13 +2087,14 @@ class ExperimentHarness:
             df = pd.DataFrame(ml_dataset["all_runs"])
             csv_path = f"data/ml_dataset_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             df.to_csv(csv_path, index=False)
-            print(
-                f"\n💾 ML dataset saved to: {csv_path} ({len(df)} runs, {len(df.columns)} features)"
+            progress.info(
+                "ml dataset saved  %s  (%d runs, %d features)",
+                csv_path, len(df), len(df.columns),
             )
         except ImportError:
-            print("\n⚠️ pandas not installed. Run: pip install pandas")
+            logger.warning("pandas not installed; ml dataset not saved (pip install pandas)")
         except Exception as e:
-            print(f"\n⚠️ Could not save CSV: {e}")
+            logger.warning("could not save ml dataset csv: %s", e)
 
         if save_to_db:
             experiment_meta = {

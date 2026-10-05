@@ -11,7 +11,7 @@ Only handlers created here are ever removed; foreign handlers are left alone.
 
 import logging
 import socket
-import sys
+import sys, os
 from typing import Any, Dict, List, Mapping, Optional
 from core.observability import gate
 
@@ -105,7 +105,15 @@ def setup_logging(
         _loc.require_host_dirs()
     elif not _loc.host_dirs_configured():
         sys.stderr.write(_loc.missing_data_root_message() + "\n")
-    ordered = list(layers or []) + [levels.env_layer(), dict(cli or {})]
+    # Legacy A_LEMS_DEBUG* sits below ALEMS_LOG_* (39.5.2e).
+    ordered = list(layers or []) + [
+        levels.legacy_debug_layer(), levels.env_layer(), dict(cli or {}),
+    ]
+    if os.environ.get("A_LEMS_DEBUG_FILE") and not _STATE.get("legacy_file_warned"):
+        _STATE["legacy_file_warned"] = True
+        sys.stderr.write(
+            "alems: A_LEMS_DEBUG_FILE is ignored; logs are written under ALEMS_LOG_DIR\n"
+        )
     try:
         cfg = levels.resolve_config(ordered)
     except ValueError as exc:
@@ -114,6 +122,9 @@ def setup_logging(
         # Observability is subordinate: a bad logging setting never stops a run.
         sys.stderr.write("alems: invalid logging setting ignored: %s\n" % exc)
         cfg = levels.resolve_config([])
+    # One flag set drives both channels: the renderer takes mode and --json.
+    from core.observability.console import get_console
+    get_console().configure(mode=cfg.mode, json_output=(cli or {}).get("json"))
     key = (entry, levels.config_hash(cfg))
     if _STATE["key"] == key:
         return _STATE["config"]
