@@ -33,6 +33,11 @@ from core.execution.adapters.base import BaseAdapterMixin, TextGenABC
 
 logger = logging.getLogger(__name__)
 
+# Providers whose server rejected stream_options (HTTP 400 or 422). Remembered
+# per process so the extra request happens once per provider, not per call
+# (correction C1, option B).
+_STREAM_OPTIONS_REJECTED = set()
+
 # Providers where HTTP goes over real network — capture OS network counters
 _CLOUD_TYPES = {"cloud_api"}
 
@@ -288,7 +293,11 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
         import json as _json
  
         # Inject stream=True into payload — providers ignore unknown fields
+        # C1: a streamed response carries usage only when requested
+        # (stream_options.include_usage); without it prompt tokens were lost.
         stream_payload = {**payload, "stream": True}
+        if self.get_name() not in _STREAM_OPTIONS_REJECTED:
+            stream_payload["stream_options"] = {"include_usage": True}
  
         url = self._endpoint_url()
         headers = self._build_headers()
@@ -310,6 +319,22 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
                 timeout=120,
                 stream=True,
             )
+            # C1 option B: a server that rejects stream_options keeps streaming
+            # (TTFT preserved); its prompt tokens stay unknown.
+            if resp.status_code in (400, 422) and "stream_options" in stream_payload:
+                _STREAM_OPTIONS_REJECTED.add(self.get_name())
+                logger.warning(
+                    "%s rejected stream_options (HTTP %d); streaming without usage",
+                    self.get_name(), resp.status_code,
+                )
+                stream_payload.pop("stream_options", None)
+                resp = requests.post(
+                    url,
+                    json=stream_payload,
+                    headers=headers,
+                    timeout=120,
+                    stream=True,
+                )
             resp.raise_for_status()
  
             for raw_line in resp.iter_lines():
@@ -372,8 +397,11 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
             return response.json()
  
         # Prefer API token count — providers batch tokens per chunk (Groq)
-        token_count = usage_completion_tokens if usage_completion_tokens else chunk_count
-        prompt_token_count= usage_prompt_tokens if usage_prompt_tokens else 0
+        # A reported 0 is a value; only a missing count falls back (C1).
+        token_count = (
+            usage_completion_tokens if usage_completion_tokens is not None else chunk_count
+        )
+        prompt_token_count = usage_prompt_tokens if usage_prompt_tokens is not None else 0
  
         total_ms = (
             (last_token_ns - request_start_ns) / 1e6 if last_token_ns else 0.0
