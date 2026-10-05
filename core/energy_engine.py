@@ -299,6 +299,9 @@ class EnergyEngine:
                     )
 
         self.current_run_id = None
+        # C3 (G183): energy domain and source ids resolved once here, outside
+        # every measurement window; start_measurement only reads the cache.
+        self._energy_ids = self._prepare_energy_ids()
 
         logger.info(
             "EnergyEngine initialized, readers %s",
@@ -627,11 +630,30 @@ class EnergyEngine:
         self.disk_reader.pid = pid
 
 
+    def _prepare_energy_ids(self):
+        """
+        Resolve (domain_id_cache, source_id) once, before any measurement.
+
+        Same lookups and fallbacks as before C3; only the moment changes.
+
+        Returns:
+            Tuple (dict canonical_name -> domain_id, int source_id); ({}, 1)
+            when the reader has no domains or its schema is unavailable.
+        """
+        try:
+            schema = self.energy_reader.get_measurement_schema()
+        except Exception as e:
+            logger.warning("energy schema unavailable at construction: %s", e)
+            return {}, 1
+        if not schema.domains:
+            return {}, 1
+        return self._resolve_domain_id_cache(schema), self._resolve_source_id(schema)
+
     def _resolve_domain_id_cache(self, schema) -> dict:
         """
         Build canonical_name -> domain_id from energy_domains table.
         Opens short-lived read-only connection — closed immediately after query.
-        Called once per run at start_measurement, never during sampling loop.
+        Called once at construction (C3), never inside a measurement window.
         """
         import sqlite3
         try:
@@ -798,10 +820,8 @@ class EnergyEngine:
         try:
             schema = self.energy_reader.get_measurement_schema()
             if schema.domains:
-                # Resolve domain_id_cache and source_id from schema
-                # These are resolved here using pre-built schema — no DB access
-                domain_id_cache = self._resolve_domain_id_cache(schema)
-                source_id = self._resolve_source_id(schema)
+                # C3: ids resolved at construction; no store access in the window.
+                domain_id_cache, source_id = self._energy_ids
                 adapters = [NormalizedWriter(source_id, domain_id_cache)]
                 if schema.source == "RAPL":
                     adapters.append(LegacyWriter())
