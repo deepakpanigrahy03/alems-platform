@@ -16,17 +16,17 @@ from typing import Optional
 # core/observability/locations.py -> engine root is two levels above core.
 ENGINE_ROOT = Path(__file__).resolve().parents[2]
 
+# type: Dict[str, list]  # last resolver report for CFG-0010
+_LAST_REPORT = {"items": []}  
+
+
 
 def _data_root() -> Optional[Path]:
-    """Data root from the environment after loading ~/.alemsrc, else None."""
-    try:
-        from core.storage.alemsrc import load_alemsrc
-
-        load_alemsrc()
-    except Exception:  # noqa: BLE001  observability must not fail the caller
-        pass
-    root = os.environ.get("ALEMS_DATA_ROOT")
-    return Path(root).expanduser() if root else None
+    """Data root from the single resolver (same source as the store), else None."""
+    from core.storage.resolver import resolve_data_root
+    root, _source, report = resolve_data_root()
+    _LAST_REPORT["items"] = report
+    return root
 
 
 def _host_dir(env_var: str, leaf: str) -> Optional[Path]:
@@ -61,6 +61,42 @@ def host_log_dir() -> Optional[Path]:
 def error_dir() -> Optional[Path]:
     """Host error directory (used from 2d), or None."""
     return _host_dir("ALEMS_ERROR_DIR", "error")
+
+
+def host_dirs_configured() -> bool:
+    """True when both host log and error directories resolve."""
+    return host_log_dir() is not None and error_dir() is not None
+
+
+def missing_data_root_message() -> str:
+    """Actionable ALEMS-CFG-0010 text listing every supported fix."""
+    _data_root()  # refresh the report so it reflects the current environment
+    lines = ["ALEMS-CFG-0010 data root not configured: logs and error records have nowhere to go.",
+             "Sources checked, in precedence order:"]
+    lines += ["  %-34s %s" % (src, status) for src, status in _LAST_REPORT["items"]]
+    lines += [
+        "Fix with one of:",
+        "  1. sandbox manifest      data_root: /path   in alems-sandbox.yaml",
+        "  2. ~/.alemsrc            export ALEMS_DATA_ROOT=/mnt/alems-data",
+        "  3. shell environment     export ALEMS_DATA_ROOT=/path/to/data",
+        "  4. explicit directories  export ALEMS_LOG_DIR=/path/log ALEMS_ERROR_DIR=/path/error",
+        "Note: .sandbox-env sets the store (ALEMS_STORE) only, never the data root.",
+        "Then rerun. Verify with: alems sandbox doctor",
+    ]
+    return "\n".join(lines)
+
+
+def require_host_dirs() -> None:
+    """
+    Stop hard when a run has no host log or error directory (no silent fallback).
+
+    Raises:
+        AlemsError: code ALEMS-CFG-0010 with the fix options.
+    """
+    if host_dirs_configured():
+        return
+    from core.errors import AlemsError
+    raise AlemsError(missing_data_root_message(), code="ALEMS-CFG-0010")
 
 
 def run_log_dir(store_path: str) -> Path:

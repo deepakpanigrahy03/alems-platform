@@ -97,6 +97,14 @@ def setup_logging(
     """
     if entry not in ("cli", "run"):
         raise ValueError("entry must be cli or run: %r" % entry)
+    # No silent fallback (39.5.2d): a run needs host log and error directories
+    # and stops here before any measurement; the CLI must still reach
+    # doctor and help, so it reports the same fix on stderr instead.
+    from core.observability import locations as _loc
+    if entry == "run":
+        _loc.require_host_dirs()
+    elif not _loc.host_dirs_configured():
+        sys.stderr.write(_loc.missing_data_root_message() + "\n")
     ordered = list(layers or []) + [levels.env_layer(), dict(cli or {})]
     try:
         cfg = levels.resolve_config(ordered)

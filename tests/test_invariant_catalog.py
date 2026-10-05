@@ -45,6 +45,8 @@ def _db(rows, goals, attempts, spans):
     conn.execute("ALTER TABLE runs ADD COLUMN start_time_ns INT")
     conn.execute("ALTER TABLE runs ADD COLUMN measurement_log_level TEXT")
     conn.execute("ALTER TABLE runs ADD COLUMN global_run_id TEXT")
+    conn.execute("ALTER TABLE runs ADD COLUMN observability_overflow INT")  # 2b column, read by INV-EV5
+    conn.execute("ALTER TABLE stage_event ADD COLUMN error_ref TEXT")  # v120 column, read by INV-EV5
     conn.execute("CREATE TABLE migration_history (version INT, type TEXT, source TEXT, "
                  "status TEXT, applied_at TEXT)")
     conn.execute("INSERT INTO migration_history VALUES "
@@ -60,7 +62,9 @@ def _status(conn):
     return {r["id"]: r["status"] for r in evaluate(conn, load_catalog())}
 
 
-def test_clean_store_passes():
+def test_clean_store_passes(monkeypatch, tmp_path):
+    # INV-EV5 needs an error directory; without one it is not_evaluable, never pass
+    monkeypatch.setenv("ALEMS_ERROR_DIR", str(tmp_path))
     spans = [("s1", "t1", None, 1, 0, 100), ("s2", "t1", "s1", 1, 10, 90)]
     st = _status(_db([CLEAN], [(1, 1, 3_000_000)], [(1, 1, 1, 3_000_000)], spans))
     assert all(v in ("pass", "delegated") for v in st.values()), st

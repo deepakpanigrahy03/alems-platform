@@ -200,6 +200,84 @@ def _walk_for_manifest() -> Optional[str]:
     return None
 
 
+def _find_sandbox_dir() -> Optional[Path]:
+    """Sandbox directory by the store resolver's own order: ALEMS_SANDBOX, walk up, active."""
+    env = os.environ.get("ALEMS_SANDBOX")
+    if env:
+        return Path(env).expanduser()
+    current = Path.cwd()
+    for parent in [current, *current.parents]:
+        if (parent / "alems-sandbox.yaml").exists():
+            return parent
+        if parent == Path.home() or parent == parent.parent:
+            break
+    active = _read_active_project()
+    return Path(active) if active else None
+
+
+def _legacy_env_override() -> Optional[str]:
+    """ALEMS_DATA_ROOT from the engine .alems-env, read exactly as layer 6 does."""
+    env_file = Path(__file__).parent.parent.parent / ".alems-env"
+    if not env_file.exists():
+        return None
+    for line in env_file.read_text().splitlines():
+        key, sep, val = line.strip().partition("=")
+        if sep and key.strip() == "ALEMS_DATA_ROOT":
+            return val.strip()
+    return None
+
+
+def resolve_data_root():
+    # type: () -> Tuple[Optional[Path], Optional[str], List[Tuple[str, str]]]
+    """
+    Resolve the data root with one declared precedence and a full report.
+
+    Order (design 7.5, 7.12, store resolver layer 6):
+      1. sandbox manifest data_root
+      2. ALEMS_DATA_ROOT (shell wins over ~/.alemsrc, which only fills unset)
+         2a. legacy engine .alems-env ALEMS_DATA_ROOT overrides it (layer 6)
+    A manifest that exists but cannot be read stops resolution (no fallthrough).
+
+    Returns:
+        (path or None, winning source or None, report of (source, status))
+    """
+    report = []  # type: List[Tuple[str, str]]
+    shell_root = os.environ.get("ALEMS_DATA_ROOT")
+    try:
+        from core.storage.alemsrc import load_alemsrc
+        loaded = load_alemsrc()
+        report.append(("~/.alemsrc", "loaded" if loaded else "not found"))
+    except Exception as exc:  # noqa: BLE001  reported, never silent
+        report.append(("~/.alemsrc", "failed to load: %s: %s" % (type(exc).__name__, exc)))
+    sandbox = _find_sandbox_dir()
+    if sandbox is None:
+        report.append(("sandbox manifest", "no sandbox found"))
+    else:
+        manifest = sandbox / "alems-sandbox.yaml"
+        try:
+            import yaml  # type: ignore
+            data = yaml.safe_load(manifest.read_text()) or {}
+        except Exception as exc:  # noqa: BLE001  unreadable manifest stops resolution
+            report.append((str(manifest), "unreadable: %s: %s" % (type(exc).__name__, exc)))
+            return None, None, report
+        if data.get("data_root"):
+            report.append((str(manifest), "data_root=%s (wins)" % data["data_root"]))
+            return Path(data["data_root"]).expanduser(), "manifest", report
+        report.append((str(manifest), "no data_root key"))
+    root = os.environ.get("ALEMS_DATA_ROOT")
+    if not root:
+        report.append(("ALEMS_DATA_ROOT", "not set (shell or ~/.alemsrc)"))
+        return None, None, report
+    source = "shell" if shell_root else "~/.alemsrc"
+    override = _legacy_env_override()
+    if override:
+        report.append(("ALEMS_DATA_ROOT", "%s from %s (overridden)" % (root, source)))
+        report.append((".alems-env (engine, deprecated)", "ALEMS_DATA_ROOT=%s (wins)" % override))
+        return Path(override).expanduser(), ".alems-env", report
+    report.append(("ALEMS_DATA_ROOT", "%s from %s (wins)" % (root, source)))
+    return Path(root).expanduser(), source, report
+
+
 def _read_active_project() -> Optional[str]:
     """
     Read the active sandbox path written by 'alems sandbox use'.

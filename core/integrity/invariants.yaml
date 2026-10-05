@@ -85,6 +85,13 @@ invariants:
       FROM stage_event s JOIN runs r ON r.run_id = s.run_id
       WHERE s.run_id > :since AND r.global_run_id IS NOT NULL AND r.global_run_id <> s.run_uid
       GROUP BY r.run_id
+  - id: INV-EV5
+    statement: "Every non null stage_event.error_ref resolves to an error record of the same stage and run, or the run has observability_overflow = 1 (error_ref is an allocated error_id, not a foreign key)."
+    scope: row
+    severity: fail
+    introduced_in: 39.5.2
+    kind: error_refs
+    note: "Implements DESIGN_39_5_2d sections 6 and 12. Error records are host level; not_evaluable on a host without an error directory."
   - id: INV-E1
     statement: "If a measurement is unavailable, its value is NULL and is never represented by zero. A measured zero is valid."
     scope: column

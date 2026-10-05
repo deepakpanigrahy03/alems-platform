@@ -1,9 +1,222 @@
 # A-LEMS error code catalog (C-ERR v2, DESIGN_39_5_2d_ERROR_CODES).
-# Published code meanings are permanent under every catalog_version.
+# Published code meanings are permanent under every catalog version.
 # MAJOR: incompatible catalog format; MINOR: new codes or rules; PATCH: text not altering meaning.
-# Validate: python3 scripts/tools/validate_error_codes.py
-catalog_version: 1.0.0
+# Validate: alems validate error-codes
+catalog_version: 1.1.0
 codes:
+  ALEMS-ATTR-0001:
+    title: Residual not computed
+    meaning: the residual step had no store connection and produced no row
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: residual
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-attr-0001
+    introduced_in: 39.5.2
+  ALEMS-CFG-0001:
+    title: Config file missing
+    meaning: a required configuration file does not exist
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0001
+    introduced_in: 39.5.2
+  ALEMS-CFG-0002:
+    title: YAML syntax error
+    meaning: a YAML file could not be parsed; file, line, and column are in the message
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0002
+    introduced_in: 39.5.2
+  ALEMS-CFG-0003:
+    title: JSON syntax error
+    meaning: a JSON file could not be parsed
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0003
+    introduced_in: 39.5.2
+  ALEMS-CFG-0004:
+    title: Config schema violation
+    meaning: a configuration file fails its JSON Schema
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0004
+    introduced_in: 39.5.2
+  ALEMS-CFG-0005:
+    title: Unknown config key
+    meaning: a key not declared in the schema was rejected
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0005
+    introduced_in: 39.5.2
+  ALEMS-CFG-0006:
+    title: Same layer collision
+    meaning: two sources in one precedence layer set the same key
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0006
+    introduced_in: 39.5.2
+  ALEMS-CFG-0007:
+    title: Forbidden key in layer
+    meaning: hardware, endpoint, or credential set outside the machine layer
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0007
+    introduced_in: 39.5.2
+  ALEMS-CFG-0008:
+    title: Credential missing
+    meaning: no credential found for the selected provider
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0008
+    introduced_in: 39.5.2
+  ALEMS-CFG-0009:
+    title: Hardware config accessor failed
+    meaning: resolve_hw_config raised; the legacy direct load of hw_config.json was used instead
+    causes:
+    - machine config path unreadable
+    - data root not configured
+    actions:
+    - run alems sandbox doctor
+    - check <data_root>/<host>/config/hw_config.json
+    severity: warn
+    recoverable: true
+    stage_affinity: setup
+    affects_validity: none
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0009
+    introduced_in: 39.5.2
+  ALEMS-CFG-0010:
+    title: Data root not configured
+    meaning: no data root and no explicit log and error directories are configured; a run cannot start
+      because logs and error records have nowhere to go
+    causes:
+    - ALEMS_DATA_ROOT not set
+    - ~/.alemsrc missing or failed to load
+    actions:
+    - add export ALEMS_DATA_ROOT=/path to ~/.alemsrc
+    - or export ALEMS_DATA_ROOT in the shell
+    - or export ALEMS_LOG_DIR and ALEMS_ERROR_DIR
+    - verify with alems sandbox doctor
+    severity: fatal
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0010
+    introduced_in: 39.5.2
+  ALEMS-ETL-0101:
+    title: GPU SPBM ETL failed
+    meaning: gpu_spbm_etl did not complete for the run; derived rows may be missing
+    causes: []
+    actions:
+    - read the error record traceback
+    - rerun the ETL with --run-id
+    severity: warn
+    recoverable: true
+    stage_affinity: etl_hardware
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-etl-0101
+    introduced_in: 39.5.2
+  ALEMS-ETL-0102:
+    title: SPBM telemetry ETL failed
+    meaning: spbm_telemetry_etl did not complete for the run; derived rows may be missing
+    causes: []
+    actions:
+    - read the error record traceback
+    - rerun the ETL with --run-id
+    severity: warn
+    recoverable: true
+    stage_affinity: etl_hardware
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-etl-0102
+    introduced_in: 39.5.2
+  ALEMS-ETL-0103:
+    title: Network ETL failed
+    meaning: network_etl did not complete for the run; derived rows may be missing
+    causes: []
+    actions:
+    - read the error record traceback
+    - rerun the ETL with --run-id
+    severity: warn
+    recoverable: true
+    stage_affinity: etl_hardware
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-etl-0103
+    introduced_in: 39.5.2
   ALEMS-GEN-0000:
     title: Unclassified failure
     meaning: A failure occurred that no catalog code or rule describes yet
@@ -19,6 +232,134 @@ codes:
     status: active
     replaced_by: null
     doc_anchor: err-gen-0000
+    introduced_in: 39.5.2
+  ALEMS-NET-0001:
+    title: DNS resolution failed
+    meaning: the host name could not be resolved
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0001
+    introduced_in: 39.5.2
+  ALEMS-NET-0002:
+    title: Connection failed
+    meaning: connection refused or host unreachable (network down, server not running)
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0002
+    introduced_in: 39.5.2
+  ALEMS-NET-0003:
+    title: TLS failure
+    meaning: the TLS handshake or certificate check failed
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0003
+    introduced_in: 39.5.2
+  ALEMS-NET-0004:
+    title: Timeout
+    meaning: the operation exceeded its timeout
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0004
+    introduced_in: 39.5.2
+    taxonomy_hint: transient_api_failure
+  ALEMS-NET-0005:
+    title: Connection reset
+    meaning: the connection was reset during the request
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0005
+    introduced_in: 39.5.2
+    taxonomy_hint: transient_api_failure
+  ALEMS-OBS-0001:
+    title: Error capture failed
+    meaning: an error occurred but its record could not be captured; the original exception is unaffected
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-obs-0001
+    introduced_in: 39.5.2
+  ALEMS-OBS-0002:
+    title: Observability buffer overflow
+    meaning: a non lossy buffer refused records inside the measurement window
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: invalid
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-obs-0002
+    introduced_in: 39.5.2
+  ALEMS-OBS-0003:
+    title: Gate consumer failed
+    meaning: a gate consumer raised while receiving records
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-obs-0003
+    introduced_in: 39.5.2
+  ALEMS-OBS-0004:
+    title: Stage row write failed
+    meaning: stage_event rows for the run could not be written
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-obs-0004
     introduced_in: 39.5.2
   ALEMS-PERS-0001:
     title: Run row not inserted
@@ -171,264 +512,6 @@ codes:
     replaced_by: null
     doc_anchor: err-pers-0107
     introduced_in: 39.5.2
-  ALEMS-ETL-0101:
-    title: GPU SPBM ETL failed
-    meaning: gpu_spbm_etl did not complete for the run; derived rows may be missing
-    causes: []
-    actions:
-    - read the error record traceback
-    - rerun the ETL with --run-id
-    severity: warn
-    recoverable: true
-    stage_affinity: etl_hardware
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-etl-0101
-    introduced_in: 39.5.2
-  ALEMS-ETL-0102:
-    title: SPBM telemetry ETL failed
-    meaning: spbm_telemetry_etl did not complete for the run; derived rows may be missing
-    causes: []
-    actions:
-    - read the error record traceback
-    - rerun the ETL with --run-id
-    severity: warn
-    recoverable: true
-    stage_affinity: etl_hardware
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-etl-0102
-    introduced_in: 39.5.2
-  ALEMS-ETL-0103:
-    title: Network ETL failed
-    meaning: network_etl did not complete for the run; derived rows may be missing
-    causes: []
-    actions:
-    - read the error record traceback
-    - rerun the ETL with --run-id
-    severity: warn
-    recoverable: true
-    stage_affinity: etl_hardware
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-etl-0103
-    introduced_in: 39.5.2
-  ALEMS-ATTR-0001:
-    title: Residual not computed
-    meaning: the residual step had no store connection and produced no row
-    causes: []
-    actions: []
-    severity: error
-    recoverable: true
-    stage_affinity: residual
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-attr-0001
-    introduced_in: 39.5.2
-  ALEMS-SPAN-0001:
-    title: Span building failed
-    meaning: spans for the run could not be built from the agent trace
-    causes: []
-    actions: []
-    severity: error
-    recoverable: true
-    stage_affinity: spans
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-span-0001
-    introduced_in: 39.5.2
-  ALEMS-SPAN-0002:
-    title: Span writing failed
-    meaning: built spans could not be written
-    causes: []
-    actions: []
-    severity: error
-    recoverable: true
-    stage_affinity: spans
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-span-0002
-    introduced_in: 39.5.2
-  ALEMS-OBS-0001:
-    title: Error capture failed
-    meaning: an error occurred but its record could not be captured; the original exception is unaffected
-    causes: []
-    actions: []
-    severity: warn
-    recoverable: true
-    stage_affinity: null
-    affects_validity: none
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-obs-0001
-    introduced_in: 39.5.2
-  ALEMS-OBS-0002:
-    title: Observability buffer overflow
-    meaning: a non lossy buffer refused records inside the measurement window
-    causes: []
-    actions: []
-    severity: error
-    recoverable: true
-    stage_affinity: null
-    affects_validity: invalid
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-obs-0002
-    introduced_in: 39.5.2
-  ALEMS-OBS-0003:
-    title: Gate consumer failed
-    meaning: a gate consumer raised while receiving records
-    causes: []
-    actions: []
-    severity: warn
-    recoverable: true
-    stage_affinity: null
-    affects_validity: none
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-obs-0003
-    introduced_in: 39.5.2
-  ALEMS-OBS-0004:
-    title: Stage row write failed
-    meaning: stage_event rows for the run could not be written
-    causes: []
-    actions: []
-    severity: warn
-    recoverable: true
-    stage_affinity: null
-    affects_validity: none
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-obs-0004
-    introduced_in: 39.5.2
-  ALEMS-CFG-0001:
-    title: Config file missing
-    meaning: a required configuration file does not exist
-    causes: []
-    actions: []
-    severity: error
-    recoverable: false
-    stage_affinity: setup
-    affects_validity: invalid
-    exit_code: 3
-    status: active
-    replaced_by: null
-    doc_anchor: err-cfg-0001
-    introduced_in: 39.5.2
-  ALEMS-CFG-0002:
-    title: YAML syntax error
-    meaning: a YAML file could not be parsed; file, line, and column are in the message
-    causes: []
-    actions: []
-    severity: error
-    recoverable: false
-    stage_affinity: setup
-    affects_validity: invalid
-    exit_code: 3
-    status: active
-    replaced_by: null
-    doc_anchor: err-cfg-0002
-    introduced_in: 39.5.2
-  ALEMS-CFG-0003:
-    title: JSON syntax error
-    meaning: a JSON file could not be parsed
-    causes: []
-    actions: []
-    severity: error
-    recoverable: false
-    stage_affinity: setup
-    affects_validity: invalid
-    exit_code: 3
-    status: active
-    replaced_by: null
-    doc_anchor: err-cfg-0003
-    introduced_in: 39.5.2
-  ALEMS-CFG-0004:
-    title: Config schema violation
-    meaning: a configuration file fails its JSON Schema
-    causes: []
-    actions: []
-    severity: error
-    recoverable: false
-    stage_affinity: setup
-    affects_validity: invalid
-    exit_code: 3
-    status: active
-    replaced_by: null
-    doc_anchor: err-cfg-0004
-    introduced_in: 39.5.2
-  ALEMS-CFG-0005:
-    title: Unknown config key
-    meaning: a key not declared in the schema was rejected
-    causes: []
-    actions: []
-    severity: error
-    recoverable: false
-    stage_affinity: setup
-    affects_validity: invalid
-    exit_code: 3
-    status: active
-    replaced_by: null
-    doc_anchor: err-cfg-0005
-    introduced_in: 39.5.2
-  ALEMS-CFG-0006:
-    title: Same layer collision
-    meaning: two sources in one precedence layer set the same key
-    causes: []
-    actions: []
-    severity: error
-    recoverable: false
-    stage_affinity: setup
-    affects_validity: invalid
-    exit_code: 3
-    status: active
-    replaced_by: null
-    doc_anchor: err-cfg-0006
-    introduced_in: 39.5.2
-  ALEMS-CFG-0007:
-    title: Forbidden key in layer
-    meaning: hardware, endpoint, or credential set outside the machine layer
-    causes: []
-    actions: []
-    severity: error
-    recoverable: false
-    stage_affinity: setup
-    affects_validity: invalid
-    exit_code: 3
-    status: active
-    replaced_by: null
-    doc_anchor: err-cfg-0007
-    introduced_in: 39.5.2
-  ALEMS-CFG-0008:
-    title: Credential missing
-    meaning: no credential found for the selected provider
-    causes: []
-    actions: []
-    severity: error
-    recoverable: false
-    stage_affinity: setup
-    affects_validity: invalid
-    exit_code: 3
-    status: active
-    replaced_by: null
-    doc_anchor: err-cfg-0008
-    introduced_in: 39.5.2
   ALEMS-PROV-0001:
     title: Authentication failed
     meaning: the provider rejected the credential (wrong, expired, or revoked key)
@@ -543,78 +626,34 @@ codes:
     replaced_by: null
     doc_anchor: err-prov-0203
     introduced_in: 39.5.2
-  ALEMS-NET-0001:
-    title: DNS resolution failed
-    meaning: the host name could not be resolved
+  ALEMS-SPAN-0001:
+    title: Span building failed
+    meaning: spans for the run could not be built from the agent trace
     causes: []
     actions: []
     severity: error
     recoverable: true
-    stage_affinity: null
+    stage_affinity: spans
     affects_validity: partial
     exit_code: 1
     status: active
     replaced_by: null
-    doc_anchor: err-net-0001
+    doc_anchor: err-span-0001
     introduced_in: 39.5.2
-  ALEMS-NET-0002:
-    title: Connection failed
-    meaning: connection refused or host unreachable (network down, server not running)
+  ALEMS-SPAN-0002:
+    title: Span writing failed
+    meaning: built spans could not be written
     causes: []
     actions: []
     severity: error
     recoverable: true
-    stage_affinity: null
+    stage_affinity: spans
     affects_validity: partial
     exit_code: 1
     status: active
     replaced_by: null
-    doc_anchor: err-net-0002
+    doc_anchor: err-span-0002
     introduced_in: 39.5.2
-  ALEMS-NET-0003:
-    title: TLS failure
-    meaning: the TLS handshake or certificate check failed
-    causes: []
-    actions: []
-    severity: error
-    recoverable: true
-    stage_affinity: null
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-net-0003
-    introduced_in: 39.5.2
-  ALEMS-NET-0004:
-    title: Timeout
-    meaning: the operation exceeded its timeout
-    causes: []
-    actions: []
-    severity: warn
-    recoverable: true
-    stage_affinity: null
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-net-0004
-    introduced_in: 39.5.2
-    taxonomy_hint: transient_api_failure
-  ALEMS-NET-0005:
-    title: Connection reset
-    meaning: the connection was reset during the request
-    causes: []
-    actions: []
-    severity: warn
-    recoverable: true
-    stage_affinity: null
-    affects_validity: partial
-    exit_code: 1
-    status: active
-    replaced_by: null
-    doc_anchor: err-net-0005
-    introduced_in: 39.5.2
-    taxonomy_hint: transient_api_failure
   ALEMS-TOOL-0001:
     title: Tool raised
     meaning: a tool raised during execution
@@ -700,14 +739,17 @@ rules:
 - class: yaml.YAMLError
   code: ALEMS-CFG-0002
 - class: json.JSONDecodeError
-  component: core.config
+  component: core.config_loader
   code: ALEMS-CFG-0003
 - class: jsonschema.ValidationError
   code: ALEMS-CFG-0004
 - class: FileNotFoundError
-  component: core.config
+  component: core.config_loader
   code: ALEMS-CFG-0001
 - origin: core.vocabularies.agent.span_builder
   code: ALEMS-SPAN-0001
 - origin: core.vocabularies.agent.span_writer
   code: ALEMS-SPAN-0002
+- class: core.execution.PersistenceError
+  message: insert_run returned None
+  code: ALEMS-PERS-0001

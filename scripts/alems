@@ -407,6 +407,10 @@ print(resolve_store())
                 _store=$(python3 -c "import sys; sys.path.insert(0,'scripts/tools'); from path_loader import get_alems_db_path; print(get_alems_db_path())")
                 python3 -m core.integrity.catalog --store "$_store" "$@"
                 ;;
+            error-codes)
+                # Error code catalog (C-ERR v2): schema, rules, literals, doc anchors; --write-docs regenerates the page.
+                python3 scripts/tools/validate_error_codes.py "$@"
+                ;;
             energy)
                 python3 scripts/validate_energy_chain_v2.py "$@"
                 ;;
@@ -426,6 +430,7 @@ print(resolve_store())
                 echo "Usage: alems validate <subcommand>"
                 echo "  integrity    -- experiment integrity check"
                 echo "  invariants   -- invariant catalog (C-INV), --since RUN_ID, --json, --out FILE"
+                echo "  error-codes  -- error code catalog (C-ERR), --write-docs"
                 echo "  energy       -- energy chain validation"
                 echo "  phase        -- phase attribution validation"
                 echo "  attribution  -- chunk61 attribution validation"
@@ -467,6 +472,7 @@ print(resolve_store())
         echo "    alems validate report             — energy chain report"
         echo "    alems validate persistence        — INV-D1, INV-D2, coverage (--runs, --against, --json)"
         echo "    alems validate invariants         — invariant catalog, Leg C (--since, --store, --json)"
+        echo "    alems validate error-codes        — error code catalog, C-ERR (--write-docs)"
         echo ""
         echo "  Plugin and schema commands:"
         echo "    alems plugins                     — list installed plugins"

@@ -80,6 +80,11 @@ class ConfigLoader:
             self._hardware_config = resolve_hw_config()
         except Exception as _e:
             logger.warning("resolve_hw_config failed, falling back to direct load: %s", _e)
+            try:
+                from core.observability import errors as _obs_errors
+                _obs_errors.capture(_e, code="ALEMS-CFG-0009", component=__name__)
+            except Exception as _ce:  # noqa: BLE001  capture never breaks config load (5.2a)
+                logger.debug("error capture unavailable: %s", _ce)
             self._hardware_config = self._load_json("hw_config.json")
         print(
             f"✅ Loaded hardware config: {list(self._hardware_config.keys()) if self._hardware_config else 'None'}"
@@ -124,6 +129,12 @@ class ConfigLoader:
             return data
         except Exception as e:
             print(f"⚠️ Error loading {filename}: {e}")
+            try:
+                # JSON syntax errors classify as ALEMS-CFG-0003 (component rule)
+                from core.observability import errors as _obs_errors
+                _obs_errors.capture(e, component=__name__)
+            except Exception as _ce:  # noqa: BLE001  capture never breaks config load (5.2a)
+                logger.debug("error capture unavailable: %s", _ce)
             return {}
     def _source_alemsrc(self) -> None:
         """
@@ -340,6 +351,12 @@ class ConfigLoader:
             return None
         except Exception as e:
             logger.error(f"Failed to load country metrics: {e}")
+            try:
+                # YAML syntax errors classify as ALEMS-CFG-0002 (class rule)
+                from core.observability import errors as _obs_errors
+                _obs_errors.capture(e, component=__name__)
+            except Exception as _ce:  # noqa: BLE001  capture never breaks config load (5.2a)
+                logger.debug("error capture unavailable: %s", _ce)
             return None
 
     # ========================================================================

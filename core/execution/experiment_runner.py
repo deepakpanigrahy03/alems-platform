@@ -1249,21 +1249,25 @@ class ExperimentRunner:
         _agentic_writer = SpanWriter(trace_id=_trace_id)
         _agentic_span_id = _agentic_writer.open_span("run", f"agentic:{task_id}")
         _agentic_writer.close_span(_agentic_span_id)
-        # Build child spans from result data -- must happen before flush_to_db (EEI-4).
-        _hw_info_spans = self.get_hardware_info()
-        build_spans_from_result(_linear_writer, _linear_span_id, linear_result, "linear", _hw_info_spans)
-        build_spans_from_result(_agentic_writer, _agentic_span_id, agentic_result, "agentic", _hw_info_spans)
-
-        # All persistence for both runs through the one writer (C3, G77).
-        # Each run commits on its own; spans flush right after each run row.
-        _persist = RunPersistenceService()
         # C-EV stage recorders, one per run (39.5.2c). Rows are written after
         # both runs, also when persistence raises; the exception propagates.
+        # Created before span building so the build is part 1 of the spans
+        # stage (39.5.2d): a swallowed build failure lands on that stage.
         from core.observability.stages import StageRecorder, persist_after_run, stage_or_noop
         _lin_st = StageRecorder("save_pair",
                                 run_uid=linear_result["ml_features"].get("global_run_id"))
         _agt_st = StageRecorder("save_pair",
                                 run_uid=agentic_result["ml_features"].get("global_run_id"))
+        # Build child spans from result data -- must happen before flush_to_db (EEI-4).
+        _hw_info_spans = self.get_hardware_info()
+        with stage_or_noop(_lin_st, "spans"):
+            build_spans_from_result(_linear_writer, _linear_span_id, linear_result, "linear", _hw_info_spans)
+        with stage_or_noop(_agt_st, "spans"):
+            build_spans_from_result(_agentic_writer, _agentic_span_id, agentic_result, "agentic", _hw_info_spans)
+
+        # All persistence for both runs through the one writer (C3, G77).
+        # Each run commits on its own; spans flush right after each run row.
+        _persist = RunPersistenceService()
         try:
             linear_id = _persist.insert_one_run(
                 db, exp_id, hw_id, linear_result, "linear", rep_num,
@@ -1634,14 +1638,16 @@ class ExperimentRunner:
             _span_writer = SpanWriter()
             _span_id = _span_writer.open_span("run", f"{workflow_type}:{task_id}")
             _span_writer.close_span(_span_id)
-            build_spans_from_result(_span_writer, _span_id, result, workflow_type, self.get_hardware_info())
-
-            # All persistence through the one writer (C3, G77, G91).
             # C-EV stage recorder (39.5.2c); rows written after the run, also
-            # when persistence raises; the exception propagates.
+            # when persistence raises; the exception propagates. Created before
+            # span building so the build is part 1 of the spans stage (39.5.2d).
             from core.observability.stages import StageRecorder, persist_after_run, stage_or_noop
             _st = StageRecorder("save_single",
                                 run_uid=result.get("ml_features", {}).get("global_run_id"))
+            with stage_or_noop(_st, "spans"):
+                build_spans_from_result(_span_writer, _span_id, result, workflow_type, self.get_hardware_info())
+
+            # All persistence through the one writer (C3, G77, G91).
             try:
                 run_id = RunPersistenceService().insert_one_run(
                     db, exp_id, hw_id, result, workflow_type, rep_num,

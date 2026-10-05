@@ -372,7 +372,6 @@ class RunPersistenceService:
         run_id = db.insert_run(exp_id, hw_id, result)
         if run_id is None:
             logger.warning("_insert_run_row: insert_run returned None")
-            _capture_msg("insert_run returned None", "ALEMS-PERS-0001")
             return None
 
         # Provenance must be recorded immediately after insert

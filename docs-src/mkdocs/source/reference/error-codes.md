@@ -1,6 +1,6 @@
 # Error Codes
 
-Generated from config/error_codes.yaml (catalog 1.0.0). Do not edit by hand.
+Generated from config/error_codes.yaml (catalog 1.1.0). Do not edit by hand.
 
 Published code meanings are permanent.
 
@@ -57,6 +57,26 @@ Severity error; recoverable False; affects validity invalid; stage affinity setu
 **Meaning:** no credential found for the selected provider
 
 Severity error; recoverable False; affects validity invalid; stage affinity setup; status active.
+
+## ALEMS-CFG-0009 Hardware config accessor failed { #err-cfg-0009 }
+
+**Meaning:** resolve_hw_config raised; the legacy direct load of hw_config.json was used instead
+
+Severity warn; recoverable True; affects validity none; stage affinity setup; status active.
+
+**Causes:** machine config path unreadable; data root not configured
+
+**Actions:** run alems sandbox doctor; check <data_root>/<host>/config/hw_config.json
+
+## ALEMS-CFG-0010 Data root not configured { #err-cfg-0010 }
+
+**Meaning:** no data root and no explicit log and error directories are configured; a run cannot start because logs and error records have nowhere to go
+
+Severity fatal; recoverable False; affects validity invalid; stage affinity setup; status active.
+
+**Causes:** ALEMS_DATA_ROOT not set; ~/.alemsrc missing or failed to load
+
+**Actions:** add export ALEMS_DATA_ROOT=/path to ~/.alemsrc; or export ALEMS_DATA_ROOT in the shell; or export ALEMS_LOG_DIR and ALEMS_ERROR_DIR; verify with alems sandbox doctor
 
 ## ALEMS-ETL-0101 GPU SPBM ETL failed { #err-etl-0101 }
 

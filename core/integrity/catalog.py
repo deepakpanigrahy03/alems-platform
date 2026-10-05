@@ -86,6 +86,40 @@ def _eval_all_zero(conn: sqlite3.Connection, inv: Dict[str, Any], since: int) ->
     return {"status": None, "count": len(hits), "sample": hits, "reason": reason}
 
 
+def _eval_error_refs(conn: sqlite3.Connection, inv: Dict[str, Any], since: int) -> Dict[str, Any]:
+    """
+    INV-EV5: every stage error_ref resolves to an error record of the same
+    stage (and run, when the record knows its run_uid), or the run has
+    observability_overflow = 1 (design 39.5.2d section 6 rule 6).
+
+    Error records are host level files, so a store evaluated on a host
+    without an error directory is not_evaluable, never pass.
+    """
+    from core.observability import errors as obs_errors
+    from core.observability import locations
+    if locations.error_dir() is None:
+        return {"status": "not_evaluable", "count": None, "sample": [],
+                "reason": "no error directory on this host"}
+    try:
+        rows = conn.execute(
+            "SELECT s.run_uid, s.stage_id, s.error_ref, r.observability_overflow "
+            "FROM stage_event s LEFT JOIN runs r ON r.run_id = s.run_id "
+            "WHERE s.error_ref IS NOT NULL AND (s.run_id IS NULL OR s.run_id > ?)",
+            (since,)).fetchall()
+    except sqlite3.Error as exc:
+        return {"status": "not_evaluable", "count": None, "sample": [], "reason": str(exc)}
+    hits: List[List[Any]] = []
+    for uid, sid, ref, overflow in rows:
+        rec = obs_errors.find(ref)
+        if rec is None:
+            if overflow != 1:  # overflow is the only legal reason for a missing record
+                hits.append(["error_ref:" + ref, "no error record and no overflow"])
+            continue
+        if rec.get("stage_id") != sid or (rec.get("run_uid") and rec["run_uid"] != uid):
+            hits.append(["error_ref:" + ref, "record stage or run_uid differs from the stage row"])
+    return {"status": None, "count": len(hits), "sample": hits[:SAMPLE_LIMIT], "reason": None}
+
+
 def evaluate(conn: sqlite3.Connection, catalog: Dict[str, Any], since: int = 0) -> List[Dict[str, Any]]:
     """
     Evaluate every invariant.
@@ -108,6 +142,8 @@ def evaluate(conn: sqlite3.Connection, catalog: Dict[str, Any], since: int = 0) 
             res = _eval_sql(conn, inv, params)
         elif kind == "all_zero":
             res = _eval_all_zero(conn, inv, since)
+        elif kind == "error_refs":
+            res = _eval_error_refs(conn, inv, since)
         else:
             # Delegated checks have their own command; listed so no id is silently missing.
             res = {"status": "delegated", "count": None, "sample": [],

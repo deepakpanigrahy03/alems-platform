@@ -103,6 +103,8 @@ def capture_coded(exc: BaseException, code: Optional[str] = None,
             "ts": datetime.now(timezone.utc).isoformat(), "event_seq": gate.next_seq(),
             "context": dict(ctx), "pid": os.getpid(), "exc": exc,
             "recoverable_override": recoverable, "captured_inside_window": inside,
+            # the recorder knows run_uid even where the log context is not bound
+            "run_uid_hint": getattr(active[0], "run_uid", None) if active else None,
         }
         if not inside:
             # outside the window classification may read the traceback now,
@@ -180,7 +182,7 @@ def build_record(rec: Dict[str, Any]) -> Dict[str, Any]:
         "error_code": code, "declared_code": declared,
         "catalog_version": error_catalog.load()["catalog_version"],
         "ts": rec["ts"], "event_seq": rec["event_seq"], "component": rec["component"],
-        "stage_id": rec["stage_id"], "run_uid": ctx.get("run_uid"), "run_id": ctx.get("run_id"),
+        "stage_id": rec["stage_id"], "run_uid": ctx.get("run_uid") or rec.get("run_uid_hint"), "run_id": ctx.get("run_id"),
         "sandbox_id": ctx.get("sandbox_id"), "exp_id": ctx.get("exp_id"),
         "store_path": ctx.get("store_path"), "host": ctx.get("host") or socket.gethostname(),
         "engine_id": ctx.get("engine_id"), "pid": rec["pid"],
