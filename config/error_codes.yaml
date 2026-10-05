@@ -1,0 +1,713 @@
+# A-LEMS error code catalog (C-ERR v2, DESIGN_39_5_2d_ERROR_CODES).
+# Published code meanings are permanent under every catalog_version.
+# MAJOR: incompatible catalog format; MINOR: new codes or rules; PATCH: text not altering meaning.
+# Validate: python3 scripts/tools/validate_error_codes.py
+catalog_version: 1.0.0
+codes:
+  ALEMS-GEN-0000:
+    title: Unclassified failure
+    meaning: A failure occurred that no catalog code or rule describes yet
+    causes: []
+    actions:
+    - read the error record traceback
+    - add a code or rule in config/error_codes.yaml
+    severity: error
+    recoverable: false
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-gen-0000
+    introduced_in: 39.5.2
+  ALEMS-PERS-0001:
+    title: Run row not inserted
+    meaning: insert_run returned no run_id; the run has no runs row
+    causes:
+    - writer rejected the insert
+    - schema mismatch
+    actions:
+    - run alems migrate check
+    - read the host log for the writer error
+    severity: error
+    recoverable: false
+    stage_affinity: persist_run
+    affects_validity: invalid
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-pers-0001
+    introduced_in: 39.5.2
+  ALEMS-PERS-0101:
+    title: Device telemetry not persisted
+    meaning: device_telemetry rows for the run could not be written; run energy is unaffected
+    causes:
+    - writer rejected the batch
+    - schema mismatch
+    - malformed reader buffer
+    actions:
+    - read the error record traceback
+    - run alems migrate check
+    severity: warn
+    recoverable: true
+    stage_affinity: persist_samples
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-pers-0101
+    introduced_in: 39.5.2
+  ALEMS-PERS-0102:
+    title: Power rail samples not persisted
+    meaning: power_rail rows for the run could not be written; run energy is unaffected
+    causes:
+    - writer rejected the batch
+    - schema mismatch
+    - malformed reader buffer
+    actions:
+    - read the error record traceback
+    - run alems migrate check
+    severity: warn
+    recoverable: true
+    stage_affinity: persist_samples
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-pers-0102
+    introduced_in: 39.5.2
+  ALEMS-PERS-0103:
+    title: CPU idle states (ARM) not persisted
+    meaning: cpu_idle_states rows for the run could not be written; run energy is unaffected
+    causes:
+    - writer rejected the batch
+    - schema mismatch
+    - malformed reader buffer
+    actions:
+    - read the error record traceback
+    - run alems migrate check
+    severity: warn
+    recoverable: true
+    stage_affinity: persist_samples
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-pers-0103
+    introduced_in: 39.5.2
+  ALEMS-PERS-0104:
+    title: CPU idle states (x86) not persisted
+    meaning: cpu_idle_states rows for the run could not be written; run energy is unaffected
+    causes:
+    - writer rejected the batch
+    - schema mismatch
+    - malformed reader buffer
+    actions:
+    - read the error record traceback
+    - run alems migrate check
+    severity: warn
+    recoverable: true
+    stage_affinity: persist_samples
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-pers-0104
+    introduced_in: 39.5.2
+  ALEMS-PERS-0105:
+    title: Thermal samples not persisted
+    meaning: thermal_samples_v2 rows for the run could not be written; run energy is unaffected
+    causes:
+    - writer rejected the batch
+    - schema mismatch
+    - malformed reader buffer
+    actions:
+    - read the error record traceback
+    - run alems migrate check
+    severity: warn
+    recoverable: true
+    stage_affinity: persist_samples
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-pers-0105
+    introduced_in: 39.5.2
+  ALEMS-PERS-0106:
+    title: Cooling samples not persisted
+    meaning: cooling_samples rows for the run could not be written; run energy is unaffected
+    causes:
+    - writer rejected the batch
+    - schema mismatch
+    - malformed reader buffer
+    actions:
+    - read the error record traceback
+    - run alems migrate check
+    severity: warn
+    recoverable: true
+    stage_affinity: persist_samples
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-pers-0106
+    introduced_in: 39.5.2
+  ALEMS-PERS-0107:
+    title: Summary CPU sample not persisted
+    meaning: cpu_samples rows for the run could not be written; run energy is unaffected
+    causes:
+    - writer rejected the batch
+    - schema mismatch
+    - malformed reader buffer
+    actions:
+    - read the error record traceback
+    - run alems migrate check
+    severity: warn
+    recoverable: true
+    stage_affinity: persist_samples
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-pers-0107
+    introduced_in: 39.5.2
+  ALEMS-ETL-0101:
+    title: GPU SPBM ETL failed
+    meaning: gpu_spbm_etl did not complete for the run; derived rows may be missing
+    causes: []
+    actions:
+    - read the error record traceback
+    - rerun the ETL with --run-id
+    severity: warn
+    recoverable: true
+    stage_affinity: etl_hardware
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-etl-0101
+    introduced_in: 39.5.2
+  ALEMS-ETL-0102:
+    title: SPBM telemetry ETL failed
+    meaning: spbm_telemetry_etl did not complete for the run; derived rows may be missing
+    causes: []
+    actions:
+    - read the error record traceback
+    - rerun the ETL with --run-id
+    severity: warn
+    recoverable: true
+    stage_affinity: etl_hardware
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-etl-0102
+    introduced_in: 39.5.2
+  ALEMS-ETL-0103:
+    title: Network ETL failed
+    meaning: network_etl did not complete for the run; derived rows may be missing
+    causes: []
+    actions:
+    - read the error record traceback
+    - rerun the ETL with --run-id
+    severity: warn
+    recoverable: true
+    stage_affinity: etl_hardware
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-etl-0103
+    introduced_in: 39.5.2
+  ALEMS-ATTR-0001:
+    title: Residual not computed
+    meaning: the residual step had no store connection and produced no row
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: residual
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-attr-0001
+    introduced_in: 39.5.2
+  ALEMS-SPAN-0001:
+    title: Span building failed
+    meaning: spans for the run could not be built from the agent trace
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: spans
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-span-0001
+    introduced_in: 39.5.2
+  ALEMS-SPAN-0002:
+    title: Span writing failed
+    meaning: built spans could not be written
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: spans
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-span-0002
+    introduced_in: 39.5.2
+  ALEMS-OBS-0001:
+    title: Error capture failed
+    meaning: an error occurred but its record could not be captured; the original exception is unaffected
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-obs-0001
+    introduced_in: 39.5.2
+  ALEMS-OBS-0002:
+    title: Observability buffer overflow
+    meaning: a non lossy buffer refused records inside the measurement window
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: invalid
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-obs-0002
+    introduced_in: 39.5.2
+  ALEMS-OBS-0003:
+    title: Gate consumer failed
+    meaning: a gate consumer raised while receiving records
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-obs-0003
+    introduced_in: 39.5.2
+  ALEMS-OBS-0004:
+    title: Stage row write failed
+    meaning: stage_event rows for the run could not be written
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-obs-0004
+    introduced_in: 39.5.2
+  ALEMS-CFG-0001:
+    title: Config file missing
+    meaning: a required configuration file does not exist
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0001
+    introduced_in: 39.5.2
+  ALEMS-CFG-0002:
+    title: YAML syntax error
+    meaning: a YAML file could not be parsed; file, line, and column are in the message
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0002
+    introduced_in: 39.5.2
+  ALEMS-CFG-0003:
+    title: JSON syntax error
+    meaning: a JSON file could not be parsed
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0003
+    introduced_in: 39.5.2
+  ALEMS-CFG-0004:
+    title: Config schema violation
+    meaning: a configuration file fails its JSON Schema
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0004
+    introduced_in: 39.5.2
+  ALEMS-CFG-0005:
+    title: Unknown config key
+    meaning: a key not declared in the schema was rejected
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0005
+    introduced_in: 39.5.2
+  ALEMS-CFG-0006:
+    title: Same layer collision
+    meaning: two sources in one precedence layer set the same key
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0006
+    introduced_in: 39.5.2
+  ALEMS-CFG-0007:
+    title: Forbidden key in layer
+    meaning: hardware, endpoint, or credential set outside the machine layer
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0007
+    introduced_in: 39.5.2
+  ALEMS-CFG-0008:
+    title: Credential missing
+    meaning: no credential found for the selected provider
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: setup
+    affects_validity: invalid
+    exit_code: 3
+    status: active
+    replaced_by: null
+    doc_anchor: err-cfg-0008
+    introduced_in: 39.5.2
+  ALEMS-PROV-0001:
+    title: Authentication failed
+    meaning: the provider rejected the credential (wrong, expired, or revoked key)
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: null
+    affects_validity: invalid
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-prov-0001
+    introduced_in: 39.5.2
+  ALEMS-PROV-0002:
+    title: Access denied
+    meaning: the credential is valid but lacks access to the model or resource
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: null
+    affects_validity: invalid
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-prov-0002
+    introduced_in: 39.5.2
+  ALEMS-PROV-0101:
+    title: Model or endpoint not found
+    meaning: the provider returned 404 for the model or endpoint
+    causes: []
+    actions: []
+    severity: error
+    recoverable: false
+    stage_affinity: null
+    affects_validity: invalid
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-prov-0101
+    introduced_in: 39.5.2
+  ALEMS-PROV-0102:
+    title: Rate limited
+    meaning: the provider throttled the request or the quota is exhausted (429)
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-prov-0102
+    introduced_in: 39.5.2
+    taxonomy_hint: transient_api_failure
+  ALEMS-PROV-0103:
+    title: Request rejected
+    meaning: the provider rejected the request as invalid (400, 422; context length, bad parameter)
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-prov-0103
+    introduced_in: 39.5.2
+  ALEMS-PROV-0201:
+    title: Provider server error
+    meaning: the provider returned a 5xx response
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-prov-0201
+    introduced_in: 39.5.2
+    taxonomy_hint: transient_api_failure
+  ALEMS-PROV-0202:
+    title: Malformed response
+    meaning: the provider response could not be parsed or was truncated
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-prov-0202
+    introduced_in: 39.5.2
+  ALEMS-PROV-0203:
+    title: Content refused
+    meaning: the provider refused or filtered the content
+    causes: []
+    actions: []
+    severity: info
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-prov-0203
+    introduced_in: 39.5.2
+  ALEMS-NET-0001:
+    title: DNS resolution failed
+    meaning: the host name could not be resolved
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0001
+    introduced_in: 39.5.2
+  ALEMS-NET-0002:
+    title: Connection failed
+    meaning: connection refused or host unreachable (network down, server not running)
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0002
+    introduced_in: 39.5.2
+  ALEMS-NET-0003:
+    title: TLS failure
+    meaning: the TLS handshake or certificate check failed
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0003
+    introduced_in: 39.5.2
+  ALEMS-NET-0004:
+    title: Timeout
+    meaning: the operation exceeded its timeout
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0004
+    introduced_in: 39.5.2
+    taxonomy_hint: transient_api_failure
+  ALEMS-NET-0005:
+    title: Connection reset
+    meaning: the connection was reset during the request
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-net-0005
+    introduced_in: 39.5.2
+    taxonomy_hint: transient_api_failure
+  ALEMS-TOOL-0001:
+    title: Tool raised
+    meaning: a tool raised during execution
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-tool-0001
+    introduced_in: 39.5.2
+  ALEMS-TOOL-0002:
+    title: Tool not found
+    meaning: the requested tool is not in the catalog
+    causes: []
+    actions: []
+    severity: error
+    recoverable: true
+    stage_affinity: null
+    affects_validity: partial
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-tool-0002
+    introduced_in: 39.5.2
+  ALEMS-TOOL-0003:
+    title: Tool arguments invalid
+    meaning: tool arguments fail the tool parameter schema
+    causes: []
+    actions: []
+    severity: warn
+    recoverable: true
+    stage_affinity: null
+    affects_validity: none
+    exit_code: 1
+    status: active
+    replaced_by: null
+    doc_anchor: err-tool-0003
+    introduced_in: 39.5.2
+rules:
+- class: openai.AuthenticationError
+  code: ALEMS-PROV-0001
+- class: anthropic.AuthenticationError
+  code: ALEMS-PROV-0001
+- http_status: 401
+  code: ALEMS-PROV-0001
+- http_status: 403
+  code: ALEMS-PROV-0002
+- http_status: 404
+  component: core.models
+  code: ALEMS-PROV-0101
+- http_status: 400
+  code: ALEMS-PROV-0103
+- http_status: 422
+  code: ALEMS-PROV-0103
+- http_status: 429
+  code: ALEMS-PROV-0102
+- http_status_range:
+  - 500
+  - 599
+  code: ALEMS-PROV-0201
+- class: requests.exceptions.ConnectionError
+  code: ALEMS-NET-0002
+- class: httpx.ConnectError
+  code: ALEMS-NET-0002
+- class: ConnectionRefusedError
+  code: ALEMS-NET-0002
+- class: socket.gaierror
+  code: ALEMS-NET-0001
+- class: ssl.SSLError
+  code: ALEMS-NET-0003
+- class: TimeoutError
+  code: ALEMS-NET-0004
+- class: requests.exceptions.Timeout
+  code: ALEMS-NET-0004
+- class: httpx.TimeoutException
+  code: ALEMS-NET-0004
+- class: ConnectionResetError
+  code: ALEMS-NET-0005
+- class: yaml.YAMLError
+  code: ALEMS-CFG-0002
+- class: json.JSONDecodeError
+  component: core.config
+  code: ALEMS-CFG-0003
+- class: jsonschema.ValidationError
+  code: ALEMS-CFG-0004
+- class: FileNotFoundError
+  component: core.config
+  code: ALEMS-CFG-0001
+- origin: core.vocabularies.agent.span_builder
+  code: ALEMS-SPAN-0001
+- origin: core.vocabularies.agent.span_writer
+  code: ALEMS-SPAN-0002

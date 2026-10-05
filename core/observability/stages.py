@@ -169,22 +169,56 @@ class StageRecorder(object):
         if dep is not None:
             # v1 code ran despite a failed dependency; record what happened
             info["reason"] = "ran_despite:%s" % dep
+        # mark this stage active so swallowed failures inside it are noted (2d 7.2)
+        token = _obs_errors().push_stage(self, stage_id)
         try:
             yield info
-        except BaseException:
-            self._record(stage_id, "failed", start, reason=info["reason"] or "exception",
-                         counts=info["counts"])
+        except BaseException as exc:
+            # exception path: capture, code in reason, error_ref on the row (2d 7.1)
+            self.__dict__.get("_notes", {}).pop(stage_id, None)
+            ref, reason = _stage_failure(exc, info["reason"])
+            self._record(stage_id, "failed", start, reason=reason,
+                         counts=info["counts"], error_ref=ref)
             raise
+        finally:
+            _obs_errors().pop_stage(token)
         self._close_ok(stage_id, start, info)
 
+    def note(self, stage_id, error_id, code):
+        # type: (str, object, object) -> None
+        """
+        Record a failure swallowed inside a running stage (2d design 7.2).
+
+        Called by core.observability.errors.capture; error_id is None when
+        capture itself failed, which the reason then reports.
+        """
+        notes = self.__dict__.setdefault("_notes", {})
+        notes.setdefault(stage_id, []).append((error_id, code or "unclassified"))
+
+    def _close_noted(self, stage_id, start, info, nd, notes):
+        """Swallowed failures: outcome partial if declared, otherwise failed (2d 7.2 to 7.4)."""
+        ref = next((e for e, _ in notes if e), None)  # first allocated error_id
+        reason = "swallowed:" + ",".join(c for _, c in notes)
+        if any(e is None for e, _ in notes):
+            reason += ";capture_failed"
+        if info["reason"]:
+            reason = "%s;%s" % (info["reason"], reason)
+        status, outcome = ("succeeded", "partial") if nd.get("partial_ok") else ("failed", None)
+        self._record(stage_id, status, start, reason=reason, outcome=outcome,
+                     counts=info["counts"] or {}, error_ref=ref)
+
     def _close_ok(self, stage_id, start, info):
-        """Apply the declared stage contract to a normal exit (design 14.5)."""
+        """Apply the declared stage contract to a normal exit (design 14.5, 2d 7.2)."""
         nd = sg.node(self.graph_id, stage_id) or {}
         counts = info["counts"] or {}
         outcome = info["outcome"]
         if outcome == "unavailable" and not nd.get("unavailable_ok"):
             self._record(stage_id, "failed", start, reason="undeclared_unavailable",
                          counts=counts)
+            return
+        notes = self.__dict__.get("_notes", {}).pop(stage_id, None)
+        if notes:
+            self._close_noted(stage_id, start, info, nd, notes)
             return
         if outcome is None and counts and sum(counts.values()) == 0:
             if not nd.get("empty_ok"):
@@ -269,6 +303,48 @@ def persist(recorder, execute_many, final=True):
 
 
 _log = logging.getLogger("alems.observability.stages")
+
+
+class _NoopErrors(object):
+    """Stand in when the error module cannot load: observability never breaks the run."""
+
+    @staticmethod
+    def push_stage(recorder, stage_id):
+        return None
+
+    @staticmethod
+    def pop_stage(token):
+        return None
+
+    @staticmethod
+    def capture_coded(exc, *args, **kwargs):
+        return None, None
+
+
+def _obs_errors():
+    """The C-ERR module, or a no op stand in if it fails to import (5.2a)."""
+    try:
+        from core.observability import errors
+        return errors
+    except Exception:  # noqa: BLE001  counted nowhere: no gate state is reachable
+        return _NoopErrors
+
+
+def _stage_failure(exc, prior_reason):
+    """
+    error_ref and reason for an exception leaving a stage (2d design 7.1, 7.4).
+
+    BaseException that is not Exception (KeyboardInterrupt, GeneratorExit)
+    is recorded as before and not captured.
+    """
+    if not isinstance(exc, Exception):
+        return None, prior_reason or "exception"
+    ref, code = _obs_errors().capture_coded(exc, component="core.observability.stages",
+                                            note=False)
+    reason = code or "exception"
+    if ref is None:
+        reason += ";capture_failed"
+    return ref, ("%s;%s" % (prior_reason, reason)) if prior_reason else reason
 
 
 def stage_or_noop(stages, stage_id):

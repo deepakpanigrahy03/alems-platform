@@ -9,6 +9,7 @@ graph_version (addendum rule 1).
 Node fields beyond stage_id are stage contract declarations (design 14.5):
   empty_ok        zero rows written is a successful outcome (outcome=empty)
   unavailable_ok  stage may legitimately report outcome=unavailable
+  partial_ok      swallowed failures yield outcome=partial, not failed (39.5.2d)
   scope           run | pair | goal (where the work really happens)
 Declaring these in the hashed graph makes the stage contract versioned,
 instead of being decided ad hoc at call sites.
@@ -27,13 +28,15 @@ STAGE_IDS = (
 STAGE_VERSION = "1.0.0"  # v1 compatibility instrumentation; 39.5.5 bumps
 
 
-def _node(stage_id, empty_ok=False, unavailable_ok=False, scope="run"):
-    # type: (str, bool, bool, str) -> Dict[str, object]
+def _node(stage_id, empty_ok=False, unavailable_ok=False, scope="run", partial_ok=False):
+    # type: (str, bool, bool, str, bool) -> Dict[str, object]
     """Build one node; validates the id against the master vocabulary."""
     if stage_id not in STAGE_IDS:
         raise ValueError("unknown stage_id %s" % stage_id)
+    # partial_ok is part of the node, so it is covered by graph_hash (2c D3)
     return {"stage_id": stage_id, "empty_ok": empty_ok,
-            "unavailable_ok": unavailable_ok, "scope": scope}
+            "unavailable_ok": unavailable_ok, "scope": scope,
+            "partial_ok": partial_ok}
 
 
 def _req(src, dst, carries=()):
@@ -58,13 +61,13 @@ def _post_run_nodes(pair):
     shared = "pair" if pair else "run"
     return [
         _node("persist_run"),
-        _node("persist_samples", unavailable_ok=True),
+        _node("persist_samples", unavailable_ok=True, partial_ok=True),
         _node("spans", empty_ok=True),
         _node("attribution"),
         _node("residual", empty_ok=True),
         _node("quality", empty_ok=True, unavailable_ok=True),
-        _node("etl_phase", empty_ok=True, scope=shared),
-        _node("etl_hardware", empty_ok=True, scope=shared),
+        _node("etl_phase", empty_ok=True, scope=shared, partial_ok=True),
+        _node("etl_hardware", empty_ok=True, scope=shared, partial_ok=True),
     ]
 
 
@@ -90,7 +93,7 @@ def _post_run_edges():
 def _execute_goal():
     # type: () -> Dict[str, object]
     """
-    execute_goal (1.1.0): the persistence core plus quality, which is goal
+    execute_goal (1.2.0; 1.1.0 plus partial_ok): the persistence core plus quality, which is goal
     scoped (scored once on the final result, recorded on the winning run).
     setup, baseline, measure happen in the harness before persistence and
     belong to the 39.5.5 pipeline; they are not v1 persistence stages.
@@ -100,16 +103,16 @@ def _execute_goal():
         if n["stage_id"] == "quality":
             n["scope"] = "goal"
     edges = _post_run_edges() + [_ord("residual", "spans"), _ord("spans", "quality")]
-    return {"graph_id": "execute_goal", "graph_version": "1.1.0",
+    return {"graph_id": "execute_goal", "graph_version": "1.2.0",
             "nodes": nodes, "edges": edges}
 
 
 GRAPHS = {
-    "save_pair": {"graph_id": "save_pair", "graph_version": "1.1.0",
+    "save_pair": {"graph_id": "save_pair", "graph_version": "1.2.0",
                   "nodes": _post_run_nodes(True),
                   "edges": _post_run_edges() + [_ord("spans", "persist_samples"),
                                                 _ord("residual", "quality")]},
-    "save_single": {"graph_id": "save_single", "graph_version": "1.1.0",
+    "save_single": {"graph_id": "save_single", "graph_version": "1.2.0",
                     "nodes": _post_run_nodes(False),
                     "edges": _post_run_edges() + [_ord("spans", "persist_samples"),
                                                 _ord("residual", "quality")]},

@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alems:error_codes:1",
+  "title": "A-LEMS error code catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "catalog_version",
+    "codes"
+  ],
+  "properties": {
+    "catalog_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "codes": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^ALEMS-[A-Z]+-[0-9]{4}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "meaning",
+          "severity",
+          "recoverable",
+          "affects_validity",
+          "exit_code",
+          "status",
+          "doc_anchor",
+          "introduced_in"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "meaning": {
+            "type": "string"
+          },
+          "causes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "severity": {
+            "enum": [
+              "info",
+              "warn",
+              "error",
+              "fatal"
+            ]
+          },
+          "recoverable": {
+            "type": "boolean"
+          },
+          "stage_affinity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "affects_validity": {
+            "enum": [
+              "none",
+              "partial",
+              "invalid"
+            ]
+          },
+          "exit_code": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5
+          },
+          "status": {
+            "enum": [
+              "active",
+              "deprecated"
+            ]
+          },
+          "replaced_by": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "doc_anchor": {
+            "type": "string",
+            "pattern": "^err-[a-z]+-[0-9]{4}$"
+          },
+          "introduced_in": {
+            "type": "string"
+          },
+          "taxonomy_hint": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code"
+        ],
+        "minProperties": 2,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "class": {
+            "type": "string"
+          },
+          "http_status": {
+            "type": "integer"
+          },
+          "http_status_range": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "origin": {
+            "type": "string"
+          },
+          "component": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

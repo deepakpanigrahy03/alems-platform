@@ -50,6 +50,11 @@ def build_spans_from_result(
         logger.warning(
             "span_builder: workflow=%s skipped: %s", workflow_type, exc
         )
+        try:
+            from core.observability import errors as _obs_errors
+            _obs_errors.capture(exc, code="ALEMS-SPAN-0001", component=__name__)
+        except Exception as _ce:  # noqa: BLE001  capture never breaks span building (5.2a)
+            logger.debug("error capture unavailable: %s", _ce)
 
 
 def _build(writer, run_span_id, result, workflow_type, hw_info):

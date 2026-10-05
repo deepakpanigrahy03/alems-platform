@@ -111,6 +111,7 @@ nav:
     - Data Dictionary: reference/data-dictionary.md
     - API Reference: reference/api.md
     - Orchestration API: reference/orchestration-api.md
+    - Error Codes: reference/error-codes.md
 
   - Guides:
     - Researcher Journey: guides/researcher-journey.md

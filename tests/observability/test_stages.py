@@ -146,8 +146,11 @@ def test_rollback_downgrades_held_stages(fake_gate):
                 raise RuntimeError("samples")
     assert r.events["persist_run"]["status"] == "failed"
     assert r.events["persist_run"]["reason"] == "rolled_back"
-    assert r.events["persist_samples"]["reason"] == "exception"
-    assert len(fake_gate) == 2  # submitted once, after the scope ended
+    # 2d: the stage reason is the error code; RuntimeError is unmapped (GEN)
+    assert r.events["persist_samples"]["reason"] == "ALEMS-GEN-0000"
+    assert r.events["persist_samples"]["error_ref"]
+    # stage events submitted once, after the scope ended; error records are separate
+    assert len([k for k, _ in fake_gate if k != "error"]) == 2
 
 
 def test_tx_success_submits_after_scope(fake_gate):

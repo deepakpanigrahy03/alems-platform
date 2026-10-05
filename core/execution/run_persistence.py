@@ -37,6 +37,24 @@ def _stage(stages, stage_id):
     return stages.stage(stage_id)
 
 
+def _capture(exc, code):
+    """C-ERR capture of a swallowed failure; never raises, never alters flow (2d)."""
+    try:
+        from core.observability import errors as _obs_errors
+        _obs_errors.capture(exc, code=code, component=__name__)
+    except Exception as _ce:  # noqa: BLE001  capture never breaks persistence (5.2a)
+        logger.debug("error capture unavailable: %s", _ce)
+
+
+def _capture_msg(message, code):
+    """C-ERR capture of a failure observed without an exception (2d)."""
+    try:
+        from core.observability import errors as _obs_errors
+        _obs_errors.capture_message(message, code, component=__name__)
+    except Exception as _ce:  # noqa: BLE001  capture never breaks persistence (5.2a)
+        logger.debug("error capture unavailable: %s", _ce)
+
+
 def _tx(stages):
     """Transaction scope of the recorder, else a no op (39.5.2c)."""
     return nullcontext() if stages is None else stages.tx_scope()
@@ -354,6 +372,7 @@ class RunPersistenceService:
         run_id = db.insert_run(exp_id, hw_id, result)
         if run_id is None:
             logger.warning("_insert_run_row: insert_run returned None")
+            _capture_msg("insert_run returned None", "ALEMS-PERS-0001")
             return None
 
         # Provenance must be recorded immediately after insert
@@ -430,6 +449,7 @@ class RunPersistenceService:
                     db.insert_device_telemetry(run_id, telemetry)
             except Exception as _e:
                 logger.warning("device_telemetry insert failed run_id=%d: %s", run_id, _e)
+                _capture(_e, "ALEMS-PERS-0101")
         # v2 and SPBM are independent keys, as in save_pair; the harness fills
         # at most one of them on any platform.
         if result.get("v2_samples"):
@@ -444,6 +464,7 @@ class RunPersistenceService:
                 db.insert_run_power_limits(run_id, result["rail_result"].limits_snapshot)
             except Exception as _e:
                 logger.warning("power_rail insert failed run_id=%d: %s", run_id, _e)
+                _capture(_e, "ALEMS-PERS-0102")
 
         if "cpu_samples" in result:
             db.insert_cpu_samples(run_id, result["cpu_samples"])
@@ -465,6 +486,7 @@ class RunPersistenceService:
                 db.cpu_idle.write_from_cpuidle_sysfs(run_id, platform="grace_aarch64")
             except Exception as _e:
                 logger.warning("cpu_idle_states ARM insert failed run_id=%d: %s", run_id, _e)
+                _capture(_e, "ALEMS-PERS-0103")
         else:
             # cpu_idle_states: x86 path — prefer turbostat, fall back to cpuidle sysfs
             # AMD Zen 2 turbostat crashes (SIGABRT in rapl_perf_init), cpu_samples
@@ -491,6 +513,7 @@ class RunPersistenceService:
                     logger.info("cpu_idle_states: no turbostat data and no cpuidle sysfs, skipping run_id=%d", run_id)
             except Exception as _e:
                 logger.warning("cpu_idle_states x86 insert failed run_id=%d: %s", run_id, _e)
+                _capture(_e, "ALEMS-PERS-0104")
 
         # 16D2a: cooling_samples — end-of-run snapshot
         try:
@@ -498,6 +521,7 @@ class RunPersistenceService:
             db.cooling.snapshot_cooling_state(run_id, _socket_cool.gethostname().lower())
         except Exception as _e:
             logger.warning("cooling_samples insert failed run_id=%d: %s", run_id, _e)
+            _capture(_e, "ALEMS-PERS-0106")
 
         if "interrupt_samples" in result:
             db.insert_interrupt_samples(run_id, result["interrupt_samples"])
@@ -515,6 +539,7 @@ class RunPersistenceService:
                 )
             except Exception as _e:
                 logger.warning("thermal_samples_v2 insert failed run_id=%d: %s", run_id, _e)
+                _capture(_e, "ALEMS-PERS-0105")
 
         # One aggregation and derivation for every path, always run (G83, 11.3).
         finalize_run_stats(db, run_id, result)
@@ -549,6 +574,7 @@ class RunPersistenceService:
             db.insert_cpu_samples(run_id, [row])
         except Exception as _e:
             logger.warning("summary cpu_samples insert failed run_id=%d: %s", run_id, _e)
+            _capture(_e, "ALEMS-PERS-0107")
 
     def _insert_after_commit(self, db, run_id: int, result: dict) -> None:
         """
@@ -571,16 +597,19 @@ class RunPersistenceService:
             _pgs(run_id, conn)
         except Exception as _e:
             logger.warning("gpu_spbm_etl failed run_id=%d: %s", run_id, _e)
+            _capture(_e, "ALEMS-ETL-0101")
         try:
             from scripts.etl.spbm_telemetry_etl import process_run as _pst
             _pst(run_id, result, conn)
         except Exception as _e:
             logger.warning("spbm_telemetry_etl failed run_id=%d: %s", run_id, _e)
+            _capture(_e, "ALEMS-ETL-0102")
         try:
             from scripts.etl.network_energy_etl import process_run as _pne
             _pne(run_id, conn)
         except Exception as _e:
             logger.warning("network_etl failed run_id=%d: %s", run_id, _e)
+            _capture(_e, "ALEMS-ETL-0103")
 
     def _insert_events(self, db, run_id: int, result: dict) -> None:
         """
@@ -648,6 +677,7 @@ class RunPersistenceService:
             conn = getattr(db, "conn", None)
         if conn is None:
             logger.warning("_compute_residual: no conn for run_id=%d", run_id)
+            _capture_msg("residual step has no store connection", "ALEMS-ATTR-0001")
             return
         compute_conservation_residual(run_id, conn)
         
