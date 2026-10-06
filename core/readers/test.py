@@ -24,9 +24,10 @@ def busy_work(duration_seconds=1.0):
 
 
 if __name__ == "__main__":
-    print("🚀 Starting CPU workload...")
+    from core.observability.console import get_console; con = get_console()    
+    con.line("Starting CPU workload...")
     start = time.time()
     result, iterations = busy_work(2.0)
     elapsed = time.time() - start
-    print(f"✅ Completed {iterations} iterations in {elapsed:.2f}s")
-    print(f"   Result: {result}")
+    con.line(f"Completed {iterations} iterations in {elapsed:.2f}s")
+    con.line(f"   Result: {result}")

@@ -11,7 +11,7 @@ exactly what core/storage/resolver.py layer 6 uses: ALEMS_DATA_ROOT (after
 import os
 import socket
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 # core/observability/locations.py -> engine root is two levels above core.
 ENGINE_ROOT = Path(__file__).resolve().parents[2]
@@ -53,18 +53,76 @@ def guard(path: Path) -> Path:
     return resolved
 
 
+def store_path() -> Optional[Path]:
+    """
+    The store this process writes to, from the core store resolver.
+
+    Returns None when no store resolves (commands such as doctor and help).
+    """
+    try:
+        from core.storage.resolver import resolve_store
+        found = resolve_store()
+    except Exception:  # noqa: BLE001  no store is a normal state for some commands
+        return None
+    # resolve_store may return a path or a (path, source, ...) tuple.
+    if isinstance(found, (tuple, list)):
+        found = found[0] if found else None
+    # Logical path, not resolve(): a store reached through a symlink (legacy
+    # envs/<user>/<env>/<project>/experiments.db) keeps its own identity, so
+    # its logs and errors never fall back to the shared target directory.
+    return Path(found).expanduser().absolute() if found else None
+
+
+
+
+def _scoped_dir(env_var: str, store_leaf: str, host_leaf: str) -> Optional[Path]:
+    """
+    Resolve a log or error directory: override, then beside the store, then host.
+
+    Beside the store means the same path resolution as the database, so user,
+    environment, and sandbox uniqueness follow from the store path (amendment
+    of SPEC 2a step 4 and 2d D1).
+    """
+    override = os.environ.get(env_var)
+    if override:
+        return guard(Path(override).expanduser())
+    store = store_path()
+    if store is not None:
+        return guard(store.parent / store_leaf)
+    return _host_dir(env_var, host_leaf)
+
+
 def host_log_dir() -> Optional[Path]:
-    """Host log directory, or None when no data root is configured."""
-    return _host_dir("ALEMS_LOG_DIR", "log")
+    """Log directory for this store (<store dir>/logs), host fallback; None without a data root."""
+    return _scoped_dir("ALEMS_LOG_DIR", "logs", "log")
 
 
 def error_dir() -> Optional[Path]:
-    """Host error directory (used from 2d), or None."""
-    return _host_dir("ALEMS_ERROR_DIR", "error")
+    """Error record directory for this store (<store dir>/errors), host fallback; None without a data root."""
+    return _scoped_dir("ALEMS_ERROR_DIR", "errors", "error")
+
+
+def legacy_host_dirs() -> List[Path]:
+    """Former host level log and error directories (read only lookups of older records)."""
+    out = []
+    for leaf in ("log", "error"):
+        root = _data_root()
+        if root is not None:
+            out.append(root / socket.gethostname().lower() / leaf)
+    return out
 
 
 def host_dirs_configured() -> bool:
-    """True when both host log and error directories resolve."""
+    """
+    True when log and error directories are anchored.
+
+    Anchored means both explicit overrides are set, or a data root resolves.
+    A store found without a data root (a fallback layer) never counts:
+    ALEMS-CFG-0010 stays exact, no silent fallback (2d decision D7).
+    """
+    explicit = os.environ.get("ALEMS_LOG_DIR") and os.environ.get("ALEMS_ERROR_DIR")
+    if not explicit and _data_root() is None:
+        return False
     return host_log_dir() is not None and error_dir() is not None
 
 
@@ -80,7 +138,7 @@ def missing_data_root_message() -> str:
         "  2. ~/.alemsrc            export ALEMS_DATA_ROOT=/mnt/alems-data",
         "  3. shell environment     export ALEMS_DATA_ROOT=/path/to/data",
         "  4. explicit directories  export ALEMS_LOG_DIR=/path/log ALEMS_ERROR_DIR=/path/error",
-        "Note: .sandbox-env sets the store (ALEMS_STORE) only, never the data root.",
+        "  5. sandbox machine file  ALEMS_DATA_ROOT=/path   in .sandbox-env",
         "Then rerun. Verify with: alems sandbox doctor",
     ]
     return "\n".join(lines)
@@ -101,4 +159,5 @@ def require_host_dirs() -> None:
 
 def run_log_dir(store_path: str) -> Path:
     """Per run log directory beside the store (design 7.6 layout)."""
-    return guard(Path(store_path).expanduser().resolve().parent / "logs")
+    # Logical parent (see store_path): symlinked stores keep separate log dirs.
+    return guard(Path(store_path).expanduser().absolute().parent / "logs")

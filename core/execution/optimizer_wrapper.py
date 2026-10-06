@@ -30,7 +30,8 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from core.execution.agentic import AgenticExecutor
-
+import logging
+logger = logging.getLogger(__name__)
 
 class SystemOptimizer:
     """Real-time system optimizer based on phase detection"""
@@ -47,7 +48,7 @@ class SystemOptimizer:
             # Try direct write first (if running as root)
             with open(path, "w") as f:
                 f.write(value)
-            print(f"   ✅ Set {path} to {value}")
+            logger.info("set %s to %s", path, value)
             return True
         except PermissionError:
             # Fall back to sudo
@@ -62,16 +63,16 @@ class SystemOptimizer:
                     ["sudo", "tee", path], input=value, capture_output=True, text=True
                 )
                 if result.returncode == 0:
-                    print(f"   ✅ Set {path} to {value} (via sudo)")
+                    logger.info("set %s to %s (via sudo)", path, value)
                     return True
                 else:
-                    print(f"   ⚠️ Failed to set {path}: {result.stderr}")
+                    logger.warning("failed to set %s: %s", path, result.stderr)
                     return False
             except Exception as e:
-                print(f"   ⚠️ Sudo failed: {e}")
+                logger.warning("sudo failed: %s", e)
                 return False
         except Exception as e:
-            print(f"   ⚠️ Error: {e}")
+            logger.warning("setting failed: %s", e)
             return False
 
     def _read_governor(self):
@@ -85,12 +86,11 @@ class SystemOptimizer:
 
     def _set_governor(self, governor):
         """Set CPU governor and track change"""
-        print(f"🔍 DEBUG - _set_governor called with: {governor}")
         old = self._read_governor()
-        print(f"🔍 DEBUG - Current governor: {old}")
+        logger.debug("set governor %s (current %s)", governor, old)
 
         if old != governor:
-            print(f"🔍 DEBUG - Governor needs to change from {old} to {governor}")
+            logger.debug("governor change %s to %s", old, governor)
             path = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
             if self._apply_setting(path, governor):
                 self.changes_made.append(
@@ -102,11 +102,11 @@ class SystemOptimizer:
                         "to": governor,
                     }
                 )
-                print(f"   ⚡ Governor: {old} → {governor}")
+                logger.info("governor %s to %s", old, governor)
             else:
-                print(f"🔍 DEBUG - Failed to set governor to {governor}")
+                logger.debug("failed to set governor to %s", governor)
         else:
-            print(f"🔍 DEBUG - Governor already {governor}, no change needed")
+            logger.debug("governor already %s", governor)
 
     def _get_cstate_number(self, target_name):
         """Find state number for a given C-state name"""
@@ -148,7 +148,7 @@ class SystemOptimizer:
                         "to": new,
                     }
                 )
-                print(f"   ⚡ State{state_num}: {old} → {new}")
+                logger.info("c state %s: %s to %s", state_num, old, new)
 
     def _enable_cstates(self, deep=True):
         """Enable/disable deep C-states (C2_ACPI and C3_ACPI)"""
@@ -201,7 +201,7 @@ class SystemOptimizer:
                                     "to": new,
                                 }
                             )
-                            print(f"   ⚡ Coalescing: {old} → {new}")
+                            logger.info("coalescing %s to %s", old, new)
                             break
 
     def set_phase(self, phase):
@@ -209,7 +209,7 @@ class SystemOptimizer:
         if phase == self.current_phase:
             return
 
-        print(f"\n⚡ OPTIMIZER: Phase {self.current_phase} → {phase}")
+        logger.info("optimizer phase %s to %s", self.current_phase, phase)
         self.current_phase = phase
 
         # ====================================================================
@@ -217,7 +217,7 @@ class SystemOptimizer:
         # ====================================================================
         if phase == "planning":
             # Your data: planning takes 12-22s, mostly LLM wait
-            print("   📝 Planning: Setting powersave governor, enabling deep C-states")
+            logger.info("planning: powersave governor, deep c states")
 
             self._set_governor("powersave")
             self._enable_cstates(deep=True)
@@ -225,14 +225,14 @@ class SystemOptimizer:
 
         elif phase == "llm_wait":
             # Your data: 10-20s network waits
-            print("   ⏳ LLM Wait: Setting powersave governor, enabling deep C-states")
+            logger.info("llm wait: powersave governor, deep c states")
             self._set_governor("powersave")
             self._enable_cstates(deep=True)
             self._set_coalescing(True)
 
         elif phase == "tool_exec":
             # Your data: CPU bursts need performance
-            print(f"🔍 DEBUG - ENTERING tool_exec phase")
+            logger.debug("entering tool_exec phase")
             self._set_governor("performance")
             self._enable_cstates(deep=False)
             self._set_coalescing(False)
@@ -267,7 +267,7 @@ class SystemOptimizer:
             elif 2 <= elapsed < 5:
                 self.set_phase("llm_wait")
             elif 5 <= elapsed < 7:
-                print(f"🔍 DEBUG - Should trigger tool_exec at {elapsed:.1f}s")
+                logger.debug("tool_exec trigger at %.1f s", elapsed)
                 self.set_phase("tool_exec")
             elif 7 <= elapsed < 8:
                 self.set_phase("between_steps")
@@ -286,16 +286,14 @@ class SystemOptimizer:
 
     def print_summary(self):
         """Print optimizer summary"""
-        print("\n" + "=" * 60)
-        print("📊 OPTIMIZER SUMMARY")
-        print("=" * 60)
-        print(f"Total changes made: {len(self.changes_made)}")
+        from core.observability.console import get_console
+        con = get_console()
+        con.section("optimizer summary")
+        con.kv("changes made", len(self.changes_made))
         for i, change in enumerate(self.changes_made[-10:]):  # Last 10 changes
-            print(
-                f"  {i+1}. {change['time']:.1f}s | Phase {change['phase']}: "
-                f"{change['setting']} {change['from']} → {change['to']}"
-            )
-        print("=" * 60)
+            con.line("%d. %.1f s  phase %s: %s %s to %s" % (
+                i + 1, change["time"], change["phase"], change["setting"],
+                change["from"], change["to"]), indent=1)
 
     def _get_available_governors(self):
         """Get list of available CPU governors"""
@@ -412,4 +410,5 @@ if __name__ == "__main__":
     else:
         wrapper = OptimizedExecutorWrapper(None, "linear")
         result = wrapper.execute(args.task)
-    print(f"Result: {result['response']}")
+    from core.observability.console import get_console
+    get_console().kv("result", result["response"], indent=0)

@@ -323,6 +323,7 @@ class SQLiteAdapter(DatabaseInterface):
             ("runs",                 "measurement_log_level",       "TEXT"),
             ("runs",                 "measurement_log_config_hash", "TEXT"),
             ("runs",                 "observability_overflow",      "INTEGER"),
+            ("runs",                 "measurement_heartbeat_s",     "REAL"),
         ]
         for table, column, typedef in _col_additions:
             existing = [r[1] for r in
@@ -771,8 +772,11 @@ class SQLiteAdapter(DatabaseInterface):
         """
         Insert an idle baseline measurement.
         """
-        print(f"🔍 DEBUG - insert_baseline received: {baseline_data.keys()}")
-        print(f"🔍 DEBUG - power_watts: {baseline_data.get('power_watts')}")
+        import logging as _logging
+        _logging.getLogger(__name__).debug(
+            "insert_baseline keys %s, power_watts %s",
+            list(baseline_data.keys()), baseline_data.get("power_watts"),
+        )
 
         if not self.conn:
             self.connect()

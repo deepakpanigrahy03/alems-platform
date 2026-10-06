@@ -40,7 +40,10 @@ from core.execution.agentic import AgenticExecutor
 from core.execution.harness import ExperimentHarness
 from core.execution.linear import LinearExecutor
 from core.execution.optimizer_wrapper import OptimizedExecutorWrapper
-from core.utils.debug import set_debug
+import logging
+logger = logging.getLogger(__name__)
+progress = logging.getLogger("alems.progress")  # 39.5.2e run progress
+from core.observability.console import get_console
 from core.utils.task_loader import get_task_by_id, load_tasks
 from core.execution.experiment_config_loader import apply_config
 from core.execution.goal_execution_manager import execute_goal
@@ -64,9 +67,9 @@ def get_country_from_ip():
             country_code = data.get("country_code")
             if country_code and len(country_code) == 2:
                 return country_code.upper()
-        print(f"⚠️ IP geolocation returned status {response.status_code}")
+        logger.warning("ip geolocation returned status %s", response.status_code)
     except Exception as e:
-        print(f"⚠️ IP geolocation failed: {e}")
+        logger.warning("ip geolocation failed: %s", e)
     return None
 
 
@@ -165,13 +168,10 @@ def parse_arguments():
 def _list_tasks_and_exit() -> int:
     """Print available tasks and return exit code."""
     tasks = load_tasks()
-    print("\n📋 Available tasks:")
-    print("-" * 50)
+    con = get_console()
+    con.section("available tasks")
     for t in tasks:
-        print(
-            f"  {t['id']:<15} | Level {t['level']} | {t['tool_calls']} tools | {t['name']}"
-        )
-    print("-" * 50)
+        con.line(f"{t['id']:<15} | level {t['level']} | {t['tool_calls']} tools | {t['name']}", indent=1)
     return 0
  
  
@@ -185,21 +185,21 @@ def _setup_experiment(args):
     # Country resolution — single place, no inline logic in main()
     country_code = "US"
     if args.ip_detect or (args.country is None and args.ip_detect):
-        print("\n🌍 Attempting to detect country from public IP...")
+        progress.info("country  detecting from public ip")
         detected = get_country_from_ip()
         if detected:
             country_code = detected
-            print(f"   ✅ Detected country: {country_code}")
+            progress.info("country  %s (detected)", country_code)
         else:
-            print(f"   ⚠️ Detection failed, using default: {country_code}")
+            logger.warning("country detection failed; default %s used", country_code)
     elif args.country:
         country_code = args.country.upper()
-        print(f"\n🌍 Using provided country: {country_code}")
+        progress.info("country  %s (provided)", country_code)
     else:
-        print(f"\n🌍 No country specified, using default: {country_code}")
+        progress.info("country  %s (default)", country_code)
  
     # Config and hardware
-    print("\n📁 Loading configuration...")
+    progress.info("loading configuration")
     config = ConfigLoader()
     settings = config.get_settings()
     hw_config = config.get_hardware_config()
@@ -228,23 +228,22 @@ def _setup_experiment(args):
         task_id     = "custom"
         task_name   = "Custom Task"
         task        = {"id": task_id, "name": task_name, "meta": {}}
-        print(f"\n📝 Using custom task: {task_prompt[:50]}...")
+        progress.info("task  custom (%d chars)", len(task_prompt))
     else:
         task = get_task_by_id(args.task_id)
         if not task:
-            print(f"\n❌ Task ID '{args.task_id}' not found. Use --list-tasks to see available tasks.")
+            logger.error("task id %s not found; use --list-tasks", args.task_id)
             sys.exit(1)
         task_prompt = task["prompt"]
         task_id     = task["id"]
         task_name   = task["name"]
-        print(f"\n📋 Using predefined task: {task_name} (level {task['level']})")
-        print(f"   Prompt: {task_prompt[:50]}...")
+        progress.info("task  %s (level %s, %d chars)", task_name, task["level"], len(task_prompt))
  
     # Model configs
-    print(f"\n🤖 Getting {args.provider} model configs...")
+    logger.info("loading %s model configs", args.provider)
     models_for_provider = config.list_models(args.provider)
     if not models_for_provider:
-        print(f"❌ No models found for provider '{args.provider}'")
+        logger.error("no models found for provider %s", args.provider)
         sys.exit(1)
     model_id       = args.model if args.model else models_for_provider[0]["model_id"]
     linear_config  = config.get_model_config_v2(args.provider, model_id)
@@ -254,14 +253,13 @@ def _setup_experiment(args):
     preflight(dummy, args.provider)
  
     if not linear_config or not agentic_config:
-        print(f"❌ Failed to load {args.provider} model configurations")
+        logger.error("failed to load %s model configurations", args.provider)
         sys.exit(1)
  
-    print(f"   Linear model:  {linear_config.get('name')}")
-    print(f"   Agentic model: {agentic_config.get('name')}")
+    progress.info("model  linear %s  agentic %s", linear_config.get("name"), agentic_config.get("name"))
  
     # Executors
-    print("\n⚙️ Creating executors...")
+    logger.info("creating executors")
     if args.optimizer:
         from core.execution.optimizer_wrapper import OptimizedExecutorWrapper
         agentic = OptimizedExecutorWrapper(agentic_config, "agentic")
@@ -269,11 +267,18 @@ def _setup_experiment(args):
     else:
         agentic = AgenticExecutor(agentic_config)
         linear  = LinearExecutor(linear_config)
-    print(f"   Optimizer: {'Yes' if args.optimizer else 'No'}")
+    progress.info("optimizer  %s", "yes" if args.optimizer else "no")
  
     # Harness and runner
-    print("🔧 Creating harness...")
+    logger.info("creating harness")
     harness          = ExperimentHarness(config)
+    from core.observability import run_report as _run_report
+    _run_report.header(
+        harness=harness, config=config, providers=[args.provider],
+        tasks=[{"name": task_id, "level": "see task line"}],
+        repetitions=getattr(args, "repetitions", None), country=country_code,
+        model=getattr(args, "model", None),
+    )
     runner           = ExperimentRunner(config, args)
 
     # B3: build serving engine adapter and cache collector from YAML config.
@@ -352,9 +357,9 @@ def _run_experiment(setup: dict, args) -> tuple:
  
     try:
         for rep in range(repetitions):
-            print(f"\n{'─'*50}")
-            print(f"📋 Repetition {rep+1}/{repetitions}")
-            print(f"{'─'*50}")
+            progress.info("repetition %d/%d", rep + 1, repetitions)
+            from core.observability import status as _obs_status
+            _obs_status.set_context(rep=rep + 1, total=repetitions)
  
             linear_result  = None
             agentic_result = None
@@ -397,16 +402,13 @@ def _run_experiment(setup: dict, args) -> tuple:
                 agentic_energy = agentic_result["ml_features"]["energy_j"]
                 tax = agentic_energy / linear_energy if linear_energy > 0 else 0
                 all_taxes.append(tax)
-                print(f"\n   📊 Pair {rep+1}:")
-                print(f"      Linear:  {linear_energy:.4f} J")
-                print(f"      Agentic: {agentic_energy:.4f} J")
-                print(f"      Tax: {tax:.2f}x")
+                progress.info("pair %d  linear %.4f J  agentic %.4f J  tax %.2fx", rep + 1, linear_energy, agentic_energy, tax)
             elif linear_result:
                 energy = linear_result["ml_features"]["energy_j"]
-                print(f"\n   📊 Rep {rep+1}: Linear {energy:.4f} J")
+                progress.info("repetition %d  linear %.4f J", rep + 1, energy)
             elif agentic_result:
                 energy = agentic_result["ml_features"]["energy_j"]
-                print(f"\n   📊 Rep {rep+1}: Agentic {energy:.4f} J")
+                progress.info("repetition %d  agentic %.4f J", rep + 1, energy)
  
             # Save — pair or single depending on workflow_mode
             # Save — retry path when max_retries > 0, normal path otherwise.
@@ -479,13 +481,12 @@ def _run_experiment(setup: dict, args) -> tuple:
                         runs_completed += 1
  
             if rep < repetitions - 1:
-                print(f"\n⏳ Cooling down for {cool_down}s...")
-                time.sleep(cool_down)
+                progress.info("cool down %s s", cool_down)
+                from core.observability import status as _obs_status
+                _obs_status.wait(cool_down, "cool down")
  
     except (Exception, KeyboardInterrupt) as e:
-        print(f"\n❌ Experiment failed: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error("experiment failed: %s", e, exc_info=True)
         if args.save_db:
             error_msg = str(e) if str(e) else "KeyboardInterrupt (user cancelled)"
             runner.update_status(db, exp_id, "failed", runs_completed, error_msg)
@@ -495,7 +496,7 @@ def _run_experiment(setup: dict, args) -> tuple:
     if args.save_db:
         runs_completed = len(all_linear) + len(all_agentic)
         runner.update_status(db, exp_id, "completed", runs_completed)
-        print(f"\n✅ Experiment {exp_id} completed with {runs_completed} runs")
+        progress.info("experiment %s completed with %s runs", exp_id, runs_completed)
         db.close()
  
     return all_linear, all_agentic, all_taxes
@@ -523,33 +524,33 @@ def _display_results(all_linear: list, all_agentic: list, all_taxes: list, args)
         "orchestration_tax": calc_stats(all_taxes),
     }
  
-    print("\n" + "=" * 70)
-    print("📊 FINAL STATISTICS")
-    print("=" * 70)
+    con = get_console()
+    con.section("final statistics")
  
     linear_mean = stats["linear_energy_j"]["mean"]
     linear_std  = stats["linear_energy_j"]["std"]
     if not np.isnan(linear_std):
-        print(f"   Linear energy:     {linear_mean:.4f} ± {linear_std:.4f} J")
+        con.kv("linear energy", "%.4f ± %.4f J" % (linear_mean, linear_std))
     else:
-        print(f"   Linear energy:     {linear_mean:.4f} J")
+        con.kv("linear energy", "%.4f J" % linear_mean)
  
     agentic_mean = stats["agentic_energy_j"]["mean"]
     agentic_std  = stats["agentic_energy_j"]["std"]
     if not np.isnan(agentic_std):
-        print(f"   Agentic energy:    {agentic_mean:.4f} ± {agentic_std:.4f} J")
+        con.kv("agentic energy", "%.4f ± %.4f J" % (agentic_mean, agentic_std))
     else:
-        print(f"   Agentic energy:    {agentic_mean:.4f} J")
+        con.kv("agentic energy", "%.4f J" % agentic_mean)
  
     tax_mean = stats["orchestration_tax"]["mean"]
     ci_lower = stats["orchestration_tax"]["ci_lower"]
     ci_upper = stats["orchestration_tax"]["ci_upper"]
     if not np.isnan(ci_lower):
-        print(f"   Orchestration tax: {tax_mean:.2f}x [95% CI: {ci_lower:.2f}, {ci_upper:.2f}]")
+        con.kv("orchestration tax", con.style("%.2fx" % tax_mean, "cyan") + "  95%% CI [%.2f, %.2f]" % (ci_lower, ci_upper))
     else:
-        print(f"   Orchestration tax: {tax_mean:.2f}x")
- 
-    print("\n✅ Test complete!")
+        con.kv("orchestration tax", con.style("%.2fx" % tax_mean, "cyan"))
+    from core.observability import run_report as _run_report
+    _run_report.footer()
+    con.line(con.style("test complete", "green"))
  
  
 def main():
@@ -564,11 +565,9 @@ def main():
     setup_logging("run", cli={"mode": "debug"} if args.debug else None)
  
     if args.debug:
-        set_debug(True)
+        pass  # 39.5.2e: debug mode is set by setup_logging(cli={"mode": "debug"})
  
-    print("\n" + "=" * 70)
-    print("🔬 TESTING EXPERIMENT HARNESS")
-    print("=" * 70)
+    progress.info("A-LEMS experiment harness test")
  
     if args.list_tasks:
         return _list_tasks_and_exit()

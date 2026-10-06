@@ -331,13 +331,13 @@ def _execute_goal_impl(
             # LLM-level failures are invisible to tool_failure_events.
             if failure_type is None:
                 failure_type = _failure_classifier.classify(run_result=result)
-                logger.warning(
-                    "DEBUG classify: attempt=%d failure_type=%s",
+                logger.debug(
+                    "classify attempt=%d failure_type=%s",
                     attempt_id, failure_type,
                 )
                 if failure_type and failure_type not in ("crashed", "wrong_answer"):
-                    logger.warning(
-                        "DEBUG recording tool failure attempt=%d type=%s",
+                    logger.debug(
+                        "recording tool failure attempt=%d type=%s",
                         attempt_id, failure_type,
                     )
                     _record_attempt_failure(

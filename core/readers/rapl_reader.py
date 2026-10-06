@@ -563,14 +563,13 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    print("\n" + "=" * 70)
-    print("RAPL READER TEST")
-    print("=" * 70)
+    from core.observability.console import get_console
+    con = get_console()
+    con.section("rapl reader test")
 
-    # Try to load config from Module 0
     config_path = Path("config/hw_config.json")
     if not config_path.exists():
-        print("❌ No config file found. Using default paths for testing.")
+        con.line("no config file found: default rapl paths used")
         # Create minimal test config
         test_config = {
             "rapl": {
@@ -587,53 +586,34 @@ if __name__ == "__main__":
 
         with open(config_path) as f:
             config = json.load(f)
-        print(f"✅ Loaded config from {config_path}")
+        con.kv("config", config_path)
 
-    # Initialize reader
     try:
         reader = RAPLReader(config)
-        print(f"\n📊 RAPL Reader: {reader}")
+        con.line(str(reader))
     except Exception as e:
-        print(f"❌ Failed to initialize RAPLReader: {e}")
+        con.line("rapl reader failed to initialize: %s" % e)
         sys.exit(1)
 
-    # Take initial reading
-    print("\n📝 Taking initial reading...")
     start_readings = reader.read_with_retry()
     if not start_readings:
-        print("❌ Failed to read RAPL counters")
+        con.line("rapl counters could not be read")
         sys.exit(1)
-
+    con.section("initial reading")
     for domain, value in start_readings.items():
-        print(f"   {domain:10} = {value} µJ")
+        con.kv(domain, "%s uJ" % value)
 
-    # Wait a bit
-    print("\n⏳ Waiting 2 seconds...")
     time.sleep(2)
-
-    # Take final reading
-    print("📝 Taking final reading...")
     end_readings = reader.read_with_retry()
-
+    con.section("reading after 2 s")
     for domain, value in end_readings.items():
-        print(f"   {domain:10} = {value} µJ")
+        con.kv(domain, "%s uJ" % value)
 
-    # Calculate delta
     deltas = reader.get_energy_delta(start_readings, end_readings)
-
-    print("\n" + "=" * 70)
-    print("ENERGY CONSUMED")
-    print("=" * 70)
+    con.section("energy consumed")
     for domain, delta in deltas.items():
-        joules = delta / 1_000_000
-        print(f"   {domain:10} = {delta:10} µJ ({joules:.6f} J)")
-
-    # Calculate uncore waste if we have package and core
+        con.kv(domain, "%10d uJ (%.6f J)" % (delta, delta / 1e6))
     if "package-0" in deltas and "core" in deltas:
-        package = deltas.get("package-0", 0)
-        core = deltas.get("core", 0)
-        uncore_waste = max(0, package - core)
-        print(f"\n📊 Uncore waste: {uncore_waste} µJ ({uncore_waste/1e6:.6f} J)")
-        print("   (package - core) - Req 1.3")
-
-    print("\n✅ Test complete!")
+        uncore = max(0, deltas.get("package-0", 0) - deltas.get("core", 0))
+        con.kv("uncore (package minus core)", "%d uJ (%.6f J)" % (uncore, uncore / 1e6))
+    con.line("rapl reader test complete")

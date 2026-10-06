@@ -224,6 +224,10 @@ def enter() -> None:
         # the process (D5). The window is process wide, so this scope is exact.
         _state["srcfile"] = logging._srcfile  # type: ignore[attr-defined]
         logging._srcfile = None  # type: ignore[attr-defined]
+        # Amendment 5.2a: the status line thread is the only console writer
+        # inside the window; it is started here, never by measured code.
+        from core.observability import status as _status
+        _state["heartbeat_s"] = _status.window_start()
         _state["inside"] = True
     except Exception:  # noqa: BLE001
         _state["inside"] = False
@@ -243,10 +247,15 @@ def exit() -> Dict[str, Any]:  # noqa: A001  pairs with enter()
         "measurement_log_level": None,
         "measurement_log_config_hash": None,
         "observability_overflow": None,
+        "measurement_heartbeat_s": None,
     }
     if not _state["inside"]:
         return result
     exit_wall = time.time()
+    # Erase the status line before held records are released (amendment 5.2a).
+    from core.observability import status as _status
+    _status.window_stop()
+    result["measurement_heartbeat_s"] = _state.get("heartbeat_s")
     _open()
     result["measurement_log_level"] = _state["level_name"]
     result["measurement_log_config_hash"] = _config_hash()

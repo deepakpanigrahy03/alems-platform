@@ -44,7 +44,8 @@ class RepetitionExperiment:
         taxes = []
 
         for i in range(self.n):
-            print(f"🔄 Iteration {i+1}/{self.n}")
+            import logging as _logging  # module has no logger
+            _logging.getLogger("alems.progress").info("iteration %d/%d", i + 1, self.n)
 
             # Run single comparison
             result = self.harness.run_comparison(linear_exec, agentic_exec, task)

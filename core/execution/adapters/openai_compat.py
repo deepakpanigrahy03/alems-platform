@@ -401,7 +401,8 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
         token_count = (
             usage_completion_tokens if usage_completion_tokens is not None else chunk_count
         )
-        prompt_token_count = usage_prompt_tokens if usage_prompt_tokens is not None else 0
+        # C2: a count the provider did not report stays unknown (None, NULL in the store).
+        prompt_token_count = usage_prompt_tokens
  
         total_ms = (
             (last_token_ns - request_start_ns) / 1e6 if last_token_ns else 0.0
@@ -440,8 +441,13 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
             ],
             "usage": {
                 "prompt_tokens": prompt_token_count,
-                "completion_tokens": token_count,
-                "total_tokens": prompt_token_count + token_count,
+                # chunk_count (timing only) never stands in for a reported count
+                "completion_tokens": usage_completion_tokens,
+                "total_tokens": (
+                    prompt_token_count + usage_completion_tokens
+                    if prompt_token_count is not None and usage_completion_tokens is not None
+                    else None
+                ),
             },
             "_streamed": True,            # internal flag, ignored by _parse_response
         }
@@ -466,29 +472,26 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
         if self._is_ollama:
             # Ollama returns message.content directly
             content = data.get("message", {}).get("content", "")
-            # Ollama does not reliably return token counts in non-stream mode
+            # C2: Ollama /api/chat reports prompt_eval_count and eval_count;
+            # absent counts stay unknown (no word count estimate).
+            _p = data.get("prompt_eval_count")
+            _c = data.get("eval_count")
             tokens = {
-                "prompt": len(prompt.split()),
-                "completion": len(content.split()),
-                "total": len(prompt.split()) + len(content.split()),
+                "prompt": _p,
+                "completion": _c,
+                "total": _p + _c if _p is not None and _c is not None else None,
             }
         else:
             # OpenAI-compat: choices[0].message.content
             if "choices" in data:
                 content = data["choices"][0]["message"]["content"]
                 usage = data.get("usage", {})
+                # C2: missing usage stays unknown; no word count fallback.
                 tokens = {
-                    "prompt": usage.get("prompt_tokens", 0),
-                    "completion": usage.get("completion_tokens", 0),
-                    "total": usage.get("total_tokens", 0),
+                    "prompt": usage.get("prompt_tokens"),
+                    "completion": usage.get("completion_tokens"),
+                    "total": usage.get("total_tokens"),
                 }
-                # Fallback if provider omitted usage (some proxies do this)
-                if tokens["total"] == 0:
-                    tokens = {
-                        "prompt": len(prompt.split()),
-                        "completion": len(content.split()),
-                        "total": len(prompt.split()) + len(content.split()),
-                    }
             else:
                 # Unexpected format — log and return raw
                 logger.warning("Unexpected response format from %s", self.get_name())
@@ -519,7 +522,7 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
         )
         return {
             "content": f"Error: {error_msg}",
-            "tokens": {"prompt": 0, "completion": 0, "total": 0},
+            "tokens": {"prompt": None, "completion": None, "total": None},
             "total_time_ms": preprocess_ms,
             "phase_metrics": phase_metrics,
             "bytes_sent": 0,

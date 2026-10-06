@@ -220,10 +220,19 @@ def _write_records(records: List[Dict[str, Any]]) -> None:
 
 
 def find(error_id: str, directory: Optional[Path] = None) -> Optional[Dict[str, Any]]:
-    """Global lookup of an error record by id within the error directory."""
-    root = directory or locations.error_dir()
-    if root is None or not root.exists():
-        return None
-    for path in root.glob("*/%s.json" % error_id):
-        return json.loads(path.read_text())
+    """
+    Look up an error record by id.
+
+    Searches the given directory, else this store's error directory, then the
+    former host level error directory (records written before errors moved
+    beside the store), so older error_ref values still resolve.
+    """
+    roots = [directory] if directory else [locations.error_dir()]
+    if directory is None:
+        roots += [p for p in locations.legacy_host_dirs() if p.name == "error"]
+    for root in roots:
+        if root is None or not root.exists():
+            continue
+        for path in root.glob("*/%s.json" % error_id):
+            return json.loads(path.read_text())
     return None

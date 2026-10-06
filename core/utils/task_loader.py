@@ -74,12 +74,9 @@ def list_task_summary(tasks: Optional[List[Dict]] = None) -> None:
     if tasks is None:
         tasks = load_tasks()
 
-    print("\n📋 Available Tasks:")
-    print("-" * 70)
-    print(f"{'ID':<15} {'Name':<25} {'Level':<8} {'Tools':<8}")
-    print("-" * 70)
+    from core.observability.console import get_console
+    con = get_console()
+    con.section("available tasks")
+    con.line(con.style(f"{'ID':<15} {'Name':<25} {'Level':<8} {'Tools':<8}", "bold"))
     for t in tasks:
-        print(
-            f"{t['id']:<15} {t['name'][:24]:<25} {t['level']:<8} {t['tool_calls']:<8}"
-        )
-    print("-" * 70)
+        con.line(f"{t['id']:<15} {t['name'][:24]:<25} {t['level']:<8} {t['tool_calls']:<8}")

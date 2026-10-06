@@ -50,14 +50,7 @@ def process_energy_samples(energy_engine) -> tuple:
             elif len(sample) == 2 and isinstance(sample[1], (int, float)):
                 # This is an interrupt sample: (timestamp, value)
                 interrupt_timestamp, interrupt_value = sample
-                print(
-                    f"🔍 INTERRUPT RAW - timestamp: {interrupt_timestamp}, type: {type(interrupt_timestamp)}"
-                )
-                print(f"🔍 INTERRUPT RAW - value: {interrupt_value}")
-                print(
-                    f"🔍 INTERRUPT CALC - divided by 1e9: {interrupt_timestamp / 1e9}"
-                )
-                print(f"🔍 INTERRUPT CALC - epoch time: {time.time()}")
+                logger.debug("interrupt sample ts %s value %s", interrupt_timestamp, interrupt_value)
 
                 interrupt_samples.append(
                     {
@@ -246,9 +239,8 @@ def process_cpu_samples(raw_energy, canonical_metrics, store_extra=True) -> list
                 f"📊 Extracted {len(cpu_samples)} CPU samples with {len(canonical_metrics)} canonical metrics"
             )
             if cpu_samples:
-                print(f"🔍 First 3 CPU samples:")
                 for i, sample in enumerate(cpu_samples[:3]):
-                    print(f"   Sample {i}: {sample}")
+                    logger.debug("cpu sample %d: %s", i, sample)
 
     return cpu_samples
 

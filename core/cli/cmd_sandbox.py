@@ -647,12 +647,12 @@ def _build_lock(sandbox_id, engine_version, engine_python, schema_version):
 
 def _derive_store_path(name: str, data_root: str) -> Path:
     """
-    Derive store path for a new sandbox.
-    <data_root>/<hostname>/sandboxes/<name>/experiments.db
-    Name collision is an error, not worked around with a hash suffix.
+    Derive store path for a new sandbox (one rule with the resolver):
+    <data_root>/<hostname>/users/<user>/sandboxes/<name>/experiments.db
+    Name collision within a user is an error, not worked around with a suffix.
     """
-    hostname = socket.gethostname().lower()
-    return Path(data_root) / hostname / "sandboxes" / name / "experiments.db"
+    from core.storage.resolver import sandbox_store_path
+    return sandbox_store_path(data_root, name)
 
 
 def _source_alemsrc() -> None:
@@ -694,6 +694,13 @@ def _generate_sandbox_env(sandbox_path: Path, store_path: Path) -> None:
         f"# ── Auto-generated (do not edit) ──────────────────────────────\n"
         f"ALEMS_STORE={store_ref}\n"
         f"ALEMS_SANDBOX={sandbox_path}\n"
+        f"#\n"
+        f"# ── Data and record locations: values in effect now (uncomment to pin) ──\n"
+        f"# Precedence: shell environment, then this file, then these defaults.\n"
+        f"# ALEMS_DATA_ROOT={data_root or '/path/to/data'}\n"
+        f"# ALEMS_LOG_DIR={store_ref.rsplit('/', 1)[0]}/logs\n"
+        f"# ALEMS_ERROR_DIR={store_ref.rsplit('/', 1)[0]}/errors\n"
+        f"# ALEMS_HEARTBEAT_S=1\n"
         f"#\n"
         f"# ── Per-sandbox endpoint overrides (edit these) ────────────────\n"
         f"# Uncomment and set to override machine-level ~/.alemsrc values.\n"

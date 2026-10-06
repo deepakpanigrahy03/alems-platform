@@ -91,7 +91,7 @@ class RunsRepository:
         # Performance counters
         instructions = ml.get("instructions", 0)
         cycles = ml.get("cycles", 0)
-        total_tokens = ml.get("total_tokens", 0)
+        total_tokens = ml.get("total_tokens")  # C2: unknown stays NULL
 
         # Derived metrics
         energy_per_instruction = (
@@ -175,8 +175,8 @@ class RunsRepository:
             "vms_memory_mb": ml.get("vms_memory_mb", 0),
             # Tokens
             "total_tokens": total_tokens,
-            "prompt_tokens": ml.get("prompt_tokens", 0),
-            "completion_tokens": ml.get("completion_tokens", 0),
+            "prompt_tokens": ml.get("prompt_tokens"),
+            "completion_tokens": ml.get("completion_tokens"),
             # Network
             "dns_latency_ms": ml.get("dns_latency_ms", 0),
             "api_latency_ms": ml.get("api_latency_ms", 0),
@@ -239,11 +239,10 @@ class RunsRepository:
         dram_raw_uj = ml.get("dram_energy_uj", 0)
         baseline_energy_uj = ml.get("idle_energy_uj", 0)
 
-        print(
-            f"🔍 RUNS DEBUG - pkg_raw_uj: {pkg_raw_uj}, baseline_energy_uj: {baseline_energy_uj}"
-        )
-        print(
-            f"🔍 RUNS DEBUG - dynamic will be: {max(pkg_raw_uj - baseline_energy_uj, 0)}"
+        import logging as _logging  # repository has no module logger
+        _logging.getLogger(__name__).debug(
+            "pkg_raw_uj %s, baseline_energy_uj %s, dynamic %s",
+            pkg_raw_uj, baseline_energy_uj, max(pkg_raw_uj - baseline_energy_uj, 0),
         )
 
         # Extract and compute fields
@@ -543,11 +542,12 @@ class RunsRepository:
             return cursor.lastrowid
         except sqlite3.IntegrityError as e:
             # Print detailed debug info
-            print(f"\n❌ FOREIGN KEY ERROR: {e}")
-            print("\n🔍 Foreign key values:")
-            print(f"   exp_id: {exp_id} (type: {type(exp_id)})")
-            print(f"   hw_id: {hw_id} (type: {type(hw_id)})")
-            print(f"   baseline_id: {baseline_id} (type: {type(baseline_id)})")
+            import logging as _logging
+            _fk = _logging.getLogger(__name__)
+            _fk.error(
+                "foreign key error: %s (exp_id %r, hw_id %r, baseline_id %r)",
+                e, exp_id, hw_id, baseline_id,
+            )
 
             # Verify each foreign key exists
             try:
@@ -555,22 +555,18 @@ class RunsRepository:
                     "SELECT COUNT(*) as count FROM experiments WHERE exp_id = ?",
                     (exp_id,),
                 )
-                print(
-                    f"   experiments count for exp_id {exp_id}: {exp_check[0]['count']}"
-                )
+                _fk.error("experiments rows for exp_id %s: %s", exp_id, exp_check[0]["count"])
             except Exception as ex:
-                print(f"   ❌ Failed to check experiments: {ex}")
+                _fk.error("failed to check experiments: %s", ex)
 
             try:
                 hw_check = self.db.execute(
                     "SELECT COUNT(*) as count FROM hardware_config WHERE hw_id = ?",
                     (hw_id,),
                 )
-                print(
-                    f"   hardware_config count for hw_id {hw_id}: {hw_check[0]['count']}"
-                )
+                _fk.error("hardware_config rows for hw_id %s: %s", hw_id, hw_check[0]["count"])
             except Exception as ex:
-                print(f"   ❌ Failed to check hardware: {ex}")
+                _fk.error("failed to check hardware: %s", ex)
 
             if baseline_id:
                 try:
@@ -578,13 +574,11 @@ class RunsRepository:
                         "SELECT COUNT(*) as count FROM idle_baselines WHERE baseline_id = ?",
                         (baseline_id,),
                     )
-                    print(
-                        f"   idle_baselines count for baseline_id {baseline_id}: {bl_check[0]['count']}"
-                    )
+                    _fk.error("idle_baselines rows for baseline_id %s: %s", baseline_id, bl_check[0]["count"])
                 except Exception as ex:
-                    print(f"   ❌ Failed to check baseline: {ex}")
+                    _fk.error("failed to check baseline: %s", ex)
             else:
-                print(f"   baseline_id is None (allowed)")
+                _fk.error("baseline_id is None (allowed)")
 
             # Re-raise the original error
             raise

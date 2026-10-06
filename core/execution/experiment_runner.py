@@ -125,6 +125,7 @@ from core.storage.inprocess_writer import InProcessWriter
 from core.storage.resolver import resolve_store
 import logging
 logger = logging.getLogger(__name__)
+progress = logging.getLogger("alems.progress")  # 39.5.2e run progress
  
 # Extension manager singleton — initialized once at module import time.
 # In legacy mode (no [extensions] in app_settings.yaml), this manager
@@ -796,16 +797,13 @@ class ExperimentRunner:
         needs_measure = force_remeasure or not cache_exists
         
         if needs_measure:
-            print("\n" + "=" * 70)
-            print("📏 MEASURING IDLE POWER BASELINE")
-            print("=" * 70)
+            progress.info("baseline  measuring idle power; keep the machine idle")
 
             duration = baseline_config.get("duration_seconds", 10)
             samples = baseline_config.get("num_samples", 3)
             pre_wait = baseline_config.get("pre_wait_seconds", 5)
 
-            print(f"   Duration: {duration}s × {samples} samples = {duration * samples}s total")
-            print("   Please don't use mouse/keyboard during this time.\n")
+            progress.info("baseline  %ss x %s samples (%ss total)", duration, samples, duration * samples)
 
             try:
                 harness.baseline = harness.energy_engine.measure_idle_baseline(
@@ -820,17 +818,16 @@ class ExperimentRunner:
                 if harness.baseline is not None:
                     harness.baseline_mgr.save(harness.baseline)
 
-                print(f"\n   ✅ Baseline measured and saved!")
-                print(f"      Baseline ID: {harness.baseline.baseline_id}")
                 # canonical keys after v61: PACKAGE, CORE (not package-0, core)
-                print(f"      Package idle power: {harness.baseline.package_power_w:.3f} W")
-                print(f"      Core idle power:    {harness.baseline.core_power_w:.3f} W")
+                progress.info(
+                    "baseline  measured  id %s  package %.3f W  core %.3f W",
+                    harness.baseline.baseline_id, harness.baseline.package_power_w,
+                    harness.baseline.core_power_w,
+                )
 
             except Exception as e:
                 import traceback
-                print(f"\n   ⚠️ Baseline measurement failed: {e}")
-                traceback.print_exc()
-                print("   Continuing without baseline")
+                logger.warning("baseline measurement failed: %s; continuing without baseline", e, exc_info=True)
                 return None
         else:
             # Load from cache if not already in memory
@@ -839,12 +836,12 @@ class ExperimentRunner:
             if not harness.baseline or harness.baseline.baseline_id != stored.baseline_id:
                 try:
                     harness.baseline = stored
-                    print(f"\n📏 Loaded baseline from store: {harness.baseline.baseline_id}")
+                    progress.info("baseline  loaded  id %s", harness.baseline.baseline_id)
                 except Exception as e:
-                    print(f"\n⚠️ Failed to load baseline from cache: {e}")
+                    logger.warning("failed to load baseline from store: %s", e)
                     return None
             else:
-                print(f"\n📏 Using existing baseline: {harness.baseline.baseline_id}")
+                progress.info("baseline  reused  id %s", harness.baseline.baseline_id)
         
         return harness.baseline
 
@@ -947,15 +944,12 @@ class ExperimentRunner:
         )
         if result:
             existing_id = result[0]["env_id"]
-            print(
-                f"   ✅ Using existing environment: {existing_id} (hash: {current_hash})"
-            )
+            logger.info("environment %s reused (hash %s)", existing_id, current_hash)
             return existing_id
 
         # New environment - insert it
-        print(f"   📦 New environment detected (hash: {current_hash}) - inserting...")
         new_id = db.insert_environment_config(env_info)
-        print(f"   ✅ Created new environment: {new_id}")
+        logger.info("environment %s created (hash %s)", new_id, current_hash)
         return new_id
 
     def setup_environment(self, db) -> int:
@@ -1086,9 +1080,7 @@ class ExperimentRunner:
             "UPDATE experiments SET runs_completed = ? WHERE exp_id = ?",
             (runs_completed, exp_id),
         )
-        print(
-            f"   📊 Progress: {runs_completed}/{self._get_total_runs(db, exp_id)} runs"
-        )
+        progress.info("progress  %s/%s runs", runs_completed, self._get_total_runs(db, exp_id))
 
     def _validate_run(self, db, run_id: int, hw_id) -> None:
         """Score a completed run and insert into run_quality. Called after each INSERT."""
@@ -1133,10 +1125,9 @@ class ExperimentRunner:
         samples = []
         if "cpu_samples" in results:
             samples = results["cpu_samples"]
-            print(f"   Found {len(samples)} CPU samples (ready for insertion)")
+            logger.info("cpu samples ready for insertion: %d", len(samples))
             if samples and len(samples) > 0:
-                print(f"   🔍 First CPU sample keys: {list(samples[0].keys())}")
-                print(f"   🔍 First CPU sample values: {samples[0]}")
+                logger.debug("first cpu sample: %s", samples[0])
         return samples
 
     # ========================================================================
@@ -1147,13 +1138,13 @@ class ExperimentRunner:
         samples = []
         if "interrupt_samples" in results:
             samples = results["interrupt_samples"]
-            print(f"   Found {len(samples)} interrupt samples (ready for insertion)")
+            logger.info("interrupt samples ready for insertion: %d", len(samples))
         return samples
 
     def ensure_baseline_in_db(self, db, harness):
         """Save baseline to database once per experiment session."""
         if not harness.baseline:
-            print("⚠️ No baseline available - foreign key constraints may fail")
+            logger.warning("no baseline available; baseline foreign keys may fail")
             return False
 
         if hasattr(self, "_baseline_saved"):
@@ -1168,9 +1159,7 @@ class ExperimentRunner:
                 (harness.baseline.baseline_id,),
             )
             if result:
-                print(
-                    f"✅ Baseline {harness.baseline.baseline_id} already exists in database"
-                )
+                logger.info("baseline %s already in store", harness.baseline.baseline_id)
                 self._baseline_saved = True
                 return True
         except Exception as e:
@@ -1207,11 +1196,11 @@ class ExperimentRunner:
 
             db.insert_baseline(baseline_dict)
             self._baseline_saved = True
-            print(f"✅ Baseline {b.baseline_id} saved to database")
+            logger.info("baseline %s saved to store", b.baseline_id)
             return True
 
         except Exception as e:
-            print(f"❌ Failed to save baseline: {e}")
+            logger.error("failed to save baseline: %s", e)
             return False
 
     def save_pair(self, db, exp_id, hw_id, linear_result, agentic_result, rep_num,
@@ -1305,11 +1294,10 @@ class ExperimentRunner:
             linear_uj  = attributed_energy_or_none(linear_result)
             agentic_uj = attributed_energy_or_none(agentic_result)
 
-            print(
-                f"🔍 DEBUG - linear_orchestration_uj from ml_features: {linear_result['ml_features'].get('orchestration_tax_uj')}"
-            )
-            print(
-                f"🔍 DEBUG - agentic_orchestration_uj from ml_features: {agentic_result['ml_features'].get('orchestration_tax_uj')}"
+            logger.debug(
+                "orchestration_tax_uj linear %s agentic %s",
+                linear_result["ml_features"].get("orchestration_tax_uj"),
+                agentic_result["ml_features"].get("orchestration_tax_uj"),
             )
 
             linear_orchestration_uj  = orchestration_energy_or_none(linear_result)
@@ -1317,18 +1305,8 @@ class ExperimentRunner:
             # GPU PP1 energy per workflow side — None on non-Tiger-Lake
             linear_gpu_uj  = linear_result["ml_features"].get("gpu_dynamic_energy_uj")
             agentic_gpu_uj = agentic_result["ml_features"].get("gpu_dynamic_energy_uj")            
-            print(
-                f"🔍 DEBUG - linear energy_uj keys: {linear_result['layer3_derived']['energy_uj'].keys()}"
-            )
-            print(
-                f"🔍 DEBUG - agentic energy_uj keys: {agentic_result['layer3_derived']['energy_uj'].keys()}"
-            )
-            print(
-                f"🔍 DEBUG - linear energy_uj content: {linear_result['layer3_derived']['energy_uj']}"
-            )
-            print(
-                f"🔍 DEBUG - linear energy_uj content: {agentic_result['layer3_derived']['energy_uj']}"
-            )
+            logger.debug("linear energy_uj: %s", linear_result["layer3_derived"]["energy_uj"])
+            logger.debug("agentic energy_uj: %s", agentic_result["layer3_derived"]["energy_uj"])
 
             db.create_tax_summary_for_pair(
                 linear_id,
@@ -1339,9 +1317,7 @@ class ExperimentRunner:
                 agentic_orchestration_uj,
             )
 
-        print(
-            f"   ✅ Pair {rep_num} saved (linear: {linear_id}, agentic: {agentic_id})"
-        )
+        progress.info("persisted  pair %s  linear run %s  agentic run %s", rep_num, linear_id, agentic_id)
 
 
      

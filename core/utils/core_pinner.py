@@ -36,7 +36,7 @@ import platform
 from typing import List, Optional
 
 logger = logging.getLogger(__name__)
-
+from core.observability.console import get_console; con = get_console()
 
 class CorePinner:
     """
@@ -151,35 +151,33 @@ class CorePinner:
 if __name__ == "__main__":
     import time
 
-    print("\n" + "=" * 70)
-    print("CORE PINNER TEST")
-    print("=" * 70)
+
+    con.line("CORE PINNER TEST")
 
     # Create pinner with default cores
     pinner = CorePinner(default_cores=[0, 1])
-    print(f"📊 {pinner}")
+    con.line(f" {pinner}")
 
     # Pin to default cores
-    print("\n📝 Pinning to default cores [0, 1]...")
+    con.line("\n Pinning to default cores [0, 1]...")
     success = pinner.pin_to_cores()
-    print(f"   Success: {success}")
-    print(f"   Current affinity: {pinner.get_current_affinity()}")
+    con.line(f"   Success: {success}")
+    con.line(f"   Current affinity: {pinner.get_current_affinity()}")
 
     # Pin to different cores at runtime
-    print("\n📝 Pinning to cores [2, 3]...")
+    con.line("\n Pinning to cores [2, 3]...")
     success = pinner.pin_to_cores([2, 3])
-    print(f"   Success: {success}")
-    print(f"   Current affinity: {pinner.get_current_affinity()}")
+    con.line(f"   Success: {success}")
+    con.line(f"   Current affinity: {pinner.get_current_affinity()}")
 
     # Demonstrate that it persists
-    print("\n📝 Running a small workload...")
+    con.line("\nRunning a small workload...")
     start = time.time()
     for i in range(1000000):
         _ = i * i
     end = time.time()
-    print(f"   Workload completed in {(end-start)*1000:.2f} ms")
-    print(f"   Affinity still: {pinner.get_current_affinity()}")
+    con.line(f"   Workload completed in {(end-start)*1000:.2f} ms")
+    con.line(f"   Affinity still: {pinner.get_current_affinity()}")
 
-    print("\n" + "=" * 70)
-    print("✅ Test complete!")
-    print("=" * 70)
+    con.line(" Test complete!")
+

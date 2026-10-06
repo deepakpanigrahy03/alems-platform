@@ -18,6 +18,8 @@ import numpy as np
 from dotenv import load_dotenv
 import logging
 logger = logging.getLogger(__name__)
+progress = logging.getLogger("alems.progress")  # 39.5.2e run progress
+from core.observability.console import get_console
 load_dotenv()
 
 # Add project root to path
@@ -118,23 +120,21 @@ def run_provider_task(
         args: Command line arguments
         config: ConfigLoader instance
     """
-    print(f"\n   {'='*60}")
-    print(f"   📋 {provider} | {task['name']}")
-    print(f"   {'='*60}")
+    progress.info("%s | %s", provider, task["name"])
 
     # ========================================================================
     # Setup executors for this provider
     # ========================================================================
     models_for_provider = runner.config.list_models(provider)
     if not models_for_provider:
-        print(f"   ❌ No models found for provider '{provider}', skipping...")
+        logger.error("no models found for provider %s; skipping", provider)
         return []
     model_id = getattr(runner.args, 'model', None) or models_for_provider[0]["model_id"]
     linear_config  = runner.config.get_model_config_v2(provider, model_id)
     agentic_config = runner.config.get_model_config_v2(provider, model_id)
 
     if not linear_config or not agentic_config:
-        print(f"   ❌ Failed to load {provider} configs, skipping...")
+        logger.error("failed to load %s configs; skipping", provider)
         return None
     # ========================================================================
     # PRE-FLIGHT CHECKS - Validate before creating executors
@@ -152,7 +152,7 @@ def run_provider_task(
         linear = LinearExecutor(linear_config)
         agentic = AgenticExecutor(agentic_config)
 
-    print(f"   Optimizer:    {'Yes' if args.optimizer else 'No'}")
+    progress.info("optimizer  %s", "yes" if args.optimizer else "no")
 
     # ========================================================================
     # Setup database for this provider-task
@@ -195,9 +195,9 @@ def run_provider_task(
         # ========================================================================
         try:
             for rep in range(repetitions):
-                print(f"\n      {'─'*50}")
-                print(f"      Repetition {rep+1}/{repetitions}")
-                print(f"      {'─'*50}")
+                progress.info("repetition %d/%d", rep + 1, repetitions)
+                from core.observability import status as _obs_status
+                _obs_status.set_context(rep=rep + 1, total=repetitions)
 
                 # Run linear
                 workflow_mode = getattr(args, 'workflow_mode', 'comparison')
@@ -207,7 +207,7 @@ def run_provider_task(
                 linear_result = None
                 agentic_result = None
                 max_retries = getattr(args, "max_retries", 0)
-                print(f"DEBUG max_retries={max_retries} workflow_mode={workflow_mode}")
+                logger.debug("max_retries=%s workflow_mode=%s", max_retries, workflow_mode)
                 if max_retries == 0:
                     if workflow_mode in ('linear', 'comparison'):
                         linear_result = harness.run_linear(
@@ -239,9 +239,7 @@ def run_provider_task(
                     agentic_energy = agentic_result["ml_features"]["energy_j"]
                     tax = agentic_energy / linear_energy if linear_energy > 0 else 0
                     taxes.append(tax)
-                    print(f"\n         Linear:  {linear_energy:.4f} J")
-                    print(f"         Agentic: {agentic_energy:.4f} J")
-                    print(f"         Tax: {tax:.2f}x")
+                    progress.info("pair  linear %.4f J  agentic %.4f J  tax %.2fx", linear_energy, agentic_energy, tax)
 
                 # Save — pair or single depending on workflow_mode
                 # Save — retry path when max_retries > 0, normal path otherwise.
@@ -287,7 +285,7 @@ def run_provider_task(
                         # A4: initialize retry adapter once per rep — args in scope here.
                         from core.retry.retry_adapter import get_retry_adapter
                         _retry_adapter = get_retry_adapter(args)
-                        print(f"DEBUG injector={getattr(args, 'failure_injector', None)} adapter={type(_retry_adapter).__name__}")
+                        logger.debug("injector=%s adapter=%s", getattr(args, "failure_injector", None), type(_retry_adapter).__name__)
                         if workflow_mode in ("linear", "comparison"):
                             execute_goal(
                                 db=db, exp_id=exp_id, hw_id=hw_id,
@@ -338,19 +336,17 @@ def run_provider_task(
                             )
                             runs_completed += 1
  
-                    print(f"         ✅ Rep {rep+1}/{repetitions} saved")
+                    progress.info("repetition %d/%d saved", rep + 1, repetitions)
                     runner.update_progress(db, exp_id, runs_completed)
 
                 # Cool down
                 if rep < repetitions - 1:
-                    print(f"\n         ⏳ Cooling down {cool_down}s...")
-                    time.sleep(cool_down)
+                    progress.info("cool down %s s", cool_down)
+                    from core.observability import status as _obs_status
+                    _obs_status.wait(cool_down, "cool down")
 
         except (Exception, KeyboardInterrupt) as e:
-            print(f"\n   ❌ ERROR in {provider}/{task['name']}: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.error("%s/%s failed: %s", provider, task["name"], e, exc_info=True)
 
             if db and exp_id:
                 error_msg = str(e) if str(e) else "KeyboardInterrupt (user cancelled)"
@@ -358,7 +354,7 @@ def run_provider_task(
                     db, exp_id, "failed", runs_completed, error=error_msg
                 )
                 print(
-                    f"   ⚠️ Experiment {exp_id} marked as failed after {runs_completed} runs"
+                    logger.warning("experiment %s marked failed after %s runs", exp_id, runs_completed)
                 )
 
             return None
@@ -371,7 +367,7 @@ def run_provider_task(
                 len(linear_results) + len(agentic_results)
             )
             runner.update_status(db, exp_id, "completed", final_runs)
-            print(f"\n   ✅ Experiment {exp_id} completed with {final_runs} runs")
+            progress.info("experiment %s completed with %s runs", exp_id, final_runs)
 
         # ========================================================================
         # DISPLAY HARDWARE PARAMETERS (verbose mode only)
@@ -455,15 +451,12 @@ def run_provider_task(
         # ========================================================================
         # ERROR HANDLING - Update experiment status with error
         # ========================================================================
-        print(f"\n   ❌ ERROR in {provider}/{task['name']}: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error("%s/%s failed: %s", provider, task["name"], e, exc_info=True)
 
         if db and exp_id:
             runner.update_status(db, exp_id, "failed", runs_completed, error=str(e))
             print(
-                f"   ⚠️ Experiment {exp_id} marked as failed after {runs_completed} runs"
+                logger.warning("experiment %s marked failed after %s runs", exp_id, runs_completed)
             )
 
         return None
@@ -489,10 +482,10 @@ def run_task(harness, runner, task, providers, repetitions, cool_down, args, con
         )
         if stats:
             results.append(stats)
-            print(f"\n   ✅ {provider} | {task['name']} complete:")
-            print(
-                f"      Tax: {stats['orchestration_tax']['mean']:.2f}x "
-                f"[{stats['orchestration_tax']['ci_lower']:.2f}, {stats['orchestration_tax']['ci_upper']:.2f}]"
+            progress.info(
+                "%s | %s complete  tax %.2fx [%.2f, %.2f]", provider, task["name"],
+                stats["orchestration_tax"]["mean"], stats["orchestration_tax"]["ci_lower"],
+                stats["orchestration_tax"]["ci_upper"],
             )
 
     return results
@@ -503,9 +496,7 @@ def run_all_experiments(args):
     Run all tasks with all providers.
     Returns list of all results.
     """
-    print("\n" + "=" * 70)
-    print("📊 A-LEMS REAL EXPERIMENT")
-    print("=" * 70)
+    progress.info("A-LEMS experiment")
 
     # Load configuration
     config = ConfigLoader()
@@ -556,17 +547,24 @@ def run_all_experiments(args):
     selected_tasks = [t for t in all_tasks if t["id"] in task_ids]
 
     if not selected_tasks:
-        print("\n❌ No valid tasks selected.")
+        logger.error("no valid tasks selected")
         return []
 
-    print(f"\n📋 Configuration:")
-    print(f"   Providers:    {', '.join(providers)}")
-    print(f"   Tasks:        {len(selected_tasks)}")
-    print(f"   Repetitions:  {repetitions}")
-    print(f"   Cool-down:    {cool_down}s")
+    progress.info(
+        "configuration  providers %s  tasks %d  repetitions %s  cool down %ss",
+        ", ".join(providers), len(selected_tasks), repetitions, cool_down,
+    )
 
     # Create harness and runner
     harness = ExperimentHarness(config)
+    # Run header: what runs and where records go (outside any window).
+    from core.observability import run_report as _run_report
+    _run_report.header(
+        harness=harness, config=config, providers=providers, tasks=selected_tasks,
+        repetitions=repetitions, cool_down=cool_down,
+        country=getattr(args, "country", None), model=getattr(args, "model", None),
+        profile=getattr(args, "profile", None) or getattr(args, "config", None),
+    )
     runner = ExperimentRunner(config, args)
 
     # B3: build serving engine adapter and cache collector from YAML config.
@@ -590,9 +588,7 @@ def run_all_experiments(args):
     inter_task_cooldown = getattr(args, "inter_task_cooldown", 0)
 
     for i, task in enumerate(selected_tasks):
-        print(f"\n{'='*70}")
-        print(f"📋 TASK: {task['name']} (Level {task['level']})")
-        print(f"{'='*70}")
+        progress.info("task  %s (level %s)", task["name"], task["level"])
 
         task_results = run_task(
             harness, runner, task, providers, repetitions, cool_down, args, config
@@ -601,7 +597,7 @@ def run_all_experiments(args):
 
         # Inter-task cooldown — prevents rate limiting across tasks for cloud providers
         if inter_task_cooldown > 0 and i < len(selected_tasks) - 1:
-            print(f"\n   ⏳ Inter-task cooldown {inter_task_cooldown}s...")
+            progress.info("inter task cool down %s s", inter_task_cooldown)
             time.sleep(inter_task_cooldown)
 
     return all_results, config, args
@@ -612,13 +608,15 @@ def display_master_summary(all_results):
     if not all_results:
         return
 
-    print("\n" + "=" * 85)
-    print("📊 MASTER SUMMARY")
-    print("=" * 85)
-    print(
-        f"{'Provider':<12} {'Task':<20} {'Linear (J)':>12} {'Agentic (J)':>12} {'Tax (x)':>10} {'CI Range':>18}"
-    )
-    print("-" * 85)
+    con = get_console()
+    con.line("")
+    con.line("=" * 85)
+    con.line(con.style("MASTER SUMMARY", "bold"))
+    con.line("=" * 85)
+    con.line(con.style(
+        f"{'Provider':<12} {'Task':<20} {'Linear (J)':>12} {'Agentic (J)':>12} {'Tax (x)':>10} {'CI Range':>18}",
+        "bold"))
+    con.line("-" * 85)
 
     for r in all_results:
         provider = r["provider"]
@@ -636,11 +634,14 @@ def display_master_summary(all_results):
             ci_display = "N/A"
             tax_display = f"{tax_mean:.2f}x*"
 
-        print(
-            f"{provider:<12} {task:<20} {linear:>12} {agentic:>12} {tax_display:>10} {ci_display:>18}"
+        # Pad before styling so the columns stay aligned on a terminal.
+        con.line(
+            f"{provider:<12} {task:<20} {linear:>12} {agentic:>12} "
+            + con.style(f"{tax_display:>10}", "cyan") + " "
+            + con.style(f"{ci_display:>18}", "dim" if str(ci_display).strip() == "N/A" else "")
         )
 
-    print("=" * 85)
+    con.line("=" * 85)
 
 
 def main():
@@ -705,7 +706,7 @@ def main():
     all_results, config, args = run_all_experiments(args)
 
     if all_results:
-        display_master_summary(all_results)
+        pass  # master summary is shown last, after the run report (39.5.2e)
 
         # Save to JSON
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -714,9 +715,13 @@ def main():
 
         with open(filename, "w") as f:
             json.dump(all_results, f, indent=2, default=str)
-        print(f"\n💾 Results saved to: {filename}")
+        progress.info("results saved  %s", filename)
 
-    print("\n✅ All experiments complete!")
+    from core.observability import run_report as _run_report
+    _run_report.footer()  # one card per run, read back from the store
+    if all_results:
+        display_master_summary(all_results)  # final view: the comparison table
+    get_console().line(get_console().style("all experiments complete", "green"))
     # 39.5.2a: per run logs are written only here, after every measurement window.
     from core.observability import flush_run_log
     flush_run_log()

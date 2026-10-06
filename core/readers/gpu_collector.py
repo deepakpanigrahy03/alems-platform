@@ -377,6 +377,12 @@ class DCGMBackend:
             # Watch at 100ms interval — GPUCollector samples at 10Hz so this is fine
             self._group.samples.WatchFields(self._field_group, 100000, 1.0, 0)
             logger.info("DCGMBackend: connected to DCGM daemon, watching field 156")
+            # G191: register cleanup when the connection exists, not when sampling
+            # starts, so an exit before any measurement (preflight failure) also
+            # releases the field group before the handle. cleanup() is idempotent,
+            # so the later registration in GPUCollector.start() is harmless.
+            import atexit
+            atexit.register(self.cleanup)
         except Exception as e:
             logger.debug("DCGMBackend init failed: %s", e)
             self._handle = None

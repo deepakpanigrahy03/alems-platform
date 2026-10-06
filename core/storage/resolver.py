@@ -167,10 +167,13 @@ def _store_from_project_dir(project_dir: Path) -> Optional[str]:
             data_root = data.get("data_root") or os.environ.get("ALEMS_DATA_ROOT")
             if data_root:
                 host = socket.gethostname().lower()
-                return str(
-                    Path(data_root) / host / "sandboxes" /
-                    f"{name}-{short_id}" / "experiments.db"
-                )
+                new = sandbox_store_path(data_root, name)
+                # Stores created before the per user layout keep resolving.
+                for old in (Path(data_root) / host / "sandboxes" / f"{name}-{short_id}" / "experiments.db",
+                            Path(data_root) / host / "sandboxes" / name / "experiments.db"):
+                    if not new.exists() and old.exists():
+                        return str(old)
+                return str(new)
         except Exception as exc:
             logger.warning(
                 "resolve_store: failed to read manifest %s: %s", manifest, exc
@@ -180,6 +183,19 @@ def _store_from_project_dir(project_dir: Path) -> Optional[str]:
     if fallback.exists():
         return str(fallback.resolve())
     return None
+
+
+def sandbox_store_path(data_root: str, name: str) -> Path:
+    """
+    Store path of a sandbox: <data_root>/<host>/users/<user>/sandboxes/<name>/experiments.db.
+
+    One rule for create and lookup. The user comes from $USER, the same source
+    as the engine layout envs/<user>/<env>/<project>, so users never share a
+    store even with identical sandbox names (amendment of design 7.6, C-MAN v2).
+    """
+    host = socket.gethostname().lower()
+    user = os.environ.get("USER", "unknown")
+    return Path(data_root) / host / "users" / user / "sandboxes" / name / "experiments.db"
 
 
 def _walk_for_manifest() -> Optional[str]:

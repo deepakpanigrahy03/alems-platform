@@ -47,9 +47,8 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from core.utils.debug import dprint, init_debug_from_env, trace
 
-init_debug_from_env()
+
 logger = logging.getLogger(__name__)
 
 
@@ -244,7 +243,6 @@ class MSRReader(MSRReaderABC):
     # ------------------------------------------------------------------------
     # Core MSR read (with helper priority)
     # ------------------------------------------------------------------------
-    @trace
     def read_msr(self, msr_addr: int, cpu: int = 0, pin: bool = True) -> Optional[int]:
         """
         Read MSR value using C helper (preferred) or direct access (fallback).
@@ -284,7 +282,7 @@ class MSRReader(MSRReaderABC):
 
             if result.returncode == 0:
                 value = int(result.stdout.strip())
-                dprint(f"MSR[0x{msr_addr:X}] on CPU{cpu} = {value} (helper)")
+                logger.debug("MSR[0x%X] on CPU%d = %s (helper)", msr_addr, cpu, value)
                 return value
             else:
                 logger.debug(f"Helper failed: {result.stderr}")
@@ -303,7 +301,7 @@ class MSRReader(MSRReaderABC):
         try:
             data = os.pread(fd, 8, msr_addr)
             value = struct.unpack("<Q", data)[0]
-            dprint(f"MSR[0x{msr_addr:X}] on CPU{cpu} = {value} (direct)")
+            logger.debug("MSR[0x%X] on CPU%d = %s (direct)", msr_addr, cpu, value)
             return value
         except Exception as e:
             logger.debug(f"Direct MSR read failed: {e}")
@@ -580,49 +578,42 @@ class MSRReader(MSRReaderABC):
         Read current uncore frequency from sysfs using paths from config.
         """
         if not self.ring_bus_sysfs_paths:
-            dprint("❌ RING BUS DEBUG: No sysfs paths in config")
             logger.debug("No ring bus sysfs paths in config")
             return None
 
         # Try current_freq first (most accurate)
         current_path = self.ring_bus_sysfs_paths.get("current_freq")
-        dprint(f"🔍 RING BUS DEBUG: Trying current_freq path: {current_path}")
+        logger.debug("ring bus: trying current_freq path %s", current_path)
         if current_path and os.path.exists(current_path):
             try:
                 with open(current_path, "r") as f:
                     freq_khz = int(f.read().strip())
-                    dprint(
-                        f"✅ RING BUS DEBUG: Read {freq_khz} kHz from {current_path}"
-                    )
+
                     logger.debug(
                         f"Current ring bus freq: {freq_khz} kHz from {current_path}"
                     )
                     return freq_khz / 1000.0
             except (IOError, OSError, ValueError) as e:
-                dprint(f"❌ RING BUS DEBUG: Error reading {current_path}: {e}")
                 logger.debug(f"Could not read {current_path}: {e}")
         else:
-            dprint(f"❌ RING BUS DEBUG: Path doesn't exist: {current_path}")
+            logger.debug("ring bus: path does not exist: %s", current_path)
 
         # Fallback to initial_max_freq (boot-time max)
         init_max_path = self.ring_bus_sysfs_paths.get("initial_max_freq")
-        dprint(f"🔍 RING BUS DEBUG: Trying initial_max_freq path: {init_max_path}")
+        logger.debug("ring bus: trying initial_max_freq path %s", init_max_path)
         if init_max_path and os.path.exists(init_max_path):
             try:
                 with open(init_max_path, "r") as f:
                     freq_khz = int(f.read().strip())
-                    dprint(
-                        f"✅ RING BUS DEBUG: Read {freq_khz} kHz from {init_max_path}"
-                    )
+
                     logger.debug(
                         f"Initial max ring bus freq: {freq_khz} kHz from {init_max_path}"
                     )
                     return freq_khz / 1000.0
             except (IOError, OSError, ValueError) as e:
-                dprint(f"❌ RING BUS DEBUG: Error reading {init_max_path}: {e}")
                 logger.debug(f"Could not read {init_max_path}: {e}")
         else:
-            dprint(f"❌ RING BUS DEBUG: Path doesn't exist: {init_max_path}")
+            logger.debug("ring bus: path does not exist: %s", init_max_path)
 
         return None
 
@@ -634,30 +625,23 @@ class MSRReader(MSRReaderABC):
         3. None if unavailable
         """
         # Method 1: sysfs current frequency (live reading)
-        dprint("🔍 RING BUS DEBUG: Attempting sysfs read...")
         freq = self._read_uncore_from_sysfs()
         if freq is not None:
-            dprint(f"✅ RING BUS DEBUG: sysfs success! freq={freq:.1f} MHz")
             logger.debug(f"Ring bus frequency (sysfs): {freq:.1f} MHz")
             return freq
         else:
-            dprint("❌ RING BUS DEBUG: sysfs returned None")
+            logger.debug("ring bus: sysfs returned None")
 
         # Method 2: Average of min/max from MSR
-        dprint("🔍 RING BUS DEBUG: Falling back to MSR...")
         limits = self.get_ring_limits()
         if limits:
             avg_freq = (limits["min_mhz"] + limits["max_mhz"]) / 2
-            dprint(
-                f"⚠️ RING BUS DEBUG: MSR average = {avg_freq:.1f} MHz (min={limits['min_mhz']:.0f}, max={limits['max_mhz']:.0f})"
-            )
             logger.debug(
                 f"Ring bus frequency (MSR average): {avg_freq:.1f} MHz "
                 f"[min={limits['min_mhz']:.0f}, max={limits['max_mhz']:.0f}]"
             )
             return avg_freq
 
-        dprint("❌ RING BUS DEBUG: All methods failed")
         logger.warning("Ring bus frequency not available on this CPU")
         return None
 
@@ -783,12 +767,12 @@ class MSRReader(MSRReaderABC):
         val = self.read_msr(
             self.MSR_ADDRESSES["MSR_IA32_PACKAGE_THERM_STATUS"], cpu, pin=pin
         )
-        print(f"   Raw value: {val} (hex: {hex(val) if val else 'None'})")
+        logger.debug("package therm status raw %s", val)
         if val is None:
             return None
 
         result = {"thermal_now": (val >> 0) & 1, "thermal_log": (val >> 1) & 1}
-        print(f"   Decoded: now={result['thermal_now']}, log={result['thermal_log']}")
+        logger.debug("package therm status now %s log %s", result["thermal_now"], result["thermal_log"])
         return result
 
     def read_core_thermal_status(
@@ -952,12 +936,12 @@ class MSRReader(MSRReaderABC):
     def set_start_snapshot(self, snapshot: Dict[str, Any]):
         """Store the start snapshot."""
         self.start_cstate_counters = snapshot
-        dprint(f"✅ Start C-state snapshot stored: {snapshot}")
+        logger.debug("start c state snapshot stored: %s", snapshot)
 
     def set_end_snapshot(self, snapshot: Dict[str, Any]):
         """Store the end snapshot."""
         self.end_cstate_counters = snapshot
-        dprint(f"✅ End C-state snapshot stored: {snapshot}")
+        logger.debug("end c state snapshot stored: %s", snapshot)
 
     # ------------------------------------------------------------------------
     # Get ALL metrics in one call
@@ -994,13 +978,11 @@ class MSRReader(MSRReaderABC):
             # ====================================================================
             # Calculate per-run C-state deltas if start snapshot exists
             # ====================================================================
-            print(
-                f"🔵 MSR_READER - _cstate_start exists: {hasattr(self, '_cstate_start')}"
-            )
+            logger.debug("c state start snapshot present: %s", hasattr(self, "_cstate_start"))
             if hasattr(self, "_cstate_start"):
-                print(f"🔵 MSR_READER - _cstate_start: {self._cstate_start}")
+                logger.debug("c state start snapshot: %s", self._cstate_start)
                 current_cstates = self.snapshot_cstate_counters()
-                print(f"🔵 MSR_READER - current_cstates: {current_cstates}")
+                logger.debug("current c states: %s", current_cstates)
             # ====================================================================
             # Calculate per-run C-state deltas if start snapshot exists
             # ====================================================================
@@ -1076,11 +1058,9 @@ class MSRReader(MSRReaderABC):
                 metrics.update(deltas)
 
                 # Debug output
-                print(f"🔵 MSR_READER_ID: {id(metrics)}")
-                print(
-                    f"🔵 MSR_READER_VALUE: c2={metrics.get('c2_time_seconds', 0):.3f}s"
-                )
-                print(f"🔵 MSR_READER_KEYS: {list(metrics.keys())}")
+                logger.debug("msr metrics object id %s", id(metrics))
+                logger.debug("msr c2 time %.3f s", metrics.get("c2_time_seconds", 0))
+                logger.debug("msr metrics keys: %s", list(metrics.keys()))
 
                 # Store raw deltas in dynamic section
                 metrics["dynamic"]["cstate_deltas"] = deltas
@@ -1112,24 +1092,19 @@ class MSRReader(MSRReaderABC):
                 )
                 metrics["dynamic"]["cpu_wakeup_count"] = wakeups
 
-                dprint(f"\n🔍 DEBUG - CPU Wakeup counters:")
-                dprint(
-                    f"   Start counters: {self.start_cstate_counters.get('counters', {})}"
+                logger.debug(
+                    "cpu wakeups %s (start %s, end %s)", wakeups,
+                    self.start_cstate_counters.get("counters", {}),
+                    self.end_cstate_counters.get("counters", {}),
                 )
-                dprint(
-                    f"   End counters: {self.end_cstate_counters.get('counters', {})}"
-                )
-                dprint(f"   Wakeup count: {wakeups}")
             else:
-                dprint(f"\n🔍 DEBUG - No wakeup snapshots available")
-                dprint(f"   start_cstate_counters: {self.start_cstate_counters}")
-                dprint(f"   end_cstate_counters: {self.end_cstate_counters}")
-
-            dprint("\n🔍 DEBUG - Thermal data structure:")
-            dprint(f"   thermal_pkg = {thermal_pkg}")
-            dprint(f"   thermal_core = {thermal_core}")
-            dprint(
-                f"   metrics['dynamic']['thermal'] = {metrics['dynamic']['thermal']}"
+                logger.debug(
+                    "no wakeup snapshots (start %s, end %s)",
+                    self.start_cstate_counters, self.end_cstate_counters,
+                )
+            logger.debug(
+                "thermal package %s core %s dynamic %s",
+                thermal_pkg, thermal_core, metrics["dynamic"]["thermal"],
             )
 
             # Read APERF/MPERF if enabled
@@ -1198,48 +1173,26 @@ class MSRReader(MSRReaderABC):
         Call this when experiencing issues with C-state calculations to verify
         that snapshots contain expected data structures and no None values.
         """
-        print("\n" + "=" * 60)
-        print("🔍 C-STATE SNAPSHOT DEBUG")
-        print("=" * 60)
-
-        # Check if _cstate_start exists
+        # Diagnostic on request: detail tier, visible with --verbose.
         if not hasattr(self, "_cstate_start"):
-            print("❌ No _cstate_start attribute found")
+            logger.info("c state snapshot: no _cstate_start attribute")
             return
-
-        print(f"✓ _cstate_start exists")
-        print(f"  Type: {type(self._cstate_start)}")
-
-        # Examine _cstate_start structure
-        if isinstance(self._cstate_start, dict):
-            print(f"  Keys: {list(self._cstate_start.keys())}")
-
-            # Check counters sub-dictionary
-            counters = self._cstate_start.get("counters", {})
-            print(f"  counters type: {type(counters)}")
-            print(f"  counters keys: {list(counters.keys())}")
-
-            # Check each expected C-state
-            print("\n  C-state values:")
-            for state in ["c2", "c3", "c6", "c7"]:
-                val = counters.get(state)
-                val_type = type(val).__name__ if val is not None else "NoneType"
-                status = "✅" if val is not None and isinstance(val, int) else "❌"
-                print(f"    {status} {state}: {val} (type: {val_type})")
-
-            # Check timestamp
-            ts = self._cstate_start.get("timestamp")
-            if ts:
-                print(f"\n  Timestamp: {ts}")
-
-            # Check read_status if present
-            read_status = self._cstate_start.get("read_status")
-            if read_status:
-                print(f"  Read status: {read_status}")
-        else:
-            print(f"❌ _cstate_start is not a dictionary: {self._cstate_start}")
-
-        print("=" * 60)
+        if not isinstance(self._cstate_start, dict):
+            logger.info("c state snapshot is not a dict: %s", self._cstate_start)
+            return
+        counters = self._cstate_start.get("counters", {})
+        logger.info(
+            "c state snapshot keys %s, counters keys %s",
+            list(self._cstate_start.keys()), list(counters.keys()),
+        )
+        for state in ["c2", "c3", "c6", "c7"]:
+            val = counters.get(state)
+            ok = val is not None and isinstance(val, int)
+            logger.info("c state %s = %s (%s)", state, val, "ok" if ok else "invalid")
+        logger.info(
+            "c state snapshot timestamp %s, read status %s",
+            self._cstate_start.get("timestamp"), self._cstate_start.get("read_status"),
+        )
 
     # ------------------------------------------------------------------------
     # Wake-up latency measurement (baseline only)
@@ -1353,9 +1306,9 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    print("\n" + "=" * 70)
-    print("MSR READER TEST (with C Helper)")
-    print("=" * 70)
+    from core.observability.console import get_console
+    con = get_console()
+    con.section("msr reader test (c helper)")
 
     # Load configuration
     config_loader = ConfigLoader()
@@ -1367,62 +1320,38 @@ if __name__ == "__main__":
     else:
         hw_config["settings"] = settings
 
-    print("\n📁 Testing MSRReader with C helper...")
     reader = MSRReader(hw_config, use_baseline=True, require_baseline=False)
-    print(f"📊 {reader}")
-
+    con.line(str(reader))
     if not reader.helper_available and not reader.rdmsr_available:
-        print("\n❌ MSR not available. Check permissions and C helper.")
+        con.line("msr not available: check permissions and the c helper")
         sys.exit(1)
 
-    # Test get_all_metrics()
-    print("\n" + "=" * 70)
-    print("TEST: get_all_metrics() - Complete MSR Data")
-    print("=" * 70)
     metrics = reader.get_all_metrics()
-
-    # Display baseline
-    print("\n📁 Baseline Data:")
     baseline_meas = metrics.get("baseline", {}).get("measurements", {})
+    con.section("baseline")
     ring_freq = baseline_meas.get("ring_bus_frequency_mhz")
-    if ring_freq:
-        print(f"   Ring Bus Frequency (baseline): {ring_freq} MHz")
-    else:
-        print(f"   Ring Bus Frequency: Not available in baseline")
-
+    con.kv("ring bus frequency", "%s MHz" % ring_freq if ring_freq else "not in baseline")
     wake_lat = baseline_meas.get("wakeup_latency_us")
     if wake_lat:
-        print(f"   Wake-up Latency: {wake_lat:.2f} µs")
+        con.kv("wake up latency", "%.2f us" % wake_lat)
 
-    # Display dynamic data
-    print("\n📊 Dynamic Data (current measurements):")
     dynamic = metrics.get("dynamic", {})
-
+    con.section("current measurements")
     current_ring = dynamic.get("ring_bus_frequency_mhz")
     if current_ring:
-        print(f"   Current Ring Bus Frequency: {current_ring:.1f} MHz")
-
-    # Display C-state averages with proper conversion
+        con.kv("ring bus frequency", "%.1f MHz" % current_ring)
     cstate_avgs = dynamic.get("cstate_averages", {})
     if cstate_avgs:
-        print("\n   C-State Averages (across all CPUs):")
-        print("      Raw TSC ticks:")
         for state, val in cstate_avgs.get("raw", {}).items():
-            print(f"         {state}: {val:.0f}")
-        print("      Actual time:")
+            con.kv("%s tsc ticks" % state, "%.0f" % val)
         for state, val in cstate_avgs.get("seconds", {}).items():
-            print(f"         {state}: {val:.2f} seconds")
+            con.kv("%s time" % state, "%.2f s" % val)
         for state, val in cstate_avgs.get("human", {}).items():
-            print(f"         {state}: {val}")
+            con.kv("%s" % state, val)
     else:
-        print("   No C-state data available")
-
+        con.kv("c states", "no data")
     throttle = dynamic.get("thermal_throttle")
     if throttle is not None:
-        print(f"\n   Thermal Throttle: {throttle}")
-
-    print(f"\n   TSC Frequency: {metrics.get('tsc_frequency_hz', 0)/1e6:.0f} MHz")
-
-    print("\n" + "=" * 70)
-    print("✅ MSR Reader Test Complete!")
-    print("=" * 70)
+        con.kv("thermal throttle", throttle)
+    con.kv("tsc frequency", "%.0f MHz" % (metrics.get("tsc_frequency_hz", 0) / 1e6))
+    con.line("msr reader test complete")

@@ -14,7 +14,7 @@ No hardcoding of URLs here.
 
 import sys
 import requests
-
+import logging
 
 def check(config: dict) -> None:
     """
@@ -26,27 +26,27 @@ def check(config: dict) -> None:
     """
     base_url = config.get("base_url", "").rstrip("/")
     if not base_url:
-        sys.exit("❌ vllm_remote: base_url not set — check ALEMS_VLLM_API_URL in ~/.alemsrc")
+        sys.exit("vllm_remote: base_url not set — check ALEMS_VLLM_API_URL in ~/.alemsrc")
 
     try:
         r = requests.get(f"{base_url}/models", timeout=3)
         if r.status_code != 200:
             sys.exit(
-                f"❌ vllm_remote: server at {base_url} returned {r.status_code} — is it running?\n"
+                f"vllm_remote: server at {base_url} returned {r.status_code} — is it running?\n"
                 f"   Start with: bash /opt/ai-stack/scripts/serve_llm.sh <model>"
             )
         models = r.json().get("data", [])
         if not models:
             sys.exit(
-                f"❌ vllm_remote: server at {base_url} has no models loaded\n"
+                f"vllm_remote: server at {base_url} has no models loaded\n"
                 f"   Start with: bash /opt/ai-stack/scripts/serve_llm.sh <model>"
             )
-        print(f"✅ vllm_remote: OK — {models[0]['id']} at {base_url}")
+        logging.getLogger("alems.progress").info("preflight  vllm_remote %s at %s", models[0]["id"], base_url)
 
     except requests.exceptions.ConnectionError:
         sys.exit(
-            f"❌ vllm_remote: UNREACHABLE at {base_url}\n"
+            f"vllm_remote: UNREACHABLE at {base_url}\n"
             f"   Start with: bash /opt/ai-stack/scripts/serve_llm.sh <model>"
         )
     except Exception as e:
-        sys.exit(f"❌ vllm_remote: health check failed — {e}")
+        sys.exit(f" vllm_remote: health check failed — {e}")

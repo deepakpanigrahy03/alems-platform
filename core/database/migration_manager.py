@@ -39,29 +39,29 @@ class MigrationManager:
         pending = self.get_pending_migrations()
 
         if not pending:
-            print("✅ Database schema is up to date")
+            print("database schema is up to date")
             return
 
-        print(f"📦 Applying {len(pending)} migrations...")
+        print("applying %d migrations" % len(pending))
 
         for version, file in pending:
             if target_version and version > target_version:
                 break
 
-            print(f"  Applying v{version}...")
+            print("  applying v%s" % version)
             sql = Path(file).read_text()
 
             try:
                 # Execute migration in transaction
                 with self.conn:
                     self.conn.executescript(sql)
-                print(f"    ✅ v{version} applied")
+                print("    v%s applied" % version)
             except Exception as e:
-                print(f"    ❌ Failed: {e}")
+                print("    failed: %s" % e)
                 raise
 
         self.conn.close()
-        print("✅ All migrations applied successfully")
+        print("all migrations applied")
 
 
 def migrate(db_path="data/experiments.db"):

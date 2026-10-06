@@ -341,7 +341,7 @@ if __name__ == "__main__":
     import sys
     import time
     from pathlib import Path
-
+    from core.observability.console import get_console; con = get_console()
     # Add project root to path
     project_root = Path(__file__).parent.parent.parent
     if str(project_root) not in sys.path:
@@ -353,9 +353,9 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    print("\n" + "=" * 70)
-    print("HIGH-FREQUENCY SAMPLER TEST")
-    print("=" * 70)
+    con.line("\n" + "=" * 70)
+    con.line("HIGH-FREQUENCY SAMPLER TEST")
+    con.line("=" * 70)
 
     # Try to use real RAPL reader first
     try:
@@ -364,8 +364,8 @@ if __name__ == "__main__":
         # Load config
         config_path = project_root / "config" / "hw_config.json"
         if not config_path.exists():
-            print("❌ Config file not found!")
-            print("⚠️ Falling back to dummy reader...")
+            con.line("Config file not found!")
+            con.line("Falling back to dummy reader...")
             raise ImportError("No config file")
 
         with open(config_path) as f:
@@ -373,11 +373,11 @@ if __name__ == "__main__":
 
         # Get RAPL config
         rapl_config = config.get("rapl", {})
-        print(f"🔍 DEBUG: rapl_config = {rapl_config}")
+        con.line(f"🔍 DEBUG: rapl_config = {rapl_config}")
 
         if not rapl_config.get("paths"):
-            print("❌ No RAPL paths in config!")
-            print("⚠️ Falling back to dummy reader...")
+            con.line("No RAPL paths in config!")
+            con.line("Falling back to dummy reader...")
             raise ImportError("No RAPL paths")
 
         # Initialize RAPL reader
@@ -387,17 +387,17 @@ if __name__ == "__main__":
             # Test if it worked by trying to read
             test_read = rapl.read_energy()
             if test_read and any(v != 0 for v in test_read.values()):
-                print(
-                    f"✅ Using REAL RAPL reader with domains: {list(test_read.keys())}"
+                con.line(
+                    f"Using REAL RAPL reader with domains: {list(test_read.keys())}"
                 )
-                print(f"✅ Sample reading: {test_read}")
+                con.line(f"Sample reading: {test_read}")
             else:
-                print("❌ RAPL reader initialized but returned zeros")
+                con.line("RAPL reader initialized but returned zeros")
                 raise ImportError("RAPL read failed")
 
         except Exception as e:
-            print(f"⚠️ Could not initialize real RAPL reader: {e}")
-            print("⚠️ Using dummy RAPL reader (simulated data)")
+            con.line(f"Could not initialize real RAPL reader: {e}")
+            con.line("Using dummy RAPL reader (simulated data)")
 
             # Dummy reader
             class DummyRAPLReader:
@@ -419,8 +419,8 @@ if __name__ == "__main__":
             rapl = DummyRAPLReader()
 
     except Exception as e:
-        print(f"⚠️ Could not initialize real RAPL reader: {e}")
-        print("⚠️ Using dummy RAPL reader (simulated data)")
+        con.line(f"Could not initialize real RAPL reader: {e}")
+        con.line("Using dummy RAPL reader (simulated data)")
 
         # Dummy reader
         class DummyRAPLReader:
@@ -443,12 +443,12 @@ if __name__ == "__main__":
 
     # Create sampler
     sampler = HighFrequencySampler(rapl, sampling_rate_hz=100, max_queue_size=1000)
-    print(
-        f"📊 Sampler: {sampler.sampling_rate_hz} Hz ({sampler.interval*1000:.2f} ms interval)"
+    con.line(
+        f" Sampler: {sampler.sampling_rate_hz} Hz ({sampler.interval*1000:.2f} ms interval)"
     )
 
     # Start sampling
-    print("\n▶️ Starting sampler for 2 seconds...")
+    con.line("\nStarting sampler for 2 seconds...")
     sampler.start()
 
     # Let it run for 2 seconds
@@ -458,13 +458,13 @@ if __name__ == "__main__":
     samples = sampler.stop()
 
     # Display results
-    print(f"\n📈 Collected {len(samples)} samples")
+    con.line(f"\nCollected {len(samples)} samples")
 
     if samples:
         # Show first few samples
-        print("\n📝 First 3 samples:")
+        con.line("\nFirst 3 samples:")
         for i, s in enumerate(samples[:3]):
-            print(
+            con.line(
                 f"   {i+1}: t={s.timestamp:.3f}, PKG={s.package_uj} µJ, "
                 f"CORE={s.core_uj} µJ"
             )
@@ -474,11 +474,11 @@ if __name__ == "__main__":
         deltas = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
         if deltas:
             avg_interval = sum(deltas) / len(deltas)
-            print(f"\n📊 Statistics:")
-            print(f"   Average interval: {avg_interval*1000:.2f} ms")
-            print(f"   Actual rate: {1/avg_interval:.1f} Hz")
-            print(f"   Target rate: {sampler.sampling_rate_hz} Hz")
+            con.line(f"\n Statistics:")
+            con.line(f"   Average interval: {avg_interval*1000:.2f} ms")
+            con.line(f"   Actual rate: {1/avg_interval:.1f} Hz")
+            con.line(f"   Target rate: {sampler.sampling_rate_hz} Hz")
 
-    print("\n" + "=" * 70)
-    print("✅ Test complete!")
-    print("=" * 70)
+    con.line("\n" + "=" * 70)
+    con.line(" Test complete!")
+    con.line("=" * 70)

@@ -36,9 +36,8 @@ sys.path.insert(0, str(project_root))
 
 from core.config_loader import ConfigLoader
 from core.readers.msr_reader import MSRReader
-from core.utils.debug import init_debug_from_env
 
-init_debug_from_env()
+
 import logging
 
 logging.basicConfig(level=logging.INFO)

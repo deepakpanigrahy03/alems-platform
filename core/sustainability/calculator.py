@@ -470,7 +470,9 @@ if __name__ == "__main__":
 
     if args.ip_detect or (args.country is None and args.ip_detect):
         # Try IP geolocation
-        print("🌍 Attempting to detect country from public IP...")
+        from core.observability.console import get_console
+        con = get_console()
+        con.line("detecting country from public ip")
         try:
             resp = requests.get("https://ipapi.co/json/", timeout=5)
             if resp.status_code == 200:
@@ -478,29 +480,25 @@ if __name__ == "__main__":
                 detected = data.get("country_code")
                 if detected and len(detected) == 2:
                     country_code = detected.upper()
-                    print(f"   Detected: {country_code}")
+                    con.kv("country", "%s (detected)" % country_code)
                 else:
-                    print("   Invalid response, falling back to US.")
+                    con.line("invalid response; US used", indent=1)
             else:
-                print(
-                    f"   Geolocation API returned {resp.status_code}, falling back to US."
-                )
+                con.line("geolocation api returned %s; US used" % resp.status_code, indent=1)
         except Exception as e:
-            print(f"   Geolocation failed: {e}, falling back to US.")
+            con.line("geolocation failed: %s; US used" % e, indent=1)
     elif args.country:
         country_code = args.country.upper()
-        print(f"🌍 Using provided country: {country_code}")
-    else:
-        print(f"🌍 No country specified, using default: {country_code}")
-
-    print("\n" + "=" * 70)
-    print("SUSTAINABILITY CALCULATOR TEST")
-    print("=" * 70)
+        pass  # country from --country
+    from core.observability.console import get_console
+    con = get_console()
+    con.kv("country", country_code)
+    con.section("sustainability calculator test")
 
     # ------------------------------------------------------------------------
     # Step 1: Load configuration
     # ------------------------------------------------------------------------
-    print("\n📁 Loading configuration... [Req 2.16]")
+    con.line("loading configuration [Req 2.16]")
     from core.config_loader import ConfigLoader
 
     config_loader = ConfigLoader()
@@ -508,7 +506,7 @@ if __name__ == "__main__":
     # ------------------------------------------------------------------------
     # Step 2: Get a real measurement
     # ------------------------------------------------------------------------
-    print("\n⚙️ Getting real measurement from Energy Engine...")
+    con.line("measuring with the energy engine")
 
     # Configure engine
     config = config_loader.get_hardware_config()
@@ -528,7 +526,7 @@ if __name__ == "__main__":
     # Get baseline
     baseline = baseline_mgr.get_latest()
     if not baseline:
-        print("📝 Measuring new baseline...")
+        con.line("measuring new baseline", indent=1)
         power = engine.measure_idle_baseline(duration_seconds=5, num_samples=3)
         from core.models.baseline_measurement import BaselineMeasurement
 
@@ -554,46 +552,44 @@ if __name__ == "__main__":
     raw = engine.measurement
     derived = EnergyAnalyzer.compute(raw, baseline)
 
-    print(f"   Raw package: {raw.package_energy_j:.4f} J")
-    print(f"   Workload: {derived.workload_energy_j:.4f} J")
+    con.kv("raw package", "%.4f J" % raw.package_energy_j)
+    con.kv("workload", "%.4f J" % derived.workload_energy_j)
 
     # ------------------------------------------------------------------------
     # Step 3: Calculate sustainability
     # ------------------------------------------------------------------------
-    print("\n🌍 Calculating sustainability impacts...")
+    con.line("calculating sustainability impacts")
     calculator = SustainabilityCalculator(config_loader)
 
     # Use the determined country code for all calculations
     result_raw = calculator.calculate_from_raw(
         raw, country_code=country_code, query_count=1
     )
-    print("\n📊 From Raw (Total Energy):")
-    print(result_raw.summary())
+    con.section("from raw (total energy)")
+    con.line(result_raw.summary())
 
     result_derived = calculator.calculate_from_derived(
         derived, country_code=country_code, query_count=1
     )
-    print("\n📊 From Derived (Workload Only):")
-    print(result_derived.summary())
+    con.section("from derived (workload only)")
+    con.line(result_derived.summary())
 
     # ------------------------------------------------------------------------
     # Step 4: Additional metrics (using the same country)
     # ------------------------------------------------------------------------
-    print("\n📊 Geographic Arbitrage Potential [Req 2.12]:")
+    con.section("geographic arbitrage potential [Req 2.12]")
     arbitrage = calculator.calculate_arbitrage(
         derived.workload_energy_j / 3.6e6, country_code
     )
-    print(f"   Current ({country_code}): {arbitrage['current_carbon_kg']:.6f} kg CO₂e")
-    print(
-        f"   Best ({arbitrage['best_country']}): {arbitrage['best_carbon_kg']:.6f} kg CO₂e"
-    )
-    print(f"   Potential savings: {arbitrage['potential_savings_percent']:.6f}%")
+    con.kv("current (%s)" % country_code, "%.6f kg CO2e" % arbitrage["current_carbon_kg"])
+    con.kv("best (%s)" % arbitrage["best_country"], "%.6f kg CO2e" % arbitrage["best_carbon_kg"])
+    con.kv("potential savings", "%.6f%%" % arbitrage["potential_savings_percent"])
 
-    print("\n📊 Energy Scarcity Index [Req 2.13]:")
+    con.section("energy scarcity index [Req 2.13]")
     esi = calculator.calculate_scarcity_index(
         derived.workload_energy_j / 3.6e6, country_code
     )
-    print(f"   ESI: {esi:.6f} (ratio of experiment to household daily energy)")
+    con.kv("ESI", "%.6f (experiment over household daily energy)" % esi)
 
     # ------------------------------------------------------------------------
     # Step 5: Save results
@@ -612,8 +608,6 @@ if __name__ == "__main__":
             f,
             indent=2,
         )
-    print(f"\n💾 Results saved to: {output_file}")
+    con.kv("results saved", output_file)
 
-    print("\n" + "=" * 70)
-    print("✅ Sustainability Calculator Test Complete!")
-    print("=" * 70)
+    con.line(con.style("sustainability calculator test complete", "green"))

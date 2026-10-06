@@ -102,10 +102,7 @@ class EnergyAnalyzer:
             idle_uj = max(0, package_uj - cpu_dynamic_local_uj)
             if baseline:
                 baseline_id = baseline.baseline_id
-            print(
-                f"🔍 DEBUG - Using RUN-LOCAL baseline: idle_uj={idle_uj/1e6:.3f}J "
-                f"(cpu_dynamic_local_uj={cpu_dynamic_local_uj/1e6:.3f}J)"
-            )
+            logger.info("run local baseline: idle %.3f J, cpu dynamic local %.3f J", idle_uj / 1e6, cpu_dynamic_local_uj / 1e6)
         elif baseline:
             # Use minimum baseline (2nd percentile) instead of mean
             min_energy = baseline.min_energy_uj(raw.duration_seconds)
@@ -113,9 +110,7 @@ class EnergyAnalyzer:
             idle_core_uj = find_idle_core_uj(min_energy)
             idle_uncore_uj = min_energy.get("UNCORE", min_energy.get("uncore", 0))
             baseline_id = baseline.baseline_id
-            print(
-                f"🔍 DEBUG - Using MIN baseline: idle_uj={idle_uj/1e6:.3f}J, idle_core={idle_core_uj/1e6:.3f}J, idle_uncore={idle_uncore_uj/1e6:.3f}J"
-            )
+            logger.info("min baseline: idle %.3f J, core %.3f J, uncore %.3f J", idle_uj / 1e6, idle_core_uj / 1e6, idle_uncore_uj / 1e6)
 
         # ====================================================================
         # Step 3: Calculate the three key metrics
@@ -222,9 +217,7 @@ class EnergyAnalyzer:
                     ipc = instructions / cycles
 
             page_faults = major_faults + minor_faults
-            print(
-                f"🔍 DEBUG - Page faults extracted: major={major_faults}, minor={minor_faults}, total={major_faults + minor_faults}"
-            )
+            logger.debug("page faults major %s minor %s", major_faults, minor_faults)
 
         # ====================================================================
         # Step 5: Get power states (C-states, frequencies) - handles both dict/object
@@ -393,10 +386,7 @@ class EnergyAnalyzer:
             tsc_frequency_hz = msr.get("tsc_frequency_hz", 0)
 
         # ========== ADD THESE 2 LINES ==========
-        print(
-            f"🔴 ANALYZER_VALUE: c2={c2_time_seconds:.3f}s, c3={c3_time_seconds:.3f}s"
-        )
-        print(f"🔴 ANALYZER_KEYS: c2={c2_time_seconds}, c3={c3_time_seconds}")
+        logger.debug("c state time c2 %.3f s, c3 %.3f s", c2_time_seconds, c3_time_seconds)
         # ====================================================================
         # Step 9: Return everything in one clean object
         # ====================================================================

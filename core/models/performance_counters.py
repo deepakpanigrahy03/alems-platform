@@ -173,7 +173,8 @@ if __name__ == "__main__":
     """
     Example: Creating and using a PerformanceCounters object.
     """
-    print("\n🔧 Testing PerformanceCounters...")
+    from core.observability.console import get_console; con = get_console()    
+    con.line("\nTesting PerformanceCounters...")
 
     # Create a sample counters object
     perf = PerformanceCounters(
@@ -187,9 +188,9 @@ if __name__ == "__main__":
         duration_ms=100,
     )
 
-    print(f"✅ IPC: {perf.instructions_per_cycle():.2f}")
-    print(f"✅ Cache miss rate: {perf.cache_miss_rate():.2%}")
-    print(f"✅ Total context switches: {perf.total_context_switches()}")
-    print(f"✅ JSON output: {perf.to_json()[:100]}...")
+    con.line(f"IPC: {perf.instructions_per_cycle():.2f}")
+    con.line(f"Cache miss rate: {perf.cache_miss_rate():.2%}")
+    con.line(f"Total context switches: {perf.total_context_switches()}")
+    con.line(f"JSON output: {perf.to_json()[:100]}...")
 
-    print("\n✅ PerformanceCounters working!")
+    con.line("\nPerformanceCounters working!")

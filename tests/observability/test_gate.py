@@ -57,6 +57,7 @@ def test_exit_without_enter_returns_nulls():
         "measurement_log_level": None,
         "measurement_log_config_hash": None,
         "observability_overflow": None,
+        "measurement_heartbeat_s": None,
     }
 
 

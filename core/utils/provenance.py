@@ -67,6 +67,7 @@ COLUMN_PROVENANCE: Dict[str, Tuple[Optional[str], str]] = {
     "measurement_log_level":       (None, "SYSTEM"),
     "measurement_log_config_hash": (None, "SYSTEM"),
     "observability_overflow":      (None, "SYSTEM"),
+    "measurement_heartbeat_s":     (None, "SYSTEM"),
     # goal_execution table
     "ge.goal_id":                (None,                              "SYSTEM"),
     "ge.exp_id":                 (None,                              "SYSTEM"),

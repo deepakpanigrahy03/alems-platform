@@ -64,13 +64,11 @@ class ConfigLoader:
         else:
             self.config_dir = Path(config_dir)
 
-        print(f"📁 Config directory: {self.config_dir}")
+        logger.info("config directory %s", self.config_dir)
 
         # Load models config
         self._models_config = self._load_json("models.json")
-        print(
-            f"✅ Loaded models config: {list(self._models_config.keys()) if self._models_config else 'None'}"
-        )
+        logger.debug("models config keys: %s", list(self._models_config.keys()) if self._models_config else None)
 
         # Load hardware config via accessor (design 7.13).
         # resolve_hw_config() checks machine path first, repo fallback second.
@@ -86,9 +84,7 @@ class ConfigLoader:
             except Exception as _ce:  # noqa: BLE001  capture never breaks config load (5.2a)
                 logger.debug("error capture unavailable: %s", _ce)
             self._hardware_config = self._load_json("hw_config.json")
-        print(
-            f"✅ Loaded hardware config: {list(self._hardware_config.keys()) if self._hardware_config else 'None'}"
-        )
+        logger.debug("hardware config keys: %s", list(self._hardware_config.keys()) if self._hardware_config else None)
 
         # ====================================================================
         # NEW: Load grid intensity config for sustainability calculator
@@ -99,36 +95,27 @@ class ConfigLoader:
             country_count = len(
                 [k for k in self._grid_intensity.keys() if k != "metadata"]
             )
-            print(f"✅ Loaded grid intensity data for {country_count} countries")
-            # ===== ADD THIS =====
-            print(f"🔍 RAW grid data keys: {list(self._grid_intensity.keys())}")
-            if "IN" in self._grid_intensity:
-                print(f"✅ India data found in config loader!")
-                print(
-                    f"   Carbon: {self._grid_intensity['IN'].get('carbon_intensity')}"
-                )
-            else:
-                print(f"❌ India NOT found in config loader!")
-            # ====================
+            logger.info("grid intensity data for %d countries", country_count)
+            logger.debug("grid data keys: %s", list(self._grid_intensity.keys()))
         else:
-            print("⚠️ No grid intensity data loaded")
+            logger.warning("no grid intensity data loaded")
 
     def _load_json(self, filename: str) -> Dict[str, Any]:
         """Load JSON file from config directory."""
         filepath = self.config_dir / filename
-        print(f"📁 Loading {filepath}")
+        logger.debug("loading %s", filepath)
 
         if not filepath.exists():
-            print(f"⚠️ Config file not found: {filepath}")
+            logger.info("config file not found: %s", filepath)
             return {}
 
         try:
             with open(filepath, "r") as f:
                 data = json.load(f)
-            print(f"✅ Successfully loaded {filename}")
+            logger.info("loaded %s", filename)
             return data
         except Exception as e:
-            print(f"⚠️ Error loading {filename}: {e}")
+            logger.warning("error loading %s: %s", filename, e)
             try:
                 # JSON syntax errors classify as ALEMS-CFG-0003 (component rule)
                 from core.observability import errors as _obs_errors
@@ -197,7 +184,7 @@ class ConfigLoader:
             Dictionary with model config or None if not found.
         """
         if self._models_config is None:
-            print("⚠️ _models_config is None")
+            logger.warning("models config not loaded")
             return None
 
         # v2: cloud/local keys live in models.yaml _backward_compat block
@@ -207,12 +194,12 @@ class ConfigLoader:
         # fallback to raw JSON for any legacy keys still in file
         mode_config = self._models_config.get(mode, {})
         if not mode_config:
-            print(f"⚠️ Mode '{mode}' not found in config")
+            logger.warning("mode %s not found in config", mode)
             return None
 
         workflow_config = mode_config.get(workflow)
         if not workflow_config:
-            print(f"⚠️ Workflow '{workflow}' not found in mode '{mode}'")
+            logger.warning("workflow %s not found in mode %s", workflow, mode)
             return None
 
         return workflow_config.copy()
@@ -381,7 +368,7 @@ class ConfigLoader:
         settings_path = self.config_dir / "app_settings.yaml"
 
         if not settings_path.exists():
-            print(f"⚠️ Settings file not found: {settings_path}")
+            logger.info("settings file not found: %s", settings_path)
             return ConfigDict()
 
         try:
@@ -399,10 +386,10 @@ class ConfigLoader:
             return self._to_config_dict(merged)
 
         except ImportError:
-            print("⚠️ PyYAML not installed. Run: pip install pyyaml")
+            logger.warning("PyYAML not installed (pip install pyyaml)")
             return ConfigDict()
         except Exception as e:
-            print(f"⚠️ Failed to load settings: {e}")
+            print(f"Failed to load settings: {e}")
             return ConfigDict()
 
     def _load_sandbox_overrides(self):
@@ -495,7 +482,7 @@ class ConfigLoader:
         # Ensure engine is set
         if "engine" not in db_config:
             db_config["engine"] = "sqlite"
-            print("⚠️ No database engine specified, defaulting to 'sqlite'")
+            logger.info("no database engine specified; sqlite used")
 
         # Set defaults for missing values
         if db_config["engine"] == "sqlite":
@@ -554,7 +541,7 @@ class ConfigLoader:
             tasks = load_tasks()
 
             if not tasks:
-                print("⚠️ No tasks loaded from YAML")
+                logger.warning("no tasks loaded from YAML")
                 return
 
             cursor = db_connection.cursor()
@@ -579,7 +566,7 @@ class ConfigLoader:
             )
 
             db_connection.commit()
-            print(f"✅ Synced {count} task categories from YAML")
+            logger.info("synced %d task categories from YAML", count)
 
             # Optional: Show summary
             cursor.execute("""
@@ -588,12 +575,7 @@ class ConfigLoader:
             """)
             summary = cursor.fetchall()
             if summary:
-                print("   Categories:")
-                for cat, cnt in summary:
-                    print(f"      • {cat}: {cnt}")
+                logger.debug("task categories: %s", dict(summary))
 
         except Exception as e:
-            print(f"⚠️ Error syncing task categories: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.warning("error syncing task categories: %s", e, exc_info=True)

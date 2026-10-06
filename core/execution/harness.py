@@ -312,6 +312,8 @@ class ExperimentHarness:
             3. DerivedEnergyMeasurement from EnergyAnalyzer (Layer 3) ← USED FOR METRICS
         """
         progress.info("measure start  linear")
+        from core.observability import status as _obs_status
+        _obs_status.set_context(phase="linear")
         # 39.5.2b gate entry: before the complete SPEC_39_4 3a sequence, nothing
         # inserted between its steps (amended SPEC_39_5_2 section 4).
         from core.observability import gate as _obs_gate
@@ -525,7 +527,7 @@ class ExperimentHarness:
         # ====================================================================
         # Step 4: Energy per token (using Layer 3)
         # ====================================================================
-        if exec_result.get("tokens", {}).get("total", 0) > 0:
+        if (exec_result.get("tokens", {}).get("total") or 0) > 0:
             energy_per_token = (
                 derived.workload_energy_j / exec_result["tokens"]["total"]
             )
@@ -631,6 +633,7 @@ class ExperimentHarness:
                 "measurement_log_level":       _obs_window["measurement_log_level"],
                 "measurement_log_config_hash": _obs_window["measurement_log_config_hash"],
                 "observability_overflow":      _obs_window["observability_overflow"],
+                "measurement_heartbeat_s":     _obs_window.get("measurement_heartbeat_s"),
                 "post_task_duration_sec": post_task_duration_sec,
                 "rapl_before_pretask":    _rapl_before_pretask,   # Dict or None
                 "rapl_at_t0":             _rapl_at_t0,             # Dict or None — t0 anchor
@@ -739,9 +742,9 @@ class ExperimentHarness:
                     and derived.thermal_now_active == 0
                 ),
                 # Token metrics (from execution)
-                "total_tokens": exec_result.get("tokens", {}).get("total", 0),
-                "prompt_tokens": exec_result.get("tokens", {}).get("prompt", 0),
-                "completion_tokens": exec_result.get("tokens", {}).get("completion", 0),
+                "total_tokens": exec_result.get("tokens", {}).get("total"),
+                "prompt_tokens": exec_result.get("tokens", {}).get("prompt"),
+                "completion_tokens": exec_result.get("tokens", {}).get("completion"),
                 # Network metrics (for cloud models)
                 "bytes_sent": exec_result.get("total_bytes_sent", 0),
                 "bytes_recv": exec_result.get("total_bytes_recv", 0),
@@ -872,6 +875,8 @@ class ExperimentHarness:
         Uses the same 3‑layer architecture and returns ALL THREE LAYERS.
         """
         progress.info("measure start  agentic")
+        from core.observability import status as _obs_status
+        _obs_status.set_context(phase="agentic")
         # 39.5.2b gate entry: before the complete SPEC_39_4 3a sequence, nothing
         # inserted between its steps (amended SPEC_39_5_2 section 4).
         from core.observability import gate as _obs_gate
@@ -1091,7 +1096,7 @@ class ExperimentHarness:
         # ====================================================================
         # Step 4: Energy per token
         # ====================================================================
-        if exec_result.get("tokens", {}).get("total", 0) > 0:
+        if (exec_result.get("tokens", {}).get("total") or 0) > 0:
             energy_per_token = (
                 derived.workload_energy_j / exec_result["tokens"]["total"]
             )
@@ -1215,6 +1220,7 @@ class ExperimentHarness:
                 "measurement_log_level":       _obs_window["measurement_log_level"],
                 "measurement_log_config_hash": _obs_window["measurement_log_config_hash"],
                 "observability_overflow":      _obs_window["observability_overflow"],
+                "measurement_heartbeat_s":     _obs_window.get("measurement_heartbeat_s"),
                 "post_task_duration_sec":  post_task_duration_sec,
                 "rapl_before_pretask":     _rapl_before_pretask,   # Dict or None
                 "rapl_at_t0":              _rapl_at_t0,             # Dict or None — t0 anchor
@@ -1325,9 +1331,9 @@ class ExperimentHarness:
                     and derived.thermal_now_active == 0
                 ),
                 # Token metrics
-                "total_tokens": exec_result.get("tokens", {}).get("total", 0),
-                "prompt_tokens": exec_result.get("tokens", {}).get("prompt", 0),
-                "completion_tokens": exec_result.get("tokens", {}).get("completion", 0),
+                "total_tokens": exec_result.get("tokens", {}).get("total"),
+                "prompt_tokens": exec_result.get("tokens", {}).get("prompt"),
+                "completion_tokens": exec_result.get("tokens", {}).get("completion"),
                 "bytes_sent": exec_result.get("total_bytes_sent", 0),
                 "bytes_recv": exec_result.get("total_bytes_recv", 0),
                 "total_non_local_ms": exec_result.get("total_workflow_non_local_ms", 0),
@@ -1531,6 +1537,8 @@ class ExperimentHarness:
         # Warmup run (optional, recommended)
         if include_warmup:
             progress.info("repetition %d/%d", i + 1, n_repetitions)
+            from core.observability import status as _obs_status
+            _obs_status.set_context(rep=i + 1, total=n_repetitions)
             _warmup_run(linear_executor, task, is_agentic=False)
             time.sleep(cool_down)
             _warmup_run(agentic_executor, task, is_agentic=True)
@@ -1543,6 +1551,8 @@ class ExperimentHarness:
 
         for i in range(n_repetitions):
             progress.info("repetition %d/%d", i + 1, n_repetitions)
+            from core.observability import status as _obs_status
+            _obs_status.set_context(rep=i + 1, total=n_repetitions)
 
             # Determine workflow order for this repetition
             first_workflow, second_workflow = get_workflow_order(i + 1)
@@ -1607,7 +1617,8 @@ class ExperimentHarness:
             # Cool‑down between repetitions (except last)
             if i < n_repetitions - 1:
                 progress.info("cool down %s s", cool_down)
-                time.sleep(cool_down)
+                from core.observability import status as _obs_status
+                _obs_status.wait(cool_down, "cool down")
 
             # ====================================================================
             # YOUR EXISTING TAX CALCULATION CODE (PRESERVED)

@@ -1,3 +1,11 @@
+"""
+Hardware and comparison displays for run_experiment and test_harness (user output).
+
+39.5.2e: every display goes through the console renderer (stdout, plain text,
+TTY color only, silent with --json and quiet). Function names and arguments are
+unchanged; the values shown are unchanged; emoji indicators became words.
+Called only after measurement windows close.
+"""
 import logging
 import socket
 import time
@@ -12,295 +20,185 @@ from core.config_loader import ConfigLoader
 from core.database.manager import DatabaseManager
 from core.energy_engine import EnergyEngine
 from core.execution.base import calc_stats
+from core.observability.console import get_console
 from core.sustainability.calculator import SustainabilityCalculator
 from core.utils.baseline_manager import BaselineManager
-from core.utils.debug import dprint
+
+logger = logging.getLogger(__name__)
+
+
+def _level(value, high, moderate):
+    """Map a value to a styled HIGH, MODERATE, LOW label (was colored emoji)."""
+    con = get_console()
+    if value > high:
+        return con.style("HIGH", "red")
+    if value > moderate:
+        return con.style("MODERATE", "yellow")
+    return con.style("LOW", "green")
+
+
+def _yes_no(flag):
+    """Render a truthy flag as YES or NO."""
+    return "YES" if flag else "NO"
+
+
+def _show_energy_perf(con, derived):
+    """RAPL energy domains (Req 1.1, 1.3) and performance counters (Req 1.5 and others)."""
+    energy_uj = derived.get("energy_uj", {})
+    con.line("RAPL energy (Req 1.1)", indent=1)
+    con.kv("package", "%.3f J" % (energy_uj.get("package", 0) / 1e6), indent=2)
+    con.kv("core", "%.3f J" % (energy_uj.get("core", 0) / 1e6), indent=2)
+    uncore = energy_uj.get("uncore", 0)
+    if uncore > 0:
+        con.kv("uncore", "%.3f J (includes GPU if no separate GPU domain)" % (uncore / 1e6), indent=2)
+    dram = energy_uj.get("dram")
+    if dram:
+        con.kv("dram", "%.3f J" % (dram / 1e6), indent=2)
+
+    perf = derived.get("performance", {})
+    con.line("performance counters", indent=1)
+    con.kv("instructions", "{:,}".format(perf.get("instructions", 0)), indent=2)
+    con.kv("cycles", "{:,}".format(perf.get("cycles", 0)), indent=2)
+    con.kv("ipc", "%.2f" % perf.get("ipc", 0), indent=2)
+    con.kv("cache references", "{:,}".format(perf.get("cache_references", 0)), indent=2)
+    con.kv("cache misses", "{:,}".format(perf.get("cache_misses", 0)), indent=2)
+    cache_refs = perf.get("cache_references", 1)
+    miss_rate = (perf.get("cache_misses", 0) / cache_refs) if cache_refs > 0 else 0
+    con.kv("cache miss rate", "%.2f%%" % (miss_rate * 100), indent=2)
+    con.kv("page faults", "{:,} (major {}, minor {})".format(
+        perf.get("page_faults", 0), perf.get("major_page_faults", 0),
+        perf.get("minor_page_faults", 0)), indent=2)
+
+
+def _show_thermal(con, run, derived):
+    """Thermal readings, heat flux, timeline, validity (Req 1.9)."""
+    thermal = derived.get("thermal", {})
+    con.line("thermal (Req 1.9)", indent=1)
+    pkg_temp = thermal.get("package_temp_celsius")
+    con.kv("package temp", "%.1f C" % pkg_temp if pkg_temp and pkg_temp > -100 else "N/A", indent=2)
+    valid_temps = [t for t in thermal.get("core_temps_celsius", []) if t > 10]
+    if valid_temps:
+        con.kv("core temps", ", ".join("%.1f C" % t for t in valid_temps), indent=2)
+    heat_flux = run.get("ml_features", {}).get("heat_flux") if "ml_features" in run else None
+    if heat_flux is not None:
+        con.kv("heat flux", "%.2f C/s %s" % (heat_flux, _level(heat_flux, 3.0, 1.5)), indent=2)
+        if heat_flux > 3.0:
+            con.line("rapid heating: thermal event risk", indent=3)
+        elif heat_flux < 0:
+            con.line("system cooling down", indent=3)
+
+    during = derived.get("thermal_during_experiment", 0)
+    now_active = derived.get("thermal_now_active", 0)
+    since_boot = derived.get("thermal_since_boot", 0)
+    # Experiment validity: no throttling during the experiment and none now.
+    experiment_valid = during == 0 and now_active == 0
+    con.line("experiment timeline", indent=1)
+    con.kv("start", derived.get("exp_start_time", "N/A"), indent=2)
+    con.kv("end", derived.get("exp_end_time", "N/A"), indent=2)
+    con.line("throttling", indent=1)
+    con.kv("since boot", _yes_no(since_boot), indent=2)
+    con.kv("during experiment", _yes_no(during), indent=2)
+    con.kv("active at end", _yes_no(now_active), indent=2)
+    con.kv("experiment valid", con.style(_yes_no(experiment_valid), "green" if experiment_valid else "red"), indent=1)
+
+
+def _show_system_state(con, run):
+    """System state metrics M3-1 to M3-6."""
+    if "ml_features" not in run:
+        return
+    ml = run["ml_features"]
+    con.line("system state", indent=1)
+    con.kv("cpu governor", ml.get("governor", "unknown"), indent=2)
+    con.kv("turbo boost", "ENABLED" if ml.get("turbo_enabled", 0) else "DISABLED", indent=2)
+    intr_rate = ml.get("interrupt_rate", 0)
+    baseline_intr = ml.get("baseline_interrupt_rate", 2000)
+    ratio = intr_rate / baseline_intr if baseline_intr > 0 else 1.0
+    con.kv("interrupt rate", "%.0f/s %s" % (intr_rate, _level(ratio, 2.0, 1.2)), indent=2)
+    start_temp = ml.get("start_temp_c", 0)
+    max_temp = ml.get("max_temp_c", 0)
+    if start_temp > 0 and max_temp > 0:
+        con.kv("temperature", "%.1f C to %.1f C (%+.1f C)" % (start_temp, max_temp, max_temp - start_temp), indent=2)
+    if ml.get("is_cold_start", 0):
+        con.kv("cold start", "YES (first run)", indent=2)
+    bg_cpu = ml.get("background_cpu_percent", 0)
+    proc_count = ml.get("process_count", 0)
+    if bg_cpu > 0 or proc_count > 0:
+        con.kv("background cpu", "%.1f%%" % bg_cpu, indent=2)
+        con.kv("running processes", proc_count, indent=2)
+    rss = ml.get("rss_memory_mb", 0)
+    vms = ml.get("vms_memory_mb", 0)
+    if rss > 0 or vms > 0:
+        con.kv("process memory", "RSS %.1f MB, VMS %.1f MB" % (rss, vms), indent=2)
+
+
+def _show_power_sched(con, derived):
+    """Power states (Req 1.7, 1.41, 1.8, 1.4) and scheduler metrics (Req 1.23, 1.36)."""
+    power = derived.get("power_states", {})
+    logger.debug("power_states keys %s, scheduler keys %s", list(power.keys()), list(derived.get("scheduler", {}).keys()))
+    con.line("power states (Req 1.7, 1.41, 1.8, 1.4)", indent=1)
+    states = ["%s: %.1f%%" % (k, v) for k, v in power.get("c_state_residencies", {}).items() if v > 0]
+    if states:
+        con.kv("c state residency", ", ".join(states), indent=2)
+        con.line("per core average; values can sum above 100% as each core reports independently", indent=3)
+    con.kv("cpu frequency", "%.0f MHz" % power.get("frequency_mhz", 0), indent=2)
+    if power.get("gpu_frequency_mhz", 0) > 0:
+        con.kv("gpu frequency", "%.0f MHz" % power["gpu_frequency_mhz"], indent=2)
+    if power.get("gpu_rc6_percent", 0) > 0:
+        con.kv("gpu rc6", "%.1f%%" % power["gpu_rc6_percent"], indent=2)
+
+    scheduler = derived.get("scheduler", {})
+    con.line("scheduler", indent=1)
+    con.kv("voluntary ctx sw", "{:,}".format(scheduler.get("context_switches_voluntary", 0)), indent=2)
+    con.kv("involuntary ctx sw", "{:,}".format(scheduler.get("context_switches_involuntary", 0)), indent=2)
+    con.kv("thread migrations", "{:,}".format(scheduler.get("thread_migrations", 0)), indent=2)
+    con.kv("run queue length", "%.2f" % scheduler.get("run_queue_length", 0), indent=2)
+    con.kv("kernel time", "%.2f ms" % scheduler.get("kernel_time_ms", 0), indent=2)
+    con.kv("user time", "%.2f ms" % scheduler.get("user_time_ms", 0), indent=2)
+
+
+def _show_msr(con, derived):
+    """MSR metrics: ring bus, wake up latency, throttle, C state times, TSC."""
+    msr_data = derived.get("msr", {})
+    if not msr_data:
+        return
+    if isinstance(msr_data, dict):
+        logger.debug("msr content: %.200s", str(msr_data))
+    con.line("MSR metrics", indent=1)
+    ring_bus = msr_data.get("ring_bus", {})
+    if ring_bus and ring_bus.get("current_mhz"):
+        con.kv("ring bus frequency", "%.1f MHz" % ring_bus["current_mhz"], indent=2)
+    if msr_data.get("wakeup_latency_us"):
+        con.kv("wake up latency", "%.2f us" % msr_data["wakeup_latency_us"], indent=2)
+    throttle = msr_data.get("thermal_throttle")
+    if throttle is not None:
+        con.kv("thermal throttle flag", "%s (%s)" % (throttle, "DETECTED" if throttle else "NOT DETECTED"), indent=2)
+    for state, state_data in msr_data.get("c_states", {}).items():
+        seconds = state_data.get("seconds", 0)
+        if seconds <= 0:
+            continue
+        if seconds < 60:
+            time_str = "%.2f seconds" % seconds
+        elif seconds < 3600:
+            time_str = "%.2f minutes" % (seconds / 60)
+        else:
+            time_str = "%.2f hours" % (seconds / 3600)
+        con.kv("%s since boot" % state.upper(), time_str, indent=2)
+    if msr_data.get("tsc_frequency_hz", 0):
+        con.kv("tsc frequency", "%.0f MHz" % (msr_data["tsc_frequency_hz"] / 1e6), indent=2)
 
 
 def display_hardware(runs, label):
     """Display ALL hardware parameters from DerivedEnergyMeasurement (Layer 3)."""
+    con = get_console()
     for idx, run in enumerate(runs):
-        print(f"\n📊 {label} Run {idx+1}:")
-
-        # Use layer3_derived – this contains all computed metrics
         derived = run["layer3_derived"]
-
-        # --------------------------------------------------------------------
-        # Req 1.1, 1.3: RAPL Energy Domains & Uncore Waste
-        # --------------------------------------------------------------------
-        energy_uj = derived.get("energy_uj", {})
-        print("   ⚡ RAPL Energy (Req 1.1):")
-        print(f"      Package: {energy_uj.get('package', 0)/1e6:.3f} J")
-        print(f"      Core:    {energy_uj.get('core', 0)/1e6:.3f} J")
-
-        uncore = energy_uj.get("uncore", 0)
-        if uncore > 0:
-            print(
-                f"      Uncore:  {uncore/1e6:.3f} J (includes GPU if no separate GPU domain)"
-            )
-
-        dram = energy_uj.get("dram")
-        if dram:
-            print(f"      DRAM:    {dram/1e6:.3f} J")
-
-        # --------------------------------------------------------------------
-        # Req 1.5, 1.6, 1.10, 1.12, 1.43: Performance Counters & Scheduler
-        # --------------------------------------------------------------------
-        perf = derived.get("performance", {})
-        print("   📈 Performance Counters:")
-        print(f"      Instructions:      {perf.get('instructions', 0):,}")
-        print(f"      Cycles:            {perf.get('cycles', 0):,}")
-        print(f"      IPC:               {perf.get('ipc', 0):.2f}")
-        print(f"      Cache References:  {perf.get('cache_references', 0):,}")
-        print(f"      Cache Misses:      {perf.get('cache_misses', 0):,}")
-        cache_refs = perf.get("cache_references", 1)
-        miss_rate = (perf.get("cache_misses", 0) / cache_refs) if cache_refs > 0 else 0
-        print(f"      Cache Miss Rate:   {miss_rate:.2%}")
-        print(
-            f"      Page Faults:       {perf.get('page_faults', 0):,} "
-            f"(major: {perf.get('major_page_faults', 0)}, "
-            f"minor: {perf.get('minor_page_faults', 0)})"
-        )
-
-        scheduler = derived.get("scheduler", {})
-        # print(f"      Voluntary Ctx Sw:  {scheduler.get('context_switches_voluntary', 0):,}")
-        # print(f"      Involuntary Ctx Sw:{scheduler.get('context_switches_involuntary', 0):,}")
-        # print(f"      Thread Migrations: {scheduler.get('thread_migrations', 0):,}")
-
-        sched = derived.get("scheduler", {})
-        print(f"🔍 DEBUG scheduler keys: {list(sched.keys())}")
-        power = derived.get("power_states", {})
-        print(f"🔍 DEBUG power_states keys: {list(power.keys())}")
-        print(f"🔍 DEBUG frequency_mhz: {power.get('frequency_mhz', 'MISSING')}")
-
-        # --------------------------------------------------------------------
-        # Req 1.9: Thermal + Derived Thermal Metrics
-        # --------------------------------------------------------------------
-        thermal = derived.get("thermal", {})
-        print("   🌡️ Thermal (Req 1.9):")
-
-        pkg_temp = thermal.get("package_temp_celsius")
-
-        if pkg_temp and pkg_temp > -100:
-            print(f"      Package Temp: {pkg_temp:.1f}°C")
-        else:
-            print(f"      Package Temp: N/A")
-
-        core_temps = thermal.get("core_temps_celsius", [])
-        valid_temps = [t for t in core_temps if t > 10]
-        if valid_temps:
-            temps = ", ".join([f"{t:.1f}°C" for t in valid_temps])
-            print(f"      Core Temps:   [{temps}]")
-        # ====================================================================
-        # NEW: Display Heat Flux if available
-        # ====================================================================
-        if "ml_features" in run:
-            heat_flux = run["ml_features"].get("heat_flux")
-            if heat_flux is not None:
-                # Color code based on severity
-                if heat_flux > 3.0:
-                    flux_indicator = "🔴 HIGH"
-                elif heat_flux > 1.5:
-                    flux_indicator = "🟡 MODERATE"
-                else:
-                    flux_indicator = "🟢 LOW"
-
-                print(f"      Heat Flux: {heat_flux:.2f}°C/s {flux_indicator}")
-
-                # Add interpretation
-                if heat_flux > 3.0:
-                    print(f"         ⚠️  Rapid heating - thermal event risk")
-                elif heat_flux < 0:
-                    print(f"         ❄️  System cooling down")
-        # ====================================================================
-        # NEW: Display derived thermal metrics from the 'thermal' section
-        # ====================================================================
-        # Check if we have the new thermal section in derived
-        exp_start = derived.get("exp_start_time", "N/A")
-        exp_end = derived.get("exp_end_time", "N/A")
-        during = derived.get("thermal_during_experiment", 0)
-        now_active = derived.get("thermal_now_active", 0)
-        since_boot = derived.get("thermal_since_boot", 0)
-        # Experiment validity: No throttling during experiment AND not throttling now
-        experiment_valid = during == 0 and now_active == 0
-
-        print(f"\n   📋 Experiment Timeline:")
-        print(f"      Start: {exp_start}")
-        print(f"      End:   {exp_end}")
-        print(f"\n   ✅ Thermal Summary:")
-        print(f"      Since Boot: {'YES' if since_boot else 'NO'}")
-        print(f"      During Experiment: {'YES' if during else 'NO'}")
-        print(f"      Active at End: {'YES' if now_active else 'NO'}")
-        print(f"\n   🔬 Experiment Valid: {'YES' if experiment_valid else 'NO'}")
-        # ====================================================================
-        # NEW: System State Metrics (M3-1 through M3-6)
-        # ====================================================================
-        if "ml_features" in run:
-            ml = run["ml_features"]
-            print("\n   ⚙️ System State:")
-
-            # M3-1: Governor/Turbo
-            governor = ml.get("governor", "unknown")
-            turbo = ml.get("turbo_enabled", 0)
-            turbo_status = "ENABLED" if turbo else "DISABLED"
-            print(f"      CPU Governor: {governor}")
-            print(f"      Turbo Boost: {turbo_status}")
-
-            # M3-2: Interrupt Rate
-            intr_rate = ml.get("interrupt_rate", 0)
-            baseline_intr = ml.get("baseline_interrupt_rate", 2000)
-            if baseline_intr > 0:
-                ratio = intr_rate / baseline_intr
-            else:
-                ratio = 1.0
-
-            if ratio > 2.0:
-                intr_indicator = "🔴 HIGH"
-            elif ratio > 1.2:
-                intr_indicator = "🟡 MODERATE"
-            else:
-                intr_indicator = "🟢 LOW"
-            print(f"      Interrupt Rate: {intr_rate:.0f}/sec {intr_indicator}")
-
-            # M3-3: Temperature Tracking
-            start_temp = ml.get("start_temp_c", 0)
-            max_temp = ml.get("max_temp_c", 0)
-            if start_temp > 0 and max_temp > 0:
-                temp_rise = max_temp - start_temp
-                print(
-                    f"      Temperature: {start_temp:.1f}°C → {max_temp:.1f}°C (Δ{temp_rise:+.1f}°C)"
-                )
-
-            # M3-4: Cold Start Flag
-            cold_start = ml.get("is_cold_start", 0)
-            if cold_start:
-                print(f"      Cold Start: YES (first run)")
-
-            # M3-5: Background Noise
-            bg_cpu = ml.get("background_cpu_percent", 0)
-            proc_count = ml.get("process_count", 0)
-            if bg_cpu > 0 or proc_count > 0:
-                print(f"      Background CPU: {bg_cpu:.1f}%")
-                print(f"      Running Processes: {proc_count}")
-
-            # M3-6: Memory Metrics
-            rss = ml.get("rss_memory_mb", 0)
-            vms = ml.get("vms_memory_mb", 0)
-            if rss > 0 or vms > 0:
-                print(f"      Process Memory:")
-                print(f"         RSS: {rss:.1f} MB")
-                print(f"         VMS: {vms:.1f} MB")
-
-            # Heat Flux (already in your code)
-            heat_flux = ml.get("heat_flux")
-            if heat_flux is not None:
-                if heat_flux > 3.0:
-                    flux_indicator = "🔴 HIGH"
-                elif heat_flux > 1.5:
-                    flux_indicator = "🟡 MODERATE"
-                else:
-                    flux_indicator = "🟢 LOW"
-                print(f"      Heat Flux: {heat_flux:.2f}°C/s {flux_indicator}")
-
-        # --------------------------------------------------------------------
-        # Req 1.7, 1.41, 1.8, 1.4: Power States (C-states, frequencies, GPU)
-        # --------------------------------------------------------------------
-        power = derived.get("power_states", {})
-        print("   💤 Power States (Req 1.7, 1.41, 1.8, 1.4):")
-        cstates = power.get("c_state_residencies", {})
-        if cstates:
-            # Show only C‑states with positive residency
-            states = [f"{k}: {v:.1f}%" for k, v in cstates.items() if v > 0]
-            if states:
-                print(f"      C-state residency (per-core avg): {', '.join(states)}")
-                print(
-                    f"      (Note: Values can sum to >100% as each core reports independently)"
-                )
-        print(f"      CPU Frequency:  {power.get('frequency_mhz', 0):.0f} MHz")
-        gpu_freq = power.get("gpu_frequency_mhz", 0)
-        if gpu_freq > 0:
-            print(f"      GPU Frequency:  {gpu_freq:.0f} MHz")
-        gpu_rc6 = power.get("gpu_rc6_percent", 0)
-        if gpu_rc6 > 0:
-            print(f"      GPU RC6:        {gpu_rc6:.1f}%")
-
-        # --------------------------------------------------------------------
-        # Req 1.23, 1.36: Scheduler Metrics (additional)
-        # --------------------------------------------------------------------
-        scheduler = derived.get("scheduler", {})
-        print("   🔄 Scheduler Metrics:")
-        print(
-            f"      Voluntary Ctx Sw:  {scheduler.get('context_switches_voluntary', 0):,}"
-        )
-        print(
-            f"      Involuntary Ctx Sw: {scheduler.get('context_switches_involuntary', 0):,}"
-        )
-        print(f"      Thread Migrations: {scheduler.get('thread_migrations', 0):,}")
-        print(f"      Run Queue Length: {scheduler.get('run_queue_length', 0):.2f}")
-        print(f"      Kernel Time:      {scheduler.get('kernel_time_ms', 0):.2f} ms")
-        print(f"      User Time:        {scheduler.get('user_time_ms', 0):.2f} ms")
-        # ====================================================================
-        # DEBUG: See what's in derived
-        # ====================================================================
-        # print("\n   🔍 DEBUG: derived keys =", list(derived.keys()))
-        if "msr" in derived:
-            # print("   🔍 DEBUG: msr keys =", list(derived['msr'].keys()))
-            if derived["msr"] and isinstance(derived["msr"], dict):
-                msr_preview = str(derived["msr"])[:200]
-                print(f"   🔍 DEBUG: msr content = {msr_preview}...")
-
-        # ====================================================================
-        # DEBUG: Print raw msr_data structure
-        # ====================================================================
-        msr_data = derived.get("msr", {})
-        # if msr_data:
-        # dprint("\n 🔍 DEBUG: msr_data top-level keys =", list(msr_data.keys()))
-        # dprint("   🔍 DEBUG: wakeup_latency_us =", msr_data.get('wakeup_latency_us'))
-        # dprint("   🔍 DEBUG: thermal_throttle =", msr_data.get('thermal_throttle'))
-        # dprint("   🔍 DEBUG: baseline keys =", list(msr_data.get('baseline', {}).keys()))
-        # dprint("   🔍 DEBUG: dynamic keys =", list(msr_data.get('dynamic', {}).keys()))
-        # ====================================================================
-        # MSR Metrics Display (Fixed for actual structure)
-        # ====================================================================
-        msr_data = derived.get("msr", {})
-        if msr_data:
-            print("\n   🔧 MSR Metrics:")
-
-            # Ring bus frequency
-            ring_bus = msr_data.get("ring_bus", {})
-            if ring_bus and ring_bus.get("current_mhz"):
-                print(f"      Ring Bus Frequency: {ring_bus['current_mhz']:.1f} MHz")
-
-            # Wake-up latency - directly from top level
-            wake_lat = msr_data.get("wakeup_latency_us")
-            if wake_lat:
-                print(f"      Wake-up Latency: {wake_lat:.2f} µs")
-
-            # Thermal throttle - directly from top level
-            throttle = msr_data.get("thermal_throttle")
-            if throttle is not None:
-                status = "DETECTED" if throttle else "NOT DETECTED"
-                print(f"      Thermal Throttle Flag: {throttle} ({status})")
-
-            # C-state times - from c_states
-            c_states = msr_data.get("c_states", {})
-            if c_states:
-                print("      C-State Times (since boot):")
-                for state, state_data in c_states.items():
-                    seconds = state_data.get("seconds", 0)
-                    if seconds > 0:
-                        if seconds < 60:
-                            time_str = f"{seconds:.2f} seconds"
-                        elif seconds < 3600:
-                            time_str = f"{seconds/60:.2f} minutes"
-                        else:
-                            time_str = f"{seconds/3600:.2f} hours"
-                        print(f"         {state.upper()}: {time_str}")
-
-            # TSC frequency for reference
-            tsc_freq = msr_data.get("tsc_frequency_hz", 0)
-            if tsc_freq:
-                print(f"      TSC Frequency: {tsc_freq/1e6:.0f} MHz")
+        con.line("")
+        con.line(con.style("%s run %d" % (label, idx + 1), "bold"))
+        _show_energy_perf(con, derived)
+        _show_thermal(con, run, derived)
+        _show_system_state(con, run)
+        _show_power_sched(con, derived)
+        _show_msr(con, derived)
 
 
 def display_ipc_analysis(all_linear, all_agentic):
@@ -311,149 +209,84 @@ def display_ipc_analysis(all_linear, all_agentic):
         all_linear: List of linear run results
         all_agentic: List of agentic run results
     """
+    if not all_linear or not all_agentic:
+        return
+    linear_ipcs = [r["layer3_derived"].get("performance", {}).get("ipc", 0) for r in all_linear]
+    agentic_ipcs = [r["layer3_derived"].get("performance", {}).get("ipc", 0) for r in all_agentic]
+    linear_ipcs = [i for i in linear_ipcs if i > 0]
+    agentic_ipcs = [i for i in agentic_ipcs if i > 0]
+    if not linear_ipcs or not agentic_ipcs:
+        return
+    avg_linear_ipc = sum(linear_ipcs) / len(linear_ipcs)
+    avg_agentic_ipc = sum(agentic_ipcs) / len(agentic_ipcs)
+    ipc_ratio = avg_agentic_ipc / avg_linear_ipc if avg_linear_ipc > 0 else 0
 
-    # ====================================================================
-    # IPC Efficiency Analysis
-    # ====================================================================
-    if len(all_linear) > 0 and len(all_agentic) > 0:
-        # Get average IPC from each run
-        linear_ipcs = []
-        agentic_ipcs = []
-
-        for run in all_linear:
-            perf = run["layer3_derived"].get("performance", {})
-            ipc = perf.get("ipc", 0)
-            if ipc > 0:
-                linear_ipcs.append(ipc)
-
-        for run in all_agentic:
-            perf = run["layer3_derived"].get("performance", {})
-            ipc = perf.get("ipc", 0)
-            if ipc > 0:
-                agentic_ipcs.append(ipc)
-
-        if linear_ipcs and agentic_ipcs:
-            avg_linear_ipc = sum(linear_ipcs) / len(linear_ipcs)
-            avg_agentic_ipc = sum(agentic_ipcs) / len(agentic_ipcs)
-            ipc_ratio = avg_agentic_ipc / avg_linear_ipc if avg_linear_ipc > 0 else 0
-
-            print(f"\n{'='*70}")
-            print("📊 IPC EFFICIENCY ANALYSIS")
-            print("=" * 70)
-            print(f"   Linear IPC:  {avg_linear_ipc:.2f}")
-            print(f"   Agentic IPC: {avg_agentic_ipc:.2f}")
-            print(f"   Efficiency Ratio: {ipc_ratio:.2f}x")
-
-            if ipc_ratio > 1:
-                print(
-                    f"   → Agentic workflow keeps CPU {((ipc_ratio-1)*100):.1f}% busier"
-                )
-                print(f"   → Higher instruction density during orchestration")
-            elif ipc_ratio < 1:
-                print(
-                    f"   → Agentic workflow is {((1-ipc_ratio)*100):.1f}% less CPU efficient"
-                )
-                print(f"   → More pipeline stalls or cache misses")
-            else:
-                print(f"   → No IPC difference between workflows")
-
-            print("=" * 70)
+    con = get_console()
+    con.section("IPC efficiency analysis")
+    con.kv("linear ipc", "%.2f" % avg_linear_ipc)
+    con.kv("agentic ipc", "%.2f" % avg_agentic_ipc)
+    con.kv("efficiency ratio", con.style("%.2fx" % ipc_ratio, "cyan"))
+    if ipc_ratio > 1:
+        con.line("agentic workflow keeps the CPU %.1f%% busier: higher instruction density during orchestration" % ((ipc_ratio - 1) * 100), indent=1)
+    elif ipc_ratio < 1:
+        con.line("agentic workflow is %.1f%% less CPU efficient: more pipeline stalls or cache misses" % ((1 - ipc_ratio) * 100), indent=1)
+    else:
+        con.line("no IPC difference between workflows", indent=1)
 
 
 def display_sustainability_header(all_linear):
     """Display grid information and sources."""
-    print("\n" + "=" * 70)
-    print("🌍 SUSTAINABILITY IMPACT")
-    print("=" * 70)
-    if all_linear and all_linear[0].get("sustainability"):
-        sus = all_linear[0]["sustainability"]
-        country = all_linear[0].get("country_code", "US")
-        print(f"\n   📍 Grid Region: {country}")
-        print(f"   " + "-" * 50)
+    con = get_console()
+    con.section("sustainability impact")
+    if not all_linear or not all_linear[0].get("sustainability"):
+        return
+    sus = all_linear[0]["sustainability"]
+    con.kv("grid region", all_linear[0].get("country_code", "US"))
+    if sus and "carbon" in sus:
+        c = sus["carbon"]
+        con.kv("carbon intensity", c.get("source", "Unknown"))
+        con.kv("factor", "%.1f g/kWh" % c.get("grams_per_kwh", 0), indent=2)
+        con.kv("uncertainty", "±%s%% [Req 2.16]" % c.get("uncertainty_percent", 0), indent=2)
+    if sus and "water" in sus:
+        con.kv("water intensity", sus["water"].get("source", "Unknown"))
+    if sus and "methane" in sus:
+        con.kv("methane leakage", sus["methane"].get("source", "Unknown"))
 
-        if sus and "carbon" in sus:
-            c = sus["carbon"]
-            print(f"   Carbon Intensity: {c.get('source', 'Unknown')}")
-            print(f"      Factor: {c.get('grams_per_kwh', 0):.1f} g/kWh")
-            print(f"      Uncertainty: ±{c.get('uncertainty_percent', 0)}% [Req 2.16]")
 
-        if sus and "water" in sus:
-            w = sus["water"]
-            print(f"\n   Water Intensity: {w.get('source', 'Unknown')}")
-
-        if sus and "methane" in sus:
-            m = sus["methane"]
-            print(f"\n   Methane Leakage: {m.get('source', 'Unknown')}")
+def _ratio(a, b):
+    """Agentic over linear ratio; nan when linear is zero (as before)."""
+    return (a / b) if b else float("nan")
 
 
 def display_workflow_comparison(linear_stats, agentic_stats):
     """Display workflow comparison table."""
-    if linear_stats and agentic_stats:
-        print(f"\n   📊 WORKFLOW COMPARISON")
-        print(f"   " + "=" * 50)
-        print(f"   {'Metric':<20} {'LINEAR':>15} {'AGENTIC':>15} {'RATIO':>10}")
-        print(f"   " + "-" * 60)
-
-        # Energy
-        energy_ratio = (
-            (agentic_stats["energy"] / linear_stats["energy"])
-            if linear_stats["energy"]
-            else float("nan")
-        )
-        print(
-            f"   {'Energy (J)':<20} {linear_stats['energy']:>15.6f} {agentic_stats['energy']:>15.6f} "
-            f"{energy_ratio:>10.2f}x"
-        )
-
-        # Carbon
-        carbon_ratio = (
-            (agentic_stats["carbon"] / linear_stats["carbon"])
-            if linear_stats["carbon"]
-            else float("nan")
-        )
-        print(
-            f"   {'Carbon (mg)':<20} {linear_stats['carbon']*1000:>15.6f} {agentic_stats['carbon']*1000:>15.6f} "
-            f"{carbon_ratio:>10.2f}x"
-        )
-
-        # Water
-        water_ratio = (
-            (agentic_stats["water"] / linear_stats["water"])
-            if linear_stats["water"]
-            else float("nan")
-        )
-        print(
-            f"   {'Water (µl)':<20} {linear_stats['water']*1000:>15.6f} {agentic_stats['water']*1000:>15.6f} "
-            f"{water_ratio:>10.2f}x"
-        )
-
-        # Methane
-        methane_ratio = (
-            (agentic_stats["methane"] / linear_stats["methane"])
-            if linear_stats["methane"]
-            else float("nan")
-        )
-        print(
-            f"   {'Methane (mg)':<20} {linear_stats['methane']*1000:>15.6f} {agentic_stats['methane']*1000:>15.6f} "
-            f"{methane_ratio:>10.2f}x"
-        )
-
-        print(f"   " + "-" * 60)
+    if not linear_stats or not agentic_stats:
+        return
+    con = get_console()
+    con.section("workflow comparison")
+    con.line(con.style(f"{'Metric':<20} {'LINEAR':>15} {'AGENTIC':>15} {'RATIO':>10}", "bold"), indent=1)
+    con.line("-" * 60, indent=1)
+    rows = [
+        ("Energy (J)", linear_stats["energy"], agentic_stats["energy"], 1, "energy"),
+        ("Carbon (mg)", linear_stats["carbon"], agentic_stats["carbon"], 1000, "carbon"),
+        ("Water (ul)", linear_stats["water"], agentic_stats["water"], 1000, "water"),
+        ("Methane (mg)", linear_stats["methane"], agentic_stats["methane"], 1000, "methane"),
+    ]
+    for name, lin, agt, scale, _key in rows:
+        ratio = _ratio(agt, lin)
+        con.line(f"{name:<20} {lin * scale:>15.6f} {agt * scale:>15.6f} " + con.style(f"{ratio:>10.2f}x", "cyan"), indent=1)
+    con.line("-" * 60, indent=1)
 
 
 def display_pair_hardware(linear_results, agentic_results, title=None):
     """Display hardware parameters for each pair."""
+    con = get_console()
     if title:
-        print("\n" + "=" * 70)
-        print(f"🔧 {title}")
-        print("=" * 70)
-
+        con.section(title)
     for i in range(len(linear_results)):
-        print(f"\n{'─'*50}")
-        print(f"📊 PAIR {i+1}: Linear + Agentic")
-        print(f"{'─'*50}")
-        display_hardware([linear_results[i]], f"LINEAR Run {i+1}")
+        con.line("")
+        con.line(con.style("pair %d: linear and agentic" % (i + 1), "bold"))
+        display_hardware([linear_results[i]], "LINEAR run %d" % (i + 1))
         if i < len(agentic_results):
-            display_hardware([agentic_results[i]], f"AGENTIC Run {i+1}")
-
+            display_hardware([agentic_results[i]], "AGENTIC run %d" % (i + 1))
     display_ipc_analysis(linear_results, agentic_results)

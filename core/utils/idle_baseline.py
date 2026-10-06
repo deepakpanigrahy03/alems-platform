@@ -47,7 +47,7 @@ from core.readers.gpu_collector import GPUCollector
 from core.readers.interfaces import EnergyReaderABC       # PAC-2: ABC only, never RAPLReader
 from core.readers.scheduler_monitor import SchedulerMonitor
 from core.utils.core_pinner import CorePinner
-from core.utils.debug import dprint
+
 
 logger = logging.getLogger(__name__)
 
@@ -341,7 +341,7 @@ def measure_idle_baseline(
     cache_file.parent.mkdir(parents=True, exist_ok=True)
 
     current_state = get_system_state()
-    dprint(
+    logger.info(
         "System state: governor=%s turbo=%s processes=%d background_cpu=%.1f%%",
         current_state["governor"], current_state["turbo"],
         current_state["processes"], current_state["background_cpu"],
@@ -368,14 +368,14 @@ def measure_idle_baseline(
             if (cached_meta.get("governor") == current_state["governor"]
                     and cached_meta.get("turbo") == current_state["turbo"]
                     and gpu_state_ok):
-                dprint("Loaded idle baseline from cache: %s", cache_file)
+                logger.info("Loaded idle baseline from cache: %s", cache_file)
                 return BaselineMeasurement.from_dict(cache_data)
             else:
-                dprint("Cache invalid (system state changed or GPU measurement state mismatch) — remeasuring")
+                logger.info("Cache invalid (system state changed or GPU measurement state mismatch) — remeasuring")
         except Exception as e:
             logger.warning("Failed to load baseline cache, remeasuring: %s", e)
 
-    dprint(
+    logger.info(
         "Measuring idle baseline: %d samples x %ds each",
         num_samples, duration_seconds,
     )
@@ -385,15 +385,15 @@ def measure_idle_baseline(
     # ------------------------------------------------------------------
     if pin_cores is not None:
         core_pinner.pin_to_cores(pin_cores)
-        dprint("Pinned to cores: %s", pin_cores)
+        logger.info("Pinned to cores: %s", pin_cores)
     else:
         core_pinner.pin_to_cores()
-        dprint("Pinned to default cores: %s", core_pinner.default_cores)
+        logger.info("Pinned to default cores: %s", core_pinner.default_cores)
 
     # ------------------------------------------------------------------
     # Step 2: Pre-wait for system to reach deep idle states (Req 1.7)
     # ------------------------------------------------------------------
-    dprint("Waiting %ds for deep idle...", pre_wait_seconds)
+    logger.info("Waiting %ds for deep idle...", pre_wait_seconds)
     time.sleep(pre_wait_seconds)
 
     # ------------------------------------------------------------------
@@ -407,7 +407,7 @@ def measure_idle_baseline(
     start_time       = time.time()
 
     for sample_idx in range(num_samples):
-        dprint("Sample %d/%d", sample_idx + 1, num_samples)
+        logger.info("Sample %d/%d", sample_idx + 1, num_samples)
 
         # read_energy() returns ALL domains the platform exposes — BDC-7
         start_raw = energy_reader.read_energy()
@@ -467,7 +467,7 @@ def measure_idle_baseline(
     for raw_key, values in all_powers.items():
         raw_power[raw_key] = statistics.mean(values)
         raw_std[raw_key]   = statistics.stdev(values) if len(values) > 1 else 0.0
-        dprint(
+        logger.info(
             "  %s: mean=%.4fW std=%.4fW",
             raw_key, raw_power[raw_key], raw_std[raw_key],
         )
@@ -577,7 +577,7 @@ def measure_idle_baseline(
     try:
         with open(cache_file, "w") as f:
             json.dump(baseline.to_dict(), f, indent=2, default=str)
-        dprint("Saved idle baseline to %s", cache_file)
+        logger.info("Saved idle baseline to %s", cache_file)
     except Exception as e:
         logger.error("Failed to save baseline cache: %s", e)
 
@@ -618,19 +618,19 @@ def apply_baseline_correction(raw_energy_uj, baseline_power_watts, duration_seco
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
-    print("\n" + "=" * 70)
-    print("IDLE BASELINE MEASUREMENT TEST")
-    print("=" * 70)
+    from core.observability.console import get_console
+    con = get_console()
+    con.section("idle baseline measurement test")
 
     # Factory dispatch — correct reader for this platform (PAC-2)
     from core.readers.factory import ReaderFactory
     reader = ReaderFactory.get_energy_reader()
     pinner = CorePinner(default_cores=[0, 1])
 
-    print(f"Reader: {reader.__class__.__name__}")
-    print(f"Available: {reader.is_available()}")
+    con.kv("reader", reader.__class__.__name__)
+    con.kv("available", reader.is_available())
 
-    print("\nFirst call (measuring, will save to cache)...")
+    con.line("first call: measuring, saved to cache")
     b1 = measure_idle_baseline(
         energy_reader=reader,
         core_pinner=pinner,
@@ -638,18 +638,16 @@ if __name__ == "__main__":
         num_samples=2,
         pre_wait_seconds=2,
     )
-    print(f"  power_watts: {b1.power_watts}")
-    print(f"  domains: {list(b1.power_watts.keys())}")
+    con.kv("power_watts", b1.power_watts)
+    con.kv("domains", list(b1.power_watts.keys()))
 
-    print("\nSecond call (should load from cache)...")
+    con.line("second call: loaded from cache")
     b2 = measure_idle_baseline(energy_reader=reader, core_pinner=pinner)
-    print(f"  power_watts: {b2.power_watts}")
+    con.kv("power_watts", b2.power_watts)
 
     # Round-trip integrity check (BDC-7)
     assert set(b1.power_watts.keys()) == set(b2.power_watts.keys()), \
         "Round-trip key mismatch!"
-    print("\nRound-trip integrity: PASS")
+    con.kv("round trip integrity", "PASS")
 
-    print("\n" + "=" * 70)
-    print("Test complete")
-    print("=" * 70)
+    con.line("idle baseline test complete")

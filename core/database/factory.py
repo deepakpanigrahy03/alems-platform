@@ -98,7 +98,8 @@ class DatabaseFactory:
         # Get engine-specific config
         engine_config = config.get(engine, {})
         if not engine_config:
-            print(f"⚠️ No specific config found for engine '{engine}', using defaults")
+            import logging as _logging
+            _logging.getLogger(__name__).info("no specific config for engine %s; defaults used", engine)
 
         # Merge with common settings
         # Common settings like backup_enabled, backup_interval_hours

@@ -62,7 +62,10 @@ def _build_darwin_cpu_sample_row(run_id, result):
     if not instructions and not cycles:
         # No PMU data available for this run — log at WARNING for debug
         import json as _json
-        print(f"BUILDER NONE: run_id={run_id} derived_keys={list(derived.keys()) if derived else 'EMPTY'} perf={perf} ml_instr={ml.get('instructions')}")
+        logger.warning(
+            "darwin cpu sample not built: run_id=%s derived_keys=%s perf=%s ml_instructions=%s",
+            run_id, list(derived.keys()) if derived else None, perf, ml.get("instructions"),
+        )
         return None
 
     if ipc is None and cycles and cycles > 0:

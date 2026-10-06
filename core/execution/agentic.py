@@ -45,7 +45,7 @@ from core.execution.tools.real_tools import (  # real instrumented tools
 import psutil
 import requests
 
-from core.utils.debug import dprint
+
 from core.execution.model_factory import ModelFactory
 
 logger = logging.getLogger(__name__)
@@ -291,9 +291,7 @@ class AgenticExecutor:
         call_counter = 0
         step_counter = 0
 
-        dprint(f"\n{'#'*70}")
-        dprint(f"🚀 AGENTIC EXECUTION [{experiment_id}]: {task[:100]}")
-        dprint(f"{'#'*70}")
+        logger.info("agentic execution %s, task length %d chars", experiment_id, len(task))
 
         # ====================================================================
         # Phase 1: Planning – LLM creates step-by-step plan (1 call)
@@ -392,7 +390,7 @@ class AgenticExecutor:
             },
         )
 
-        dprint(f"📋 Planning: {len(steps)} steps, {planning_time_ms:.1f}ms")
+        logger.info("planning %d steps, %.1f ms", len(steps), planning_time_ms)
 
         # ====================================================================
         # Phase 2: Execution – Run each step (tool or LLM)
@@ -401,11 +399,15 @@ class AgenticExecutor:
         step_results, tools_used = [], []
         tokens = {"prompt": 0, "completion": 0, "total": 0}
         total_llm_calls = 0
+
+        def _add(cur, v):
+            # C2: once any call count is unknown, the run total is unknown (MIC-1).
+            return None if cur is None or v is None else cur + v
         step_counter = 0
 
         for i, step in enumerate(steps):
             step_counter += 1
-            logger.warning("STEP %d: keys=%s tool=%s supported=%s", i, list(step.keys()), step.get("tool"), self.supported_tools)
+            logger.debug("step %d: keys=%s tool=%s supported=%s", i, list(step.keys()), step.get("tool"), self.supported_tools)
             if step.get("tool") in self.supported_tools:
                 # Tool execution – external computation, no LLM call
                 # Resolve args at execution time — handles {planner.*} and {step_N_result}
@@ -416,7 +418,7 @@ class AgenticExecutor:
                     task_prompt=getattr(self, "_current_task_prompt", None),
                 )
                 tool_start = time.time()
-                logger.warning("_execute_tool CALLED: tool=%s step=%s", step.get("tool"), step_counter)
+                logger.debug("execute tool %s at step %s", step.get("tool"), step_counter)
                 result = self._execute_tool(
                     step["tool"], args, step_counter
                 )
@@ -432,7 +434,7 @@ class AgenticExecutor:
                 )
                 if step["tool"] not in tools_used:
                     tools_used.append(step["tool"])
-                dprint(f"  🔧 Tool {step['tool']} → {result}")
+                logger.info("tool %s result %s", step["tool"], result)
             else:
                 # LLM execution – another call to the model
                 call_counter += 1
@@ -462,20 +464,15 @@ class AgenticExecutor:
                 # ====================================================================
                 if "usage" in llm_result:
                     usage = llm_result["usage"]
-                    tokens["prompt"] += usage.get("prompt_tokens", 0)
-                    tokens["completion"] += usage.get("completion_tokens", 0)
-                    tokens["total"] += usage.get("total_tokens", 0)
-                    print(
-                        f"🔍 DEBUG - added prompt:{usage.get('prompt_tokens',0)}, completion:{usage.get('completion_tokens',0)}, total:{usage.get('total_tokens',0)}"
-                    )
-                    print(f"🔍 DEBUG - now tokens: {tokens}")
+                    tokens["prompt"] = _add(tokens["prompt"], usage.get("prompt_tokens"))
+                    tokens["completion"] = _add(tokens["completion"], usage.get("completion_tokens"))
+                    tokens["total"] = _add(tokens["total"], usage.get("total_tokens"))
+                    logger.debug("usage added %s, tokens now %s", usage, tokens)
                 elif "tokens" in llm_result:
                     # Fallback for any providers that use 'tokens' format
                     for k, v in llm_result["tokens"].items():
-                        tokens[k] += v
-                        print(
-                            f"🔍 DEBUG - added {k}: {v}, now tokens[{k}] = {tokens[k]}"
-                        )
+                        tokens[k] = _add(tokens[k], v)
+                        logger.debug("tokens %s added %s, now %s", k, v, tokens[k])
                 else:
                     logger.debug(
                         f"No token data in llm_result. Keys: {llm_result.keys()}"
@@ -484,7 +481,7 @@ class AgenticExecutor:
                 total_llm_calls += 1
                 total_prompt_chars += len(prompt)
                 total_response_chars += len(llm_result.get("content", ""))
-                dprint(f"  🤖 LLM step {i+1} complete")
+                logger.debug("llm step %d complete", i + 1)
 
         exec_end = time.time()
         execution_time_ms = (exec_end - exec_start) * 1000
@@ -496,8 +493,7 @@ class AgenticExecutor:
             metadata={"steps": len(steps), "tools_used": len(tools_used)},
         )        
 
-        print(f"🔍 DEBUG - accumulated tokens: {tokens}")
-        print(f"🔍 DEBUG - tokens keys: {tokens.keys()}")
+        logger.debug("accumulated tokens: %s", tokens)
         # print("🔍 DEBUG - llm_result keys:", llm_result.keys())
         # print("🔍 DEBUG - llm_result full:", llm_result)
         # ====================================================================
@@ -521,7 +517,7 @@ class AgenticExecutor:
         )
         if "tokens" in synthesis:
             for k, v in synthesis["tokens"].items():
-                tokens[k] += v
+                tokens[k] = _add(tokens[k], v)
         total_llm_calls += 1  # Count synthesis call
         total_prompt_chars += len(synthesis.get("prompt", ""))
         total_response_chars += len(synthesis.get("content", ""))
@@ -540,8 +536,10 @@ class AgenticExecutor:
 
         total_time_ms = (time.time() - overall_start) * 1000
 
-        # Calculate final LLM calls: planning (1) + execution (N) + synthesis (1)
-        final_llm_calls = total_llm_calls + 1  # +1 for planning call
+        # Calculate final LLM calls: planning (1, only when the LLM planned)
+        # + execution (N) + synthesis (1). Tool graph runs skip LLM planning
+        # (G187: the planning call was counted even when it never happened).
+        final_llm_calls = total_llm_calls + (0 if tool_graph else 1)
         # ====================================================================
         # Calculate total effective throughput across all LLM calls
         # ====================================================================
@@ -552,8 +550,9 @@ class AgenticExecutor:
             )
             # Sum all effective_kbps values (you'd need to track them)
             # For now, let's calculate average
-            dprint(
-                f"📊 Average throughput: {total_effective_kbps:.1f} kbps across {len(self._effective_kbps_list)} calls"
+            logger.info(
+                "average throughput %.1f kbps across %d calls",
+                total_effective_kbps, len(self._effective_kbps_list),
             )
 
         # Calculate orchestration CPU overhead and aggregate network metrics
@@ -605,7 +604,7 @@ class AgenticExecutor:
             and sr.get("result", "").startswith("Error:")
         ]
 
-        print(f"DEBUG step_errors={step_errors}")        
+        logger.debug("step errors: %s", step_errors)        
         failed_steps  = len(step_errors)
         total_steps   = len(step_results)
  
@@ -644,7 +643,7 @@ class AgenticExecutor:
             "pending_interactions": getattr(self, "pending_interactions", []),
             "complexity_level": complexity_level,  # Req 3.2
             "complexity_score": self._calculate_complexity_score(
-                final_llm_calls, tool_count, tokens.get("total", 0)
+                final_llm_calls, tool_count, tokens.get("total") or 0
             ),
             "orchestration_cpu_ms": 0, # Will be calculated after pending_interactions
              "total_bytes_sent": 0,
@@ -701,20 +700,13 @@ class AgenticExecutor:
             "avg_effective_kbps": total_effective_kbps,
         }
 
-        dprint(f"\n📊 Phase breakdown:")
-        dprint(
-            f"   Planning:  {planning_time_ms:6.1f}ms ({result['phase_percentages']['planning_pct']:.0f}%)"
+        _pp = result["phase_percentages"]
+        logger.info(
+            "phases planning %.1f ms (%.0f%%), execution %.1f ms (%.0f%%), synthesis %.1f ms (%.0f%%), total %.1f ms",
+            planning_time_ms, _pp["planning_pct"], execution_time_ms, _pp["execution_pct"],
+            synthesis_time_ms, _pp["synthesis_pct"], total_time_ms,
         )
-        dprint(
-            f"   Execution: {execution_time_ms:6.1f}ms ({result['phase_percentages']['execution_pct']:.0f}%)"
-        )
-        dprint(
-            f"   Synthesis: {synthesis_time_ms:6.1f}ms ({result['phase_percentages']['synthesis_pct']:.0f}%)"
-        )
-        dprint(f"   TOTAL:     {total_time_ms:6.1f}ms")
-        dprint(
-            f"✅ Agentic complete: {total_time_ms:.0f}ms, {tokens.get('total', 0)} tokens"
-        )
+        logger.info("agentic complete %.0f ms, %s tokens", total_time_ms, tokens.get("total"))
         # ====================================================================
         # Calculate API latency (total time spent waiting for network)
         # ====================================================================
@@ -775,9 +767,7 @@ class AgenticExecutor:
     
 
         self.pending_interactions = []
-        dprint(
-            f"✅ Agentic complete: {execution_time_ms:.0f}ms, {tokens.get('total', 0)} tokens"
-        )
+        logger.info("agentic complete %.0f ms, %s tokens", execution_time_ms, tokens.get("total"))
         return result
 
     def execute_comparison(self, task: str, tool_graph: list = None,
@@ -1221,9 +1211,7 @@ You can use tools like calculator or web search if needed.
         self._call_count += 1
         temp = temperature if temperature is not None else self.temperature
  
-        dprint(f"\n{'='*50}")
-        dprint(f"📨 LLM #{self._call_count} (temp={temp}, {len(prompt)} chars)")
-        dprint(f"{'='*50}")
+        logger.debug("llm call %d, temperature %s, %d chars", self._call_count, temp, len(prompt))
  
         if not self.config.get("is_local", False) and self.config.get("api_key_env") and not self.api_key:
             logger.error("No API key available")
@@ -1255,9 +1243,9 @@ You can use tools like calculator or web search if needed.
                 "response":                 content,
                 "model_name":               self.config.get("model_id", "unknown"),
                 "provider":                 self.provider,
-                "prompt_tokens":            tokens.get("prompt", 0),
-                "completion_tokens":        tokens.get("completion", 0),
-                "total_tokens":             tokens.get("total", 0),
+                "prompt_tokens":            tokens.get("prompt"),
+                "completion_tokens":        tokens.get("completion"),
+                "total_tokens":             tokens.get("total"),
                 "total_time_ms":            total_time_ms,
                 "preprocess_ms":            preprocess_ms,
                 "non_local_ms":             non_local_ms,
@@ -1310,9 +1298,9 @@ You can use tools like calculator or web search if needed.
                 "response":             f"ERROR: {e}",
                 "model_name":           self.config.get("model_id", "unknown"),
                 "provider":             self.provider,
-                "prompt_tokens":        0,
-                "completion_tokens":    0,
-                "total_tokens":         0,
+                "prompt_tokens":        None,
+                "completion_tokens":    None,
+                "total_tokens":         None,
                 "total_time_ms":        0,
                 "preprocess_ms":        0,
                 "non_local_ms":         0,
@@ -1394,5 +1382,4 @@ You can use tools like calculator or web search if needed.
             "attempt_id": resolved_attempt_id,
         }
         self._events.append(event)
-        dprint(f"📝 Event: {phase}.{event_type} ({event['duration_ns']/1e6:.2f}ms)")
-        print(f"🔔 EVENT CREATED: {phase}.{event_type}")
+        logger.debug("event %s.%s (%.2f ms)", phase, event_type, event["duration_ns"] / 1e6)

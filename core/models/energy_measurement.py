@@ -524,7 +524,8 @@ if __name__ == "__main__":
 
     This shows how the data classes will be used in practice.
     """
-    print("\n🔧 Testing EnergyMeasurement data classes...")
+    from core.observability.console import get_console; con = get_console()
+    con.line("\n🔧 Testing EnergyMeasurement data classes...")
 
     # Create a performance counters object
     perf = PerformanceCounters(
@@ -536,9 +537,9 @@ if __name__ == "__main__":
         context_switches_involuntary=156,
     )
 
-    print(f"✅ IPC: {perf.instructions_per_cycle():.2f}")
-    print(f"✅ Cache miss rate: {perf.cache_miss_rate():.2%}")
-    print(f"✅ Total context switches: {perf.total_context_switches()}")
+    con.line(f"IPC: {perf.instructions_per_cycle():.2f}")
+    con.line(f"Cache miss rate: {perf.cache_miss_rate():.2%}")
+    con.line(f"Total context switches: {perf.total_context_switches()}")
 
     # Create thermal readings
     thermal = ThermalReadings(
@@ -547,8 +548,8 @@ if __name__ == "__main__":
         thermal_throttle_count=0,
     )
 
-    print(f"✅ Package temp: {thermal.package_temperature_celsius}°C")
-    print(f"✅ Throttling? {thermal.is_throttling()}")
+    con.line(f"Package temp: {thermal.package_temperature_celsius}°C")
+    con.line(f"Throttling? {thermal.is_throttling()}")
 
     # Create power state
     power = PowerState(
@@ -558,7 +559,7 @@ if __name__ == "__main__":
         igpu_frequency_mhz=300,
     )
 
-    print(f"✅ Deepest C-state: {power.deepest_cstate()}")
+    con.line(f"Deepest C-state: {power.deepest_cstate()}")
 
     # Create complete measurement
     import time
@@ -578,9 +579,9 @@ if __name__ == "__main__":
 
     measurement.calculate_derived_metrics()
 
-    print(f"\n✅ Complete measurement created")
-    print(f"   Package energy: {measurement.package_energy_uj / 1e6:.4f} J")
-    print(f"   Uncore waste: {measurement.uncore_waste_uj / 1e6:.4f} J")
-    print(f"   Inference ratio: {measurement.inference_ratio():.2%}")
+    con.line(f"\nComplete measurement created")
+    con.line(f"   Package energy: {measurement.package_energy_uj / 1e6:.4f} J")
+    con.line(f"   Uncore waste: {measurement.uncore_waste_uj / 1e6:.4f} J")
+    con.line(f"   Inference ratio: {measurement.inference_ratio():.2%}")
 
-    print("\n✅ All data classes working!")
+    con.line("\nAll data classes working!")

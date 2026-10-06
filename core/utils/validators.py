@@ -25,7 +25,8 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from core.utils.debug import dprint
+import logging
+logger = logging.getLogger(__name__)
 
 
 class MeasurementValidator:
@@ -78,5 +79,5 @@ class MeasurementValidator:
                 f"Measurement too short ({measurement.duration_seconds*1000:.2f}ms)"
             )
 
-        dprint("Validation issues:", issues)
+        logger.info("validation issues: %s", issues)
         return len(issues) == 0, issues

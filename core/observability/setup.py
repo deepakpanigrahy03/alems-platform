@@ -30,7 +30,13 @@ def _engine_version() -> Optional[str]:
     try:
         from importlib.metadata import version
 
-        return version("alems")
+        # The runtime distribution is named alems-platform; "alems" kept as fallback.
+        for _name in ("alems-platform", "alems"):
+            try:
+                return version(_name)
+            except Exception:  # noqa: BLE001  try the next name
+                continue
+        return None
     except Exception:  # noqa: BLE001
         return None
 
@@ -97,6 +103,10 @@ def setup_logging(
     """
     if entry not in ("cli", "run"):
         raise ValueError("entry must be cli or run: %r" % entry)
+    # Host settings of the sandbox (.sandbox-env): parsed, never executed;
+    # fills only variables the shell did not set (39.5.2e).
+    from core.storage.sandbox_env import load_sandbox_env
+    load_sandbox_env()
     # No silent fallback (39.5.2d): a run needs host log and error directories
     # and stops here before any measurement; the CLI must still reach
     # doctor and help, so it reports the same fix on stderr instead.

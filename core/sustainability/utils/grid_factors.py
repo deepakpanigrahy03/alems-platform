@@ -45,17 +45,7 @@ class GridFactorManager:
             # Load grid_intensity_2026.json via config loader
             grid_data = self.config.get_grid_intensity_data()
             # ===== ADD THIS =====
-            print(f"\n🔍 GRID MANAGER received data from config loader")
-            print(f"   Type: {type(grid_data)}")
-            if grid_data:
-                print(f"   Keys: {list(grid_data.keys())}")
-                if "IN" in grid_data:
-                    print(f"   ✅ India data in grid_data!")
-                    print(f"      Carbon: {grid_data['IN'].get('carbon_intensity')}")
-                else:
-                    print(f"   ❌ India NOT in grid_data!")
-            else:
-                print(f"   ❌ grid_data is None or empty")
+            logger.debug("grid manager data keys: %s", list(grid_data.keys()) if grid_data else None)
             # ====================
             if not grid_data:
                 logger.warning("No grid intensity data found, using sample data")

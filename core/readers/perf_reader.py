@@ -451,19 +451,8 @@ class PerfReader(CPUReaderABC):
                 cmd, capture_output=True, text=True, timeout=(duration_ms / 1000) + 1
             )
 
-            # ===== DEBUG: Print raw output =====
-            """
-            print("\n" + "="*50)
-            print("RAW PERF STDERR OUTPUT:")
-            print("="*50)
-            print(result.stderr)
-            print("="*50)
-            print("RAW PERF STDOUT OUTPUT:")
-            print("="*50)
-            print(result.stdout)
-            print("="*50)
-            """
-            # ===== END DEBUG =====
+            logger.debug("perf stderr: %s", result.stderr)
+            logger.debug("perf stdout: %s", result.stdout)
 
             # perf writes counter data to stderr
             self._parse_perf_output(result.stderr, counters)
@@ -708,12 +697,11 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    print("\n" + "=" * 70)
-    print("PERF READER TEST")
-    print("=" * 70)
-    print(f"Python path: {sys.path[0]}")
-    print(f"Project root: {project_root}")
-    print("=" * 70)
+    from core.observability.console import get_console
+    con = get_console()
+    con.section("perf reader test")
+    con.kv("python path", sys.path[0])
+    con.kv("project root", project_root)
 
     # Try to load config from Module 0
     config_path = project_root / "config" / "hw_config.json"
@@ -722,35 +710,22 @@ if __name__ == "__main__":
 
         with open(config_path) as f:
             config = json.load(f)
-        print(f"✅ Loaded config from {config_path}")
+        con.kv("config", config_path)
     else:
-        print("⚠️ No config file found, using defaults")
+        con.kv("config", "none found, defaults used")
         config = {}
 
-    # Initialize reader
     reader = PerfReader(config)
-    print(f"📊 {reader}")
+    con.line(str(reader))
+    con.kv("perf_event_paranoid", reader.check_paranoid_setting())
 
-    # Check paranoid setting
-    paranoid = reader.check_paranoid_setting()
-    print(f"🔧 perf_event_paranoid = {paranoid}")
-
-    # ===== TEST 1: Short sample (might be zero on idle) =====
-    print("\n📝 Taking 100ms sample (may be zero on idle system)...")
     counters = reader.read_counters(duration_ms=100)
+    con.section("100 ms sample (may be zero when idle)")
+    con.kv("instructions", "{:,}".format(counters.instructions_retired))
+    con.kv("cycles", "{:,}".format(counters.cpu_cycles))
+    con.kv("ipc", "%.2f" % counters.instructions_per_cycle())
 
-    print("\n" + "=" * 70)
-    print("100ms SAMPLE RESULTS")
-    print("=" * 70)
-    print(f"Instructions: {counters.instructions_retired:,}")
-    print(f"Cycles:       {counters.cpu_cycles:,}")
-    print(f"IPC:          {counters.instructions_per_cycle():.2f}")
-
-    # ===== TEST 2: Longer sample with workload =====
-    print("\n" + "=" * 70)
-    print("1 SECOND SAMPLE WITH WORKLOAD")
-    print("=" * 70)
-    print("Running CPU workload for 1 second...")
+    con.section("1 s sample with workload")
 
     # Create a simple workload function
     def busy_work(duration_ms):
@@ -781,17 +756,14 @@ if __name__ == "__main__":
     counters = reader.read_counters(duration_ms=1000)
     workload_thread.join()
 
-    print(f"Instructions: {counters.instructions_retired:,}")
-    print(f"Cycles:       {counters.cpu_cycles:,}")
-    print(f"IPC:          {counters.instructions_per_cycle():.2f}")
-    print(f"Cache refs:   {counters.cache_references:,}")
-    print(f"Cache misses: {counters.cache_misses:,}")
-    print(f"Miss rate:    {counters.cache_miss_rate():.2%}")
+    con.kv("instructions", "{:,}".format(counters.instructions_retired))
+    con.kv("cycles", "{:,}".format(counters.cpu_cycles))
+    con.kv("ipc", "%.2f" % counters.instructions_per_cycle())
+    con.kv("cache references", "{:,}".format(counters.cache_references))
+    con.kv("cache misses", "{:,}".format(counters.cache_misses))
+    con.kv("miss rate", "%.2f%%" % (counters.cache_miss_rate() * 100))
 
-    # ===== TEST 3: Multiple samples =====
-    print("\n" + "=" * 70)
-    print("3 SAMPLES AT 200ms INTERVALS DURING WORKLOAD")
-    print("=" * 70)
+    con.section("3 samples at 200 ms during workload")
 
     def background_workload():
         busy_work(2000)  # 2 second workload
@@ -803,8 +775,6 @@ if __name__ == "__main__":
     workload_thread.join()
 
     for i, c in enumerate(samples):
-        print(
-            f"   Sample {i+1}: {c.instructions_retired:,} instructions, {c.instructions_per_cycle():.2f} IPC"
-        )
-
-    print("\n✅ Test complete!")
+        con.kv("sample %d" % (i + 1), "{:,} instructions, {:.2f} ipc".format(
+            c.instructions_retired, c.instructions_per_cycle()))
+    con.line("perf reader test complete")

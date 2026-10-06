@@ -19,7 +19,7 @@ Preflight only checks /models — telemetry availability is adapter's concern.
 
 import sys
 import requests
-
+import logging
 
 def check(config: dict) -> None:
     """
@@ -31,29 +31,29 @@ def check(config: dict) -> None:
     """
     base_url = config.get("base_url", "").rstrip("/")
     if not base_url:
-        sys.exit("❌ llamacpp_remote: base_url not set — check ALEMS_LLAMA_CPP_API_URL in ~/.alemsrc")
+        sys.exit(" llamacpp_remote: base_url not set — check ALEMS_LLAMA_CPP_API_URL in ~/.alemsrc")
 
     try:
         r = requests.get(f"{base_url}/models", timeout=3)
         if r.status_code != 200:
             sys.exit(
-                f"❌ llamacpp_remote: server at {base_url} returned {r.status_code} — is it running?\n"
+                f" llamacpp_remote: server at {base_url} returned {r.status_code} — is it running?\n"
                 f"   Start llama-server: llama-server --metrics --port 8080 -m <model.gguf>\n"
                 f"   Or llama-cpp-python: python -m llama_cpp.server --model <model.gguf> --port 8080"
             )
         models = r.json().get("data", [])
         if not models:
             sys.exit(
-                f"❌ llamacpp_remote: server at {base_url} has no models loaded\n"
+                f" llamacpp_remote: server at {base_url} has no models loaded\n"
                 f"   Restart with a model path specified."
             )
-        print(f"✅ llamacpp_remote: OK — {models[0]['id']} at {base_url}")
+        logging.getLogger("alems.progress").info("preflight  llamacpp_remote %s at %s", models[0]["id"], base_url)
 
     except requests.exceptions.ConnectionError:
         sys.exit(
-            f"❌ llamacpp_remote: UNREACHABLE at {base_url}\n"
+            f" llamacpp_remote: UNREACHABLE at {base_url}\n"
             f"   Start llama-server: llama-server --metrics --port 8080 -m <model.gguf>\n"
             f"   Or llama-cpp-python: python -m llama_cpp.server --model <model.gguf> --port 8080"
         )
     except Exception as e:
-        sys.exit(f"❌ llamacpp_remote: health check failed — {e}")
+        sys.exit(f" llamacpp_remote: health check failed — {e}")

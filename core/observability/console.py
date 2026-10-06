@@ -23,6 +23,14 @@ from typing import Any, Optional
 # drives both channels; only quiet changes renderer behaviour today.
 _MODES = ("quiet", "normal", "verbose", "debug")
 
+# ANSI styles for result output; applied only on a TTY, never with --json.
+_STYLES = {
+    "bold": "\033[1m", "dim": "\033[2m", "cyan": "\033[36m",
+    "green": "\033[32m", "red": "\033[31m", "yellow": "\033[33m",
+    "blue": "\033[34m", "magenta": "\033[35m", "orange": "\033[38;5;208m",
+}
+_RESET = "\033[0m"
+
 
 class Console(object):
     """Plain text renderer with fixed column key value lines."""
@@ -108,6 +116,22 @@ class Console(object):
             width: key column width for alignment.
         """
         self.line("%-*s %s" % (width, key, value), indent)
+
+    def style(self, text, name):
+        # type: (str, str) -> str
+        """
+        Wrap text in an ANSI style when stdout is a terminal.
+
+        Plain text on pipes, files, NO_COLOR, and --json; pad text before
+        styling so column alignment is unaffected.
+        """
+        code = _STYLES.get(name)
+        if not code or self._json:
+            return text
+        from core.observability.sinks import use_color
+        if not use_color(self._stream or sys.stdout):
+            return text
+        return code + text + _RESET
 
     def result(self, obj, text=None):
         # type: (Any, Optional[str]) -> None

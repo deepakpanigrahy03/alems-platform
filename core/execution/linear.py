@@ -37,7 +37,7 @@ from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
 import json
 
-from core.utils.debug import dprint
+
 from core.execution.model_factory import ModelFactory
 
 logger = logging.getLogger(__name__)
@@ -146,9 +146,7 @@ class LinearExecutor:
         # ====================================================================
         net_before = {}
         
-        dprint(f"\n{'='*60}")
-        dprint(f"🚀 LINEAR EXECUTION [{experiment_id}]: {prompt[:100]}...")
-        dprint(f"{'='*60}")
+        logger.info("linear execution %s, prompt length %d chars", experiment_id, len(prompt))
         
         # ====================================================================
         # Step 3: Execute provider-specific API call
@@ -232,7 +230,7 @@ class LinearExecutor:
         # Clear for next run
         self.pending_interactions = []
         
-        dprint(f"✅ Linear complete: {execution_time_ms:.0f}ms, {tokens.get('total', 0)} tokens")
+        logger.info("linear complete %.0f ms, %s tokens", execution_time_ms, tokens.get("total"))
         return result
 
     def execute_comparison(self, task: str) -> Dict[str, Any]:
@@ -283,7 +281,7 @@ class LinearExecutor:
         if current_error is not None:
             return None, {}, 0, prompt_bytes, 0, 0, current_error
  
-        dprint(f"📨 Calling {self.provider} adapter (temp={temp})...")
+        logger.debug("calling %s adapter, temperature %s", self.provider, temp)
         error = None
         try:
             result          = self._adapter.call(prompt, temp)
@@ -370,9 +368,9 @@ class LinearExecutor:
             'response': response if error is None else f"Error: {error}",
             'model_name': self.config.get('model_id'),
             'provider': self.provider,
-            'prompt_tokens': tokens.get('prompt', 0) if error is None else 0,
-            'completion_tokens': tokens.get('completion', 0) if error is None else 0,
-            'total_tokens': tokens.get('total', 0) if error is None else 0,
+            'prompt_tokens': tokens.get('prompt') if error is None else None,
+            'completion_tokens': tokens.get('completion') if error is None else None,
+            'total_tokens': tokens.get('total') if error is None else None,
             'api_latency_ms': api_latency_ms,
             'app_throughput_kbps': effective_kbps,
             'bytes_sent_approx': net_metrics['bytes_sent'],

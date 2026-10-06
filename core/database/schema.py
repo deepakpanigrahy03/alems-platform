@@ -1351,6 +1351,7 @@ CREATE TABLE IF NOT EXISTS runs (
     measurement_log_level         TEXT,     -- v119: effective log level inside the gate (INV-P1)
     measurement_log_config_hash   TEXT,     -- v119: hash of the effective logging config
     observability_overflow        INTEGER,  -- v119: NULL not recorded, 0 none, 1 non lossy overflow
+    measurement_heartbeat_s       REAL,     -- v122: status line interval inside the gate; NULL not recorded, 0 off
     pre_task_energy_uj            INTEGER,  -- attributed: (delta - baseline) * cpu_frac
     pre_task_duration_ns          INTEGER,  -- t0 - t_before
 

@@ -14,8 +14,6 @@ from typing import Dict, Optional
 
 import psutil
 
-from core.utils.debug import dprint
-
 logger = logging.getLogger(__name__)
 
 # Store last good temperature as module-level variable
@@ -69,12 +67,12 @@ def _warmup_run(executor, prompt: str, is_agentic: bool = False) -> None:
         prompt: The task prompt
         is_agentic: Whether this is agentic (uses comparison method)
     """
-    dprint("🔥 Warmup run (results discarded)")
+    logger.info("warmup run (results discarded)")
     if is_agentic:
         executor.execute_comparison(prompt)
     else:
         executor.execute(prompt)
-    dprint("✅ Warmup complete")
+    logger.info("warmup complete")
 
 
 # =========================================================================

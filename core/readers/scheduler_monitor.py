@@ -39,9 +39,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from core.utils.debug import dprint, init_debug_from_env, trace
 
-init_debug_from_env()
 logger = logging.getLogger(__name__)
 
 
@@ -81,7 +79,7 @@ class SchedulerMonitor(SchedulerMonitorABC):
         """
         self.config = config
         self._page_size = os.sysconf("SC_PAGESIZE")  # for RSS, not used here
-        dprint("SchedulerMonitor initialized")
+        logger.debug("SchedulerMonitor initialized")
         # NEW: Interrupt sampling state
         self._interrupt_sampling_active = False
         self._interrupt_samples = []
@@ -122,7 +120,7 @@ class SchedulerMonitor(SchedulerMonitorABC):
                         invol = int(line.split(":")[1].strip())
         except Exception as e:
             logger.warning(f"Could not read {path}: {e}")
-        dprint(f"Context switches: voluntary={vol}, involuntary={invol}")
+        logger.debug("context switches voluntary %s involuntary %s", vol, invol)
         return vol, invol
 
     def read_cpu_times(self) -> Tuple[float, float]:
@@ -151,7 +149,7 @@ class SchedulerMonitor(SchedulerMonitorABC):
                     system = float(parts[3])
         except Exception as e:
             logger.warning(f"Could not read /proc/stat: {e}")
-        dprint(f"CPU times: user={user:.2f}, system={system:.2f}")
+        logger.debug("cpu times user %.2f system %.2f", user, system)
         return user, system
 
     def read_loadavg(self) -> Dict[str, float]:
@@ -192,7 +190,7 @@ class SchedulerMonitor(SchedulerMonitorABC):
                     result["last_pid"] = int(parts[4])
         except Exception as e:
             logger.warning(f"Could not read /proc/loadavg: {e}")
-        dprint("Load averages:", **result)
+        logger.debug("load averages: %s", result)
         return result
 
     def read_all(self) -> Dict[str, Any]:
@@ -219,7 +217,7 @@ class SchedulerMonitor(SchedulerMonitorABC):
             **load,
             "swap": swap,
         }
-        dprint("Scheduler snapshot:", **result)
+        logger.debug("scheduler snapshot: %s", result)
         return result
 
     def __str__(self) -> str:
@@ -506,94 +504,49 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
     monitor = SchedulerMonitor({})
-    print("=" * 70)
-    print("SCHEDULER MONITOR TEST")
-    print("=" * 70)
+    from core.observability.console import get_console
+    con = get_console()
+    con.section("scheduler monitor test")
 
-    # First reading
-    print("\n📊 Initial snapshot:")
     start = monitor.read_all()
-    print(
-        f"   Context switches: vol={start['voluntary_switches']}, invol={start['involuntary_switches']}"
-    )
-    print(
-        f"   CPU times: user={start['user_time']:.2f}, system={start['system_time']:.2f}"
-    )
-    print(
-        f"   Load avg: {start['load1']} (1min), {start['load5']} (5min), {start['load15']} (15min)"
-    )
-    print(f"   Runnable tasks: {start['runnable']}/{start['total_tasks']}")
-
-    # NEW: Print swap metrics
+    con.section("initial snapshot")
+    con.kv("context switches", "voluntary %s, involuntary %s" % (
+        start["voluntary_switches"], start["involuntary_switches"]))
+    con.kv("cpu times", "user %.2f, system %.2f" % (start["user_time"], start["system_time"]))
+    con.kv("load average", "%s (1 min), %s (5 min), %s (15 min)" % (
+        start["load1"], start["load5"], start["load15"]))
+    con.kv("runnable tasks", "%s/%s" % (start["runnable"], start["total_tasks"]))
     if "swap" in start:
         swap = start["swap"]
-        print(f"\n💾 Swap metrics:")
-        print(f"   Total: {swap['swap_total_mb']:.1f} MB")
-        print(f"   Used:  {swap['swap_used_mb']:.1f} MB ({swap['swap_percent']:.1f}%)")
-        print(f"   Free:  {swap['swap_free_mb']:.1f} MB")
-        print(f"   Cached: {swap['swap_cached_mb']:.1f} MB")
+        con.kv("swap total", "%.1f MB" % swap["swap_total_mb"])
+        con.kv("swap used", "%.1f MB (%.1f%%)" % (swap["swap_used_mb"], swap["swap_percent"]))
+        con.kv("swap free", "%.1f MB" % swap["swap_free_mb"])
+        con.kv("swap cached", "%.1f MB" % swap["swap_cached_mb"])
 
-    # Wait
-    print("\n⏳ Waiting 2 seconds...")
+    con.line("waiting 2 s")
     time.sleep(2)
 
-    # Second reading
-    print("\n📊 Final snapshot:")
     end = monitor.read_all()
-    print(
-        f"   Context switches: vol={end['voluntary_switches']}, invol={end['involuntary_switches']}"
-    )
-    print(f"   CPU times: user={end['user_time']:.2f}, system={end['system_time']:.2f}")
-
-    # Deltas
-    print("\n📈 Deltas:")
-    vol_delta = end["voluntary_switches"] - start["voluntary_switches"]
-    invol_delta = end["involuntary_switches"] - start["involuntary_switches"]
-    user_delta = end["user_time"] - start["user_time"]
-    system_delta = end["system_time"] - start["system_time"]
-
-    print(f"   Context switches: vol=+{vol_delta}, invol=+{invol_delta}")
-    print(f"   CPU time: user=+{user_delta:.2f}, system=+{system_delta:.2f}")
-    print(f"   Load avg: {end['load1']}")
-
-    # NEW: Swap delta (should be near zero in normal operation)
+    con.section("deltas over 2 s")
+    con.kv("context switches", "voluntary +%s, involuntary +%s" % (
+        end["voluntary_switches"] - start["voluntary_switches"],
+        end["involuntary_switches"] - start["involuntary_switches"]))
+    con.kv("cpu time", "user +%.2f, system +%.2f" % (
+        end["user_time"] - start["user_time"], end["system_time"] - start["system_time"]))
+    con.kv("load average", end["load1"])
     if "swap" in end and "swap" in start:
-        print(f"\n💾 Swap changes:")
-        swap_start = start["swap"]
-        swap_end = end["swap"]
-        used_delta = swap_end["swap_used_mb"] - swap_start["swap_used_mb"]
-        print(f"   Used memory change: {used_delta:+.2f} MB")
+        con.kv("swap used change", "%+.2f MB" % (
+            end["swap"]["swap_used_mb"] - start["swap"]["swap_used_mb"]))
 
-    print("\n" + "=" * 70)
-    print("✅ Test complete!")
-    print("=" * 70)
-
-    # ===== NEW: Test interrupt sampling =====
-    print("\n" + "=" * 70)
-    print("INTERRUPT SAMPLING TEST")
-    print("=" * 70)
-
+    con.section("interrupt sampling, 2 s at 10 Hz")
     monitor.start_interrupt_sampling()
-    print("Sampling interrupts for 2 seconds at 10 Hz...")
-
-    # Simulate 10 Hz sampling for 2 seconds
-    for _ in range(20):  # 20 samples at 0.1s intervals = 2 seconds
+    for _ in range(20):  # 20 samples at 0.1 s intervals = 2 s
         time.sleep(0.1)
         monitor.sample_interrupts()
-        print(".", end="", flush=True)
-    print()  # newline
-
     samples = monitor.stop_interrupt_sampling()
-
-    print(f"Collected {len(samples)} interrupt samples")
-    if samples:
-        print("First 3 samples:")
-        for i, s in enumerate(samples[:3]):
-            # Convert timestamp_ns to readable time if needed
-            rate = s["interrupts_per_sec"]
-            print(f"  {i+1}: rate={rate:.2f} IRQ/s")
-    else:
-        print(
-            "❌ No samples collected – check that _read_total_interrupts() is working"
-        )
-    print("=" * 70)
+    con.kv("samples collected", len(samples))
+    for i, s in enumerate(samples[:3]):
+        con.kv("sample %d" % (i + 1), "%.2f IRQ/s" % s["interrupts_per_sec"])
+    if not samples:
+        con.line("no samples collected: check _read_total_interrupts()")
+    con.line("scheduler monitor test complete")

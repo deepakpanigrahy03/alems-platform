@@ -79,7 +79,8 @@ def test_manifest_data_root_wins(no_root, tmp_path):
     no_root.setenv("ALEMS_DATA_ROOT", str(tmp_path / "env"))
     root, source, _ = resolver.resolve_data_root()
     assert root == tmp_path / "m" and source == "manifest"
-    assert locations.error_dir().parent.parent == (tmp_path / "m").resolve()
+    # Errors live beside the store (39.5.2e amendment), still under the manifest data root.
+    assert (tmp_path / "m").resolve() in locations.error_dir().parents
 
 
 def test_unreadable_manifest_stops(no_root, tmp_path):

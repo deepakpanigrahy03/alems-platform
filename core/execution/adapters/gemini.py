@@ -106,9 +106,9 @@ class GeminiAdapter(TextGenABC):
         # Gemini returns usage_metadata with token counts
         usage = response.usage_metadata
         tokens = {
-            "prompt": getattr(usage, "prompt_token_count", 0),
-            "completion": getattr(usage, "candidates_token_count", 0),
-            "total": getattr(usage, "total_token_count", 0),
+            "prompt": getattr(usage, "prompt_token_count", None),
+            "completion": getattr(usage, "candidates_token_count", None),
+            "total": getattr(usage, "total_token_count", None),
         }
         postprocess_ms = (time.time() - t_post) * 1000
 

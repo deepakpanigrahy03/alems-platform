@@ -114,9 +114,11 @@ class RawEnergyMeasurement:
             raise ValueError(f"Duration must be positive: {self.duration_seconds}")
         # ========== ADD THESE LINES ==========
         if hasattr(self, "msr_metrics") and self.msr_metrics:
-            print(f"🟡 RAW_ID: {id(self.msr_metrics)}")
-            print(f"🟡 RAW_VALUE: c2={self.msr_metrics.get('c2_time_seconds', 0):.3f}s")
-            print(f"🟡 RAW_KEYS: {list(self.msr_metrics.keys())}")
+            import logging as _logging  # built inside stop_measurement: debug only, gate held
+            _logging.getLogger(__name__).debug(
+                "raw msr metrics c2 %.3f s, keys %s",
+                self.msr_metrics.get("c2_time_seconds", 0), list(self.msr_metrics.keys()),
+            )
         # =====================================
 
     @property

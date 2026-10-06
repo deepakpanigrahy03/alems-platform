@@ -922,74 +922,45 @@ if __name__ == "__main__":
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
-    print("\n" + "=" * 70)
-    print("TURBOSTAT READER TEST")
-    print("=" * 70)
+    from core.observability.console import get_console
+    con = get_console()
+    con.section("turbostat reader test")
 
-    # Load hardware configuration
+    # Test helper reads the template path; the run path uses resolve_hw_config.
     config_path = Path("config/hw_config.json")
     if not config_path.exists():
-        print("❌ Config file not found!")
+        con.line("config file not found: %s" % config_path)
         sys.exit(1)
-
     with open(config_path) as f:
         config = json.load(f)
-    print(f"✅ Loaded config from {config_path}")
+    con.kv("config", config_path)
 
-    # Create reader instance
     reader = TurbostatReader(config)
-    print(f"📊 {reader}")
-
-    # Print turbostat version
+    con.line(str(reader))
     if reader.turbostat_version:
-        print(f"📌 Turbostat version: {reader.turbostat_version}")
-
-    # Print CPU topology
+        con.kv("turbostat version", reader.turbostat_version)
     if reader.cpu_topology.get("has_hybrid"):
-        print(
-            f"🔧 Hybrid CPU detected: {len(reader.cpu_topology.get('p_cores', []))} P-cores, "
-            f"{len(reader.cpu_topology.get('e_cores', []))} E-cores"
-        )
+        con.kv("hybrid cpu", "%d P cores, %d E cores" % (
+            len(reader.cpu_topology.get("p_cores", [])),
+            len(reader.cpu_topology.get("e_cores", []))))
 
-    # Test 1: Snapshot mode
-    print("\n" + "=" * 70)
-    print("TEST 1: Snapshot Mode (500ms)")
-    print("=" * 70)
+    con.section("snapshot mode, 500 ms")
     power_state = reader.read_metrics(duration_ms=500)
-
-    print("\nC-STATE RESIDENCIES:")
-    if power_state.c_state_residencies:
-        for c, v in sorted(power_state.c_state_residencies.items()):
-            print(f"   {c}: {v:.2f}%")
-
-    print(f"\nFREQUENCY (Busy): {power_state.frequencies_mhz.get(0, 0):.0f} MHz")
+    for c, v in sorted((power_state.c_state_residencies or {}).items()):
+        con.kv("%s residency" % c, "%.2f%%" % v)
+    con.kv("frequency busy", "%.0f MHz" % power_state.frequencies_mhz.get(0, 0))
     if hasattr(power_state, "avg_frequency_mhz") and power_state.avg_frequency_mhz:
-        print(f"FREQUENCY (Average): {power_state.avg_frequency_mhz:.0f} MHz")
-    print(f"TEMPERATURE: {power_state.package_temperature_celsius:.1f}°C")
+        con.kv("frequency average", "%.0f MHz" % power_state.avg_frequency_mhz)
+    con.kv("temperature", "%.1f C" % power_state.package_temperature_celsius)
 
-    # Test 2: Continuous monitoring
-    print("\n" + "=" * 70)
-    print("TEST 2: Continuous Monitoring (3 seconds)")
-    print("=" * 70)
-
-    print("\n📝 Starting continuous monitoring...")
+    con.section("continuous monitoring, 3 s")
     reader.start_monitoring()
-
-    # Simulate workload
     for i in range(3):
         time.sleep(1)
-        print(f"   Workload running... {i+1}/3")
-
-    # Stop and get data
-    print("\n📝 Stopping monitoring...")
     data = reader.stop_monitoring()
+    con.kv("samples", "%s over %.2f s" % (data["num_samples"], data["duration_seconds"]))
 
-    print(
-        f"\n📊 Collected {data['num_samples']} samples over {data['duration_seconds']:.2f}s"
-    )
-
-    # Print summary statistics
-    print("\n📊 Summary Statistics (Package-Level Only):")
+    con.section("summary statistics (package level)")
     summary = data["summary"]
 
     # Group by metric name for cleaner display
@@ -1003,24 +974,11 @@ if __name__ == "__main__":
 
     for metric, stats in sorted(metrics.items()):
         if metric and not metric.startswith("Time"):
-            print(f"\n   {metric}:")
-            if "mean" in stats:
-                print(f"      Mean:   {stats['mean']:.2f}")
-            if "median" in stats:
-                print(f"      Median: {stats['median']:.2f}")
-            if "std" in stats:
-                print(f"      Std:    {stats['std']:.2f}")
-            if "min" in stats:
-                print(f"      Min:    {stats['min']:.2f}")
-            if "max" in stats:
-                print(f"      Max:    {stats['max']:.2f}")
+            parts = ["%s %.2f" % (k, stats[k]) for k in ("mean", "median", "std", "min", "max") if k in stats]
+            con.kv(metric, ", ".join(parts))
 
-    # Optional: Save raw data
     if data["dataframe"] is not None:
         filename = reader.save_raw_data(data["dataframe"], "test_run")
         if filename:
-            print(f"\n💾 Raw data saved to: {filename}")
-
-    print("\n" + "=" * 70)
-    print("✅ Test complete!")
-    print("=" * 70)
+            con.kv("raw data saved", filename)
+    con.line("turbostat reader test complete")

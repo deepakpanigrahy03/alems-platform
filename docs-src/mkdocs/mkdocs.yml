@@ -29,6 +29,7 @@ nav:
     - API Keys: getting-started/api-keys.md
     - Quick Start: getting-started/quick-start.md
     - Troubleshooting: getting-started/troubleshooting.md
+    - Console output and logging: user-guide/console-output-and-logging.md
     - Sandbox and Engine: getting-started/sandbox-and-engine.md
 
   - Concepts:
