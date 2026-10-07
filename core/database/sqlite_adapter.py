@@ -1179,7 +1179,7 @@ class SQLiteAdapter(DatabaseInterface):
                 interaction_data.get("cpu_percent_during_wait", 0),
                 interaction_data.get("bytes_sent_approx", 0),
                 interaction_data.get("bytes_recv_approx", 0),
-                interaction_data.get("tcp_retransmits", 0),
+                interaction_data.get("tcp_retransmits"),
                 interaction_data.get("error_message", ""),
                 interaction_data.get("status", "success")
 

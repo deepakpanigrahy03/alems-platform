@@ -66,7 +66,8 @@ class NICCollector:
             daemon=True,   # daemon — does not block process exit
         )
         self._thread.start()
-        logger.info("NICCollector started: run_id=%d hz=%d", self._run_id, _HZ)
+        # run_id is None at measurement start (EEI-4): %s, never %d.
+        logger.info("NICCollector started: run_id=%s hz=%d", self._run_id, _HZ)
 
     def stop(self) -> None:
         """
@@ -78,7 +79,7 @@ class NICCollector:
             self._thread.join(timeout=2.0)
             self._thread = None
         logger.info(
-            "NICCollector stopped: run_id=%d samples=%d",
+            "NICCollector stopped: run_id=%s samples=%d",
             self._run_id, len(self._flushed_nic_samples),
         )
 

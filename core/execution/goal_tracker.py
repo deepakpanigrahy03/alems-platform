@@ -172,7 +172,7 @@ class GoalTracker:
             conn.execute("PRAGMA foreign_keys = ON")
             attempt_id = cur.lastrowid
             logger.debug(
-                "start_attempt: attempt_id=%d goal_id=%d attempt_number=%d",
+                "start_attempt: attempt_id=%s goal_id=%s attempt_number=%s",
                 attempt_id, goal_id, attempt_number,
             )
             return attempt_id
@@ -349,7 +349,7 @@ class GoalTracker:
             conn.execute(sql, params)
             conn.commit()
             logger.debug(
-                "finish_attempt: attempt_id=%d run_id=%d outcome=%s",
+                "finish_attempt: attempt_id=%s run_id=%s outcome=%s",
                 attempt_id, run_id, outcome,
             )
         except Exception as e:

@@ -496,7 +496,7 @@ class RunsRepository:
             fields["interrupts_per_second"],
             ml.get("bytes_sent", 0),
             ml.get("bytes_recv", 0),
-            ml.get("tcp_retransmits", 0),
+            ml.get("tcp_retransmits"),
             run_state_hash,
             ml.get("pid"),                                    # SYSTEM — PID of workload process
             ml.get("cpu_fraction"),                           # CALCULATED — workload/total ticks

@@ -149,5 +149,5 @@ class AnthropicAdapter(TextGenABC):
             "tokens": {"prompt": 0, "completion": 0, "total": 0},
             "total_time_ms": preprocess_ms,
             "phase_metrics": phase_metrics,
-            "bytes_sent": 0, "bytes_recv": 0, "tcp_retransmits": 0,
+            "bytes_sent": 0, "bytes_recv": 0, "tcp_retransmits": None,
         }

@@ -168,7 +168,7 @@ class LinearExecutor:
         net_metrics = {
             'bytes_sent':      _r.get('bytes_sent', 0),
             'bytes_recv':      _r.get('bytes_recv', 0),
-            'tcp_retransmits': _r.get('tcp_retransmits', 0),
+            'tcp_retransmits': _r.get('tcp_retransmits'),
         }
         
         # Safe compute time (never negative due to clock jitter)

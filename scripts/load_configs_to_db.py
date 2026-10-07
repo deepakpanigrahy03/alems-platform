@@ -19,7 +19,7 @@ def main():
     # Load hardware
     hw_path = Path("config/hw_config.json")
     if hw_path.exists():
-        print("📦 Loading hardware config...")
+        print("loading hardware config")
         with open(hw_path) as f:
             hw_data = json.load(f)
 
@@ -64,22 +64,22 @@ def main():
         }
 
         hw_id = db.insert_hardware(flat_hw)
-        print(f"   ✅ Hardware ID: {hw_id}")
+        print(f"  hardware id {hw_id}")
     else:
-        print("⚠️  No hw_config.json found. Run scripts/detect_hardware.py first.")
+        print("warning: no hw_config.json found; run scripts/detect_hardware.py first")
         hw_id = None
 
     # Load environment
     env_path = Path("config/environment.json")
     if env_path.exists():
-        print("📦 Loading environment config...")
+        print("loading environment config")
         with open(env_path) as f:
             env_data = json.load(f)
 
         env_id = db.insert_environment_config(env_data)
-        print(f"   ✅ Environment ID: {env_id}")
+        print(f"  environment id {env_id}")
     else:
-        print("⚠️  No environment.json found. Run scripts/detect_environment.py first.")
+        print("warning: no environment.json found; run scripts/detect_environment.py first")
         env_id = None
 
     # Save session info

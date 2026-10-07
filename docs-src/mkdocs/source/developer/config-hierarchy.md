@@ -1,5 +1,8 @@
 # Config Hierarchy and DB Path Resolution
 
+!!! warning "Legacy page"
+    This page describes the configuration scheme of the engine checkout before sandboxes. For the current store resolution and the sandbox machine file `.sandbox-env`, see [Database Path Resolution](../reference/db-path-resolution.md) and [Sandbox Layout and Paths](../user-guide/sandbox-layout-and-paths.md).
+
 **Added:** 2026-06-17
 **Relevant files:** `core/config_loader.py`, `~/.alemsrc`, `config/machines/`
 **Status:** Implemented in Chunk 16B, session 2026-06-17

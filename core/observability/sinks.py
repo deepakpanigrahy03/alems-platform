@@ -38,7 +38,7 @@ def record_to_dict(record: logging.LogRecord) -> Dict[str, Any]:
         "ts": ts.isoformat(timespec="microseconds"),
         "level": record.levelname,
         "logger": record.name,
-        "msg": record.getMessage(),
+        "msg": safe_message(record),
         "pid": record.process,
         "event_seq": getattr(record, "event_seq", None),
     }
@@ -65,7 +65,21 @@ PROGRESS_LOGGER = "alems.progress"
 _LEVEL_COLORS = {"WARNING": "\033[33m", "ERROR": "\033[31m", "CRITICAL": "\033[1;31m"}
 _RESET = "\033[0m"
 
+def safe_message(record):
+    """
+    Format a record's message; never raise.
 
+    A format mismatch (for example %d with None, common for ids that do not
+    exist yet, EEI-4) must not print a traceback or lose the record: the raw
+    message and its arguments are kept instead (observability is subordinate).
+    """
+    try:
+        return record.getMessage()
+    except (TypeError, ValueError):
+        record.msg = "%s %r" % (record.msg, record.args)
+        record.args = None
+        return record.msg
+    
 def _is_progress(name: str) -> bool:
     """True for the progress logger and its children."""
     return name == PROGRESS_LOGGER or name.startswith(PROGRESS_LOGGER + ".")
@@ -122,6 +136,7 @@ class ConsoleFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         """Format one record; formatting runs at flush, never inside [t0, t1]."""
+        safe_message(record)  # a bad format string never raises here
         # super().format adds exception text when exc_info is set.
         text = super().format(record)
         if record.levelno >= logging.WARNING:

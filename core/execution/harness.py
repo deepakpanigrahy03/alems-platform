@@ -748,7 +748,7 @@ class ExperimentHarness:
                 # Network metrics (for cloud models)
                 "bytes_sent": exec_result.get("total_bytes_sent", 0),
                 "bytes_recv": exec_result.get("total_bytes_recv", 0),
-                "tcp_retransmits": exec_result.get("total_tcp_retransmits", 0),
+                "tcp_retransmits": exec_result.get("total_tcp_retransmits"),
                 "total_non_local_ms": exec_result.get("total_workflow_non_local_ms", 0),
                 "effective_throughput_kbps": exec_result.get("effective_throughput_kbps", 0),
 
@@ -1338,7 +1338,7 @@ class ExperimentHarness:
                 "bytes_recv": exec_result.get("total_bytes_recv", 0),
                 "total_non_local_ms": exec_result.get("total_workflow_non_local_ms", 0),
                 "effective_throughput_kbps": exec_result.get("effective_throughput_kbps", 0),
-                "tcp_retransmits": exec_result.get("total_tcp_retransmits", 0),
+                "tcp_retransmits": exec_result.get("total_tcp_retransmits"),
 
                 # ====================================================================
                 # AGENTIC-SPECIFIC FEATURES

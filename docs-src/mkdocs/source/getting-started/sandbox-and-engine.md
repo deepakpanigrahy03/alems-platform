@@ -1,5 +1,7 @@
 # Sandbox and Engine { #sandbox-and-engine }
 
+Where stores, logs, and error records live, and how a command finds its store: see [Sandbox Layout and Paths](../user-guide/sandbox-layout-and-paths.md).
+
 ## Two places, two roles
 
 | | Engine | Sandbox |

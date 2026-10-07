@@ -37,26 +37,24 @@ class BaseAdapterMixin:
         Read an OS level network I/O counters snapshot.
 
         Used as a before and after pair to compute a per call delta.
-        Returns zeros on failure; never raises (PAC graceful degradation).
+        Never raises (PAC graceful degradation); tcp_retransmits is None when
+        it could not be read (MIC-1: unknown is never stored as 0).
 
         Returns:
             dict: bytes_sent, bytes_recv, tcp_retransmits
         """
-        result = {"bytes_sent": 0, "bytes_recv": 0, "tcp_retransmits": 0}
+        result = {"bytes_sent": 0, "bytes_recv": 0, "tcp_retransmits": None}  # unknown until read (G197)
         try:
             net = psutil.net_io_counters()
             result["bytes_sent"] = net.bytes_sent
             result["bytes_recv"] = net.bytes_recv
             # TCP retransmits from /proc/net/snmp: Linux only, skipped elsewhere.
+            # /proc/net/snmp has two Tcp: lines: column names, then values (G197).
+            result["tcp_retransmits"] = None  # unknown until read (MIC-1)
             with open("/proc/net/snmp", "r") as f:
-                for line in f:
-                    if line.startswith("Tcp:"):
-                        parts = line.split()
-                        if "RetransSegs" in parts:
-                            result["tcp_retransmits"] = int(
-                                parts[parts.index("RetransSegs") + 1]
-                            )
-                        break
+                tcp = [line.split() for line in f if line.startswith("Tcp:")]
+            if len(tcp) >= 2 and "RetransSegs" in tcp[0]:
+                result["tcp_retransmits"] = int(tcp[1][tcp[0].index("RetransSegs")])
         except Exception as e:
             logger.debug("Network counter read failed: %s", e)
         return result
@@ -71,7 +69,11 @@ class BaseAdapterMixin:
         return {
             "bytes_sent": after["bytes_sent"] - before["bytes_sent"],
             "bytes_recv": after["bytes_recv"] - before["bytes_recv"],
-            "tcp_retransmits": after["tcp_retransmits"] - before["tcp_retransmits"],
+            "tcp_retransmits": (
+                after["tcp_retransmits"] - before["tcp_retransmits"]
+                if after["tcp_retransmits"] is not None and before["tcp_retransmits"] is not None
+                else None  # unknown stays NULL, never 0 (G197)
+            ),
         }
 
     def _throughput_kbps(self, prompt_bytes: int, response_bytes: int, latency_ms: float) -> float:

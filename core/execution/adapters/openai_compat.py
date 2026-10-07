@@ -179,7 +179,7 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
         total_ms = preprocess_ms + call_ms + postprocess_ms
 
         # ── Network delta (cloud only) ────────────────────────────────────────
-        net_delta = {"bytes_sent": 0, "bytes_recv": 0, "tcp_retransmits": 0}
+        net_delta = {"bytes_sent": 0, "bytes_recv": 0, "tcp_retransmits": None}
         if self._is_cloud and net_before:
             net_delta = self._network_delta(net_before, self._get_network_counters())
         stream_metrics = getattr(self, '_last_stream_metrics', {})
@@ -527,5 +527,5 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
             "phase_metrics": phase_metrics,
             "bytes_sent": 0,
             "bytes_recv": 0,
-            "tcp_retransmits": 0,
+            "tcp_retransmits": None,
         }

@@ -494,8 +494,7 @@ class AgenticExecutor:
         )        
 
         logger.debug("accumulated tokens: %s", tokens)
-        # print("🔍 DEBUG - llm_result keys:", llm_result.keys())
-        # print("🔍 DEBUG - llm_result full:", llm_result)
+
         # ====================================================================
         # Phase 3: Synthesis – Combine all results (1 call)
         # ====================================================================
@@ -574,7 +573,12 @@ class AgenticExecutor:
             total_bytes_sent += interaction.get("bytes_sent_approx", 0)
             total_bytes_recv += interaction.get("bytes_recv_approx", 0)
             total_workflow_non_local_ms += interaction.get("non_local_ms", 0)
-            total_tcp_retransmits += interaction.get("tcp_retransmits", 0)
+            # Any unknown call makes the run total unknown (G197, as C2 for tokens).
+            _rt = interaction.get("tcp_retransmits")
+            total_tcp_retransmits = (
+                None if _rt is None or total_tcp_retransmits is None
+                else total_tcp_retransmits + _rt
+            )
         
         
         # Calculate effective throughput for the entire workflow
@@ -1231,7 +1235,7 @@ You can use tools like calculator or web search if needed.
             cpu_percent_during_wait = phase_metrics["cpu_percent_during_wait"]
             bytes_sent          = result.get("bytes_sent", 0)
             bytes_recv          = result.get("bytes_recv", 0)
-            tcp_retransmits     = result.get("tcp_retransmits", 0)
+            tcp_retransmits     = result.get("tcp_retransmits")
  
             self._api_latencies.append(total_time_ms)
             self._effective_kbps_list.append(app_throughput_kbps)
@@ -1309,7 +1313,7 @@ You can use tools like calculator or web search if needed.
                 "app_throughput_kbps":  0,
                 "bytes_sent_approx":    0,
                 "bytes_recv_approx":    0,
-                "tcp_retransmits":      0,
+                "tcp_retransmits":      None,
                 "cpu_percent_during_wait": 0,
                 # Chunk 4: no streaming data on error path
                 "ttft_ms":             None,
@@ -1335,7 +1339,7 @@ You can use tools like calculator or web search if needed.
                 "app_throughput_kbps":  0,
                 "bytes_sent_approx":    0,
                 "bytes_recv_approx":    0,
-                "tcp_retransmits":      0,
+                "tcp_retransmits":      None,
                 "cpu_percent_during_wait": 0,
                 "pending_interactions": self.pending_interactions.copy(),
             }

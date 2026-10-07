@@ -62,10 +62,10 @@ def sync_to_database(tasks):
         ORDER BY count DESC
     """)
 
-    print("\n✅ Task categories synced successfully!")
-    print("\n📊 Summary:")
+    print("task categories synced")
+    print("summary:")
     for cat, count in cursor.fetchall():
-        print(f"   • {cat}: {count} tasks")
+        print(f"  {cat}: {count} tasks")
 
     conn.close()
 
@@ -73,13 +73,13 @@ def sync_to_database(tasks):
 
 
 def main():
-    print("🔄 Syncing task categories from YAML to database...")
+    print("syncing task categories from YAML")
 
     tasks = load_tasks_from_yaml()
-    print(f"📋 Found {len(tasks)} tasks in YAML")
+    print(f"found {len(tasks)} tasks in YAML")
 
     count = sync_to_database(tasks)
-    print(f"\n✅ Done! {count} tasks + 'custom' fallback synced.")
+    print(f"done: {count} tasks plus the custom fallback synced")
 
 
 if __name__ == "__main__":

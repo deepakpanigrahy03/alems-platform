@@ -1,199 +1,61 @@
 # Database Path Resolution
 
-A-LEMS resolves the database path through four layers in strict priority order.
-Understanding this chain is the first step in debugging any "database not found"
-or "wrong database" problem.
-
 ---
+**Status:** PRODUCTION
+**Applies to:** every command that opens a store
+**Last updated:** 2026-10-06
+---
+
+## Overview
+
+Every A-LEMS command works on exactly one store (an SQLite database). This page is the reference for how that store is found. The layout of sandbox stores, the sandbox machine file `.sandbox-env`, and worked examples are in the user guide page Sandbox Layout and Paths.
 
 ## Resolution Chain
 
-```
-Layer 0:  .alems-env in checkout root          (highest priority)
-Layer 1:  ALEMS_DATA_ROOT env var + hostname
-Layer 2:  app_settings.yaml database path
-Layer 3:  data/experiments.db in project root  (fallback)
-```
+Highest priority first; the first match wins:
 
-`path_loader.py` self-sources `~/.alemsrc` before reading any environment
-variable. You do not need to source it manually before calling any A-LEMS
-script. This is the Ab Initio pattern: every script is self-contained.
+| Order | Source | Typical use |
+|---|---|---|
+| 1 | `--store <path>` or `--sandbox <path>` on the command line | one off commands on a specific store |
+| 2 | `ALEMS_STORE` in the environment (shell, or `.sandbox-env`) | a pinned store for a sandbox |
+| 3 | `ALEMS_SANDBOX` in the environment | select a sandbox without changing directory |
+| 4 | the nearest `alems-sandbox.yaml` above the current directory | normal work inside a sandbox |
+| 5 | the active sandbox, `<data_root>/<host>/users/<user>/active-sandbox` | set by `alems sandbox use` |
+| 6 | the engine environment layout | running from the engine checkout |
+| 7 | an error naming every source checked | nothing configured |
 
----
+`.sandbox-env` is read at startup; a variable already set in the shell wins over the file.
 
-## Layer 0: .alems-env (checkout level)
+## Store Locations
 
-The file `.alems-env` in the project root controls environment and optionally
-overrides the data root. It is created by `install.sh` and is gitignored.
+| Store | Path |
+|---|---|
+| Sandbox (current layout) | `<data_root>/<host>/users/<user>/sandboxes/<name>/experiments.db` |
+| Sandbox (created before the per user layout) | `<data_root>/<host>/sandboxes/<name>/experiments.db` |
+| Engine environment | `<data_root>/<host>/envs/<user>/<env>/<project>/experiments.db` |
 
-Supported formats:
+Logs and error records always sit beside the store: `<store dir>/logs/` and `<store dir>/errors/`.
 
-```
-# Key=value format (current)
-ALEMS_ENV=prod
-ALEMS_DATA_ROOT=/override/path
-
-# Legacy single-token format (still supported)
-prod
-```
-
-Valid `ALEMS_ENV` values: `dev`, `integration`, `preprod`, `prod`.
-
-**Path formula by environment:**
-
-```
-prod:  $ALEMS_DATA_ROOT/<hostname>/envs/prod/experiments.db
-dev:   $ALEMS_DATA_ROOT/<hostname>/envs/<user>/dev/<project>/experiments.db
-```
-
-On GN100 with `ALEMS_ENV=prod` and `ALEMS_DATA_ROOT=/mnt/alems-data`:
-
-```
-/mnt/alems-data/gn100-2b96/envs/prod/experiments.db
-```
-
----
-
-## Layer 1: ALEMS_DATA_ROOT + hostname
-
-If `.alems-env` is absent or has no `ALEMS_DATA_ROOT`, the resolver reads
-`ALEMS_DATA_ROOT` from the environment (sourced from `~/.alemsrc`).
-
-Without a `.alems-env` environment selection:
-
-```
-$ALEMS_DATA_ROOT/<hostname>/experiments.db
-```
-
----
-
-## Layer 2: app_settings.yaml
-
-If `ALEMS_DATA_ROOT` is not set anywhere, the resolver reads
-`database.sqlite.db_name` from `config/app_settings.yaml` and resolves
-it relative to the project root.
-
----
-
-## Layer 3: Hardcoded fallback
-
-If all layers fail, the path is `data/experiments.db` in the project root.
-This only applies to fresh checkouts before `install.sh` has run.
-
----
+`<data_root>` comes from `ALEMS_DATA_ROOT` (normally in `~/.alemsrc`) or the `data_root` key of the sandbox manifest. A run without a data root stops with `ALEMS-CFG-0010`.
 
 ## Debug Commands
 
-**Print the resolved DB path:**
-
 ```bash
-cd ~/mydrive/alems-platform && source venv/bin/activate && \
-python3 -c "
-import sys; sys.path.insert(0, '.')
-from scripts.tools.path_loader import get_alems_db_path
-print(get_alems_db_path())
-"
+alems sandbox info                     # store, engine, lock of the current sandbox
+alems sandbox doctor                   # checks that manifest, lock, store, and .sandbox-env agree
+python3 -c "from core.storage.resolver import resolve_store; print(resolve_store())"
+python3 -c "from core.storage.resolver import resolve_data_root; r=resolve_data_root(); print(r[0], r[1])"
 ```
-
-**Check what .alems-env contains:**
-
-```bash
-cat ~/mydrive/alems-platform/.alems-env
-```
-
-**Check what ~/.alemsrc sets:**
-
-```bash
-grep -E "ALEMS_DATA_ROOT|ALEMS_ENV" ~/.alemsrc
-```
-
-**Verify the DB file exists and is readable:**
-
-```bash
-DB=$(python3 -c "
-import sys; sys.path.insert(0, '/home/dpani/mydrive/alems-platform')
-from scripts.tools.path_loader import get_alems_db_path
-print(get_alems_db_path())
-")
-ls -lh "$DB"
-sqlite3 "$DB" "SELECT COUNT(*) FROM runs;" 2>/dev/null
-```
-
-**Check schema version:**
-
-```bash
-sqlite3 "$DB" \
-  "SELECT MAX(version) FROM migration_history \
-   WHERE type='schema' AND status='applied' AND version < 9000;"
-```
-
-**List all tables:**
-
-```bash
-sqlite3 "$DB" ".tables"
-```
-
-**Check runs table column count:**
-
-```bash
-sqlite3 "$DB" "pragma table_info(runs);" | wc -l
-```
-
----
 
 ## Common Problems
 
-**`ALEMS_DATA_ROOT is not set`**
+| Symptom | Cause | Fix |
+|---|---|---|
+| a run starts on an empty store | the store was moved but the manifest `store` key or `ALEMS_STORE` still names the old path | update both, then `alems sandbox doctor` |
+| `ALEMS-CFG-0010` | no data root configured | set `ALEMS_DATA_ROOT` in `~/.alemsrc` or `data_root` in the manifest |
+| a different store than expected | a higher source in the chain wins (often `ALEMS_STORE` exported in the shell) | `env \| grep ALEMS_` and unset the stale variable |
+| store path names a symlink | legacy engine layouts may link to a shared file | the path printed by the resolver is the identity used for logs and errors |
 
-`~/.alemsrc` was not sourced and `ALEMS_DATA_ROOT` is not in the environment.
+## Known Limitations
 
-```bash
-source ~/.alemsrc
-```
-
-If `~/.alemsrc` does not exist, re-run `bash scripts/install.sh`.
-
-**Wrong database (wrong machine or wrong environment)**
-
-Check which environment `.alems-env` selects and whether `ALEMS_DATA_ROOT`
-points to the right mount:
-
-```bash
-cat ~/mydrive/alems-platform/.alems-env
-echo $ALEMS_DATA_ROOT
-```
-
-**Database locked**
-
-Another process is writing. Find it:
-
-```bash
-fuser "$DB"
-```
-
-**Schema mismatch**
-
-Run pending migrations:
-
-```bash
-cd ~/mydrive/alems-platform && source venv/bin/activate
-alems dev sync
-```
-
----
-
-## Path Configuration Object
-
-For scripts that need multiple paths (docs build, report engine, diagram
-generator), use `PathConfig` from `path_loader`:
-
-```python
-from scripts.tools.path_loader import PathConfig
-cfg = PathConfig()
-print(cfg.DB_PATH)
-print(cfg.MKDOCS_SOURCE)
-print(cfg.DIAGRAMS_OUTPUT)
-```
-
-`PathConfig` reads `config/paths.yaml` for doc and tool paths, and calls
-`get_alems_db_path()` for the database path.
+- **Location recorded in more than one place:** the manifest `store` key and `ALEMS_STORE` both record a sandbox store; keep them in agreement when moving a store.

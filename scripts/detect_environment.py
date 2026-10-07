@@ -209,7 +209,7 @@ def get_schema_version() -> int:
         conn.close()
         return ver
     except Exception as e:
-        print(f"⚠️ Could not read schema_version: {e}")
+        print(f"warning: could not read schema_version: {e}")
         return 0
 
 def save_with_merge(path: Path, new_data: dict) -> None:
@@ -295,7 +295,7 @@ def main():
     save_with_merge(config_path, env_info)
 
     # Summary output
-    print(f"✅ Environment detected: {env_info['env_hash']}")
+    print(f"environment detected {env_info['env_hash']}")
     print(f"   Python  : {env_info['python_version']} ({env_info['python_implementation']})")
     print(f"   OS      : {env_info['os_name']} {env_info['kernel_version']}")
     print(f"   Git     : {env_info['git_commit']} ({env_info['git_branch']}) dirty={env_info['git_dirty']}")

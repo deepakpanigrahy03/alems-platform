@@ -30,6 +30,7 @@ nav:
     - Quick Start: getting-started/quick-start.md
     - Troubleshooting: getting-started/troubleshooting.md
     - Console output and logging: user-guide/console-output-and-logging.md
+    - Sandbox layout and paths: user-guide/sandbox-layout-and-paths.md
     - Sandbox and Engine: getting-started/sandbox-and-engine.md
 
   - Concepts:
@@ -62,6 +63,7 @@ nav:
     - Plugin Architecture: developer/plugin-packaging.md
     - Serving Engine Adapters: developer/serving-engine-adapters.md
     - Quality Scoring System: developer/quality-scoring-system.md
+    - Logging and Debugging: developer/logging-and-debugging.md
 
   - Research:
     - Measurement Methodology: research/measurement-methodology.md
