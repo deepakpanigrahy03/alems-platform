@@ -1,0 +1,4 @@
+alems-plugin-bfcl
+This package includes software and data from the Berkeley Function Calling
+Leaderboard (github.com/ShishirPatil/gorilla, commit 6ea57973), licensed under
+the Apache License 2.0 (see LICENSE.upstream). Modifications are listed in UPSTREAM.md.

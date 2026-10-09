@@ -1,0 +1,31 @@
+[project]
+name = "alems-plugin-bfcl"
+version = "0.1.0"
+description = "BFCL multi turn tool provider, tasks and state scorer for A-LEMS (RAF LH 01)"
+requires-python = ">=3.9"
+license = {text = "Apache-2.0 (vendored BFCL code and data); plugin code per A-LEMS"}
+dependencies = [
+    "alems-sdk>=1.0,<2.0",
+    "mpmath>=1.3",   # required by the vendored BFCL MathAPI
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+# Stateful BFCL tools for one goal execution (C-TOOL; side effects in memory only).
+[project.entry-points."alems.tools"]
+bfcl = "alems_plugin_bfcl.provider:BFCLToolProvider"
+
+# Deterministic replay of the upstream BFCL multi turn checker.
+[project.entry-points."alems.scorers"]
+bfcl_state = "alems_plugin_bfcl.scorer:BFCLStateScorer"
+
+[tool.setuptools]
+packages = ["alems_plugin_bfcl", "alems_plugin_bfcl.upstream"]
+
+[tool.setuptools.package-data]
+alems_plugin_bfcl = ["data/*.json", "data/possible_answer/*.json", "data/multi_turn_func_doc/*.json"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
