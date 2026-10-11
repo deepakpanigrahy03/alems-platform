@@ -116,6 +116,8 @@ providers:
         name: Sarvam M (vLLM GPU)
       - id: Qwen2.5-Coder-32B-Instruct
         name: Qwen2.5 Coder 32B (vLLM GPU)
+      - id: Qwen3-4B-Instruct-2507
+        name: Qwen3 4B Instruct 2507 (vLLM GPU, RAF pilot candidate)
     execution_site: host
     transport: loopback_http
     remote_energy_available: false

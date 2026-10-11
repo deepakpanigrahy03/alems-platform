@@ -1104,3 +1104,13 @@ tasks:
       Provide a synthesized report of your findings.
     expected_answer: "comparative report from two API sources with discrepancies noted"
  
+  - id: bfcl_multi_turn_base_0
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 0"
+    description: "BFCL v4 multi turn base 0 (file system, 4 turns); RAF LH 01 smoke"
+    level: 3
+    tool_calls: 10
+    framework: bfcl_react
+    prompt: |
+      Move 'final_report.pdf' within document directory to 'temp' directory in document. Make sure to create the directory

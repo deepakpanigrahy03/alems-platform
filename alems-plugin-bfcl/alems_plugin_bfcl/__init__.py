@@ -5,4 +5,4 @@ Entry points: alems.tools "bfcl" (BFCLToolProvider) and alems.scorers
 "bfcl_state" (BFCLStateScorer). Imports only alems_sdk and this package.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
