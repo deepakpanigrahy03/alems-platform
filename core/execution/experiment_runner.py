@@ -218,10 +218,10 @@ def _auto_expectation(expected_answer: str, task_meta: dict) -> dict:
     Called when a task has expected_answer at top level but no explicit
     expectation: block. Covers 42 existing tasks without YAML changes.
 
-    Rules:
-        Contains a digit → numeric (math, calculations, ratios)
-        5 words or fewer → exact (names, short facts)
-        Otherwise        → semantic (prose descriptions, summaries)
+    Rules (v3, answer_extract.auto_scorer_type):
+        Whole answer is a number        → numeric
+        Non numeric, 5 tokens or fewer  → exact (answer containment)
+        Otherwise                       → none (explicit expectation needed)
 
     Args:
         expected_answer: The expected_answer string from tasks.yaml.
@@ -231,28 +231,35 @@ def _auto_expectation(expected_answer: str, task_meta: dict) -> dict:
     Returns:
         expectation dict compatible with Expectation.from_dict().
     """
-    import re
+    # v3 (BUG-3, Oct 13 2026): the old rule sent ANY expected answer containing
+    # a digit to the numeric scorer ("3-sentence summary ..." became numeric),
+    # and sent prose to semantic similarity, which proved unreliable. Now:
+    #   whole answer is a number          -> numeric
+    #   non numeric, at most 5 tokens     -> exact (answer containment)
+    #   anything else                     -> none (needs an explicit
+    #                                         expectation block or LLM judge)
+    from core.execution.scorers.answer_extract import auto_scorer_type
     text = expected_answer.strip()
+    kind = auto_scorer_type(text)
 
-    # Numeric: contains a number (integer, float, fraction, percentage).
-    if re.search(r"\d", text.replace(",", "")):
+    if kind == "numeric":
         return {
             "scorer_type": "numeric",
             "expected_source": "inline",
             "answer": text,
         }
 
-    # Short fixed string (5 words or fewer): exact match.
-    if len(text.split()) <= 5:
+    if kind == "exact_match":
         return {
             "scorer_type": "exact",
             "expected_source": "inline",
             "answer": text,
         }
 
-    # Prose description: semantic similarity.
+    # Prose: not auto scoreable. Declare an expectation block in tasks.yaml
+    # (for example scorer_type: llm_judge) to score these tasks.
     return {
-        "scorer_type": "semantic",
+        "scorer_type": "none",
         "expected_source": "inline",
         "answer": text,
     }

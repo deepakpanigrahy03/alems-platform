@@ -4,9 +4,20 @@ EXACT MATCH SCORER  —  core/execution/scorers/exact_match.py
 ================================================================================
 
 PURPOSE:
-    Deterministic scorer. Returns 1.0 if actual matches expected after
-    strip+lower normalization, 0.0 otherwise. Confidence is always 1.0.
-    No API calls. No external dependencies.
+    Deterministic answer scorer. Returns 1.0 if the expected answer appears
+    in the output as a whole token sequence after normalization, 0.0
+    otherwise. Confidence is always 1.0. No API calls.
+
+    v3 (BUG-1, Oct 13 2026): previously compared the WHOLE output to the
+    expected answer, so "The first president was George Washington." failed
+    against "George Washington" (0% on 359 back scored rows). Now uses
+    answer_extract.contains_answer(): NFKC, lowercase, punctuation removed,
+    leading article dropped, whole token containment. Substrings do not
+    match ("120" does not contain "12"; "cattle" does not contain "cat").
+    If the rubric supplies "answer_set" (closed choices), naming two or more
+    options counts as a hedge and fails.
+
+    SCORER_TYPE stays "exact_match" so task_quality_config rows keep working.
 
 AUTHOR: Deepak Panigrahy
 ================================================================================
@@ -16,25 +27,22 @@ import logging
 from typing import Optional, Tuple
 
 from core.execution.scorers.abc import ScorerABC
+from core.execution.scorers.answer_extract import SCORER_LOGIC_VERSION, contains_answer, normalize
 
 logger = logging.getLogger(__name__)
 
 
 class ExactMatchScorer(ScorerABC):
     """
-    Deterministic exact-match quality scorer.
+    Deterministic answer match scorer (whole token containment).
 
-    Compares actual output to expected answer after stripping whitespace
-    and lowercasing both strings. Case-insensitive, whitespace-tolerant.
-
-    Use for: binary tasks (qa, classification, exact_match categories)
-    where the correct answer is unambiguous.
-
-    Confidence: always 1.0 — deterministic scoring has no uncertainty.
+    Use for: short fixed answers (names, labels, symbols, single words).
+    Confidence: always 1.0.
     """
 
     SCORER_TYPE = "exact_match"
     METRIC_TYPES = ("binary",)
+    LOGIC_VERSION = SCORER_LOGIC_VERSION
 
     def score(
         self,
@@ -44,34 +52,35 @@ class ExactMatchScorer(ScorerABC):
         rubric: Optional[dict] = None,
     ) -> Tuple[float, float, str]:
         """
-        Score by exact string match after normalization.
-
-        Normalization: strip whitespace, lowercase, collapse internal whitespace.
-        judge_model and rubric are ignored — this is a deterministic method.
+        Score by whole token containment after normalization.
 
         Args:
-            actual   : LLM's output string.
-            expected : Reference answer string.
+            actual     : LLM output string.
+            expected   : Reference answer string.
             judge_model: Ignored.
-            rubric   : Ignored.
+            rubric     : Optional dict; "answer_set" (list of strings) enables
+                         the hedge guard for closed answer sets.
 
         Returns:
-            (1.0, 1.0, "exact match") if strings match after normalization.
-            (0.0, 1.0, "no match: actual='...' expected='...'") otherwise.
+            (1.0, 1.0, reasoning) on match, (0.0, 1.0, reasoning) otherwise.
         """
         try:
-            # Normalize: strip, lowercase, collapse runs of whitespace.
-            # This handles trailing newlines, extra spaces from generation.
-            actual_norm = " ".join(actual.strip().lower().split()) if actual else ""
-            expected_norm = " ".join(expected.strip().lower().split()) if expected else ""
+            answer_set = None
+            if isinstance(rubric, dict):
+                answer_set = rubric.get("answer_set") or rubric.get("choices")
 
-            if actual_norm == expected_norm:
-                return (1.0, 1.0, "exact match")
+            exp_norm = normalize(expected)
+            if not exp_norm and not normalize(actual):
+                return (1.0, 1.0, f"exact match (both empty, {self.LOGIC_VERSION})")
 
-            # Truncate for reasoning string — keep it readable in DB.
-            act_preview = actual_norm[:80] + "..." if len(actual_norm) > 80 else actual_norm
-            exp_preview = expected_norm[:80] + "..." if len(expected_norm) > 80 else expected_norm
-            reasoning = f"no match: actual='{act_preview}' expected='{exp_preview}'"
+            passed, rule = contains_answer(actual or "", expected or "", answer_set)
+            if passed:
+                return (1.0, 1.0, f"exact match ({rule}, {self.LOGIC_VERSION}): '{exp_norm[:80]}'")
+
+            act_norm = normalize(actual)
+            act_preview = act_norm[:80] + "..." if len(act_norm) > 80 else act_norm
+            reasoning = (f"no match ({rule}, {self.LOGIC_VERSION}): "
+                         f"actual='{act_preview}' expected='{exp_norm[:80]}'")
             return (0.0, 1.0, reasoning)
 
         except Exception as exc:
