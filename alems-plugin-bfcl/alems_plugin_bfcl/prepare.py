@@ -1,0 +1,133 @@
+"""
+Pre attempt preparation for RAF LH 01 (cache resets, tool state restore).
+
+The pilot driver installs one PreAttempt per goal execution as
+executor.pre_attempt_hook. execute_goal calls it immediately before
+harness.run_agentic, which is before t0, so nothing here is inside a
+measurement window (C-BND, design section 6).
+
+Design 4.2 cache rules:
+    attempt 1, every policy      reset
+    attempt 2, cold policies     reset again
+    attempt 2, warm policies     cache preserved
+Design 4.1 restore rules (attempt 2 only):
+    FR  tool state back to the task's initial state
+    SR  tool state back to the snapshot before failed tool call k
+
+A failed reset never raises: it records CACHE_RESET_FAILED so the goal
+execution is classified invalid afterwards (C-VAL), and the run proceeds
+unchanged. Records are kept on executor._raf_prepare keyed by attempt and
+returned by the adapter as a raf.prepare annotation.
+"""
+
+import time
+import urllib.request
+from typing import Any, Callable, Dict, Optional
+
+CACHE_RESET_FAILED = "CACHE_RESET_FAILED"
+RESTORE_MISMATCH = "RESTORE_MISMATCH"
+POLICIES = ("B0", "FR_cold", "FR_warm", "SR_cold", "SR_warm")
+
+
+def _http_post(url: str, timeout_s: float) -> int:
+    """POST with an empty body; proxies bypassed (lab proxy breaks localhost)."""
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    req = urllib.request.Request(url, data=b"", method="POST")
+    with opener.open(req, timeout=timeout_s) as resp:
+        return int(resp.status)
+
+
+def reset_url(base_url: str) -> str:
+    """Model binding base URL ends in /v1; the reset route lives at the root."""
+    root = (base_url or "").rstrip("/")
+    if root.endswith("/v1"):
+        root = root[:-3]
+    return root + "/reset_prefix_cache"
+
+
+class PreAttempt:
+    """Callable hook: hook(attempt_number). One instance per goal execution."""
+
+    def __init__(self, executor: Any, base_url: str, policy: str,
+                 post: Optional[Callable[[str, float], int]] = None,
+                 timeout_s: float = 10.0) -> None:
+        if policy not in POLICIES:
+            raise ValueError("unknown policy %r" % policy)
+        self.executor = executor
+        self.policy = policy
+        self.url = reset_url(base_url)
+        self.timeout_s = timeout_s
+        # Tests inject a fake; production uses urllib.
+        self.post = post or _http_post
+        # The adapter reads depth as "FR" or "SR" from _raf_context["policy"];
+        # set it here so the policy has one source for prepare and adapter.
+        ctx = dict(getattr(executor, "_raf_context", None) or {})
+        if policy != "B0":
+            ctx["policy"] = policy[:2]
+            ctx["cache"] = policy[3:]
+        executor._raf_context = ctx
+
+    # ── public ──────────────────────────────────────────────────────
+    def __call__(self, attempt_number: int) -> Dict[str, Any]:
+        ex = self.executor
+        # execute_goal sets _current_attempt only when it holds the injector;
+        # the pilot keeps the injector out of execute_goal (post harness path),
+        # so attempt identity for the adapter is set here.
+        ex._current_attempt = attempt_number
+        rec = {"attempt": attempt_number, "policy": self.policy,
+               "resets": [], "restore": None, "validity": []}
+        if self._needs_reset(attempt_number):
+            rec["resets"].append(self._reset())
+        if attempt_number >= 2 and self.policy != "B0":
+            rec["restore"] = self._restore()
+        if any(not r["ok"] for r in rec["resets"]):
+            rec["validity"].append(CACHE_RESET_FAILED)
+        if rec["restore"] is not None and rec["restore"].get("ok") is False:
+            rec["validity"].append(RESTORE_MISMATCH)
+        store = dict(getattr(ex, "_raf_prepare", None) or {})
+        store[attempt_number] = rec
+        ex._raf_prepare = store
+        return rec
+
+    # ── internals ───────────────────────────────────────────────────
+    def _needs_reset(self, attempt_number: int) -> bool:
+        if attempt_number <= 1:
+            return True                      # every policy, design 4.2
+        return self.policy.endswith("_cold")  # warm keeps the cache
+
+    def _reset(self) -> Dict[str, Any]:
+        t0 = time.perf_counter_ns()
+        status, err = None, None
+        try:
+            status = self.post(self.url, self.timeout_s)
+        except Exception as exc:  # never raise: invalidity is recorded instead
+            err = "%s: %s" % (type(exc).__name__, exc)
+        return {"status": status, "ok": status == 200, "error": err,
+                "ns": time.perf_counter_ns() - t0, "wall_ns": time.time_ns()}
+
+    def _restore(self) -> Dict[str, Any]:
+        session = getattr(self.executor, "_bfcl_session", None)
+        f = getattr(session, "failure", None) if session is not None else None
+        if f is None:
+            # No recorded failure point (attempt 1 did not fail by injection);
+            # the adapter falls back to FR inside its window as before.
+            return {"skipped": "no_failure"}
+        prov = session.provider
+        depth = self.policy[:2]
+        t0 = time.perf_counter_ns()
+        before = prov.state_hash()
+        if depth == "FR":
+            prov.restore_initial()
+            expected = session.initial_hash
+        else:
+            k = f["provider_calls"] + 1      # ordinal of the failed tool call
+            if prov.env.calls_made >= k:
+                prov.restore_before(k)
+            expected = f["state_hash"]
+        after = prov.state_hash()
+        rec = {"depth": depth, "state_hash_before": before,
+               "state_hash_after": after, "expected_hash": expected,
+               "ok": after == expected, "ns": time.perf_counter_ns() - t0}
+        # The adapter reads this and skips its own in window restore.
+        session.prepared_restore = rec
+        return rec

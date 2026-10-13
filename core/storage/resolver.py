@@ -79,9 +79,23 @@ def resolve_store(explicit: Optional[str] = None) -> str:
             "ALEMS_PROJECT is deprecated; rename to ALEMS_SANDBOX."
         )
     if project_env:
-        store = _store_from_project_dir(Path(project_env))
-        if store:
-            return store
+        # BUG-4 (Oct 13 2026): honour ALEMS_SANDBOX only when the caller is inside
+        # that sandbox. A variable left over in the shell must not redirect runs
+        # made elsewhere (same rule as scripts/alems). Use ALEMS_STORE to target
+        # a store explicitly from any directory.
+        caller = Path(os.environ.get("ALEMS_CALLER_DIR") or os.getcwd()).resolve()
+        sandbox_dir = Path(project_env).expanduser().resolve()
+        if caller == sandbox_dir or sandbox_dir in caller.parents:
+            store = _store_from_project_dir(sandbox_dir)
+            if store:
+                return store
+        else:
+            logger.warning(
+                "Ignoring ALEMS_SANDBOX=%s: caller directory %s is outside that sandbox. "
+                "Resolving from the caller directory instead. Use ALEMS_STORE to target "
+                "a store explicitly; run 'unset ALEMS_SANDBOX' to silence this.",
+                sandbox_dir, caller,
+            )
 
     # Layer 4: walk up from cwd looking for alems-sandbox.yaml manifest.
     # alems.project accepted with a deprecation warning for one release.

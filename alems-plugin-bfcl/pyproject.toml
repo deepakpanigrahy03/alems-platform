@@ -1,6 +1,6 @@
 [project]
 name = "alems-plugin-bfcl"
-version = "0.2.0"
+version = "0.3.0"
 description = "BFCL multi turn tool provider, tasks and state scorer for A-LEMS (RAF LH 01)"
 requires-python = ">=3.9"
 license = {text = "Apache-2.0 (vendored BFCL code and data); plugin code per A-LEMS"}

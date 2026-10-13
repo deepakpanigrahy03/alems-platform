@@ -373,27 +373,39 @@ class AttemptRun:
             t0 = _now()
             _sleep(RATE_LIMIT_RETRY_AFTER_S)
             self._event("waiting", t0, _now(), {"reason": "retry_after"})
+        # S4: restore normally happens in prepare, outside the window; in that
+        # case only the in memory history is rebuilt here (no copy, no hash).
+        prepared = getattr(self.s, "prepared_restore", None)
+        self.s.prepared_restore = None
         t0 = time.perf_counter_ns()
-        before = self.s.provider.state_hash()
-        self.recovery = {"policy": policy, "state_hash_before_restore": before}
+        before = (prepared["state_hash_before"] if prepared
+                  else self.s.provider.state_hash())
+        self.recovery = {"policy": policy, "state_hash_before_restore": before,
+                         "restored_in_prepare": prepared is not None}
         if policy == "FR":
-            self.s.provider.restore_initial()
+            if prepared is None:
+                self.s.provider.restore_initial()
             self.s.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
             resume = (0, True, None)
             self.recovery["expected_hash"] = self.s.initial_hash
         else:
-            resume = self._restore_shallow(f)
+            resume = self._restore_shallow(f, prepared is not None)
             self.recovery["expected_hash"] = f["state_hash"]
-        self.recovery["state_hash_after_restore"] = self.s.provider.state_hash()
-        self.recovery["restore_ns"] = time.perf_counter_ns() - t0
+        if prepared:
+            self.recovery["state_hash_after_restore"] = prepared["state_hash_after"]
+            self.recovery["restore_ns"] = 0
+            self.recovery["prepare_restore_ns"] = prepared["ns"]
+        else:
+            self.recovery["state_hash_after_restore"] = self.s.provider.state_hash()
+            self.recovery["restore_ns"] = time.perf_counter_ns() - t0
         self.recovery["notice"] = policy == "SR"
         return resume
 
-    def _restore_shallow(self, f: dict) -> Tuple[int, bool, Optional[dict]]:
+    def _restore_shallow(self, f: dict, restored: bool = False) -> Tuple[int, bool, Optional[dict]]:
         """SR: keep calls before the failed one, restore the snapshot before it."""
         prov = self.s.provider
         k = f["provider_calls"] + 1          # ordinal of the failed tool call
-        if prov.env.calls_made >= k:
+        if not restored and prov.env.calls_made >= k:
             prov.restore_before(k)
         prov.turn_starts = list(f["turn_starts"])
         self.s.messages = copy.deepcopy(f["messages"])
@@ -493,6 +505,22 @@ def _metadata(run: AttemptRun, status: str, etype: Optional[str], emsg: Optional
     }
 
 
+def _annotations(attempt: int, calls: list, prep: Optional[dict]) -> list:
+    """
+    Span annotations for the attempt span (D8.5b), written by execute_goal
+    after t1. raf.llm_usage carries request level usage per LLM call (cached
+    tokens have no column in llm_interactions); raf.prepare carries the
+    resets, restore and validity codes of this attempt's prepare step.
+    """
+    out = [{"annotation_type": "raf.llm_usage", "annotation_version": "1",
+            "source": "alems-plugin-bfcl",
+            "payload": {"attempt": attempt, "calls": calls}}]
+    if prep is not None:
+        out.append({"annotation_type": "raf.prepare", "annotation_version": "1",
+                    "source": "alems-plugin-bfcl", "payload": prep})
+    return out
+
+
 class BFCLReactAdapter(FrameworkAdapterABC):
     """Framework adapter "bfcl_react"; see module docstring."""
 
@@ -521,7 +549,14 @@ class BFCLReactAdapter(FrameworkAdapterABC):
                      if m.get("role") == "assistant" and m.get("content")), {})
         response = last.get("content") or ""
         wall_ms = (_now() - start) * 1000.0
-        meta = _metadata(run, status, etype, emsg, response, wall_ms)
+        # S4: the scored output is the canonical call list JSON (already a
+        # string) the bfcl_state scorer reads; the assistant text stays in
+        # FrameworkResult.output and in llm_interactions.
+        scored = session.provider.scorer_output()
+        meta = _metadata(run, status, etype, emsg, scored, wall_ms)
+        prep = (getattr(executor, "_raf_prepare", None) or {}).get(attempt)
+        meta["raf"]["prepare"] = prep
+        meta["pending_annotations"] = _annotations(attempt, run.calls, prep)
         return FrameworkResult(output=response, success=status == "success",
                                total_duration_ms=wall_ms, steps=[], metadata=meta)
 

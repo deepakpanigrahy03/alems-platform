@@ -1114,3 +1114,146 @@ tasks:
     framework: bfcl_react
     prompt: |
       Move 'final_report.pdf' within document directory to 'temp' directory in document. Make sure to create the directory
+  # RAF LH 01 pilot tasks (PILOT_TASKSET.md, seed 20261012, gorilla 6ea57973).
+  # Turns come from the bfcl provider data; prompt is a label only.
+  # expectation.answer is the BFCL task id the bfcl_state scorer replays.
+  - id: bfcl_multi_turn_base_7
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 7"
+    description: "BFCL v4 multi turn base 7; RAF LH 01 pilot (short)"
+    level: 3
+    tool_calls: 4
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_7 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_7"
+  - id: bfcl_multi_turn_base_12
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 12"
+    description: "BFCL v4 multi turn base 12; RAF LH 01 pilot (short)"
+    level: 3
+    tool_calls: 4
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_12 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_12"
+  - id: bfcl_multi_turn_base_140
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 140"
+    description: "BFCL v4 multi turn base 140; RAF LH 01 pilot (short)"
+    level: 3
+    tool_calls: 4
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_140 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_140"
+  - id: bfcl_multi_turn_base_175
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 175"
+    description: "BFCL v4 multi turn base 175; RAF LH 01 pilot (short)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_175 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_175"
+  - id: bfcl_multi_turn_base_193
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 193"
+    description: "BFCL v4 multi turn base 193; RAF LH 01 pilot (short)"
+    level: 3
+    tool_calls: 5
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_193 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_193"
+  - id: bfcl_multi_turn_base_98
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 98"
+    description: "BFCL v4 multi turn base 98; RAF LH 01 pilot (long)"
+    level: 3
+    tool_calls: 11
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_98 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_98"
+  - id: bfcl_multi_turn_base_153
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 153"
+    description: "BFCL v4 multi turn base 153; RAF LH 01 pilot (long)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_153 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_153"
+  - id: bfcl_multi_turn_base_154
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 154"
+    description: "BFCL v4 multi turn base 154; RAF LH 01 pilot (long)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_154 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_154"
+  - id: bfcl_multi_turn_base_168
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 168"
+    description: "BFCL v4 multi turn base 168; RAF LH 01 pilot (long)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_168 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_168"
+  - id: bfcl_multi_turn_base_192
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 192"
+    description: "BFCL v4 multi turn base 192; RAF LH 01 pilot (long)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_192 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_lh_01", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_192"

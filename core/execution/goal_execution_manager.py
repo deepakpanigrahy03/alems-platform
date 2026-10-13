@@ -240,6 +240,11 @@ def _execute_goal_impl(
                 # Bug 7 fix: set attempt_id on executor so _emit_event
                 # tags every orchestration event with the correct attempt boundary.
                 executor._current_attempt_id = attempt_id
+                # RAF LH 01 S4: optional prepare step outside every measurement
+                # window (C-BND); absent by default, so existing runs are unchanged.
+                _pre_hook = getattr(executor, "pre_attempt_hook", None)
+                if callable(_pre_hook):
+                    _pre_hook(attempt_num)
                 result = harness.run_agentic(
                     executor=executor,
                     task=task_prompt,
@@ -247,6 +252,8 @@ def _execute_goal_impl(
                     is_cloud=is_cloud,
                     run_number=rep_num,
                     tool_graph=task.get("tool_graph"),
+                    # RAF LH 01 S1b: plugin frameworks; default keeps the builtin path.
+                    framework_type=task.get("framework", "builtin"),
                 )
 
         except Exception as exc:
@@ -616,6 +623,10 @@ def _execute_goal_impl(
             )
      
     final_result = winning_result or last_result
+    # RAF LH 01 S4, correction L: scoring reads task_meta from final_result,
+    # but task_meta was set only on the deep copies in measured (line 773).
+    if final_result is not None:
+        final_result.setdefault("task_meta", task)
     # G137 A+: every closed attempt window becomes its own run (C1, C3);
     # attempt energy is read back from its own run (C4).
     winning_run_id, all_run_ids, _persist_failed = _persist_attempts(
@@ -843,6 +854,16 @@ def _write_attempt_spans(db, conn, run_id, m, workflow_type, goal_id, trace):
                          (attempt_span.span_id, m["attempt_id"]))
             conn.commit()
         _backfill_span_outcome(conn, run_id, m["outcome"])
+        # RAF LH 01 S4: plugin frameworks may return annotations for the attempt
+        # span (D8.5b), e.g. cached tokens per LLM call. Absent key: no op.
+        _pending = ((m["result"] or {}).get("execution") or {}).get("pending_annotations") or []
+        if attempt_span is not None and _pending:
+            try:
+                with db.transaction():
+                    db.insert_span_annotations(
+                        [dict(a, span_id=attempt_span.span_id) for a in _pending])
+            except Exception as _ae:
+                logger.warning("execute_goal: annotations for run=%d failed: %s", run_id, _ae)
     except Exception as exc:
         logger.warning("execute_goal: spans for run=%d failed: %s", run_id, exc)
 

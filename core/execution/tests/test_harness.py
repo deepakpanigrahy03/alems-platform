@@ -393,6 +393,8 @@ def _run_experiment(setup: dict, args) -> tuple:
                         country_code=country_code,
                         run_number=rep + 1,
                         tool_graph=task.get("tool_graph"),
+                        # RAF LH 01 S4 (EPS-1): same framework routing as execute_goal.
+                        framework_type=task.get("framework", "builtin"),
                     )
                     all_agentic.append(agentic_result)
  

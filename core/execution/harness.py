@@ -937,6 +937,10 @@ class ExperimentHarness:
                 "model_config": getattr(executor, "config", {}),
                 "task": task,
                 "tool_graph": tool_graph,
+                # RAF LH 01 S1b: injector, attempt identity and run context
+                # for plugin frameworks; the builtin branch is unchanged.
+                "executor": executor,
+                "task_id": task_id,
             }
             framework_result = framework.execute_task(task_config, tools=[], engine=None)
             exec_result = framework_result.metadata

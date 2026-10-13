@@ -229,6 +229,8 @@ def run_provider_task(
                             country_code=args.country,
                             run_number=rep + 1,
                             tool_graph=task.get("tool_graph"),
+                            # RAF LH 01 S4 (EPS-1): same framework routing as execute_goal.
+                            framework_type=task.get("framework", "builtin"),
                         )
                         agentic_results.append(agentic_result)
 
