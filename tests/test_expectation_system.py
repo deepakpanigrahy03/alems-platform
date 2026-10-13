@@ -179,12 +179,15 @@ class TestNumericScorer:
         assert NumericScorer.SCORER_TYPE == "numeric"
 
     def test_percentage_different_from_decimal(self):
-        # "77.8%" normalizes to 0.778; "77.8" normalizes to 77.8.
-        # Different numbers — correct score is 0.0.
-        # Old assertion (score==1.0) was wrong: a model writing "77.8%"
-        # when the answer is "77.8" gave the wrong answer.
+        # v3 (Oct 13 2026): a number written with a percent sign keeps its
+        # face value. "77.8%" matches an expected "77.8" (the answer is a
+        # percentage quantity), and "77.8%" also matches "0.778" (the percent
+        # form of a fraction). A truly different value still fails.
+        # Must agree with the frozen offline scorer v3 used for the paper.
         scorer = NumericScorer()
         score, _, _ = scorer.score("77.8%", "77.8")
+        assert score == 1.0
+        score, _, _ = scorer.score("7.78%", "77.8")
         assert score == 0.0
 
     def test_percentage_matches_fraction(self):
