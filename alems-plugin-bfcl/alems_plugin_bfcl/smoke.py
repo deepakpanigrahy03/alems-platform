@@ -67,6 +67,7 @@ def main() -> None:
     ap.add_argument("--phase", default="tool", choices=["tool", "llm"])
     ap.add_argument("--ordinal", type=int, default=2)
     ap.add_argument("--dump", help="write all attempt metadata to this JSON file")
+    ap.add_argument("--b0-only", action="store_true", help="run only the B0 attempt (task selection sweeps)")
     a = ap.parse_args()
     adapter = BFCLReactAdapter()
     config = {"model_id": a.model, "base_url": a.base_url, "max_tokens": 1024}
@@ -76,7 +77,7 @@ def main() -> None:
     meta, s = _attempt(adapter, ex, a.task)
     print(_line("B0", meta, a.task, s))
     dump["B0"] = meta
-    for policy in ("FR", "SR"):
+    for policy in (() if a.b0_only else ("FR", "SR")):
         ex = SimpleNamespace(config=config,
                              failure_injector=_OnceInjector(a.cls, a.phase, a.ordinal),
                              _current_attempt=1, _current_attempt_id=1,
