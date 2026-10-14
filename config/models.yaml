@@ -118,6 +118,30 @@ providers:
         name: Qwen2.5 Coder 32B (vLLM GPU)
       - id: Qwen3-4B-Instruct-2507
         name: Qwen3 4B Instruct 2507 (vLLM GPU, RAF pilot candidate)
+      - id: Qwen3-30B-A3B-Instruct-2507-FP8
+        name: Qwen3 30B A3B Instruct 2507 FP8 (vLLM GPU, RAF main study)
+    execution_site: host
+    transport: loopback_http
+    remote_energy_available: false
+  # ---------------------------------------------------------------------------
+  llama_server_local:
+    is_local: true
+    access_method: api_http
+    network_type: loopback
+    captures_network_io: true
+    energy_side: full
+    openai_compat: true
+    base_url: http://localhost:8080/v1
+    api_key_env: null
+    cost_class: free
+    priority: 2
+    rate_limit_tpm: null
+    cache_reset: {method: POST, path: "/slots/0?action=erase"}   # needs --slot-save-path; single slot (-np 1)
+    defaults:
+      max_tokens: 1024
+    models:
+      - id: Qwen3-4B-Instruct-2507
+        name: Qwen3 4B Instruct 2507 F16 (llama.cpp Metal, RAF second platform)
     execution_site: host
     transport: loopback_http
     remote_energy_available: false
