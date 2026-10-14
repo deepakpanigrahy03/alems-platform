@@ -99,7 +99,14 @@ def _run_args(model: str):
 
 
 # ── isolation ───────────────────────────────────────────────────────────
-def _cpu_times() -> tuple:
+def _cpu_times(source: str = "procstat") -> tuple:
+    """(total, idle) CPU time counters; only the ratio of deltas is used."""
+    if source == "psutil":
+        # macOS has no /proc/stat; psutil reads host_statistics. Same busy
+        # definition as below: idle plus iowait (absent on macOS) over all.
+        import psutil
+        t = psutil.cpu_times()
+        return sum(t), t.idle + getattr(t, "iowait", 0.0)
     with open("/proc/stat") as fh:
         vals = [int(x) for x in fh.readline().split()[1:]]
     idle = vals[3] + (vals[4] if len(vals) > 4 else 0)   # idle + iowait
@@ -118,14 +125,17 @@ def idle_check(iso: dict) -> dict:
     """Node CPU busy share and GPU utilization over a short window; no writes."""
     rec = {"tries": 0, "ok": False}
     for attempt in range(iso["retries"] + 1):
-        t0, i0 = _cpu_times()
+        src = iso.get("cpu_source", "procstat")
+        t0, i0 = _cpu_times(src)
         time.sleep(iso["idle_window_s"])
-        t1, i1 = _cpu_times()
+        t1, i1 = _cpu_times(src)
         busy = 100.0 * (1 - (i1 - i0) / max(1, t1 - t0))
-        gpu = _gpu_util()
+        # gpu_check false (macOS, no nvidia-smi): recorded as None, never 0
+        gpu = _gpu_util() if iso.get("gpu_check", True) else None
+        gpu_ok = gpu is None or 0 <= gpu <= iso["gpu_util_max_pct"]
         rec.update({"tries": attempt + 1, "cpu_busy_pct": round(busy, 2),
                     "gpu_util_pct": gpu})
-        if busy <= iso["cpu_busy_max_pct"] and 0 <= gpu <= iso["gpu_util_max_pct"]:
+        if busy <= iso["cpu_busy_max_pct"] and gpu_ok:
             rec["ok"] = True
             return rec
         if attempt < iso["retries"]:
@@ -148,6 +158,17 @@ def remeasure_baseline(harness, bcfg: dict) -> None:
 
 
 # ── one goal execution ──────────────────────────────────────────────────
+def _cache_reset_path(provider: str):
+    """cache_reset.path of the provider in config/models.yaml, or None.
+
+    get_model_config_v2 does not carry provider level extras, so the raw
+    entry is read here; absent key means the vLLM default route.
+    """
+    with open(os.path.join(ENGINE, "config", "models.yaml")) as fh:
+        prov = (yaml.safe_load(fh).get("providers") or {}).get(provider) or {}
+    return (prov.get("cache_reset") or {}).get("path")
+
+
 class Pilot:
     """Holds the shared runner objects for one driver session."""
 
@@ -168,6 +189,7 @@ class Pilot:
         self.model_cfg = self.runner.config.get_model_config_v2(a.provider, a.model)
         self.base_url = (self.model_cfg.get("base_url")
                          or self.model_cfg.get("api_endpoint") or "")
+        self.reset_path = _cache_reset_path(a.provider)
         self.db, self.hw_id, self.env_id = self.runner.setup_database()
         self.conn = self.db.db.conn          # existing connection, reads only
         self.retry_adapter = get_retry_adapter(self.args)
@@ -198,7 +220,8 @@ class Pilot:
         ex = AgenticExecutor(self.model_cfg)
         ex._raf_context = {"goal_key": key, "temperature": 0.0,
                            "seed": self.cfg["seeds"]["model_seed"]}
-        ex.pre_attempt_hook = PreAttempt(ex, self.base_url, g["policy"])
+        ex.pre_attempt_hook = PreAttempt(
+            ex, self.base_url, g["policy"], reset_path=self.reset_path)
         inj = None
         if g["policy"] != "B0":
             rule = {"type": g["cls"], "rate": 1.0, "max_injections": 1,

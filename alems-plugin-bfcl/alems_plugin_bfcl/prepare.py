@@ -37,12 +37,19 @@ def _http_post(url: str, timeout_s: float) -> int:
         return int(resp.status)
 
 
-def reset_url(base_url: str) -> str:
-    """Model binding base URL ends in /v1; the reset route lives at the root."""
+DEFAULT_RESET_PATH = "/reset_prefix_cache"   # vLLM dev mode route (GN100)
+
+
+def reset_url(base_url: str, path: Optional[str] = None) -> str:
+    """Model binding base URL ends in /v1; the reset route lives at the root.
+
+    path is the model binding cache_reset.path when declared (llama.cpp
+    server: /slots/0?action=erase); absent, the vLLM route is used.
+    """
     root = (base_url or "").rstrip("/")
     if root.endswith("/v1"):
         root = root[:-3]
-    return root + "/reset_prefix_cache"
+    return root + (path or DEFAULT_RESET_PATH)
 
 
 class PreAttempt:
@@ -50,12 +57,13 @@ class PreAttempt:
 
     def __init__(self, executor: Any, base_url: str, policy: str,
                  post: Optional[Callable[[str, float], int]] = None,
-                 timeout_s: float = 10.0) -> None:
+                 timeout_s: float = 10.0,
+                 reset_path: Optional[str] = None) -> None:
         if policy not in POLICIES:
             raise ValueError("unknown policy %r" % policy)
         self.executor = executor
         self.policy = policy
-        self.url = reset_url(base_url)
+        self.url = reset_url(base_url, reset_path)
         self.timeout_s = timeout_s
         # Tests inject a fake; production uses urllib.
         self.post = post or _http_post

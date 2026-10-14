@@ -1,0 +1,57 @@
+# RAF LH 01 pilot configuration, Apple M4 (SPEC_RAF_R3 section 3.6; run E4b).
+# Same seeds, tasks, classes, points and policies as pilot_gn100.yaml.
+# Changed only: platform, expected_store_suffix, isolation (cpu_source, gpu_check).
+# Read by scripts/raf/pilot_driver.py and scripts/raf/pilot_schedule.py.
+pilot: raf_lh_01
+platform: m4
+expected_store_suffix: raf-mlsys-2027-m4/experiments.db   # confirm with alems sandbox info
+
+seeds:
+  block_order: 20261013      # order of blocks and B0 positions in the queue
+  policy_order: 20261014     # per block policy order, derived with the block id
+  model_seed: 0              # sampling seed (adapter), temperature 0
+
+policies: [FR_cold, FR_warm, SR_cold, SR_warm]
+b0_repetitions: 3
+
+# class -> call type phase used by ScenarioInjector (design 5.1)
+classes:
+  rate_limit: llm
+  json_parse: llm
+  tool_error: tool
+  timeout: tool
+
+points: [early, late]
+early_ordinal: 2
+
+# late ordinal per task and call type (PILOT_TASKSET.md); stratum for the projection
+tasks:
+  bfcl_multi_turn_base_7:   {stratum: short, late: {llm: 4, tool: 3}}
+  bfcl_multi_turn_base_12:  {stratum: short, late: {llm: 4, tool: 3}}
+  bfcl_multi_turn_base_140: {stratum: short, late: {llm: 5, tool: 3}}
+  bfcl_multi_turn_base_175: {stratum: short, late: {llm: 5, tool: 4}}
+  bfcl_multi_turn_base_193: {stratum: short, late: {llm: 6, tool: 3}}
+  bfcl_multi_turn_base_98:  {stratum: long,  late: {llm: 9, tool: 7}}
+  bfcl_multi_turn_base_153: {stratum: long,  late: {llm: 7, tool: 4}}
+  bfcl_multi_turn_base_154: {stratum: long,  late: {llm: 7, tool: 4}}
+  bfcl_multi_turn_base_168: {stratum: long,  late: {llm: 7, tool: 4}}
+  bfcl_multi_turn_base_192: {stratum: long,  late: {llm: 7, tool: 4}}
+
+isolation:
+  level: exclusive
+  cpu_source: psutil         # macOS has no /proc/stat
+  gpu_check: false           # no nvidia-smi on macOS (spec 3.4); CPU check only
+  idle_window_s: 5           # sampling window of the idle check
+  cpu_busy_max_pct: 5.0      # whole node CPU busy share
+  gpu_util_max_pct: 5.0      # unused while gpu_check is false
+  retries: 3
+  retry_wait_s: 60
+
+baseline:                    # remeasure on the M4 with the server idle (spec step 6)
+  duration_seconds: 10
+  num_samples: 10
+  pre_wait_seconds: 30
+
+validity:
+  reruns: 1
+  invalid_cell_max: 0.20
