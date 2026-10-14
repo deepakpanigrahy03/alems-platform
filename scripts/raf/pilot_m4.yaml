@@ -42,7 +42,7 @@ isolation:
   cpu_source: psutil         # macOS has no /proc/stat
   gpu_check: false           # no nvidia-smi on macOS (spec 3.4); CPU check only
   idle_window_s: 5           # sampling window of the idle check
-  cpu_busy_max_pct: 5.0      # whole node CPU busy share
+  cpu_busy_max_pct: 10.0     # whole node CPU busy share; M4 deviation: managed security agents (Jamf Protect, Elastic) hold about 7.6 percent steady load, absorbed in the idle baseline (E_other)
   gpu_util_max_pct: 5.0      # unused while gpu_check is false
   retries: 3
   retry_wait_s: 60
