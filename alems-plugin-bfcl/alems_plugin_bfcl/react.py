@@ -55,6 +55,20 @@ HTTP_TIMEOUT_S = 600
 
 LLM_CLASSES = ("rate_limit", "json_parse")
 TOOL_CLASSES = ("tool_error", "timeout")
+# RAF R1: contaminating classes act on a real tool call (phase "tool"),
+# persistent classes reuse clean semantics and recur once in attempt 2.
+CORRUPT_CLASSES = ("silent_tool_output", "wrong_model_step")
+PERSIST_PREFIX = "persistent_"
+# Fixed text, identical for every option, sent when SR resumes a turn that
+# failed the per turn state check (design 3: one fixed error notice).
+DETECTED_NOTICE = ("The state after your last turn does not match the request. "
+                   "Review the steps of this turn and correct the state before answering.")
+
+
+from . import corrupt as _corrupt  # noqa: E402
+from .env import ERROR_PREFIX as _ERROR_PREFIX  # noqa: E402
+from .tasks import ground_truth as _ground_truth  # noqa: E402
+from .turn_check import DetectedFailure, check_turn  # noqa: E402
 
 # Indirection so tests can replace the clock and sleep without real waits.
 _sleep = time.sleep
@@ -168,7 +182,19 @@ class AttemptRun:
         self.cfg = model_config
         self.ctx = ctx
         self.attempt = attempt
-        self.injector = getattr(executor, "failure_injector", None) if attempt == 1 else None
+        prior = getattr(session, "failure", None) or {}
+        # Persistent: the fault is still there after one recovery, so the
+        # injector stays active for attempt 2 only (attempt 3 runs clean).
+        self.persist = (attempt == 2 and str(prior.get("injected_cls") or "")
+                        .startswith(PERSIST_PREFIX))
+        self.persist_fired = False
+        self.injector = (getattr(executor, "failure_injector", None)
+                         if attempt == 1 or self.persist else None)
+        self.check_turns = bool(ctx.get("turn_check"))
+        self.turn_checks: List[dict] = []
+        # Strings the agent has seen in this attempt (arguments and results);
+        # the plausible pool for string corruption.
+        self.seen_strings: List[str] = []
         self.limit = int(ctx.get("iteration_limit", DEFAULT_ITERATION_LIMIT))
         self.tools = _tools_payload(session.provider)
         self.llm_ordinal = 0
@@ -187,6 +213,14 @@ class AttemptRun:
         inj = self.injector
         if inj is None or not getattr(inj, "is_active", lambda: True)():
             return None
+        if self.attempt >= 2:
+            # Persistent recurrence point, identical under every depth:
+            # llm class at the first model call of attempt 2, tool class at
+            # the first call of the same tool. The injector sees the attempt
+            # 1 ordinal so the planned rule matches and is logged as usual.
+            ordinal = self._persist_ordinal(phase, tool_name)
+            if ordinal is None:
+                return None
         self.draws += 1
         self.injection["scheduled_checks"] += 1
         fire, cls = inj.should_inject(
@@ -196,10 +230,24 @@ class AttemptRun:
             goal_id=getattr(self.executor, "_current_goal_id", 0) or 0)
         if not fire:
             return None
-        allowed = LLM_CLASSES if phase == "llm" else TOOL_CLASSES
+        base = cls[len(PERSIST_PREFIX):] if cls.startswith(PERSIST_PREFIX) else cls
+        allowed = LLM_CLASSES if phase == "llm" else TOOL_CLASSES + CORRUPT_CLASSES
+        if self.attempt >= 2:
+            self.persist_fired = True
         self.injection.update(fired=1, cls=cls, call_type=phase, ordinal=ordinal,
-                              tool_name=tool_name, applied=cls in allowed)
-        return cls if cls in allowed else None
+                              tool_name=tool_name, applied=base in allowed)
+        return base if base in allowed else None
+
+    def _persist_ordinal(self, phase: str, tool_name: Optional[str]) -> Optional[int]:
+        """Attempt 1 ordinal to present to the injector, or None (no trigger)."""
+        f = getattr(self.s, "failure", None) or {}
+        if not self.persist or self.persist_fired or f.get("kind") != phase:
+            return None
+        if phase == "tool":
+            if tool_name != f.get("tool_name"):
+                return None
+            return f.get("tool_ordinal")
+        return f.get("llm_ordinal")
 
     def _record_failure(self, cls: str, kind: str, extra: dict) -> None:
         """Remember the failure point for attempt 2 (design 4.1)."""
@@ -207,7 +255,9 @@ class AttemptRun:
              "llm_ordinal": self.llm_ordinal, "tool_ordinal": self.tool_ordinal,
              "provider_calls": self.s.provider.env.calls_made,
              "state_hash": self.s.provider.state_hash(),
-             "turn_starts": list(self.s.provider.turn_starts)}
+             "turn_starts": list(self.s.provider.turn_starts),
+             "injected_cls": self.injection.get("cls"),
+             "tool_name": self.injection.get("tool_name")}
         f.update(extra)
         self.s.failure = f
         self.injection["failure_point"] = {k: v for k, v in f.items()
@@ -295,7 +345,7 @@ class AttemptRun:
         self.tool_ordinal += 1
         cls = self._check("tool", self.tool_ordinal, name)
         t0 = _now()
-        if cls is not None:
+        if cls in TOOL_CLASSES:
             if cls == "timeout":
                 _sleep(TIMEOUT_BLOCK_S)
             t1 = _now()
@@ -310,6 +360,8 @@ class AttemptRun:
             # Keep ordinals aligned with provider calls: an unusable argument
             # string still goes through the provider and fails there.
             args = {"__invalid_arguments__": fn.get("arguments")}
+        if cls == "wrong_model_step":
+            args = self._corrupt_args(call, args)
         res = self.s.provider.execute(name, args, ToolExecutionContext(db_path=""))
         t1 = _now()
         self.calls_tools.append({"ordinal": self.tool_ordinal, "name": name,
@@ -317,10 +369,66 @@ class AttemptRun:
         self._event("tool_call", t0, t1, {"tool": name, "ordinal": self.tool_ordinal,
                                            "success": res.success})
         text = str(res.result)
+        if cls == "silent_tool_output":
+            text = self._corrupt_text(text)
+        self._remember(args, text)
         if notice:
             text = text + "\n" + ERROR_NOTICE
         return {"role": "tool", "tool_call_id": call.get("id", ""), "name": name,
                 "content": text}
+
+    # ── contamination (RAF R1) ───────────────────────────────────────
+    def _seed(self, cls: str) -> int:
+        key = getattr(self.s, "goal_key", None) or self.s.entry["id"]
+        return _corrupt.seed_of(key, cls, self.tool_ordinal)
+
+    def _corrupt_args(self, call: dict, args: dict) -> dict:
+        """
+        wrong_model_step: corrupt one argument and rewrite the assistant's
+        tool call in history, so the context shows the model's own mistake.
+        """
+        new, detail = _corrupt.corrupt_args(args, self._seed("wrong_model_step"),
+                                            self.seen_strings)
+        self.injection["corruption"] = detail
+        if new is None:
+            self.injection["applied"] = False
+            return args
+        call.setdefault("function", {})["arguments"] = json.dumps(new)
+        return new
+
+    def _corrupt_text(self, text: str) -> str:
+        """silent_tool_output: the real result with one leaf changed."""
+        new, detail = _corrupt.corrupt_result(text, self._seed("silent_tool_output"),
+                                              _ERROR_PREFIX, self.seen_strings)
+        self.injection["corruption"] = detail
+        if new is None:
+            self.injection["applied"] = False
+            return text
+        return new
+
+    def _remember(self, args: dict, text: str) -> None:
+        """Add the strings of one executed call to the seen pool (as the agent saw them)."""
+        self.seen_strings.extend(_corrupt.strings_of(args))
+        try:
+            self.seen_strings.extend(_corrupt.strings_of(json.loads(text)))
+        except ValueError:
+            pass  # plain text results add nothing
+
+    def _turn_end(self, t: int) -> None:
+        """Per turn state check (spec 4.3); raises DetectedFailure on mismatch."""
+        if not self.check_turns:
+            return
+        start = self.s.provider.turn_starts[t]
+        gt = _ground_truth(self.s.entry["id"])[t]
+        rec = check_turn(self.s.provider.env, start, gt)
+        rec.update(attempt=self.attempt, turn=t)
+        self.turn_checks.append(rec)
+        self.injection["turn_checks"] = self.turn_checks
+        if rec["ok"]:
+            return
+        self._record_failure("silent_detected", "turn_check",
+                             {"messages": copy.deepcopy(self.s.messages)})
+        raise DetectedFailure(t, rec)
 
     # ── loop ─────────────────────────────────────────────────────────
     def _run_tool_calls(self, assistant: dict, start: int, notice_first: bool) -> None:
@@ -356,6 +464,7 @@ class AttemptRun:
             self.s.provider.begin_turn(t)
             self.s.messages.extend(_turn_messages(self.s.entry, t))
             self._finish_turn()
+            self._turn_end(t)
 
     # ── recovery (attempt 2) ─────────────────────────────────────────
     def _recover(self) -> Tuple[int, bool, Optional[dict]]:
@@ -410,6 +519,12 @@ class AttemptRun:
         prov.turn_starts = list(f["turn_starts"])
         self.s.messages = copy.deepcopy(f["messages"])
         self.s.turn = f["turn"]
+
+        if f["kind"] == "turn_check":
+            # SR after detection keeps the whole, poisoned context (nothing is
+            # restored: k exceeds calls_made) and the agent redoes turn t.
+            self.s.messages.append({"role": "user", "content": DETECTED_NOTICE})
+            return f["turn"], False, None
         if f["kind"] == "llm":
             # Rerun LLM call k with the notice at the end of the history.
             last = self.s.messages[-1]
@@ -437,9 +552,12 @@ class AttemptRun:
                 if not open_first:
                     # SR: finish the interrupted turn, then the remaining ones.
                     self._finish_turn()
+                    self._turn_end(self.s.turn)
                     first = self.s.turn + 1
                 self._run_turns(first)
             return "success", None, None
+        except DetectedFailure as exc:
+            return "failure", exc.cls, str(exc)
         except InjectedFailure as exc:
             return "failure", exc.cls, str(exc)
         except IterationLimit as exc:
@@ -557,6 +675,17 @@ class BFCLReactAdapter(FrameworkAdapterABC):
         prep = (getattr(executor, "_raf_prepare", None) or {}).get(attempt)
         meta["raf"]["prepare"] = prep
         meta["pending_annotations"] = _annotations(attempt, run.calls, prep)
+        store = dict(getattr(executor, "_raf_attempts", None) or {})
+        store[attempt] = {k: run.injection.get(k)
+                          for k in ("cls", "fired", "applied", "corruption", "turn_checks")}
+        executor._raf_attempts = store
+        if run.turn_checks:
+            # Per turn check cost and outcome (spec 4.3); hashes kept for audit.
+            meta["pending_annotations"].append(
+                {"annotation_type": "raf.turn_check", "annotation_version": "1",
+                 "source": "alems-plugin-bfcl",
+                 "payload": {"attempt": attempt, "checks": run.turn_checks,
+                             "total_ms": sum(c["ms"] for c in run.turn_checks)}})
         return FrameworkResult(output=response, success=status == "success",
                                total_duration_ms=wall_ms, steps=[], metadata=meta)
 

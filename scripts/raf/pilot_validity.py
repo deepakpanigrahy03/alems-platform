@@ -10,6 +10,12 @@ is opened) and the goal's planned injection. Codes:
     PRE_INJECTION_FAILURE   attempt 1 failed with no injection fired
     CACHE_RESET_FAILED,
     RESTORE_MISMATCH        taken from the PreAttempt records
+    CORRUPTION_NOT_APPLIED  contaminating class planned, no candidate leaf
+    DETECTION_MISSED        contaminating class fired, no failed turn check
+                            in attempt 1
+    FALSE_DETECTION         a turn check failed in a goal without a
+                            contaminating class (B0, clean, persistent)
+Persistent classes must fire once in attempt 1 and once in attempt 2.
 NEGATIVE_DYN is an analysis flag computed in S7, not here.
 """
 
@@ -18,6 +24,11 @@ from typing import Any, Dict, List, Optional
 INJECTION_MISMATCH = "INJECTION_MISMATCH"
 INJECTION_NOT_REACHED = "INJECTION_NOT_REACHED"
 PRE_INJECTION_FAILURE = "PRE_INJECTION_FAILURE"
+CORRUPTION_NOT_APPLIED = "CORRUPTION_NOT_APPLIED"
+DETECTION_MISSED = "DETECTION_MISSED"
+FALSE_DETECTION = "FALSE_DETECTION"
+CORRUPT_CLASSES = ("silent_tool_output", "wrong_model_step")
+PERSIST_PREFIX = "persistent_"
 
 _ATTEMPTS = ("SELECT attempt_id, attempt_number, outcome FROM goal_attempt "
              "WHERE goal_id=? ORDER BY attempt_number")
@@ -30,12 +41,21 @@ def _rows(conn: Any, sql: str, goal_id: int) -> List[tuple]:
 
 
 def classify(conn: Any, goal_id: int, plan: Dict[str, Any],
-             prepare: Optional[Dict[int, Dict[str, Any]]] = None) -> Dict[str, Any]:
-    """Return {"codes": [...], "detail": {...}}; empty codes means valid."""
+             prepare: Optional[Dict[int, Dict[str, Any]]] = None,
+             attempt_meta: Optional[Dict[int, Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """
+    Return {"codes": [...], "detail": {...}}; empty codes means valid.
+
+    attempt_meta maps attempt number to the adapter's injection dict
+    (corruption, turn_checks). Absent for pilot goals: no new codes then,
+    except DETECTION_MISSED for a contaminating plan, which cannot be valid
+    without proof of detection.
+    """
     attempts = _rows(conn, _ATTEMPTS, goal_id)
     log = _rows(conn, _LOG, goal_id)
     codes = _prepare_codes(prepare or {})
     detail = {"attempts": len(attempts)}
+    codes += _contamination_codes(plan, attempt_meta or {}, detail)
     if plan["policy"] == "B0":
         return {"codes": codes, "detail": detail}
     a1 = next((a for a in attempts if a[1] == 1), None)
@@ -59,6 +79,21 @@ def _prepare_codes(prepare: Dict[int, Dict[str, Any]]) -> List[str]:
     return out
 
 
+def _contamination_codes(plan: Dict[str, Any], meta: Dict[int, Dict[str, Any]],
+                         detail: Dict[str, Any]) -> List[str]:
+    """Spec R1 4.4 codes from the per attempt corruption and check records."""
+    cls = None if plan["policy"] == "B0" else plan.get("cls")
+    failed = {a: [c["turn"] for c in (m.get("turn_checks") or []) if not c["ok"]]
+              for a, m in meta.items()}
+    detail["detected_turns"] = failed
+    if cls in CORRUPT_CLASSES:
+        corr = (meta.get(1) or {}).get("corruption") or {}
+        if corr.get("applied") is False:
+            return [CORRUPTION_NOT_APPLIED]
+        return [] if failed.get(1) else [DETECTION_MISSED]
+    return [FALSE_DETECTION] if any(failed.values()) else []
+
+
 def _injection_codes(a1, a2, f1, f2, log, plan, detail) -> List[str]:
     if a1 is None:
         return [INJECTION_MISMATCH]
@@ -70,10 +105,15 @@ def _injection_codes(a1, a2, f1, f2, log, plan, detail) -> List[str]:
         if a1[2] != "success":
             return [PRE_INJECTION_FAILURE]
         return [INJECTION_MISMATCH]
-    if len(f1) != 1 or f2 or a2 is None:
+    want_a2 = 1 if str(plan["cls"]).startswith(PERSIST_PREFIX) else 0
+    if len(f1) != 1 or len(f2) != want_a2 or a2 is None:
+        return [INJECTION_MISMATCH]
+    if want_a2 and tuple(f2[0][2:5]) != (plan["cls"], plan["phase"], plan["ordinal"]):
         return [INJECTION_MISMATCH]
     _, _, itype, iphase, istep = f1[0]
     detail.update({"fired_type": itype, "fired_phase": iphase, "fired_step": istep})
-    if (itype, iphase, istep) != (plan["cls"], plan["phase"], plan["ordinal"]):
+    # ordinal "any": the rule targets a tool name, the step is wherever it ran.
+    step = "any" if plan["ordinal"] == "any" else istep
+    if (itype, iphase, step) != (plan["cls"], plan["phase"], plan["ordinal"]):
         return [INJECTION_MISMATCH]
     return []
