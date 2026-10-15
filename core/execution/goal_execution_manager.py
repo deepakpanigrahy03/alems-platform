@@ -864,6 +864,22 @@ def _write_attempt_spans(db, conn, run_id, m, workflow_type, goal_id, trace):
                         [dict(a, span_id=attempt_span.span_id) for a in _pending])
             except Exception as _ae:
                 logger.warning("execute_goal: annotations for run=%d failed: %s", run_id, _ae)
+        # RAF R2: prefix cache reuse per LLM call, from plugin frameworks that
+        # report it (state_reuse_events, B2). Written after t1 with real ids.
+        _reuse = ((m["result"] or {}).get("execution") or {}).get("pending_state_reuse") or []
+        if _reuse:
+            try:
+                with db.transaction():
+                    conn.executemany(
+                        """INSERT INTO state_reuse_events
+                           (attempt_id, run_id, reuse_type, reuse_source, tokens_reused,
+                            tokens_recomputed, reuse_fraction, cache_hit)
+                           VALUES (:attempt_id, :run_id, :reuse_type, :reuse_source,
+                                   :tokens_reused, :tokens_recomputed, :reuse_fraction,
+                                   :cache_hit)""",
+                        [dict(r, attempt_id=m["attempt_id"], run_id=run_id) for r in _reuse])
+            except Exception as _re:
+                logger.warning("execute_goal: state reuse for run=%d failed: %s", run_id, _re)
     except Exception as exc:
         logger.warning("execute_goal: spans for run=%d failed: %s", run_id, exc)
 

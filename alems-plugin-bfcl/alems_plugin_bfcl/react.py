@@ -655,6 +655,29 @@ def _metadata(run: AttemptRun, status: str, etype: Optional[str], emsg: Optional
     }
 
 
+def _state_reuse_rows(calls: list) -> list:
+    """
+    One state_reuse_events row per LLM call: prefix cache tokens the serving
+    engine reported as reused. execute_goal persists them after insert_run
+    (run_id and attempt_id known), never inside the measurement window.
+
+    Returns:
+        list of dicts with the state_reuse_events columns except the ids;
+        unreported usage gives NULL fields, never 0 (MIC-1).
+    """
+    rows = []
+    for c in calls:
+        prompt = c.get("prompt_tokens")
+        known = bool(c.get("cached_reported")) and prompt is not None
+        cached = int(c.get("cached_tokens") or 0) if known else None
+        rows.append({"reuse_type": "prefix_cache", "reuse_source": "vllm",
+                     "tokens_reused": cached,
+                     "tokens_recomputed": max(0, int(prompt) - cached) if known else None,
+                     "reuse_fraction": (cached / prompt) if known and prompt else None,
+                     "cache_hit": int(cached > 0) if known else None})
+    return rows
+
+
 def _annotations(attempt: int, calls: list, prep: Optional[dict]) -> list:
     """
     Span annotations for the attempt span (D8.5b), written by execute_goal
@@ -707,6 +730,7 @@ class BFCLReactAdapter(FrameworkAdapterABC):
         prep = (getattr(executor, "_raf_prepare", None) or {}).get(attempt)
         meta["raf"]["prepare"] = prep
         meta["pending_annotations"] = _annotations(attempt, run.calls, prep)
+        meta["pending_state_reuse"] = _state_reuse_rows(run.calls)
         store = dict(getattr(executor, "_raf_attempts", None) or {})
         store[attempt] = {k: run.injection.get(k)
                           for k in ("cls", "fired", "applied", "corruption", "turn_checks")}
