@@ -52,6 +52,11 @@ def apply_config(args) -> None:
         logger.warning("apply_config: config is not a dict — using CLI args")
         return
 
+    # Scheduled profiles (schedule section) are executed by
+    # core.execution.scheduled_runner, which reads the raw sections
+    # (schedule, recovery, isolation, validity, baseline) from here.
+    args.profile_cfg = cfg
+
     _apply_study_section(args, cfg.get("study", {}))        # sets experiment_type first
     _apply_execution_section(args, cfg.get("execution", {}))
     _apply_retry_section(args, cfg.get("retry_policy", {}))

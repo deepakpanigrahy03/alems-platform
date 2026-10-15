@@ -62,7 +62,7 @@ class PreAttempt:
                  post: Optional[Callable[[str, float], int]] = None,
                  timeout_s: float = 10.0,
                  reset_path: Optional[str] = None,
-                 escalate: Optional[Callable[[int, Dict[str, Any]], Optional[str]]] = None
+                 decide: Optional[Callable[[int, Any], Optional[str]]] = None
                  ) -> None:
         if policy not in POLICIES:
             raise ValueError("unknown policy %r" % policy)
@@ -72,9 +72,10 @@ class PreAttempt:
         self.timeout_s = timeout_s
         # Tests inject a fake; production uses urllib.
         self.post = post or _http_post
-        # Escalating arm (R2 8.1): called before attempt >= 3 with the prepare
-        # records so far; returns the policy for that attempt or None (keep).
-        self.escalate = escalate
+        # Decision seam (R2 8.1, R6 addendum A): called before every attempt
+        # from 2 on, outside windows, with the executor; returns the policy for
+        # that attempt or None (keep). Deciders are plugins loaded by core.
+        self.decide = decide
         # The adapter reads depth as "FR" or "SR" from _raf_context["policy"];
         # set it here so the policy has one source for prepare and adapter.
         ctx = dict(getattr(executor, "_raf_context", None) or {})
@@ -90,9 +91,15 @@ class PreAttempt:
         # the pilot keeps the injector out of execute_goal (post harness path),
         # so attempt identity for the adapter is set here.
         ex._current_attempt = attempt_number
-        if attempt_number >= 3 and self.escalate is not None:
-            prior = dict(getattr(ex, "_raf_prepare", None) or {})
-            self._switch(self.escalate(attempt_number, prior))
+        if attempt_number >= 2 and self.decide is not None:
+            t_dec = time.perf_counter_ns()
+            chosen = self.decide(attempt_number, ex)
+            self._switch(chosen)
+            # Decision cost is logged per decision (R6 addendum A rule 1).
+            ex._raf_decisions = dict(getattr(ex, "_raf_decisions", None) or {})
+            ex._raf_decisions[attempt_number] = {
+                "chosen": chosen, "policy": self.policy,
+                "ns": time.perf_counter_ns() - t_dec}
         rec = {"attempt": attempt_number, "policy": self.policy,
                "resets": [], "restore": None, "validity": []}
         if self._needs_reset(attempt_number):

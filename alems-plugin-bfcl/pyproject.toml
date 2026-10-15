@@ -24,6 +24,16 @@ bfcl_state = "alems_plugin_bfcl.scorer:BFCLStateScorer"
 [project.entry-points."alems.frameworks"]
 bfcl_react = "alems_plugin_bfcl.react:BFCLReactAdapter"
 
+# RAF hooks for scheduled profiles (alems run; core/execution/scheduled_runner.py).
+[project.entry-points."alems.harness.prepare"]
+bfcl = "alems_plugin_bfcl.raf_hooks:make_prepare"
+
+[project.entry-points."alems.harness.deciders"]
+escalate_stub = "alems_plugin_bfcl.raf_hooks:escalate_stub"
+
+[project.entry-points."alems.harness.validity"]
+bfcl_raf = "alems_plugin_bfcl.raf_hooks:classify"
+
 [tool.setuptools]
 packages = ["alems_plugin_bfcl", "alems_plugin_bfcl.upstream"]
 

@@ -100,6 +100,13 @@ def parse_arguments():
         default=None,
         help='Path to experiment config YAML. Overrides individual CLI args.',
     )
+    # Scheduled profiles only (core/execution/scheduled_runner.py); ignored otherwise.
+    parser.add_argument("--smoke", action="store_true",
+                        help="scheduled profile: first B0 and the first block per family")
+    parser.add_argument("--max-items", type=int, default=0,
+                        help="scheduled profile: stop after N queue items")
+    parser.add_argument("--families", default="",
+                        help="scheduled profile: comma list of families to run")
     return parser.parse_args()
 
 
@@ -663,6 +670,12 @@ def main():
         tasks = load_tasks()
         list_task_summary(tasks)
         return 0
+
+    # Profiles with a schedule section run a seeded goal queue (RAF R2);
+    # every other profile keeps the plain loop below unchanged (Rule S).
+    if (getattr(args, "profile_cfg", None) or {}).get("schedule"):
+        from core.execution.scheduled_runner import run_scheduled
+        return run_scheduled(args)
 
     # A5: retry_policies list — run one experiment group per policy, then compare.
     retry_policies_list = getattr(args, "retry_policies", None)

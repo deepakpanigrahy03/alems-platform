@@ -2,7 +2,7 @@
 
 import sqlite3
 
-from scripts.raf import pilot_validity as V
+from alems_plugin_bfcl import raf_validity as V
 
 
 def _conn(attempts, log):

@@ -1,4 +1,4 @@
-"""Escalating arm in PreAttempt (R2 8.1): policy switch before attempt 3."""
+"""Decision seam in PreAttempt (R2 8.1, R6 addendum A): policy before attempts 2+."""
 
 from types import SimpleNamespace
 
@@ -28,7 +28,7 @@ class _Prov:
         return self.state
 
 
-def _hook(policy, escalate=None):
+def _hook(policy, decide=None):
     prov = _Prov()
     f = {"turn": 1, "turn_starts": [0, 3], "kind": "llm", "provider_calls": 4,
          "state_hash": "s4"}
@@ -36,12 +36,17 @@ def _hook(policy, escalate=None):
     ex = SimpleNamespace(_bfcl_session=session)
     posts = []
     hook = PreAttempt(ex, "http://x/v1", policy,
-                      post=lambda u, t: posts.append(u) or 200, escalate=escalate)
+                      post=lambda u, t: posts.append(u) or 200, decide=decide)
     return hook, prov, posts
 
 
-def test_fixed_arm_keeps_policy_on_attempt_3():
-    hook, prov, posts = _hook("SR_warm")
+def _escalate(attempt, executor):
+    # Same rule as the driver stub: keep at attempt 2, escalate at 3.
+    return "FR_cold" if attempt >= 3 else None
+
+
+def test_no_decider_keeps_policy():
+    hook, _, posts = _hook("SR_warm")
     hook(1)
     hook(2)
     rec = hook(3)
@@ -50,33 +55,42 @@ def test_fixed_arm_keeps_policy_on_attempt_3():
 
 
 def test_escalating_arm_switches_on_attempt_3():
-    seen = []
-
-    def esc(attempt, recs):
-        seen.append((attempt, sorted(recs)))
-        return "FR_cold"
-
-    hook, prov, posts = _hook("SR_warm", escalate=esc)
+    hook, prov, posts = _hook("SR_warm", decide=_escalate)
     hook(1)
     assert hook(2)["policy"] == "SR_warm"
     rec = hook(3)
-    assert seen == [(3, [1, 2])]
     assert rec["policy"] == "FR_cold" and rec["restore"]["depth"] == "FR"
     assert prov.restores[-1] == "initial" and len(posts) == 2   # cold reset
-    assert hook.executor._raf_context["policy"] == "FR"
-    assert hook.executor._raf_context["cache"] == "cold"
+    ctx = hook.executor._raf_context
+    assert ctx["policy"] == "FR" and ctx["cache"] == "cold"
+    dec = hook.executor._raf_decisions
+    assert dec[2]["chosen"] is None and dec[3]["chosen"] == "FR_cold"
+    assert dec[3]["ns"] >= 0
 
 
-def test_escalation_none_keeps_policy():
-    hook, _, _ = _hook("SR_warm", escalate=lambda a, r: None)
+def test_decider_sees_executor_and_decides_at_attempt_2():
+    seen = []
+
+    def decide(attempt, executor):
+        seen.append((attempt, executor._bfcl_session.failure["kind"]))
+        return "RB_warm"
+
+    hook, _, _ = _hook("SR_warm", decide=decide)
     hook(1)
-    hook(2)
-    assert hook(3)["policy"] == "SR_warm"
+    rec = hook(2)
+    assert seen == [(2, "llm")]
+    assert rec["policy"] == "RB_warm" and rec["restore"]["depth"] == "RB"
 
 
-def test_escalation_rejects_unknown_policy():
-    hook, _, _ = _hook("SR_warm", escalate=lambda a, r: "XX_hot")
+def test_decider_never_called_on_attempt_1():
+    calls = []
+    hook, _, _ = _hook("SR_warm", decide=lambda a, e: calls.append(a))
     hook(1)
-    hook(2)
+    assert calls == []
+
+
+def test_unknown_policy_rejected():
+    hook, _, _ = _hook("SR_warm", decide=lambda a, e: "XX_hot")
+    hook(1)
     with pytest.raises(ValueError):
-        hook(3)
+        hook(2)

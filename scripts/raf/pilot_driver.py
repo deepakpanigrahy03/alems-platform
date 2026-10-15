@@ -41,9 +41,9 @@ sys.path.insert(0, os.path.join(ENGINE, "alems-plugin-bfcl"))
 sys.path.insert(0, ENGINE)
 sys.path.insert(0, HERE)
 
-import main_schedule as ms  # noqa: E402
+from core.execution import schedule as ms  # noqa: E402
 import pilot_schedule as ps  # noqa: E402
-import pilot_validity as pv  # noqa: E402
+from alems_plugin_bfcl import raf_validity as pv  # noqa: E402
 
 ESCALATE_STUB = "FR_cold"   # R2 stub for the escalating arm; R6 replaces it
 

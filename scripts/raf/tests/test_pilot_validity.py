@@ -6,7 +6,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
-import pilot_validity as pv  # noqa: E402
+from alems_plugin_bfcl import raf_validity as pv  # noqa: E402
 
 PLAN = {"policy": "FR_cold", "cls": "timeout", "phase": "tool", "ordinal": 2}
 
