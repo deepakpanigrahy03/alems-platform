@@ -353,7 +353,7 @@ def main() -> int:
     os.chdir(ENGINE)
     if _store_path() != store:
         sys.exit("store changed after chdir: %s" % _store_path())
-    out_dir = os.path.join(os.path.dirname(store), "artifacts", "raf_pilot")
+    out_dir = os.path.join(os.path.dirname(store), "artifacts", cfg.get("pilot", "raf_pilot"))
     os.makedirs(out_dir, exist_ok=True)
     p = Pilot(a, cfg, out_dir)
     if a.remeasure_baseline:

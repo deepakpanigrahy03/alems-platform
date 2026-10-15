@@ -92,6 +92,11 @@ BASELINE_DOMAIN_MAP = {
 # Machine-aware cache path resolution
 # =============================================================================
 
+# Instantaneous power channels (mW) returned by read_energy(); see
+# SPBMEnergyReader.read_energy(). These are averaged, never delta'd.
+_POWER_RAIL_KEYS = {'soc_pkg', 'cpu_gpu', 'vcore', 'dc_input', 'prereg', 'dla'}
+
+
 def get_baseline_cache_path():
     # type: () -> str
     """
@@ -438,12 +443,19 @@ def measure_idle_baseline(
             except Exception:
                 gpu_samples = []
 
-        # Compute per-domain power for this sample
+        # Compute per-domain power for this sample.
+        # Counters (uJ, cumulative) are delta'd; power rails (mW, instantaneous)
+        # are averaged and converted to W. Delta of a power rail is ~0 (bug fixed Oct 15).
         for raw_key in start_raw:
             if raw_key not in end_raw:
                 continue    # domain disappeared mid-sample — skip, not zero
-            delta_uj = max(0, end_raw[raw_key] - start_raw[raw_key])
-            power_w  = (delta_uj / 1_000_000) / duration_seconds
+            if start_raw[raw_key] is None or end_raw[raw_key] is None:
+                continue
+            if raw_key in _POWER_RAIL_KEYS:
+                power_w = ((start_raw[raw_key] + end_raw[raw_key]) / 2.0) / 1000.0
+            else:
+                delta_uj = max(0, end_raw[raw_key] - start_raw[raw_key])
+                power_w  = (delta_uj / 1_000_000) / duration_seconds
             if raw_key not in all_powers:
                 all_powers[raw_key] = []
             all_powers[raw_key].append(power_w)
