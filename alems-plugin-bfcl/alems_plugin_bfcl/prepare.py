@@ -23,6 +23,8 @@ returned by the adapter as a raf.prepare annotation.
 
 import time
 import urllib.request
+
+from core.telemetry import vllm_metrics   # server cache statistics, read between attempts
 from typing import Any, Callable, Dict, Optional
 
 CACHE_RESET_FAILED = "CACHE_RESET_FAILED"
@@ -62,13 +64,16 @@ class PreAttempt:
                  post: Optional[Callable[[str, float], int]] = None,
                  timeout_s: float = 10.0,
                  reset_path: Optional[str] = None,
-                 decide: Optional[Callable[[int, Any], Optional[str]]] = None
+                 decide: Optional[Callable[[int, Any], Optional[str]]] = None,
+                 metrics: Optional[Callable[[str], Optional[Dict[str, float]]]] = None
                  ) -> None:
         if policy not in POLICIES:
             raise ValueError("unknown policy %r" % policy)
         self.executor = executor
         self.policy = policy
         self.url = reset_url(base_url, reset_path)
+        self.base_url = base_url
+        self.read_metrics = metrics or vllm_metrics.read
         self.timeout_s = timeout_s
         # Tests inject a fake; production uses urllib.
         self.post = post or _http_post
@@ -101,7 +106,9 @@ class PreAttempt:
                 "chosen": chosen, "policy": self.policy,
                 "ns": time.perf_counter_ns() - t_dec}
         rec = {"attempt": attempt_number, "policy": self.policy,
-               "resets": [], "restore": None, "validity": []}
+               "resets": [], "restore": None, "validity": [],
+               # Before any reset: the cache as the previous attempt left it.
+               "cache_metrics": self.read_metrics(self.base_url)}
         if self._needs_reset(attempt_number):
             rec["resets"].append(self._reset())
         if attempt_number >= 2 and self.policy != "B0":

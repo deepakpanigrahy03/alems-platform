@@ -38,6 +38,9 @@ from typing import Any, Callable, Dict, List, Optional
 import yaml
 
 from core.execution import schedule as sch
+from core.telemetry import vllm_metrics
+
+ATTEMPT_NUMBER_COL = "attempt_number"   # goal_attempt column holding 1, 2, 3
 
 logger = logging.getLogger(__name__)
 
@@ -243,10 +246,44 @@ class Runner:
             policy=dc_replace(self.policy, max_retries=int(g.get("attempts", 2)) - 1),
             failure_injector=inj, repetitions=1, retry_adapter=self.retry_adapter,
             quality_enabled=True)
+        after = vllm_metrics.read(self.base_url)       # after the goal, outside windows
+        self._write_cache_snapshots(goal_id, getattr(ex, "_raf_prepare", {}) or {}, after)
         return {"goal_id": goal_id, "goal_key": key, "wall_s": time.time() - t0,
+                "cache_metrics_after": after,
                 "prepare": getattr(ex, "_raf_prepare", {}) or {},
                 "attempt_meta": dict(getattr(ex, "_raf_attempts", None) or {}),
                 "decisions": dict(getattr(ex, "_raf_decisions", None) or {})}
+
+    def _write_cache_snapshots(self, goal_id: int, prepare: Dict[int, Any],
+                               after: Optional[Dict[str, float]]) -> None:
+        """One cache_state_snapshots row per reading (before each attempt, after the goal)."""
+        ids = {int(n): (a, r) for a, n, r in self.conn.execute(
+            "SELECT attempt_id, " + ATTEMPT_NUMBER_COL + ", run_id FROM goal_attempt "
+            "WHERE goal_id=?", (goal_id,)).fetchall()}
+        rows = []
+        for n in sorted(ids):
+            vals = (prepare.get(n) or {}).get("cache_metrics")
+            if vals:
+                rows.append(dict(vllm_metrics.snapshot_row(vals),
+                                 attempt_id=ids[n][0], run_id=ids[n][1]))
+        if after and ids:
+            last = max(ids)
+            rows.append(dict(vllm_metrics.snapshot_row(after),
+                             attempt_id=ids[last][0], run_id=ids[last][1]))
+        if not rows:
+            return
+        try:
+            with self.db.transaction():
+                self.conn.executemany(
+                    """INSERT INTO cache_state_snapshots
+                       (run_id, attempt_id, timestamp_ns, engine_name, cache_type,
+                        capacity_tokens, occupied_tokens, occupancy_fraction,
+                        hit_rate_aggregate)
+                       VALUES (:run_id, :attempt_id, :timestamp_ns, :engine_name,
+                               :cache_type, :capacity_tokens, :occupied_tokens,
+                               :occupancy_fraction, :hit_rate_aggregate)""", rows)
+        except Exception as exc:
+            logger.warning("cache snapshots for goal %s failed: %s", goal_id, exc)
 
     def energy_ok(self, goal_id: int) -> bool:
         """Every attempt run must carry nonzero package energy (fallback guard)."""
@@ -298,6 +335,7 @@ def run_item(r: Runner, item: Dict[str, Any], ledger: str, common: Dict[str, Any
                    "validity": val["codes"], "detail": val["detail"],
                    "family": g.get("family"), "arm": g.get("arm"),
                    "attempt_meta": res["attempt_meta"], "decisions": res["decisions"],
+                   "cache_metrics_after": res["cache_metrics_after"],
                    "prepare": res["prepare"], "wall_s": round(res["wall_s"], 2)}
             rec.update(common)
             _append(ledger, rec)
