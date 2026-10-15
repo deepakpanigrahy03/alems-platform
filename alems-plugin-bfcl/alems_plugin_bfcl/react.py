@@ -61,6 +61,7 @@ CORRUPT_CLASSES = ("silent_tool_output", "wrong_model_step")
 PERSIST_PREFIX = "persistent_"
 # Fixed text, identical for every option, sent when SR resumes a turn that
 # failed the per turn state check (design 3: one fixed error notice).
+CHECK_HASH_KEY = "actual"   # key of the public state hash in a turn_check record
 DETECTED_NOTICE = ("The state after your last turn does not match the request. "
                    "Review the steps of this turn and correct the state before answering.")
 
@@ -204,6 +205,7 @@ class AttemptRun:
         self.events: List[dict] = []
         self.calls: List[dict] = []         # per LLM call: tokens, cached
         self.calls_tools: List[dict] = []   # per executed tool call
+        self.checkpoints: List[dict] = []   # one per turn end (raf.context_checkpoint)
         self.injection: Dict[str, Any] = {"scheduled_checks": 0, "fired": 0}
         self.recovery: Dict[str, Any] = {}
 
@@ -417,6 +419,13 @@ class AttemptRun:
 
     def _turn_end(self, t: int) -> None:
         """Per turn state check (spec 4.3); raises DetectedFailure on mismatch."""
+        # Context checkpoint (coordinator Oct 15): in memory only; state_hash
+        # is filled from the turn check below when checks run, else NULL.
+        self.checkpoints.append({
+            "turn": t, "message_index": len(self.s.messages),
+            "prompt_token_offset": (self.calls[-1].get("prompt_tokens")
+                                    if self.calls else None),
+            "state_hash": None})
         if not self.check_turns:
             return
         start = self.s.provider.turn_starts[t]
@@ -424,6 +433,7 @@ class AttemptRun:
         rec = check_turn(self.s.provider.env, start, gt)
         rec.update(attempt=self.attempt, turn=t)
         self.turn_checks.append(rec)
+        self.checkpoints[-1]["state_hash"] = rec.get(CHECK_HASH_KEY)
         self.injection["turn_checks"] = self.turn_checks
         if rec["ok"]:
             return
@@ -731,6 +741,10 @@ class BFCLReactAdapter(FrameworkAdapterABC):
         meta["raf"]["prepare"] = prep
         meta["pending_annotations"] = _annotations(attempt, run.calls, prep)
         meta["pending_state_reuse"] = _state_reuse_rows(run.calls)
+        meta["pending_annotations"].append(
+            {"annotation_type": "raf.context_checkpoint", "annotation_version": "1",
+             "source": "alems-plugin-bfcl",
+             "payload": {"attempt": attempt, "checkpoints": run.checkpoints}})
         store = dict(getattr(executor, "_raf_attempts", None) or {})
         store[attempt] = {k: run.injection.get(k)
                           for k in ("cls", "fired", "applied", "corruption", "turn_checks")}
