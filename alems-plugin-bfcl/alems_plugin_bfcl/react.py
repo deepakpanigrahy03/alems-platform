@@ -206,6 +206,7 @@ class AttemptRun:
         self.calls: List[dict] = []         # per LLM call: tokens, cached
         self.calls_tools: List[dict] = []   # per executed tool call
         self.checkpoints: List[dict] = []   # one per turn end (raf.context_checkpoint)
+        self.notice_text = ERROR_NOTICE      # SG replaces it with the state facts
         self.injection: Dict[str, Any] = {"scheduled_checks": 0, "fired": 0}
         self.recovery: Dict[str, Any] = {}
 
@@ -376,7 +377,7 @@ class AttemptRun:
             text = self._corrupt_text(text)
         self._remember(args, text)
         if notice:
-            text = text + "\n" + ERROR_NOTICE
+            text = text + "\n" + self.notice_text
         return {"role": "tool", "tool_call_id": call.get("id", ""), "name": name,
                 "content": text}
 
@@ -522,6 +523,10 @@ class AttemptRun:
             resume = self._restore_rollback(f, prepared is not None)
             self.recovery["expected_hash"] = None   # checked by call count
         else:
+            if policy == "SG":
+                # Facts built in prepare, outside the window (Addendum C).
+                self.notice_text = getattr(self.s, "sg_notice", None) or ERROR_NOTICE
+                self.recovery["sg_notice_chars"] = len(self.notice_text)
             resume = self._restore_shallow(f, prepared is not None)
             self.recovery["expected_hash"] = f["state_hash"]
         if prepared:
@@ -531,7 +536,7 @@ class AttemptRun:
         else:
             self.recovery["state_hash_after_restore"] = self.s.provider.state_hash()
             self.recovery["restore_ns"] = time.perf_counter_ns() - t0
-        self.recovery["notice"] = policy in ("SR", "RB")
+        self.recovery["notice"] = policy in ("SR", "RB", "SG")
         return resume
 
     def _restore_rollback(self, f: dict, restored: bool = False) -> Tuple[int, bool, Optional[dict]]:
@@ -570,7 +575,7 @@ class AttemptRun:
         if f["kind"] == "llm":
             # Rerun LLM call k with the notice at the end of the history.
             last = self.s.messages[-1]
-            last["content"] = (last.get("content") or "") + "\n" + ERROR_NOTICE
+            last["content"] = (last.get("content") or "") + "\n" + self.notice_text
             return f["turn"], False, None
         # Rerun tool call k (and the later calls of the same assistant message).
         return f["turn"], False, {"call_index": f["call_index"]}

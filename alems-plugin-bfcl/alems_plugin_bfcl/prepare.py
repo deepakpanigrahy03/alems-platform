@@ -28,11 +28,13 @@ import urllib.request
 # the plugin imports only the SDK and the standard library (INV-14).
 from typing import Any, Callable, Dict, Optional
 
+from .sg_notice import build_notice
+
 CACHE_RESET_FAILED = "CACHE_RESET_FAILED"
 RESTORE_MISMATCH = "RESTORE_MISMATCH"
 RB_NOT_APPLICABLE = "RB_NOT_APPLICABLE"
 POLICIES = ("B0", "FR_cold", "FR_warm", "SR_cold", "SR_warm",
-            "RB_cold", "RB_warm")
+            "RB_cold", "RB_warm", "SG_cold", "SG_warm")
 
 
 def _http_post(url: str, timeout_s: float) -> int:
@@ -181,6 +183,11 @@ class PreAttempt:
         rec = {"depth": depth, "state_hash_before": before,
                "state_hash_after": after, "expected_hash": expected,
                "ok": after == expected, "ns": time.perf_counter_ns() - t0}
+        if depth == "SG":
+            # SG restores like SR; the notice states the facts of this state.
+            start = int(f["turn_starts"][f["turn"]])
+            session.sg_notice = build_notice(prov.env, start, f)
+            rec["sg_notice_chars"] = len(session.sg_notice)
         # The adapter reads this and skips its own in window restore.
         session.prepared_restore = rec
         return rec
