@@ -1,0 +1,74 @@
+# RAF E1 configuration, GN100, Qwen3 30B A3B Instruct 2507 FP8 (MASTER_PLAN_RAF; SPEC_RAF_LH_02).
+# Same format as pilot_gn100.yaml. Read by scripts/raf/pilot_driver.py and pilot_schedule.py.
+# Tasks: 30 of 58 stable tasks (3 of 3 checker pass, identical call counts), seed 20261015;
+# the other 28 are held out for E3 (raf_e1/e3_heldout_tasks.txt).
+# Late ordinal = round(0.7 x calls of that type), clamped to [3, calls-1]; counts from sweep run 1.
+pilot: raf_e1
+platform: gn100
+expected_store_suffix: raf-mlsys-2027/experiments.db
+
+seeds:
+  block_order: 20261016
+  policy_order: 20261017
+  model_seed: 0
+
+policies: [FR_cold, FR_warm, SR_cold, SR_warm]   # RB added as batch E1b when R2 lands
+b0_repetitions: 3
+
+classes:
+  rate_limit: llm
+  json_parse: llm
+  tool_error: tool
+  timeout: tool
+
+points: [early, late]
+early_ordinal: 2
+
+tasks:
+  bfcl_multi_turn_base_64:  {stratum: short,  late: {llm: 6, tool: 4}}   # 8 llm, 6 tool
+  bfcl_multi_turn_base_105: {stratum: short,  late: {llm: 6, tool: 4}}   # 8 llm, 6 tool
+  bfcl_multi_turn_base_38:  {stratum: short,  late: {llm: 6, tool: 5}}   # 9 llm, 7 tool
+  bfcl_multi_turn_base_112: {stratum: short,  late: {llm: 6, tool: 4}}   # 9 llm, 5 tool
+  bfcl_multi_turn_base_122: {stratum: short,  late: {llm: 6, tool: 4}}   # 9 llm, 5 tool
+  bfcl_multi_turn_base_127: {stratum: short,  late: {llm: 6, tool: 4}}   # 9 llm, 5 tool
+  bfcl_multi_turn_base_193: {stratum: short,  late: {llm: 6, tool: 4}}   # 9 llm, 5 tool
+  bfcl_multi_turn_base_34:  {stratum: short,  late: {llm: 7, tool: 6}}   # 10 llm, 8 tool
+  bfcl_multi_turn_base_48:  {stratum: short,  late: {llm: 7, tool: 5}}   # 10 llm, 7 tool
+  bfcl_multi_turn_base_123: {stratum: short,  late: {llm: 7, tool: 4}}   # 10 llm, 6 tool
+  bfcl_multi_turn_base_134: {stratum: short,  late: {llm: 7, tool: 5}}   # 10 llm, 7 tool
+  bfcl_multi_turn_base_17:  {stratum: medium, late: {llm: 8, tool: 6}}   # 11 llm, 8 tool
+  bfcl_multi_turn_base_86:  {stratum: medium, late: {llm: 8, tool: 8}}   # 11 llm, 11 tool
+  bfcl_multi_turn_base_118: {stratum: medium, late: {llm: 8, tool: 4}}   # 11 llm, 6 tool
+  bfcl_multi_turn_base_149: {stratum: medium, late: {llm: 8, tool: 4}}   # 11 llm, 6 tool
+  bfcl_multi_turn_base_154: {stratum: medium, late: {llm: 8, tool: 4}}   # 11 llm, 6 tool
+  bfcl_multi_turn_base_14:  {stratum: medium, late: {llm: 8, tool: 6}}   # 12 llm, 8 tool
+  bfcl_multi_turn_base_52:  {stratum: medium, late: {llm: 8, tool: 6}}   # 12 llm, 8 tool
+  bfcl_multi_turn_base_88:  {stratum: medium, late: {llm: 8, tool: 6}}   # 12 llm, 9 tool
+  bfcl_multi_turn_base_94:  {stratum: medium, late: {llm: 8, tool: 6}}   # 12 llm, 9 tool
+  bfcl_multi_turn_base_141: {stratum: medium, late: {llm: 8, tool: 5}}   # 12 llm, 7 tool
+  bfcl_multi_turn_base_85:  {stratum: medium, late: {llm: 9, tool: 8}}   # 13 llm, 11 tool
+  bfcl_multi_turn_base_194: {stratum: medium, late: {llm: 9, tool: 5}}   # 13 llm, 7 tool
+  bfcl_multi_turn_base_110: {stratum: long,   late: {llm: 10, tool: 6}}   # 14 llm, 8 tool
+  bfcl_multi_turn_base_39:  {stratum: long,   late: {llm: 10, tool: 8}}   # 15 llm, 11 tool
+  bfcl_multi_turn_base_170: {stratum: long,   late: {llm: 10, tool: 6}}   # 15 llm, 9 tool
+  bfcl_multi_turn_base_183: {stratum: long,   late: {llm: 10, tool: 6}}   # 15 llm, 9 tool
+  bfcl_multi_turn_base_1:   {stratum: long,   late: {llm: 12, tool: 9}}   # 17 llm, 13 tool
+  bfcl_multi_turn_base_59:  {stratum: long,   late: {llm: 12, tool: 8}}   # 17 llm, 12 tool
+  bfcl_multi_turn_base_71:  {stratum: long,   late: {llm: 13, tool: 9}}   # 18 llm, 13 tool
+
+isolation:
+  level: exclusive
+  idle_window_s: 5
+  cpu_busy_max_pct: 5.0
+  gpu_util_max_pct: 5.0
+  retries: 3
+  retry_wait_s: 60
+
+baseline:
+  duration_seconds: 10
+  num_samples: 10
+  pre_wait_seconds: 30
+
+validity:
+  reruns: 1
+  invalid_cell_max: 0.20

@@ -1257,3 +1257,395 @@ tasks:
       scorer_type: bfcl_state
       expected_source: inline
       answer: "multi_turn_base_192"
+  - id: bfcl_multi_turn_base_1
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 1"
+    description: "BFCL v4 multi turn base 1; RAF E1 main study (long)"
+    level: 3
+    tool_calls: 13
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_1 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_1"
+  - id: bfcl_multi_turn_base_14
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 14"
+    description: "BFCL v4 multi turn base 14; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 8
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_14 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_14"
+  - id: bfcl_multi_turn_base_17
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 17"
+    description: "BFCL v4 multi turn base 17; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 8
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_17 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_17"
+  - id: bfcl_multi_turn_base_34
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 34"
+    description: "BFCL v4 multi turn base 34; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 8
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_34 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_34"
+  - id: bfcl_multi_turn_base_38
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 38"
+    description: "BFCL v4 multi turn base 38; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 7
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_38 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_38"
+  - id: bfcl_multi_turn_base_39
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 39"
+    description: "BFCL v4 multi turn base 39; RAF E1 main study (long)"
+    level: 3
+    tool_calls: 11
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_39 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_39"
+  - id: bfcl_multi_turn_base_48
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 48"
+    description: "BFCL v4 multi turn base 48; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 7
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_48 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_48"
+  - id: bfcl_multi_turn_base_52
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 52"
+    description: "BFCL v4 multi turn base 52; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 8
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_52 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_52"
+  - id: bfcl_multi_turn_base_59
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 59"
+    description: "BFCL v4 multi turn base 59; RAF E1 main study (long)"
+    level: 3
+    tool_calls: 12
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_59 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_59"
+  - id: bfcl_multi_turn_base_64
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 64"
+    description: "BFCL v4 multi turn base 64; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_64 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_64"
+  - id: bfcl_multi_turn_base_71
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 71"
+    description: "BFCL v4 multi turn base 71; RAF E1 main study (long)"
+    level: 3
+    tool_calls: 13
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_71 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_71"
+  - id: bfcl_multi_turn_base_85
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 85"
+    description: "BFCL v4 multi turn base 85; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 11
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_85 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_85"
+  - id: bfcl_multi_turn_base_86
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 86"
+    description: "BFCL v4 multi turn base 86; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 11
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_86 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_86"
+  - id: bfcl_multi_turn_base_88
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 88"
+    description: "BFCL v4 multi turn base 88; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 9
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_88 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_88"
+  - id: bfcl_multi_turn_base_94
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 94"
+    description: "BFCL v4 multi turn base 94; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 9
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_94 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_94"
+  - id: bfcl_multi_turn_base_105
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 105"
+    description: "BFCL v4 multi turn base 105; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_105 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_105"
+  - id: bfcl_multi_turn_base_110
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 110"
+    description: "BFCL v4 multi turn base 110; RAF E1 main study (long)"
+    level: 3
+    tool_calls: 8
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_110 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_110"
+  - id: bfcl_multi_turn_base_112
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 112"
+    description: "BFCL v4 multi turn base 112; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 5
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_112 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_112"
+  - id: bfcl_multi_turn_base_118
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 118"
+    description: "BFCL v4 multi turn base 118; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_118 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_118"
+  - id: bfcl_multi_turn_base_122
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 122"
+    description: "BFCL v4 multi turn base 122; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 5
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_122 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_122"
+  - id: bfcl_multi_turn_base_123
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 123"
+    description: "BFCL v4 multi turn base 123; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_123 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_123"
+  - id: bfcl_multi_turn_base_127
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 127"
+    description: "BFCL v4 multi turn base 127; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 5
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_127 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_127"
+  - id: bfcl_multi_turn_base_134
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 134"
+    description: "BFCL v4 multi turn base 134; RAF E1 main study (short)"
+    level: 3
+    tool_calls: 7
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_134 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "short"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_134"
+  - id: bfcl_multi_turn_base_141
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 141"
+    description: "BFCL v4 multi turn base 141; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 7
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_141 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_141"
+  - id: bfcl_multi_turn_base_149
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 149"
+    description: "BFCL v4 multi turn base 149; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 6
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_149 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_149"
+  - id: bfcl_multi_turn_base_170
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 170"
+    description: "BFCL v4 multi turn base 170; RAF E1 main study (long)"
+    level: 3
+    tool_calls: 9
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_170 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_170"
+  - id: bfcl_multi_turn_base_183
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 183"
+    description: "BFCL v4 multi turn base 183; RAF E1 main study (long)"
+    level: 3
+    tool_calls: 9
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_183 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "long"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_183"
+  - id: bfcl_multi_turn_base_194
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 194"
+    description: "BFCL v4 multi turn base 194; RAF E1 main study (medium)"
+    level: 3
+    tool_calls: 7
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_194 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_e1", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_194"
