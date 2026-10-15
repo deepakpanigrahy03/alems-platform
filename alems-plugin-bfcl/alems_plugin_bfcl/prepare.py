@@ -24,7 +24,8 @@ returned by the adapter as a raf.prepare annotation.
 import time
 import urllib.request
 
-from core.telemetry import vllm_metrics   # server cache statistics, read between attempts
+# Server cache statistics are read by a function core passes in (metrics=);
+# the plugin imports only the SDK and the standard library (INV-14).
 from typing import Any, Callable, Dict, Optional
 
 CACHE_RESET_FAILED = "CACHE_RESET_FAILED"
@@ -73,7 +74,7 @@ class PreAttempt:
         self.policy = policy
         self.url = reset_url(base_url, reset_path)
         self.base_url = base_url
-        self.read_metrics = metrics or vllm_metrics.read
+        self.read_metrics = metrics if metrics is not None else (lambda url: None)
         self.timeout_s = timeout_s
         # Tests inject a fake; production uses urllib.
         self.post = post or _http_post

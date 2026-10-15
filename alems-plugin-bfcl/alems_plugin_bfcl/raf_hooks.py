@@ -17,9 +17,11 @@ ESCALATE_POLICY = "FR_cold"
 
 def make_prepare(executor: Any, base_url: str, policy: str,
                  reset_path: Optional[str] = None,
-                 decide: Optional[Callable[[int, Any], Optional[str]]] = None) -> PreAttempt:
-    """Pre attempt hook for one goal execution (cache reset, restore, decision)."""
-    return PreAttempt(executor, base_url, policy, reset_path=reset_path, decide=decide)
+                 decide: Optional[Callable[[int, Any], Optional[str]]] = None,
+                 metrics: Optional[Callable[[str], Any]] = None) -> PreAttempt:
+    """Pre attempt hook for one goal execution (cache reset, restore, decision, cache statistics)."""
+    return PreAttempt(executor, base_url, policy, reset_path=reset_path, decide=decide,
+                      metrics=metrics)
 
 
 def escalate_stub(attempt: int, executor: Any) -> Optional[str]:

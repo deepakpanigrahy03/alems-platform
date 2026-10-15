@@ -226,7 +226,8 @@ class Runner:
             ex._raf_context["turn_check"] = True       # per turn state check
         decide = self.deciders.get(g.get("arm"))       # fixed arm: no decider
         ex.pre_attempt_hook = self.make_prepare(
-            ex, self.base_url, g["policy"], reset_path=self.reset_path, decide=decide)
+            ex, self.base_url, g["policy"], reset_path=self.reset_path, decide=decide,
+            metrics=vllm_metrics.read)                 # core supplies the reader (INV-14)
         inj = None
         if g["policy"] != "B0":
             rule = {"type": g["cls"], "rate": 1.0,

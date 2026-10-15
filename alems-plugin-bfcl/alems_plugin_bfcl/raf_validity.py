@@ -77,6 +77,10 @@ def classify(conn: Any, goal_id: int, plan: Dict[str, Any],
     f1 = fired.get(a1[0], []) if a1 else []
     f2 = fired.get(a2[0], []) if a2 else []
     detail.update({"fired_a1": len(f1), "fired_a2": len(f2)})
+    if _self_corrected(conn, plan, a1, a2, f1, attempt_meta or {}):
+        # The agent repaired the injected fault inside attempt 1: valid outcome.
+        detail[SELF_CORRECTED] = True
+        return {"codes": [c for c in codes if c != DETECTION_MISSED], "detail": detail}
     codes += _injection_codes(a1, a2, f1, f2, log, plan, detail)
     return {"codes": codes, "detail": detail}
 
