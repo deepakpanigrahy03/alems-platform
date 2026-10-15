@@ -16,6 +16,10 @@ is opened) and the goal's planned injection. Codes:
     FALSE_DETECTION         a turn check failed in a goal without a
                             contaminating class (B0, clean, persistent)
 Persistent classes must fire once in attempt 1 and once in attempt 2.
+SELF_CORRECTED (detail flag, valid, never rerun): the injection fired once in
+attempt 1, attempt 1 completed with a correct final state (all turn checks
+passed for contaminating classes; checker pass otherwise), and no recovery
+attempt ran (coordinator decision Oct 15).
 NEGATIVE_DYN is an analysis flag computed in S7, not here.
 """
 
@@ -36,6 +40,8 @@ _ATTEMPTS = ("SELECT attempt_id, attempt_number, outcome FROM goal_attempt "
              "WHERE goal_id=? ORDER BY attempt_number")
 _LOG = ("SELECT attempt_id, status, injected_type, target_phase, target_step "
         "FROM failure_injection_log WHERE goal_id=?")
+_PASS = "SELECT pass_fail FROM goal_attempt WHERE attempt_id=?"
+SELF_CORRECTED = "self_corrected"        # detail key; an outcome, never a code
 
 
 def _rows(conn: Any, sql: str, goal_id: int) -> List[tuple]:
@@ -73,6 +79,18 @@ def classify(conn: Any, goal_id: int, plan: Dict[str, Any],
     detail.update({"fired_a1": len(f1), "fired_a2": len(f2)})
     codes += _injection_codes(a1, a2, f1, f2, log, plan, detail)
     return {"codes": codes, "detail": detail}
+
+
+def _self_corrected(conn: Any, plan: Dict[str, Any], a1, a2, f1,
+                    meta: Dict[int, Dict[str, Any]]) -> bool:
+    """Injected once in attempt 1, attempt 1 correct, no recovery attempt."""
+    if a1 is None or a2 is not None or len(f1) != 1 or a1[2] != "success":
+        return False
+    if plan.get("cls") in CORRUPT_CLASSES:
+        checks = (meta.get(1) or {}).get("turn_checks") or []
+        return bool(checks) and all(c.get("ok") for c in checks)
+    row = conn.execute(_PASS, (a1[0],)).fetchone()
+    return bool(row) and row[0] == 1
 
 
 def _prepare_codes(prepare: Dict[int, Dict[str, Any]]) -> List[str]:
