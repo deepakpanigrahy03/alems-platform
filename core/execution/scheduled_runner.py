@@ -251,6 +251,7 @@ class Runner:
         self._write_cache_snapshots(goal_id, getattr(ex, "_raf_prepare", {}) or {}, after)
         return {"goal_id": goal_id, "goal_key": key, "wall_s": time.time() - t0,
                 "cache_metrics_after": after,
+                "baseline_runs": self.baseline_used(goal_id),
                 "prepare": getattr(ex, "_raf_prepare", {}) or {},
                 "attempt_meta": dict(getattr(ex, "_raf_attempts", None) or {}),
                 "decisions": dict(getattr(ex, "_raf_decisions", None) or {})}
@@ -285,6 +286,19 @@ class Runner:
                                :occupancy_fraction, :hit_rate_aggregate)""", rows)
         except Exception as exc:
             logger.warning("cache snapshots for goal %s failed: %s", goal_id, exc)
+
+    def refresh_harness(self) -> None:
+        """Rebuild the harness so it loads the newest idle baseline."""
+        from core.config_loader import ConfigLoader
+        from core.execution.harness import ExperimentHarness
+        self.harness = ExperimentHarness(ConfigLoader())
+
+    def baseline_used(self, goal_id: int) -> List[str]:
+        """Distinct runs.baseline_id of the goal's attempts (authoritative)."""
+        rows = self.conn.execute(
+            "SELECT DISTINCT r.baseline_id FROM goal_attempt ga JOIN runs r "
+            "ON r.run_id = ga.run_id WHERE ga.goal_id = ?", (goal_id,)).fetchall()
+        return sorted(x[0] for x in rows if x[0])
 
     def energy_ok(self, goal_id: int) -> bool:
         """Every attempt run must carry nonzero package energy (fallback guard)."""
@@ -326,6 +340,9 @@ def run_item(r: Runner, item: Dict[str, Any], ledger: str, common: Dict[str, Any
             if not r.energy_ok(res["goal_id"]):
                 raise SystemExit("goal %s has zero or NULL energy: stop (fallback reader?)"
                                  % res["goal_id"])
+            if common.get("baseline_id") and res["baseline_runs"] != [common["baseline_id"]]:
+                raise SystemExit("goal %s runs used baseline %s, run measured %s: stop"
+                                 % (res["goal_id"], res["baseline_runs"], common["baseline_id"]))
             val = r.classify(r.conn, res["goal_id"], g, res["prepare"], res["attempt_meta"])
             walls.append((r.sched["tasks"][g["task"]]["stratum"], res["wall_s"]))
             rec = {"item_id": item["id"], "position": item["position"], "goal_index": idx,
@@ -395,6 +412,9 @@ def run_scheduled(args) -> int:
     bcfg = profile.get("baseline") or {}
     if bcfg.get("remeasure"):
         common["baseline_id"] = remeasure_baseline(r.harness, bcfg)
+        # The harness loads the newest baseline once, when built; rebuild it so
+        # the runs use the baseline just measured (defect found in E1, Oct 15).
+        r.refresh_harness()
         print("baseline saved", common["baseline_id"])
     families = [f for f in (getattr(args, "families", "") or "").split(",") if f] or None
     full = sch.build_queue(sched, families)
