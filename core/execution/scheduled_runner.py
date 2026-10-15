@@ -146,10 +146,11 @@ def _provider(profile: Dict[str, Any]) -> Dict[str, str]:
     if not entries:
         raise ValueError("scheduled profile needs a providers entry")
     p = entries[0]
-    name = p.get("provider") or p.get("name")
-    if not name or not p.get("model"):
-        raise ValueError("providers[0] needs provider and model")
-    return {"provider": name, "model": p["model"]}
+    # Same keys as experiment_config_loader._apply_providers_section.
+    name, model = p.get("name"), p.get("model_id")
+    if not name or not model:
+        raise ValueError("providers[0] needs name and model_id")
+    return {"provider": name, "model": model}
 
 
 class Runner:
