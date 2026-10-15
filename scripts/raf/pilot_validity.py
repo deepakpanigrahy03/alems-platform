@@ -27,6 +27,8 @@ PRE_INJECTION_FAILURE = "PRE_INJECTION_FAILURE"
 CORRUPTION_NOT_APPLIED = "CORRUPTION_NOT_APPLIED"
 DETECTION_MISSED = "DETECTION_MISSED"
 FALSE_DETECTION = "FALSE_DETECTION"
+B0_FAILED = "B0_FAILED"                  # A5: B0 without a successful attempt
+RB_NOT_APPLICABLE = "RB_NOT_APPLICABLE"  # reported, never invalid (spec 2.1)
 CORRUPT_CLASSES = ("silent_tool_output", "wrong_model_step")
 PERSIST_PREFIX = "persistent_"
 
@@ -55,8 +57,12 @@ def classify(conn: Any, goal_id: int, plan: Dict[str, Any],
     log = _rows(conn, _LOG, goal_id)
     codes = _prepare_codes(prepare or {})
     detail = {"attempts": len(attempts)}
+    detail["rb_not_applicable"] = any(
+        RB_NOT_APPLICABLE in (p.get("validity") or []) for p in (prepare or {}).values())
     codes += _contamination_codes(plan, attempt_meta or {}, detail)
     if plan["policy"] == "B0":
+        if attempts and not any(a[2] == "success" for a in attempts):
+            codes.append(B0_FAILED)
         return {"codes": codes, "detail": detail}
     a1 = next((a for a in attempts if a[1] == 1), None)
     a2 = next((a for a in attempts if a[1] == 2), None)
@@ -74,7 +80,7 @@ def _prepare_codes(prepare: Dict[int, Dict[str, Any]]) -> List[str]:
     out = []
     for attempt in sorted(prepare):
         for code in prepare[attempt].get("validity", []):
-            if code not in out:
+            if code not in out and code != RB_NOT_APPLICABLE:
                 out.append(code)
     return out
 

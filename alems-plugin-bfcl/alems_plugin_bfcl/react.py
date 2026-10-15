@@ -256,6 +256,7 @@ class AttemptRun:
              "provider_calls": self.s.provider.env.calls_made,
              "state_hash": self.s.provider.state_hash(),
              "turn_starts": list(self.s.provider.turn_starts),
+             "msg_starts": list(getattr(self.s, "msg_starts", None) or []),
              "injected_cls": self.injection.get("cls"),
              "tool_name": self.injection.get("tool_name")}
         f.update(extra)
@@ -462,7 +463,14 @@ class AttemptRun:
         for t in range(first_turn, len(self.s.entry["question"])):
             self.s.turn = t
             self.s.provider.begin_turn(t)
+            # Message index of the turn start; RB cuts the history here.
+            starts = getattr(self.s, "msg_starts", None) or []
+            self.s.msg_starts = starts[:t] + [len(self.s.messages)]
             self.s.messages.extend(_turn_messages(self.s.entry, t))
+            notice = getattr(self, "rb_notice", None)
+            if notice is not None and t == first_turn:
+                self.s.messages.append({"role": "user", "content": notice})
+                self.rb_notice = None
             self._finish_turn()
             self._turn_end(t)
 
@@ -476,7 +484,10 @@ class AttemptRun:
         """
         f = self.s.failure
         policy = str(self.ctx.get("policy", "FR")).upper()
-        if f is None or self.attempt > 2:
+        # Only a missing failure point forces FR. Attempt 3 policy is owned by
+        # PreAttempt (fixed arm keeps it, escalating arm switches it); forcing
+        # FR here gave SR state with an FR context (R2 finding).
+        if f is None:
             policy = "FR"     # no recorded failure point: nothing to resume
         if f is not None and f["cls"] == "rate_limit":
             t0 = _now()
@@ -497,6 +508,9 @@ class AttemptRun:
             self.s.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
             resume = (0, True, None)
             self.recovery["expected_hash"] = self.s.initial_hash
+        elif policy == "RB":
+            resume = self._restore_rollback(f, prepared is not None)
+            self.recovery["expected_hash"] = None   # checked by call count
         else:
             resume = self._restore_shallow(f, prepared is not None)
             self.recovery["expected_hash"] = f["state_hash"]
@@ -507,8 +521,26 @@ class AttemptRun:
         else:
             self.recovery["state_hash_after_restore"] = self.s.provider.state_hash()
             self.recovery["restore_ns"] = time.perf_counter_ns() - t0
-        self.recovery["notice"] = policy == "SR"
+        self.recovery["notice"] = policy in ("SR", "RB")
         return resume
+
+    def _restore_rollback(self, f: dict, restored: bool = False) -> Tuple[int, bool, Optional[dict]]:
+        """RB: history and tool state back to the start of the suspect turn."""
+        prov = self.s.provider
+        t = int(f["turn"])
+        start = int(f["turn_starts"][t])
+        if not restored:
+            if prov.env.calls_made > start:
+                prov.restore_before(start + 1)
+            prov.turn_starts = list(f["turn_starts"][:t])
+        cut = int(f["msg_starts"][t])
+        self.s.messages = copy.deepcopy(f["messages"][:cut])
+        self.s.msg_starts = list(f["msg_starts"][:t])
+        self.s.turn = t
+        # One fixed notice after the reopened turn's user message (spec 2.1).
+        self.rb_notice = (DETECTED_NOTICE if f["kind"] == "turn_check"
+                          else ERROR_NOTICE)
+        return t, True, None
 
     def _restore_shallow(self, f: dict, restored: bool = False) -> Tuple[int, bool, Optional[dict]]:
         """SR: keep calls before the failed one, restore the snapshot before it."""
@@ -678,6 +710,8 @@ class BFCLReactAdapter(FrameworkAdapterABC):
         store = dict(getattr(executor, "_raf_attempts", None) or {})
         store[attempt] = {k: run.injection.get(k)
                           for k in ("cls", "fired", "applied", "corruption", "turn_checks")}
+        # B5: tool name sequence per attempt (trajectory divergence under cache state).
+        store[attempt]["tools"] = [c["name"] for c in run.calls_tools]
         executor._raf_attempts = store
         if run.turn_checks:
             # Per turn check cost and outcome (spec 4.3); hashes kept for audit.

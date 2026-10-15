@@ -32,13 +32,20 @@ from dataclasses import replace as dc_replace
 
 import yaml
 
-ENGINE = os.path.expanduser("~/mydrive/alems-platform")
 HERE = os.path.dirname(os.path.abspath(__file__))
+# Engine is the checkout this script lives in (main tree or a worktree),
+# never a fixed path: a worktree run must import its own engine and plugin
+# ahead of the editable install, which points at the main tree.
+ENGINE = os.path.abspath(os.path.join(HERE, "..", ".."))
+sys.path.insert(0, os.path.join(ENGINE, "alems-plugin-bfcl"))
 sys.path.insert(0, ENGINE)
 sys.path.insert(0, HERE)
 
+import main_schedule as ms  # noqa: E402
 import pilot_schedule as ps  # noqa: E402
 import pilot_validity as pv  # noqa: E402
+
+ESCALATE_STUB = "FR_cold"   # R2 stub for the escalating arm; R6 replaces it
 
 
 # ── setup ───────────────────────────────────────────────────────────────
@@ -53,6 +60,8 @@ def _args() -> argparse.Namespace:
     ap.add_argument("--max-items", type=int, default=0, help="stop after N queue items")
     ap.add_argument("--points", default="early,late", help="cut: early only")
     ap.add_argument("--classes", default="", help="cut: comma list of classes to keep")
+    ap.add_argument("--families", default="",
+                    help="main config: comma list (clean, wrong_model_step, silent, persistent)")
     ap.add_argument("--remeasure-baseline", action="store_true",
                     help="measure a fresh idle baseline and exit")
     return ap.parse_args()
@@ -61,6 +70,10 @@ def _args() -> argparse.Namespace:
 def _load_cfg(a: argparse.Namespace) -> dict:
     with open(a.config) as fh:
         cfg = yaml.safe_load(fh)
+    if "families" in cfg:
+        # R2 main config: selection by family; the pilot cuts do not apply.
+        cfg["_families"] = [f for f in a.families.split(",") if f] or None
+        return cfg
     cfg["points"] = [p for p in a.points.split(",") if p]
     if a.classes:
         keep = set(a.classes.split(","))
@@ -220,13 +233,21 @@ class Pilot:
         ex = AgenticExecutor(self.model_cfg)
         ex._raf_context = {"goal_key": key, "temperature": 0.0,
                            "seed": self.cfg["seeds"]["model_seed"]}
+        if g.get("turn_check"):
+            ex._raf_context["turn_check"] = True    # R1 per turn state check
+        escalate = None
+        if g.get("arm") == "escalate":
+            escalate = lambda attempt, recs: ESCALATE_STUB  # noqa: E731
         ex.pre_attempt_hook = PreAttempt(
-            ex, self.base_url, g["policy"], reset_path=self.reset_path)
+            ex, self.base_url, g["policy"], reset_path=self.reset_path,
+            escalate=escalate)
         inj = None
         if g["policy"] != "B0":
-            rule = {"type": g["cls"], "rate": 1.0, "max_injections": 1,
+            # Pilot goals carry none of the R2 keys: defaults equal the pilot rule.
+            rule = {"type": g["cls"], "rate": 1.0,
+                    "max_injections": int(g.get("max_injections", 1)),
                     "location": {"phase": g["phase"], "step_index": g["ordinal"],
-                                 "tool_name": "any"}}
+                                 "tool_name": g.get("tool_name") or "any"}}
             inj = ScenarioInjector([rule], scenario_id="raf_" + key,
                                    experiment_type="failure_injection")
         task = self.tasks[g["task"]]
@@ -236,11 +257,13 @@ class Pilot:
             db=self.db, exp_id=self.exp_id(g["task"]), hw_id=self.hw_id,
             harness=self.harness, executor=ex,
             task={**task, "meta": task.get("meta", {})}, workflow_type="agentic",
-            rep_num=self.rep, goal_tracker=self.rx._goal_tracker, policy=self.policy,
+            rep_num=self.rep, goal_tracker=self.rx._goal_tracker,
+            policy=dc_replace(self.policy, max_retries=int(g.get("attempts", 2)) - 1),
             failure_injector=inj, repetitions=1, retry_adapter=self.retry_adapter,
             quality_enabled=True)
         return {"goal_id": goal_id, "goal_key": key, "wall_s": time.time() - t0,
-                "prepare": getattr(ex, "_raf_prepare", {}) or {}}
+                "prepare": getattr(ex, "_raf_prepare", {}) or {},
+                "attempt_meta": dict(getattr(ex, "_raf_attempts", None) or {})}
 
     def energy_ok(self, goal_id: int) -> bool:
         """Every attempt run must carry nonzero package energy (fallback guard)."""
@@ -255,7 +278,12 @@ def _smoke_queue(queue: list, cfg: dict) -> list:
     """First block of a short task, first of a long task, first B0."""
     out, seen = [], set()
     for item in queue:
-        tag = item["kind"] if item["kind"] == "b0" else cfg["tasks"][item["task"]]["stratum"]
+        if item["kind"] == "b0":
+            tag = "b0"
+        elif item.get("family"):
+            tag = item["family"]            # R2: one block per family
+        else:
+            tag = cfg["tasks"][item["task"]]["stratum"]
         if tag not in seen:
             seen.add(tag)
             out.append(item)
@@ -277,7 +305,8 @@ def run_item(p: Pilot, item: dict, ledger: str) -> list:
             if not p.energy_ok(res["goal_id"]):
                 sys.exit("goal %s has zero or NULL energy: stop (fallback reader?)"
                          % res["goal_id"])
-            val = pv.classify(p.conn, res["goal_id"], g, res["prepare"])
+            val = pv.classify(p.conn, res["goal_id"], g, res["prepare"],
+                              res["attempt_meta"])
             walls.append((p.cfg["tasks"][g["task"]]["stratum"], res["wall_s"]))
             _append(ledger, {
                 "item_id": item["id"], "position": item["position"], "goal_index": idx,
@@ -286,6 +315,8 @@ def run_item(p: Pilot, item: dict, ledger: str) -> list:
                 "idle_check": idle, "isolation_level": p.cfg["isolation"]["level"],
                 "rerun": rerun, "goal_id": res["goal_id"], "goal_key": res["goal_key"],
                 "validity": val["codes"], "detail": val["detail"],
+                "family": g.get("family"), "arm": g.get("arm"),
+                "attempt_meta": res["attempt_meta"],
                 "prepare": res["prepare"], "wall_s": round(res["wall_s"], 2)})
             print("%s %s %s goal=%s valid=%s %.1fs" % (
                 item["id"], g["policy"], "rerun" if rerun else "", res["goal_id"],
@@ -328,13 +359,18 @@ def main() -> int:
     if a.remeasure_baseline:
         remeasure_baseline(p.harness, cfg["baseline"])
         return 0
-    full = ps.build_queue(cfg)
+    if "families" in cfg:
+        full, counter = ms.build_queue(cfg, cfg["_families"]), ms.count_goals
+    else:
+        full, counter = ps.build_queue(cfg), ps.count_goals
     queue = _smoke_queue(full, cfg) if a.smoke else full
-    tag = "smoke" if a.smoke else "pilot"
+    # State and ledger per configuration: pilot, E1 and main share this
+    # folder, and a new config must never inherit another's done set.
+    tag = "%s_%s" % (cfg.get("pilot", "pilot"), "smoke" if a.smoke else "run")
     state_path = os.path.join(out_dir, "%s_state.json" % tag)
     ledger = os.path.join(out_dir, "%s_ledger.jsonl" % tag)
     done = set(json.load(open(state_path))) if os.path.exists(state_path) else set()
-    print("store %s queue %d items %s done %d" % (store, len(queue), ps.count_goals(queue), len(done)))
+    print("store %s queue %d items %s done %d" % (store, len(queue), counter(queue), len(done)))
     walls, ran = [], 0
     for item in queue:
         if item["id"] in done:

@@ -13,6 +13,7 @@ Design 4.2 cache rules:
 Design 4.1 restore rules (attempt 2 only):
     FR  tool state back to the task's initial state
     SR  tool state back to the snapshot before failed tool call k
+    RB  tool state back to the start of the suspect turn (R2 spec 2.1)
 
 A failed reset never raises: it records CACHE_RESET_FAILED so the goal
 execution is classified invalid afterwards (C-VAL), and the run proceeds
@@ -26,7 +27,9 @@ from typing import Any, Callable, Dict, Optional
 
 CACHE_RESET_FAILED = "CACHE_RESET_FAILED"
 RESTORE_MISMATCH = "RESTORE_MISMATCH"
-POLICIES = ("B0", "FR_cold", "FR_warm", "SR_cold", "SR_warm")
+RB_NOT_APPLICABLE = "RB_NOT_APPLICABLE"
+POLICIES = ("B0", "FR_cold", "FR_warm", "SR_cold", "SR_warm",
+            "RB_cold", "RB_warm")
 
 
 def _http_post(url: str, timeout_s: float) -> int:
@@ -58,7 +61,9 @@ class PreAttempt:
     def __init__(self, executor: Any, base_url: str, policy: str,
                  post: Optional[Callable[[str, float], int]] = None,
                  timeout_s: float = 10.0,
-                 reset_path: Optional[str] = None) -> None:
+                 reset_path: Optional[str] = None,
+                 escalate: Optional[Callable[[int, Dict[str, Any]], Optional[str]]] = None
+                 ) -> None:
         if policy not in POLICIES:
             raise ValueError("unknown policy %r" % policy)
         self.executor = executor
@@ -67,6 +72,9 @@ class PreAttempt:
         self.timeout_s = timeout_s
         # Tests inject a fake; production uses urllib.
         self.post = post or _http_post
+        # Escalating arm (R2 8.1): called before attempt >= 3 with the prepare
+        # records so far; returns the policy for that attempt or None (keep).
+        self.escalate = escalate
         # The adapter reads depth as "FR" or "SR" from _raf_context["policy"];
         # set it here so the policy has one source for prepare and adapter.
         ctx = dict(getattr(executor, "_raf_context", None) or {})
@@ -82,6 +90,9 @@ class PreAttempt:
         # the pilot keeps the injector out of execute_goal (post harness path),
         # so attempt identity for the adapter is set here.
         ex._current_attempt = attempt_number
+        if attempt_number >= 3 and self.escalate is not None:
+            prior = dict(getattr(ex, "_raf_prepare", None) or {})
+            self._switch(self.escalate(attempt_number, prior))
         rec = {"attempt": attempt_number, "policy": self.policy,
                "resets": [], "restore": None, "validity": []}
         if self._needs_reset(attempt_number):
@@ -92,12 +103,29 @@ class PreAttempt:
             rec["validity"].append(CACHE_RESET_FAILED)
         if rec["restore"] is not None and rec["restore"].get("ok") is False:
             rec["validity"].append(RESTORE_MISMATCH)
+        if rec["restore"] is not None and rec["restore"].get("not_applicable"):
+            # RB with no completed turn before the suspect turn: executed as
+            # FR plus notice, excluded from RB statistics, never invalid.
+            rec["validity"].append(RB_NOT_APPLICABLE)
         store = dict(getattr(ex, "_raf_prepare", None) or {})
         store[attempt_number] = rec
         ex._raf_prepare = store
         return rec
 
     # ── internals ───────────────────────────────────────────────────
+    def _switch(self, policy: Optional[str]) -> None:
+        """Adopt a new recovery policy for this and later attempts."""
+        if not policy or policy == self.policy:
+            return
+        if policy not in POLICIES or policy == "B0":
+            raise ValueError("unknown escalation policy %r" % policy)
+        self.policy = policy
+        # The adapter reads depth and cache from the context, as at init.
+        ctx = dict(getattr(self.executor, "_raf_context", None) or {})
+        ctx["policy"] = policy[:2]
+        ctx["cache"] = policy[3:]
+        self.executor._raf_context = ctx
+
     def _needs_reset(self, attempt_number: int) -> bool:
         if attempt_number <= 1:
             return True                      # every policy, design 4.2
@@ -127,6 +155,8 @@ class PreAttempt:
         if depth == "FR":
             prov.restore_initial()
             expected = session.initial_hash
+        elif depth == "RB":
+            return self._restore_rollback(session, f, before, t0)
         else:
             k = f["provider_calls"] + 1      # ordinal of the failed tool call
             if prov.env.calls_made >= k:
@@ -137,5 +167,26 @@ class PreAttempt:
                "state_hash_after": after, "expected_hash": expected,
                "ok": after == expected, "ns": time.perf_counter_ns() - t0}
         # The adapter reads this and skips its own in window restore.
+        session.prepared_restore = rec
+        return rec
+
+    def _restore_rollback(self, session: Any, f: Dict[str, Any],
+                          before: str, t0: int) -> Dict[str, Any]:
+        """RB: tool state at the start of suspect turn t_s (spec 2.1)."""
+        prov = session.provider
+        t = int(f["turn"])
+        start = int(f["turn_starts"][t])     # calls made before turn t opened
+        if prov.env.calls_made > start:
+            prov.restore_before(start + 1)   # state before call start + 1
+        # Turns from t on are redone; begin_turn(t) must be legal again.
+        prov.turn_starts = list(f["turn_starts"][:t])
+        after = prov.state_hash()
+        # Check by call count: computing a hash per turn in attempt 1 would
+        # add cost inside every measurement window.
+        ok = len(prov.env.call_log) == start
+        rec = {"depth": "RB", "turn": t, "calls_kept": start,
+               "state_hash_before": before, "state_hash_after": after,
+               "expected_hash": None, "ok": ok, "not_applicable": t == 0,
+               "ns": time.perf_counter_ns() - t0}
         session.prepared_restore = rec
         return rec
