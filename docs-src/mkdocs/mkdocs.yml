@@ -31,6 +31,7 @@ nav:
     - Troubleshooting: getting-started/troubleshooting.md
     - Console output and logging: user-guide/console-output-and-logging.md
     - Sandbox layout and paths: user-guide/sandbox-layout-and-paths.md
+    - Scheduled Profiles: user-guide/scheduled-profiles.md
     - Sandbox and Engine: getting-started/sandbox-and-engine.md
 
   - Concepts:
@@ -57,6 +58,8 @@ nav:
     - Configuration Hierarchy: developer/config-hierarchy.md
     - kperf PMU: developer/kperf-pmu.md
     - Retry Study Design: developer/retry-study.md
+    - Harness Extension Points: developer/harness-extension-points.md
+    - Recovery Data: developer/recovery-data.md
     - Engineering Standards: developer/engineering-standards.md
     - Developer Tools: developer/developer-tools.md
     - Extenstion System : developer/extension-system.md
