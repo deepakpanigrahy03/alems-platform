@@ -302,6 +302,14 @@ class Runner:
         ids = {int(n): (a, r) for a, n, r in self.conn.execute(
             "SELECT attempt_id, " + ATTEMPT_NUMBER_COL + ", run_id FROM goal_attempt "
             "WHERE goal_id=?", (goal_id,)).fetchall()}
+        # R6: an attempt without a run (abandoned, or failed before t0) stores
+        # run_id -1; a snapshot row on it breaks the foreign key and the whole
+        # batch is lost. Only attempts with a real run carry snapshot rows.
+        ids = {n: v for n, v in ids.items() if v[1] is not None and v[1] > 0}
+        # R6: an attempt without a run (abandoned, or failed before t0) stores
+        # run_id -1; a snapshot row on it breaks the foreign key and the whole
+        # batch is lost. Only attempts with a real run carry snapshot rows.
+        ids = {n: v for n, v in ids.items() if v[1] is not None and v[1] > 0}
         rows = []
         for n in sorted(ids):
             vals = (prepare.get(n) or {}).get("cache_metrics")
