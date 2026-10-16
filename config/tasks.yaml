@@ -1649,3 +1649,17 @@ tasks:
       scorer_type: bfcl_state
       expected_source: inline
       answer: "multi_turn_base_194"
+  - id: bfcl_multi_turn_base_20
+    tier: 3
+    category: orchestration
+    name: "BFCL multi turn base 20"
+    description: "BFCL v4 multi turn base 20; RAF R2 E2 (medium)"
+    level: 3
+    tool_calls: 10
+    framework: bfcl_react
+    prompt: "BFCL multi_turn_base_20 (turns supplied by the bfcl provider)"
+    tags: ["bfcl", "raf_r2", "medium"]
+    expectation:
+      scorer_type: bfcl_state
+      expected_source: inline
+      answer: "multi_turn_base_20"
