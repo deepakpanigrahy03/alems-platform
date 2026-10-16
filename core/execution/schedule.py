@@ -13,6 +13,9 @@ instead of the plain repetition loop. The schedule section carries:
                      turn_check}
     tasks:          task id -> {stratum, families [..], targets {family:
                      {point: number | {llm, tool} | {tool_name}}}}
+    tables:         arm -> {"task|cls|point": policy}; an option TABLE@arm
+                     takes its policy per block from this table (RAF R6, E3
+                     token based and oracle arms)
 
 A block is one task x class x point x repetition holding the family options
 in a seeded order. With one repetition the block id is task|cls|point, the
@@ -31,6 +34,21 @@ def parse_option(opt: str) -> Tuple[str, str]:
     """'SR_warm@escalate' -> ('SR_warm', 'escalate'); no arm means fixed."""
     policy, _, arm = opt.partition("@")
     return policy, arm or ARM_FIXED
+
+
+TABLE = "TABLE"
+
+
+def _resolve_table(cfg: Dict[str, Any], task: str, cls: str, point: str,
+                   goal: Dict[str, Any]) -> Dict[str, Any]:
+    """TABLE@arm: the policy of this cell from schedule.tables[arm]; others unchanged."""
+    if goal["policy"] != TABLE:
+        return goal
+    key = "%s|%s|%s" % (task, cls, point)
+    pol = ((cfg.get("tables") or {}).get(goal["arm"]) or {}).get(key)
+    if not pol:
+        raise ValueError("table %r has no policy for %s" % (goal["arm"], key))
+    return dict(goal, policy=pol, table=goal["arm"])
 
 
 def points_of(cfg: Dict[str, Any], task: str, family: str) -> List[str]:
@@ -100,8 +118,9 @@ def build_blocks(cfg: Dict[str, Any],
                     reps = int(spec["points"][point])
                     for rep in range(1, reps + 1):
                         bid = _block_id(task, cls, point, rep, reps)
-                        goals = [_goal(task, fam, cls, phase, point, rep, k,
-                                       tool, opt, spec)
+                        goals = [_resolve_table(cfg, task, cls, point,
+                                                _goal(task, fam, cls, phase, point,
+                                                      rep, k, tool, opt, spec))
                                  for opt in option_order(cfg, bid, spec["options"])]
                         blocks.append({"id": bid, "kind": "block", "task": task,
                                        "family": fam, "goals": goals})

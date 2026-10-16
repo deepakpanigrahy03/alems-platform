@@ -32,6 +32,7 @@ bfcl = "alems_plugin_bfcl.raf_hooks:make_prepare"
 ctrl_beta = "alems_plugin_bfcl.decider.adapter:ctrl_beta"
 ctrl_laya = "alems_plugin_bfcl.decider.adapter:ctrl_laya"
 escalate_stub = "alems_plugin_bfcl.raf_hooks:escalate_stub"
+keep = "alems_plugin_bfcl.raf_hooks:keep"
 
 [project.entry-points."alems.harness.validity"]
 bfcl_raf = "alems_plugin_bfcl.raf_hooks:classify"

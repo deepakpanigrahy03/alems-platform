@@ -24,6 +24,11 @@ def make_prepare(executor: Any, base_url: str, policy: str,
                       metrics=metrics)
 
 
+def keep(attempt: int, executor: Any) -> Optional[str]:
+    """Table arms (R6 E3): keep the policy the schedule assigned; never decides."""
+    return None
+
+
 def escalate_stub(attempt: int, executor: Any) -> Optional[str]:
     """Persistent escalating arm (R2 8.1): keep the policy at attempt 2, escalate at 3."""
     return ESCALATE_POLICY if attempt >= 3 else None
