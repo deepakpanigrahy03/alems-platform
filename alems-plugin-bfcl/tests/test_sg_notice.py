@@ -46,3 +46,11 @@ def test_never_mentions_ground_truth():
     text = build_notice(env, 0, {"kind": "tool", "tool_name": "mkdir"}).lower()
     for word in ("ground truth", "expected", "checker", "correct answer"):
         assert word not in text
+
+
+def test_failed_first_call_still_shows_its_tool_state():
+    env = _env_after_turn0()
+    text = build_notice(env, len(env.call_log), {"kind": "tool", "tool_name": "mkdir"})
+    assert "No tool was called" not in text
+    assert "Current state of the tools involved in this turn" in text
+    assert "mkdir failed and did not take effect" in text

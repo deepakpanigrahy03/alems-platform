@@ -19,14 +19,20 @@ from .env import _canon
 MAX_STATE_CHARS = 6000      # cap on the rendered state; truncation is stated
 
 
-def touched(env: Any, start: int) -> List[str]:
-    """Instance names whose methods were called since the turn opened."""
+def owners(env: Any) -> Dict[str, str]:
+    """Public method name to the name of the instance that owns it."""
     owner = {}
     for name, method in env.method_map().items():
         inst = getattr(method, "__self__", None)
         for cls, obj in env.instances.items():
             if obj is inst:
                 owner[name] = cls
+    return owner
+
+
+def touched(env: Any, start: int) -> List[str]:
+    """Instance names whose methods were called since the turn opened."""
+    owner = owners(env)
     out: List[str] = []
     for call in env.call_log[start:]:
         cls = owner.get(call.split("(", 1)[0])
@@ -56,13 +62,18 @@ def build_notice(env: Any, start: int, failure: Dict[str, Any]) -> str:
         failure: the recorded failure point (kind, tool_name).
     """
     classes = touched(env, start)
+    # The failed call's own instance is always shown: it holds the state the
+    # call would have acted on, also when it was the first call of the turn.
+    failed_owner = owners(env).get(failure.get("tool_name") or "")
+    if failed_owner and failed_owner not in classes:
+        classes.append(failed_owner)
     lines = ["[state] Facts about the tool state right now, read from the environment."]
     if classes:
         blob = json.dumps(public_state(env, classes), sort_keys=True,
                           separators=(",", ":"), default=str)
         if len(blob) > MAX_STATE_CHARS:
             blob = blob[:MAX_STATE_CHARS] + " ... (truncated)"
-        lines.append("Current state of the tools used in this turn: " + blob)
+        lines.append("Current state of the tools involved in this turn: " + blob)
     else:
         lines.append("No tool was called in this turn before the failure.")
     if failure.get("kind") == "tool" and failure.get("tool_name"):
