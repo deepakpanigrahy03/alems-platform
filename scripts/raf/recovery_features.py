@@ -32,7 +32,24 @@ FEATURE_COLS = [
     "attempts", "epg_j", "success_final", "success_a2",
     "data_tag", "smoke", "family", "fired_step", "tools_a1", "baseline_id",
 ]
-CONTAMINATING = {"poison", "wrong_state", "hallucinated_result"}  # E2 classes, extend from ledger
+FIT_KEYS = ("json_parse", "rate_limit", "timeout", "tool_error", "silent_detected")
+DEFAULT_KEY = "_default"
+
+
+def observable_class(plan_cls, record_cls=None) -> str:
+    """Decision class (coordinator Oct 16, binding): what the controller sees.
+
+    Prefer the failure record cls. Otherwise plan cls with 'persistent_'
+    removed. Anything outside FIT_KEYS maps to _default. plan.cls and the
+    persistent label stay analysis columns only.
+    """
+    c = record_cls if record_cls else plan_cls
+    if c is None:
+        return DEFAULT_KEY
+    c = str(c)
+    if c.startswith("persistent_"):
+        c = c[len("persistent_"):]
+    return c if c in FIT_KEYS else DEFAULT_KEY
 
 
 def norm_task(t: str) -> str:
@@ -113,8 +130,11 @@ def load_ledgers(paths: list[str]) -> pd.DataFrame:
             pl, de = r.get("plan", {}), r.get("detail", {})
             a1 = (r.get("attempt_meta") or {}).get("1") or {}
             rows.append(dict(
-                goal_id=r["goal_id"], block=r.get("item_id"),
-                task=norm_task(pl.get("task")), cls=pl.get("cls"),
+                goal_id=r["goal_id"], block=r.get("item_id"), rep=pl.get("rep"),
+                task=norm_task(pl.get("task")),
+                cls=observable_class(pl.get("cls"), a1.get("cls")),
+                plan_cls=pl.get("cls"),
+                persistent=str(pl.get("cls") or "").startswith("persistent_"),
                 point=pl.get("point"), option=pl.get("policy"),
                 family=pl.get("family"), arm=pl.get("arm"),
                 planned_attempts=pl.get("attempts"),
@@ -123,8 +143,13 @@ def load_ledgers(paths: list[str]) -> pd.DataFrame:
                 rb_not_applicable=de.get("rb_not_applicable"),
                 baseline_id=r.get("baseline_id"), study=r.get("study"),
                 rerun=r.get("rerun", 0), valid=not r.get("validity")))
-    led = pd.DataFrame(rows).sort_values(["goal_id", "rerun"])
-    return led.drop_duplicates("goal_id", keep="last")
+    led = pd.DataFrame(rows)
+    # Latest record rule (coordinator Oct 16): per (item_id, policy, rep) the
+    # highest goal_id wins; reruns get new goal_ids and supersede old ones.
+    led = led.sort_values("goal_id").drop_duplicates("goal_id", keep="last")
+    key = ["block", "option", "rep"]
+    led["superseded"] = led.duplicated(key, keep="last")
+    return led[~led.superseded].drop(columns="superseded")
 
 # --------------------------------------------------------------- export
 
@@ -139,6 +164,8 @@ def from_export(goals_csv: str, ledgers: list[str], tag: str) -> pd.DataFrame:
         keep = ["goal_id"] + [c for c in led.columns if c != "goal_id" and c not in g.columns]
         g = g.merge(led[keep], on="goal_id", how="left")
         g = g[g.valid.fillna(True)]
+    rec = g["cls_observed"] if "cls_observed" in g.columns else pd.Series([None] * len(g), index=g.index)
+    g["cls"] = [observable_class(p, r) for p, r in zip(g["cls"], rec)]
     a1 = g[g.attempt == 1].set_index("goal_id")
     a2 = g[g.attempt == 2].set_index("goal_id")
     allatt = g.groupby("goal_id").agg(attempts=("attempt", "max"), epg_j=("e_board_j", "sum"))
@@ -174,11 +201,17 @@ def from_export(goals_csv: str, ledgers: list[str], tag: str) -> pd.DataFrame:
 
 def main(argv=None):
     ap = argparse.ArgumentParser()
-    ap.add_argument("mode", choices=["probe", "pilot", "export"])
+    ap.add_argument("mode", choices=["probe", "pilot", "export", "counts"])
     ap.add_argument("--ledger", action="append", default=[])
     ap.add_argument("--csv"); ap.add_argument("--goals")
     ap.add_argument("--tag", default="e1"); ap.add_argument("--out", default="features.csv")
     a = ap.parse_args(argv)
+    if a.mode == "counts":
+        led = load_ledgers(a.ledger)
+        rec = led[led.option != "B0"]
+        print(rec.groupby(["cls", "option"]).size().unstack(fill_value=0).to_string())
+        print(rec.groupby(["cls", "plan_cls"]).size().to_string())
+        return
     if a.mode == "probe":
         for p in a.ledger:
             probe(p)

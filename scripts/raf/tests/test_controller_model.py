@@ -87,3 +87,27 @@ def test_depth_optimum_clean_vs_poison():
 def test_joules_to_calls_inverse():
     law = cm.EnergyLaw(100, 0, 0)
     assert cm.joules_to_calls(law, [1] * 10, 350) == pytest.approx(3.5)
+
+
+def test_observable_class_keys():
+    from recovery_features import observable_class as oc
+    assert oc("persistent_timeout") == "timeout"
+    assert oc("contaminate_x", "silent_detected") == "silent_detected"
+    assert oc("poison_state") == "_default"
+    assert oc("json_parse") == "json_parse"
+    assert not oc("persistent_tool_error").startswith("persistent_")
+
+
+def test_latest_record_rule(tmp_path):
+    import json
+    from recovery_features import load_ledgers
+    def row(g, item, pol, rep=1):
+        return {"goal_id": g, "item_id": item, "plan": {"task": "bfcl_multi_turn_base_1",
+                "cls": "timeout", "point": "early", "policy": pol, "rep": rep},
+                "detail": {}, "attempt_meta": {"1": {}}, "validity": []}
+    p = tmp_path / "l.jsonl"
+    p.write_text("\n".join(json.dumps(r) for r in [
+        row(512, "a", "SR_warm"), row(513, "a", "FR_warm"),
+        row(2503, "a", "SR_warm"), row(2504, "a", "FR_warm"), row(600, "b", "SR_warm")]))
+    led = load_ledgers([str(p)])
+    assert sorted(led.goal_id) == [600, 2503, 2504]
