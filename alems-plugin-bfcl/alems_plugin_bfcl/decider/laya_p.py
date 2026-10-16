@@ -1,5 +1,5 @@
 """
-laya_p: p from laya-serve (R7), cost from beta_p (R5 6.7, addendum A).
+laya_p: p from laya-serve (R7), cost and sampling stream from beta_p (design v2).
 
 Any problem raises LayaUnavailable; the fail closed wrapper then uses
 beta_p. Text sent per option carries no energy numbers and no task id.
@@ -10,7 +10,7 @@ import json
 import urllib.request
 from typing import Any, Callable, Dict, List, Optional
 
-from .base import ABANDON, Decision, FailureState
+from .base import Decision, FailureState
 from .beta_p import BetaP
 
 TIMEOUT_S = 2.0
@@ -71,11 +71,8 @@ class LayaP:
             raise LayaUnavailable("p out of range")
         return out
 
-    def decide(self, state: FailureState, options: List[str]) -> Decision:
+    def decide(self, state: FailureState, options: List[str],
+               counts: Optional[Dict[str, Any]] = None, seed: int = 0) -> Decision:
         opts = self.base.candidates(state, options)
-        return self.base.decide(state, options, p_override=self._p(state, opts),
-                                name=self.name)
-
-    def update(self, outcome: Any) -> None:
-        # Cost and Beta prior still learn; laya itself is retrained offline.
-        self.base.update(outcome)
+        return self.base.decide(state, options, counts=counts, seed=seed,
+                                p_override=self._p(state, opts), name=self.name)

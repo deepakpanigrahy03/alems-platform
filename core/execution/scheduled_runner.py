@@ -48,23 +48,10 @@ ENGINE = Path(__file__).resolve().parents[2]
 GROUP_PREPARE = "alems.harness.prepare"
 GROUP_DECIDER = "alems.harness.deciders"
 
-
-def _decider_update(conn, decide, goal_id, ex):
-    """
-    RAF R6 outer loop: pass the goal's checker result to the decider.
-
-    execute_goal commits goal_attempt.pass_fail before it returns, so this
-    read sees it. None (needs review, or not scored) teaches nothing.
-    Fixed arms have no decider; deciders without update_from_goal are skipped.
-    """
-    upd = getattr(decide, "update_from_goal", None)
-    if not callable(upd):
-        return None
-    row = conn.execute("SELECT MAX(pass_fail) FROM goal_attempt WHERE goal_id=?",
-                       (goal_id,)).fetchone()
-    passed = None if row is None or row[0] is None else bool(row[0])
-    upd(ex, passed)
-    return passed
+# RAF R6 learning v2: controller history from the store (core module, read
+# queries plus one annotation write after the goal).
+import logging  # noqa: E402
+from core.execution import raf_history  # noqa: E402
 GROUP_VALIDITY = "alems.harness.validity"
 
 
@@ -214,6 +201,9 @@ class Runner:
             retry_on_tool_error=True, retry_on_api_error=True)
         rec = profile.get("recovery") or {}
         self.make_prepare = load_plugin(GROUP_PREPARE, rec.get("prepare", "bfcl"))
+        # RAF R6: recovery.learning.study_id isolates a study's evidence;
+        # absent, decisions belong to the "deploy" population.
+        self.learning = dict(rec.get("learning") or {})
         self.deciders = {arm: load_plugin(GROUP_DECIDER, name)
                          for arm, name in (rec.get("arms") or {}).items()}
         val = profile.get("validity") or {}
@@ -243,6 +233,15 @@ class Runner:
         if g.get("turn_check"):
             ex._raf_context["turn_check"] = True       # per turn state check
         decide = self.deciders.get(g.get("arm"))       # fixed arm: no decider
+        if decide is not None:
+            # RAF R6: population context and a read only history function;
+            # the decider reads it in the pre attempt hook (outside windows).
+            ex._raf_population = {
+                "arm": g.get("arm"),
+                "study_id": self.learning.get("study_id", "deploy"),
+                "study_seed": self.sched["seeds"].get("policy_order")}
+            ex._raf_history = (lambda pop, _c=self.conn:
+                               raf_history.read_history(_c, pop))
         ex.pre_attempt_hook = self.make_prepare(
             ex, self.base_url, g["policy"], reset_path=self.reset_path, decide=decide,
             metrics=vllm_metrics.read)                 # core supplies the reader (INV-14)
@@ -267,8 +266,13 @@ class Runner:
             quality_enabled=True)
         after = vllm_metrics.read(self.base_url)       # after the goal, outside windows
         self._write_cache_snapshots(goal_id, getattr(ex, "_raf_prepare", {}) or {}, after)
-        # RAF R6: outer loop learning from the committed checker result.
-        _decider_update(self.conn, decide, goal_id, ex)
+        # RAF R6: controller decisions become evidence for later goals.
+        if decide is not None:
+            w, s = raf_history.write_decisions(
+                self.db, self.conn, goal_id, getattr(ex, "_raf_decisions", None) or {})
+            if s:
+                logging.getLogger(__name__).warning(
+                    "raf: goal %s: %d decisions without anchor span (undercount)", goal_id, s)
         return {"goal_id": goal_id, "goal_key": key, "wall_s": time.time() - t0,
                 "cache_metrics_after": after,
                 "baseline_runs": self.baseline_used(goal_id),
