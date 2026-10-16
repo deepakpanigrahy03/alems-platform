@@ -42,18 +42,23 @@ def schedule_from(cfg: dict) -> dict:
     return out
 
 
-def profile_from(cfg: dict, name: str, goal: str, provider: str, model: str) -> dict:
+def profile_from(cfg: dict, name: str, goal: str, provider: str, model: str,
+                 arms: dict = None, study_id: str = "") -> dict:
     val = dict(cfg.get("validity") or {})
     val["classifier"] = "bfcl_raf"
     base = dict(cfg.get("baseline") or {})
     base["remeasure"] = True
+    # R6: controller arms join the escalate arm; study_id isolates learning.
+    recovery = {"prepare": "bfcl", "arms": dict({"escalate": "escalate_stub"}, **(arms or {}))}
+    if study_id:
+        recovery["learning"] = {"study_id": study_id}
     return {
         "study": {"name": name, "experiment_type": "failure_injection",
                   "experiment_goal": goal, "workflow_modes": ["agentic"]},
         "providers": [{"name": provider, "model_id": model}],
         "execution": {"save_db": True},
         "quality": {"enabled": True},
-        "recovery": {"prepare": "bfcl", "arms": {"escalate": "escalate_stub"}},
+        "recovery": recovery,
         "schedule": schedule_from(cfg),
         "isolation": cfg["isolation"],
         "validity": val,
@@ -76,7 +81,16 @@ def main() -> int:
     ap.add_argument("--tasks", default="", help="keep only these tasks (ids with or without bfcl_)")
     ap.add_argument("--classes", default="", help="pilot form: keep only these classes")
     ap.add_argument("--points", default="", help="pilot form: keep only these points")
+    ap.add_argument("--arm", action="append", default=[],
+                    help="arm=decider entry point, repeatable (R6: ctrl=ctrl_beta)")
+    ap.add_argument("--study-id", default="", help="recovery.learning.study_id (R6)")
     a = ap.parse_args()
+    arms = {}
+    for spec in a.arm:
+        arm, _, dec = spec.partition("=")
+        if not arm or not dec:
+            sys.exit("--arm needs name=decider, got %r" % spec)
+        arms[arm] = dec
     with open(a.config) as fh:
         cfg = yaml.safe_load(fh)
     # Overrides for follow up studies on the same cells (E1b: other options, no B0).
@@ -108,7 +122,8 @@ def main() -> int:
                 tasks[t] = dict(v, families=fams,
                                 targets={f: x for f, x in v["targets"].items() if f in keep})
         cfg["tasks"] = tasks
-    prof = profile_from(cfg, a.name, a.goal or "RAF %s" % a.name, a.provider, a.model)
+    prof = profile_from(cfg, a.name, a.goal or "RAF %s" % a.name, a.provider, a.model,
+                        arms=arms, study_id=a.study_id)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w") as fh:
         fh.write(HEADER % (a.config, os.path.basename(a.out)))

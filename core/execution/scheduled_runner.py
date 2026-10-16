@@ -52,6 +52,21 @@ GROUP_DECIDER = "alems.harness.deciders"
 # queries plus one annotation write after the goal).
 import logging  # noqa: E402
 from core.execution import raf_history  # noqa: E402
+
+
+def check_arms(profile, deciders):
+    """
+    RAF R6 guard: every arm a schedule option names (policy@arm) must map to a
+    decider in recovery.arms. A missing arm would otherwise run silently as a
+    fixed arm with no controller decisions. Raises SystemExit before any goal.
+    """
+    from core.execution import schedule as _sch
+    fams = ((profile.get("schedule") or {}).get("families") or {}).values()
+    named = {_sch.parse_option(o)[1] for f in fams for o in (f.get("options") or [])}
+    missing = sorted(named - set(deciders) - {_sch.ARM_FIXED})
+    if missing:
+        raise SystemExit("profile names arms without a decider in recovery.arms: %s"
+                         % ", ".join(missing))
 GROUP_VALIDITY = "alems.harness.validity"
 
 
@@ -206,6 +221,7 @@ class Runner:
         self.learning = dict(rec.get("learning") or {})
         self.deciders = {arm: load_plugin(GROUP_DECIDER, name)
                          for arm, name in (rec.get("arms") or {}).items()}
+        check_arms(profile, self.deciders)         # RAF R6: no silent fixed arms
         val = profile.get("validity") or {}
         self.classify = load_plugin(GROUP_VALIDITY, val.get("classifier", "bfcl_raf"))
         self.exp_ids: Dict[str, int] = {}
