@@ -17,6 +17,7 @@ Task names normalized (strip `bfcl_`).
 | last_prompt_tokens | prompt tokens of the last model call of the attempt |
 | tok_billed, tok_uncached | summed over the attempt |
 | pass_fail | output_quality.pass_fail of this attempt (judge bfcl_state) |
+| cls_observed | cls of the failure record of this attempt (what the controller sees; silent_detected for contaminating failures) |
 
 ## calls.csv: one row per model call (fits e(c))
 
