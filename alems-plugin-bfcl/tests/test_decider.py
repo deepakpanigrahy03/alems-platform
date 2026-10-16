@@ -1,4 +1,4 @@
-"""R6 decider tests (design v2): no GPU, no store, no network (laya is a fake)."""
+"""R6 decider tests (R5 predict.py layout, observable class): no GPU, store or network."""
 
 import time
 from types import SimpleNamespace
@@ -6,22 +6,25 @@ from types import SimpleNamespace
 import pytest
 
 from alems_plugin_bfcl.decider.adapter import ControllerEntry, decision_seed
-from alems_plugin_bfcl.decider.base import ABANDON, OPTIONS, FailureState, check_state_dict
+from alems_plugin_bfcl.decider.base import (ABANDON, OPTIONS, FailureState,
+                                            check_state_dict, observable_class)
 from alems_plugin_bfcl.decider.beta_p import BetaP
 from alems_plugin_bfcl.decider.failclosed import FailClosed
 from alems_plugin_bfcl.decider.laya_p import LayaP
+from alems_plugin_bfcl.decider.state import build_state
 
 K = 1000.0          # strong priors: samples sit near the mean, choices are stable
 
 
-def params(**over):
-    cls = {o: {"alpha": 5 * K, "beta": 5 * K, "e2_a": {"value": 10.0}, "e2_b": {"value": 1.0}}
-           for o in OPTIONS if o != ABANDON}
-    cls["SR_warm"].update(alpha=9 * K, beta=1 * K)
-    p = {"params_version": "t1", "data_tag": "d1", "classes": {"timeout": cls},
-         "x_star_calls": {"value": 3.0}, "budget": {"value_j": 1000.0}}
-    p.update(over)
-    return p
+def params(x_star=3.0, budget=1000.0, **opt_over):
+    opts = {o: {"alpha": 5 * K, "beta": 5 * K, "e2_a": 10.0, "e2_b": 1.0}
+            for o in OPTIONS if o != ABANDON}
+    opts["SR_warm"].update(alpha=9 * K, beta=1 * K)
+    for o, upd in opt_over.items():
+        opts[o].update(upd)
+    return {"params_version": "t1", "data_tag": "d1",
+            "classes": {"timeout": {"_x_star_calls": x_star, "_budget_j": budget,
+                                    "options": opts}}}
 
 
 def state(**kw):
@@ -42,8 +45,7 @@ def test_below_x_star_restart_only():
 
 
 def test_failed_option_dropped_when_next_rung_better():
-    p = params()
-    p["classes"]["timeout"]["SR_warm"]["p_repeat_after_fail"] = 0.1
+    p = params(SR_warm={"p_repeat_after_fail": 0.1})
     d = BetaP(p).decide(state(previous_options=("SR_warm",)), list(OPTIONS), seed=1)
     assert d.option != "SR_warm"
     assert all(s.option != "SR_warm" for s in d.scores)
@@ -54,14 +56,32 @@ def test_failed_option_repeated_when_still_best():
     assert d.option == "SR_warm"
 
 
-def test_abandon_over_budget():
-    d = BetaP(params(budget={"value_j": 1.0})).decide(state(), list(OPTIONS), seed=1)
+def test_abandon_over_class_budget():
+    d = BetaP(params(budget=1.0)).decide(state(), list(OPTIONS), seed=1)
     assert d.option == ABANDON
+
+
+def test_energy_from_r5_predict_with_tokens():
+    p = params(SR_warm={"e2_g": 0.1})
+    b = BetaP(p)
+    assert b.energy(state(), "SR_warm") == pytest.approx(10.0 + 5 + 0.1 * 100)
+    assert b.energy(state(), "FR_warm") == pytest.approx(15.0)
+
+
+def test_unfitted_class_uses_default():
+    p = params()
+    p["classes"]["_default"] = {"_budget_j": 1000.0,
+                                "options": {"FR_cold": {"alpha": 1.0, "beta": 1.0,
+                                                        "e2_a": 3.0, "e2_b": 0.0}}}
+    b = BetaP(p)
+    s = state(failure_class="silent_detected")
+    assert b.energy(s, "FR_cold") == pytest.approx(3.0)
+    assert b.energy(s, "SR_warm") is None
 
 
 def test_seeded_sampling_reproducible():
     weak = params()
-    for v in weak["classes"]["timeout"].values():
+    for v in weak["classes"]["timeout"]["options"].values():
         v.update(alpha=2.0, beta=2.0)
     b = BetaP(weak)
     a1 = [s.p for s in b.decide(state(), list(OPTIONS), seed=7).scores]
@@ -84,9 +104,30 @@ def test_inner_loop_lowers_posterior():
 
 
 def test_forbidden_inputs_rejected():
-    for k in ("task_id", "occupancy_fraction", "pass_fail", "early"):
+    for k in ("task_id", "occupancy_fraction", "pass_fail", "early", "plan_cls"):
         with pytest.raises(ValueError):
             check_state_dict({k: 1})
+
+
+def test_observable_class_strips_persistent():
+    assert observable_class("persistent_timeout") == "timeout"
+    assert observable_class("silent_detected") == "silent_detected"
+    assert observable_class("tool_error") == "tool_error"
+
+
+@pytest.mark.parametrize("bad", ["persistent_timeout", "silent_tool_output", "wrong_model_step"])
+def test_plan_only_class_refused(bad):
+    with pytest.raises(ValueError):
+        state(failure_class=bad)
+
+
+def test_builder_never_passes_plan_label():
+    sess = SimpleNamespace(failure={"cls": "persistent_tool_error", "kind": "tool",
+                                    "llm_ordinal": 4, "tool_ordinal": 3},
+                           calls=[{"prompt_tokens": 80, "cached_tokens": 40}])
+    s = build_state(SimpleNamespace(_bfcl_session=sess), 2, ())
+    assert s.failure_class == "tool_error"
+    assert s.calls_done == 7 and s.model_calls_done == 4
 
 
 def _laya(resp=None, sleep=0.0, exc=None):
@@ -137,7 +178,8 @@ def test_hung_call_does_not_block_next_decision():
 
 def _ex(hist_calls):
     sess = SimpleNamespace(failure={"cls": "default", "kind": "llm", "turn": 1,
-                                    "turn_starts": [0, 2], "llm_ordinal": 4},
+                                    "turn_starts": [0, 2], "llm_ordinal": 4,
+                                    "tool_ordinal": 2},
                            calls=[{"prompt_tokens": 80, "cached_tokens": 40}])
 
     def hist(pop):
@@ -163,7 +205,7 @@ def test_adapter_records_population_seed_counts(monkeypatch):
     assert rec["seed"] == decision_seed(99, "g1", 2)
     assert rec["counts"] == {"default|FR_cold": [3, 1]} and rec["cut_id"] == 42
     assert all(s["p"] is not None for s in rec["scores"])
-    assert rec["failure_class"] == "default" and rec["calls_done"] == 4
+    assert rec["failure_class"] == "default" and rec["calls_done"] == 6
 
 
 def test_history_read_once_per_goal(monkeypatch):

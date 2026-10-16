@@ -1,10 +1,16 @@
 """
-beta_p: Beta posterior per (failure class, option), Thompson sampled (design v2).
+beta_p: Beta posterior per (observable class, option), Thompson sampled.
 
-posterior = R5 prior + counts read from the store (raf_history) + failures of
-the option earlier in this goal. One seeded sample per option in fixed order;
-J(o) = E_pred(o) / p(o). Escalation (R5 6.3), the x* gate (R5 6.8) and the
-abandon budget (R5 2.2) operate on the sampled p.
+Numbers come from R5's predict.py (one source of truth): predicted energy,
+the option prior (alpha, beta, p_repeat_after_fail with the _default
+fallback), x* and the class budget. beta_p adds what only the online
+controller has: per population counts from the store, the inner loop,
+escalation (R5 6.3), the x* gate (R5 6.8), the abandon budget (R5 2.2)
+and the Laya override.
+
+    alpha = prior alpha + successes      beta = prior beta + failures + failures in this goal
+    p ~ Beta(alpha, beta), one seeded sample per option in fixed order
+    J = predict_energy / p
 
 Pure Python, no store, no network: counts arrive as an argument.
 """
@@ -13,6 +19,7 @@ import json
 import random
 from typing import Any, Dict, List, Optional, Tuple
 
+from . import predict as R5
 from .base import (ABANDON, Decision, FailureState, OptionScore, ladder_rung)
 
 PRIOR = (1.0, 1.0)                    # one success in two trials (R5 2.2)
@@ -23,21 +30,33 @@ class BetaP:
 
     def __init__(self, params: Dict[str, Any]) -> None:
         self.params = params
-        self.version = str(params.get("params_version", "stub"))
-        self.data_tag = str(params.get("data_tag", "none"))
+        prov = params.get("provenance") or {}
+        self.version = str(params.get("params_version") or prov.get("sha256") or "stub")
+        self.data_tag = str(params.get("data_tag") or prov.get("data_tag") or "none")
 
     @classmethod
     def from_file(cls, path: str) -> "BetaP":
         with open(path) as fh:
             return cls(json.load(fh))
 
-    # ── model pieces ────────────────────────────────────────────────
-    def _opt_params(self, cls: str, opt: str) -> Dict[str, Any]:
-        return ((self.params.get("classes") or {}).get(cls) or {}).get(opt) or {}
+    # ── model pieces (numbers from R5) ──────────────────────────────
+    def _opt(self, cls: str, opt: str) -> Dict[str, Any]:
+        prior = getattr(R5, "prior", None)            # public once R5 adds it
+        o = prior(self.params, cls, opt) if callable(prior) else R5._opt(self.params, cls, opt)
+        return o or {}
+
+    def _budget(self, cls: str) -> Optional[float]:
+        b = getattr(R5, "budget_j", None)
+        if callable(b):
+            return b(self.params, cls)
+        return R5._cls(self.params, cls).get("_budget_j")
+
+    def x_star(self, cls: str) -> Optional[float]:
+        return R5._cls(self.params, cls).get("_x_star_calls")
 
     def posterior(self, state: FailureState, opt: str,
                   counts: Dict[str, Any]) -> Tuple[float, float]:
-        op = self._opt_params(state.failure_class, opt)
+        op = self._opt(state.failure_class, opt)
         a0 = float(op.get("alpha", PRIOR[0]))
         b0 = float(op.get("beta", PRIOR[1]))
         s, f = (counts or {}).get("%s|%s" % (state.failure_class, opt), (0, 0))
@@ -45,17 +64,14 @@ class BetaP:
         return a0 + s, b0 + f + state.previous_options.count(opt)
 
     def energy(self, state: FailureState, opt: str) -> Optional[float]:
-        op = self._opt_params(state.failure_class, opt)
-        ea, eb = op.get("e2_a"), op.get("e2_b")
-        if ea is None or eb is None:
-            return None
-        return float(ea["value"]) + float(eb["value"]) * state.calls_done
+        return R5.predict_energy(self.params, state.failure_class, opt, state.calls_done,
+                                 state.tokens_context, state.tokens_cached,
+                                 attempt=state.attempt)
 
     # ── Decider ─────────────────────────────────────────────────────
     def candidates(self, state: FailureState, options: List[str]) -> List[str]:
         opts = sorted(o for o in options if o != ABANDON)   # fixed sampling order
-        x = (self.params.get("x_star_calls") or {}).get("value")
-        if x is not None and state.calls_done < float(x):
+        if R5.restart_below_threshold(self.params, state.failure_class, state.calls_done):
             # Below x*, restart beats resume (R5 6.8): restart options only.
             opts = [o for o in opts if o.startswith("FR_")] or opts
         return opts
@@ -66,7 +82,7 @@ class BetaP:
         sample = rng.betavariate(a, b)   # drawn for every option: stream stays aligned
         if p_override is not None and o in p_override:
             return float(p_override[o])
-        rep = self._opt_params(state.failure_class, o).get("p_repeat_after_fail")
+        rep = self._opt(state.failure_class, o).get("p_repeat_after_fail")
         if rep is not None and o in state.previous_options:
             return float(rep)            # R5 6.6 item 3
         return sample
@@ -84,16 +100,16 @@ class BetaP:
             scores.append(OptionScore(option=o, p=p, j_pred=j, e_pred=e))
         scores = self._escalate(state, scores)
         best = self._pick(scores)
-        budget = (self.params.get("budget") or {}).get("value_j")
+        budget = self._budget(state.failure_class)
+        # Abandon only through the budget (R5): never because a fit is missing.
         if (ABANDON in options and budget is not None and best.j_pred is not None
                 and best.j_pred > float(budget)):
             best_opt = ABANDON
         else:
             best_opt = best.option
-        x = (self.params.get("x_star_calls") or {}).get("value")
         return Decision(option=best_opt, decider=name or self.name,
                         params_version=self.version, scores=tuple(scores),
-                        x_star_calls=x)
+                        x_star_calls=self.x_star(state.failure_class))
 
     def _escalate(self, state: FailureState,
                   scores: List[OptionScore]) -> List[OptionScore]:

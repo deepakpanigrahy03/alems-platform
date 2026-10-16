@@ -2,14 +2,15 @@
 Build a FailureState from the executor at the decision point.
 
 Only named fields are copied (addendum D3): the executor itself, the task,
-the goal key and the checker result never reach a decider. Field names of
-the BFCL session are read defensively; a missing field yields None and is
-visible in the decision record rather than raising inside the hook.
+the goal key, the checker result and plan only labels never reach a
+decider. The class is the observable class (persistent prefix removed,
+coordinator Oct 16); work done is model plus tool calls, the x* unit (R5).
 """
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from .base import (WORK_SOURCE_CALLS, FailureState, check_state_dict)
+from .base import (WORK_SOURCE_CALLS, FailureState, check_state_dict,
+                   observable_class)
 
 
 def _int(v: Any, default: int = 0) -> int:
@@ -32,13 +33,14 @@ def build_raw(executor: Any, attempt: int,
     calls = list(getattr(s, "calls", None) or [])
     last = _last_call(calls)
     starts = tuple(_int(x) for x in (f.get("turn_starts") or ()))
+    model = _int(f.get("llm_ordinal"), len(calls))
+    tools = _int(f.get("tool_ordinal"), 0)
     return {
-        # cls is the failure class; kind is only where it happened (llm, tool).
-        "failure_class": str(f.get("cls") or "unknown"),
+        "failure_class": observable_class(f.get("cls")),
         "attempt": attempt,
-        # Calls done is the work measure (x* in calls is primary, R5 D5):
-        # llm_ordinal at the failure point, else the session's call list.
-        "calls_done": _int(f.get("llm_ordinal"), len(calls)),
+        # Total calls before the failure, the unit of x* and predict_energy (R5).
+        "calls_done": model + tools,
+        "model_calls_done": model,
         "tokens_context": last.get("prompt_tokens"),
         "tokens_cached": last.get("cached_tokens"),
         # Attempt 1 joules live only in execute_goal's local state (verified
@@ -66,4 +68,4 @@ def build_state(executor: Any, attempt: int,
                 previous: Tuple[str, ...]) -> FailureState:
     raw = build_raw(executor, attempt, previous)
     check_state_dict(raw)              # D3 and D5 guard, cheap
-    return FailureState(**raw)
+    return FailureState(**raw)         # raises on a plan only class

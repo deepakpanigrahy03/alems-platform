@@ -1,70 +1,72 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "alems/raf/controller_params/1.0.0",
-  "title": "RAF controller parameters (R5 output, R6 input)",
+  "$id": "alems/raf/controller_params/1.1.0",
+  "title": "RAF controller parameters (R5 output, R6 input); layout agreed R5 and R6, Oct 16",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["schema_version", "params_version", "data_tag", "platform", "model",
-               "work_unit", "energy_law", "classes", "x_star_calls", "budget"],
+  "additionalProperties": true,
+  "required": ["classes"],
   "properties": {
-    "schema_version": {"const": "1.0.0"},
+    "schema_version": {"type": "string"},
     "params_version": {"type": "string"},
-    "data_tag": {"type": "string", "description": "git tag of the data freeze the fit came from"},
+    "data_tag": {"type": "string"},
     "platform": {"type": "string"},
     "model": {"type": "string"},
-    "work_unit": {"enum": ["calls", "joules"]},
+    "work_unit": {"const": "calls", "description": "model plus tool calls before the failure"},
+    "provenance": {
+      "type": "object",
+      "properties": {"data_tag": {"type": "string"}, "git": {"type": "string"},
+                     "sha256": {"type": "string"}}
+    },
     "energy_law": {
-      "type": "object", "additionalProperties": false,
-      "required": ["a", "b", "d"],
-      "description": "e(c) = a + b c + d c^2 per call, c = context tokens, joules",
-      "properties": {
-        "a": {"$ref": "#/$defs/est"}, "b": {"$ref": "#/$defs/est"}, "d": {"$ref": "#/$defs/est"},
-        "n_calls": {"type": "integer", "minimum": 0}
-      }
+      "type": "object",
+      "description": "e(c) = a + b c + d c^2 per call; analysis only, not used at decision time",
+      "properties": {"a": {"type": "number"}, "b": {"type": "number"},
+                     "d": {"type": "number"}, "ci": {"type": "object"}}
     },
     "overhead": {
-      "type": "object", "additionalProperties": false,
-      "description": "O(context, attempt) from persistent cells (R5 6.2)",
-      "properties": {
-        "per_attempt_j": {"$ref": "#/$defs/est"},
-        "per_token_j": {"$ref": "#/$defs/est"}
-      }
+      "type": ["object", "null"],
+      "description": "added to E2 for attempt > 2 (R5 6.2); null until E2",
+      "properties": {"o0": {"type": "number"}, "o1": {"type": "number"},
+                     "o2": {"type": "number"}}
     },
+    "prior_scale": {"type": "number", "description": "cap on alpha + beta of the prior (R5: 12)"},
     "classes": {
       "type": "object",
-      "description": "failure class to option to parameters",
-      "additionalProperties": {
-        "type": "object",
-        "propertyNames": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
-        "additionalProperties": {
-          "type": "object", "additionalProperties": false,
-          "required": ["alpha", "beta"],
-          "properties": {
-            "alpha": {"type": "number", "exclusiveMinimum": 0},
-            "beta": {"type": "number", "exclusiveMinimum": 0},
-            "e2_a": {"$ref": "#/$defs/est"},
-            "e2_b": {"$ref": "#/$defs/est"},
-            "p_repeat_after_fail": {"type": "number", "minimum": 0, "maximum": 1},
-            "n": {"type": "integer", "minimum": 0}
-          }
-        }
-      }
-    },
-    "x_star_calls": {
-      "type": "object", "additionalProperties": false, "required": ["value"],
-      "description": "restart below this many calls done (R5 6.8)",
-      "properties": {"value": {"type": "number"}, "lo": {"type": "number"}, "hi": {"type": "number"}}
-    },
-    "budget": {
-      "type": "object", "additionalProperties": false, "required": ["value_j"],
-      "description": "abandon when best expected cost exceeds this (R5 2.2)",
-      "properties": {"value_j": {"type": "number", "exclusiveMinimum": 0}, "rule": {"type": "string"}}
+      "description": "observable class (failure record cls, persistent_ removed) or _default",
+      "propertyNames": {"not": {"pattern": "^persistent_|^silent_tool_output$|^wrong_model_step$"}},
+      "additionalProperties": {"$ref": "#/$defs/class"}
     }
   },
   "$defs": {
-    "est": {
-      "type": "object", "additionalProperties": false, "required": ["value"],
-      "properties": {"value": {"type": "number"}, "lo": {"type": "number"}, "hi": {"type": "number"}}
+    "class": {
+      "type": "object",
+      "properties": {
+        "_x_star_calls": {"type": ["number", "null"]},
+        "_x_star_calls_ci": {"type": ["array", "object", "null"]},
+        "_x_star_calls_model": {"type": ["number", "null"]},
+        "_x_star_joules": {"type": ["number", "null"]},
+        "_budget_j": {"type": ["number", "null"], "description": "joules per achieved goal"},
+        "options": {
+          "type": "object",
+          "propertyNames": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
+          "additionalProperties": {"$ref": "#/$defs/option"}
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "required": ["alpha", "beta"],
+      "properties": {
+        "alpha": {"type": "number", "exclusiveMinimum": 0},
+        "beta": {"type": "number", "exclusiveMinimum": 0},
+        "alpha_raw": {"type": "number"},
+        "beta_raw": {"type": "number"},
+        "e2_a": {"type": ["number", "null"]},
+        "e2_b": {"type": ["number", "null"]},
+        "e2_g": {"type": ["number", "null"]},
+        "e2_h": {"type": ["number", "null"]},
+        "p_repeat_after_fail": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      }
     }
   }
 }
