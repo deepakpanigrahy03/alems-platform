@@ -69,9 +69,20 @@ def main() -> int:
     ap.add_argument("--provider", required=True)
     ap.add_argument("--model", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--options", default="", help="comma list replacing the config's policies")
+    ap.add_argument("--b0", type=int, default=None, help="B0 repetitions per task (0: none)")
+    ap.add_argument("--seeds", default="", help="block_order,policy_order replacing the config's")
     a = ap.parse_args()
     with open(a.config) as fh:
         cfg = yaml.safe_load(fh)
+    # Overrides for follow up studies on the same cells (E1b: other options, no B0).
+    if a.options:
+        cfg["policies"] = [o for o in a.options.split(",") if o]
+    if a.b0 is not None:
+        cfg["b0_repetitions"] = a.b0
+    if a.seeds:
+        bo, po = (int(x) for x in a.seeds.split(","))
+        cfg["seeds"] = dict(cfg["seeds"], block_order=bo, policy_order=po)
     prof = profile_from(cfg, a.name, a.goal or "RAF %s" % a.name, a.provider, a.model)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w") as fh:
