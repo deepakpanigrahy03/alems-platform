@@ -81,8 +81,14 @@ class ControllerEntry:
         pop = self.population(ex)
         hist = self._history(ex, pop)
         ctx = getattr(ex, "_raf_population", None) or {}
-        goal_key = (getattr(ex, "_raf_context", None) or {}).get("goal_key")
-        seed = decision_seed(ctx.get("study_seed"), goal_key, attempt)
+        # Reproducible across reruns: the fixed goal identity plus arm; the
+        # goal key (random suffix) is only a fallback outside the runner.
+        key = ctx.get("seed_key")
+        if key:
+            key = "%s|%s" % (key, ctx.get("arm"))
+        else:
+            key = (getattr(ex, "_raf_context", None) or {}).get("goal_key")
+        seed = decision_seed(ctx.get("study_seed"), key, attempt)
         d = self._decider().decide(state, list(OPTIONS), counts=hist["counts"], seed=seed)
         # Population fields win over the Decision's own decider name; the
         # decider actually used (fallback or not) stays in decider_used.

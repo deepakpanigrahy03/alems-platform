@@ -258,7 +258,11 @@ class Runner:
             ex._raf_population = {
                 "arm": g.get("arm"),
                 "study_id": self.learning.get("study_id", "deploy"),
-                "study_seed": self.sched["seeds"].get("policy_order")}
+                "study_seed": self.sched["seeds"].get("policy_order"),
+                # Fixed goal identity for the Thompson seed (the goal key has a
+                # random suffix); seeds the generator only, never a decision input.
+                "seed_key": "%s|%s|%s|%s" % (g.get("task"), g.get("cls"),
+                                             g.get("point"), g.get("rep", 1))}
             ex._raf_history = (lambda pop, _c=self.conn:
                                raf_history.read_history(_c, pop))
         ex.pre_attempt_hook = self.make_prepare(

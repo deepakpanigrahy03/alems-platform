@@ -208,6 +208,18 @@ def test_adapter_records_population_seed_counts(monkeypatch):
     assert rec["failure_class"] == "default" and rec["calls_done"] == 6
 
 
+def test_seed_from_fixed_goal_identity(monkeypatch):
+    monkeypatch.delenv("ALEMS_RAF_CTRL_PARAMS", raising=False)
+    seeds = []
+    for goal_key in ("g1_aaaa", "g1_bbbb"):          # same goal, new random suffix
+        ex = _ex([])
+        ex._raf_context = {"goal_key": goal_key}
+        ex._raf_population = dict(ex._raf_population, seed_key="bfcl_t|timeout|late|1")
+        ControllerEntry("beta")(2, ex)
+        seeds.append(ex._raf_decision_detail[2]["seed"])
+    assert seeds[0] == seeds[1] == decision_seed(99, "bfcl_t|timeout|late|1|ctrl", 2)
+
+
 def test_history_read_once_per_goal(monkeypatch):
     monkeypatch.delenv("ALEMS_RAF_CTRL_PARAMS", raising=False)
     seen = []
