@@ -30,7 +30,7 @@ FEATURE_COLS = [
     "L_calls_total", "L_calls_model", "L_joules",
     "E2_j", "tok2_billed", "tok2_uncached",
     "attempts", "epg_j", "success_final", "success_a2",
-    "data_tag", "smoke",
+    "data_tag", "smoke", "family", "fired_step", "tools_a1", "baseline_id",
 ]
 CONTAMINATING = {"poison", "wrong_state", "hallucinated_result"}  # E2 classes, extend from ledger
 
@@ -92,9 +92,39 @@ def from_pilot(csv: str) -> pd.DataFrame:
         "attempts": 2, "epg_j": r.e_node_dyn_j,
         "success_final": r.success, "success_a2": r.success,
         "data_tag": "pilot_smoke", "smoke": 1,
+        "family": "clean", "fired_step": np.nan, "tools_a1": np.nan, "baseline_id": None,
     })
     out["depth"], out["cache"] = zip(*out.option.map(split_option))
     return out[FEATURE_COLS]
+
+# --------------------------------------------------------------- ledger
+
+def load_ledgers(paths: list[str]) -> pd.DataFrame:
+    """One row per goal from raf_e*_run_ledger.jsonl (schema seen Oct 16).
+
+    fired_step: step of attempt 1 at which the failure fired (work done proxy
+    until the export gives calls_total). tools_a1: tool calls of attempt 1.
+    Reruns: the last row per goal_id wins. valid: empty validity list.
+    """
+    rows = []
+    for p in paths:
+        for line in open(p):
+            r = json.loads(line)
+            pl, de = r.get("plan", {}), r.get("detail", {})
+            a1 = (r.get("attempt_meta") or {}).get("1") or {}
+            rows.append(dict(
+                goal_id=r["goal_id"], block=r.get("item_id"),
+                task=norm_task(pl.get("task")), cls=pl.get("cls"),
+                point=pl.get("point"), option=pl.get("policy"),
+                family=pl.get("family"), arm=pl.get("arm"),
+                planned_attempts=pl.get("attempts"),
+                fired_step=de.get("fired_step"), fired_phase=de.get("fired_phase"),
+                tools_a1=len(a1.get("tools") or []),
+                rb_not_applicable=de.get("rb_not_applicable"),
+                baseline_id=r.get("baseline_id"), study=r.get("study"),
+                rerun=r.get("rerun", 0), valid=not r.get("validity")))
+    led = pd.DataFrame(rows).sort_values(["goal_id", "rerun"])
+    return led.drop_duplicates("goal_id", keep="last")
 
 # --------------------------------------------------------------- export
 
@@ -105,12 +135,10 @@ def from_export(goals_csv: str, ledgers: list[str], tag: str) -> pd.DataFrame:
     g = pd.read_csv(goals_csv)
     g["task"] = g["task"].map(norm_task)
     if ledgers:
-        led = pd.concat([pd.json_normalize([json.loads(x) for x in open(p)])
-                         for p in ledgers], ignore_index=True)
-        led = led.rename(columns=lambda c: c.split(".")[-1])
-        keep = [c for c in ["goal_id", "cls", "point", "option", "fail_call_index"]
-                if c == "goal_id" or (c in led.columns and c not in g.columns)]
-        g = g.merge(led[keep].drop_duplicates("goal_id"), on="goal_id", how="left")
+        led = load_ledgers(ledgers)
+        keep = ["goal_id"] + [c for c in led.columns if c != "goal_id" and c not in g.columns]
+        g = g.merge(led[keep], on="goal_id", how="left")
+        g = g[g.valid.fillna(True)]
     a1 = g[g.attempt == 1].set_index("goal_id")
     a2 = g[g.attempt == 2].set_index("goal_id")
     allatt = g.groupby("goal_id").agg(attempts=("attempt", "max"), epg_j=("e_board_j", "sum"))
@@ -136,6 +164,8 @@ def from_export(goals_csv: str, ledgers: list[str], tag: str) -> pd.DataFrame:
         "success_final": final.loc[ids, "pass_fail"].values,
         "success_a2": a2.loc[ids, "pass_fail"].values,
         "data_tag": tag, "smoke": 0,
+        **{c: a1.loc[ids, c].values if c in a1.columns else np.nan
+           for c in ["family", "fired_step", "tools_a1", "baseline_id"]},
     })
     out = out.join(b0, on="task")
     out["depth"], out["cache"] = zip(*out.option.map(split_option))
