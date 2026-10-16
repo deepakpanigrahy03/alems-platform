@@ -354,6 +354,7 @@ def run_item(r: Runner, item: Dict[str, Any], ledger: str, common: Dict[str, Any
                    "family": g.get("family"), "arm": g.get("arm"),
                    "attempt_meta": res["attempt_meta"], "decisions": res["decisions"],
                    "cache_metrics_after": res["cache_metrics_after"],
+                   "baseline_runs": res["baseline_runs"],
                    "prepare": res["prepare"], "wall_s": round(res["wall_s"], 2)}
             rec.update(common)
             _append(ledger, rec)
