@@ -323,6 +323,34 @@ def smoke_queue(queue: List[Dict[str, Any]], tasks: Dict[str, Any]) -> List[Dict
     return out
 
 
+def select_items(queue: List[Dict[str, Any]], path: str) -> List[Dict[str, Any]]:
+    """
+    Queue items named in a file, one per line: item id, optionally a tab and
+    one policy (then only that goal of the block runs). Lines starting with
+    # are comments. Every named item must exist in the queue.
+    """
+    want: Dict[str, set] = {}
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            item, _, pol = line.partition("\t")
+            want.setdefault(item, set())
+            if pol:
+                want[item].add(pol)
+    out = []
+    for it in queue:
+        if it["id"] in want:
+            pols = want[it["id"]]
+            goals = [g for g in it["goals"] if not pols or g["policy"] in pols]
+            out.append(dict(it, goals=goals))
+    missing = set(want) - {i["id"] for i in out}
+    if missing:
+        raise SystemExit("items not in the queue: %s" % sorted(missing))
+    return out
+
+
 def _append(path: str, rec: Dict[str, Any]) -> None:
     with open(path, "a") as fh:
         fh.write(json.dumps(rec, default=str) + "\n")
@@ -420,8 +448,15 @@ def run_scheduled(args) -> int:
     families = [f for f in (getattr(args, "families", "") or "").split(",") if f] or None
     full = sch.build_queue(sched, families)
     smoke = bool(getattr(args, "smoke", False))
-    queue = smoke_queue(full, sched["tasks"]) if smoke else full
-    tag = "%s_%s" % (study["name"], "smoke" if smoke else "run")
+    items_file = getattr(args, "items", "") or ""
+    if items_file:
+        # Reruns: own state and ledger, never the study's run ledger.
+        queue = select_items(full, items_file)
+        kind = "items_" + os.path.splitext(os.path.basename(items_file))[0]
+    else:
+        queue = smoke_queue(full, sched["tasks"]) if smoke else full
+        kind = "smoke" if smoke else "run"
+    tag = "%s_%s" % (study["name"], kind)
     state_path = os.path.join(out_dir, "%s_state.json" % tag)
     ledger = os.path.join(out_dir, "%s_ledger.jsonl" % tag)
     done = set(json.load(open(state_path))) if os.path.exists(state_path) else set()

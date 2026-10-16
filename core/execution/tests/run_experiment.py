@@ -107,6 +107,8 @@ def parse_arguments():
                         help="scheduled profile: stop after N queue items")
     parser.add_argument("--families", default="",
                         help="scheduled profile: comma list of families to run")
+    parser.add_argument("--items", default="",
+                        help="scheduled profile: file of queue items to run (item id, optional tab policy)")
     return parser.parse_args()
 
 

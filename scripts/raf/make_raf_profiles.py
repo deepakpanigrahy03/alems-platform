@@ -72,6 +72,10 @@ def main() -> int:
     ap.add_argument("--options", default="", help="comma list replacing the config's policies")
     ap.add_argument("--b0", type=int, default=None, help="B0 repetitions per task (0: none)")
     ap.add_argument("--seeds", default="", help="block_order,policy_order replacing the config's")
+    ap.add_argument("--families", default="", help="family form: keep only these families")
+    ap.add_argument("--tasks", default="", help="keep only these tasks (ids with or without bfcl_)")
+    ap.add_argument("--classes", default="", help="pilot form: keep only these classes")
+    ap.add_argument("--points", default="", help="pilot form: keep only these points")
     a = ap.parse_args()
     with open(a.config) as fh:
         cfg = yaml.safe_load(fh)
@@ -83,6 +87,27 @@ def main() -> int:
     if a.seeds:
         bo, po = (int(x) for x in a.seeds.split(","))
         cfg["seeds"] = dict(cfg["seeds"], block_order=bo, policy_order=po)
+    if a.tasks:
+        keep = {t if t.startswith("bfcl_") else "bfcl_" + t for t in a.tasks.split(",") if t}
+        missing = keep - set(cfg["tasks"])
+        if missing:
+            sys.exit("tasks not in the config: %s" % sorted(missing))
+        cfg["tasks"] = {t: v for t, v in cfg["tasks"].items() if t in keep}
+    if a.classes:
+        keep = set(a.classes.split(","))
+        cfg["classes"] = {c: p for c, p in cfg["classes"].items() if c in keep}
+    if a.points:
+        cfg["points"] = [p for p in cfg["points"] if p in a.points.split(",")]
+    if a.families and "families" in cfg:
+        keep = set(a.families.split(","))
+        cfg["families"] = {f: v for f, v in cfg["families"].items() if f in keep}
+        tasks = {}
+        for t, v in cfg["tasks"].items():
+            fams = [f for f in v["families"] if f in keep]
+            if fams:
+                tasks[t] = dict(v, families=fams,
+                                targets={f: x for f, x in v["targets"].items() if f in keep})
+        cfg["tasks"] = tasks
     prof = profile_from(cfg, a.name, a.goal or "RAF %s" % a.name, a.provider, a.model)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, "w") as fh:
