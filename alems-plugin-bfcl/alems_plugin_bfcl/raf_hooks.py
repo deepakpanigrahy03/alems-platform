@@ -12,7 +12,7 @@ from typing import Any, Callable, Dict, Optional
 from . import raf_validity
 from .prepare import PreAttempt
 
-ESCALATE_POLICY = "FR_cold"
+ESCALATE_POLICY = "FR_warm"   # E2 escalating arm: cheapest restart in every E1 early cell
 
 
 def make_prepare(executor: Any, base_url: str, policy: str,
