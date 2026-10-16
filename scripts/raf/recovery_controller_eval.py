@@ -1,10 +1,10 @@
 """RAF R5 offline evaluation: cross validation by task, x* in work done,
 flip consistency across task lengths, GBR baseline, outputs for R4.
 
-  python s11_offline_eval.py --features features.csv [--calls calls.csv] \
+  python recovery_controller_eval.py --features features.csv [--calls calls.csv] \
          --out out_dir [--folds 5] [--smoke]
 
-Rerun on new data = rerun s11_features.py then this; one command each.
+Rerun on new data = rerun recovery_features.py then this; one command each.
 Outputs: CONTROLLER_OFFLINE_REPORT.md, controller_params.json,
 r5_numbers.json (D8), xstar_vs_ratio.png, flip_vs_work.png.
 """

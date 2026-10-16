@@ -5,9 +5,9 @@ Sources (never the store; Addendum D1):
   Pilot:  artifacts/raf_pilot/s7_goals.csv, smoke only (success = completion).
 
 Usage:
-  python s11_features.py probe  --ledger artifacts/raf_e1/raf_e1_run_ledger.jsonl
-  python s11_features.py pilot  --csv s7_goals.csv --out features_pilot.csv
-  python s11_features.py export --goals goals.csv [--ledger L.jsonl ...] \
+  python recovery_features.py probe  --ledger data/raf_e1_run_ledger.jsonl
+  python recovery_features.py pilot  --csv s7_goals.csv --out features_pilot.csv
+  python recovery_features.py export --goals goals.csv [--ledger L.jsonl ...] \
          --tag e1+e1b --out features.csv
 
 Work done counts: W_calls_total = model plus tool calls (primary, D2 item 2);
