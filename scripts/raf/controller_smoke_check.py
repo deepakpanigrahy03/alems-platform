@@ -2,7 +2,7 @@
 """
 R6 smoke gates (coordinator Oct 16 13:20, item 3). Read only.
 
-    python scripts/raf/r6_smoke_check.py --store <experiments.db> --after <annotation_id>
+    python scripts/raf/controller_smoke_check.py --store <experiments.db> --after <annotation_id>
         [--params <controller_params.json>]   (absent: stub params)
 
 Checks every raf.controller decision with annotation_id > --after:

@@ -6,7 +6,7 @@ Compares the controller decisions of a single invocation (study A) with the
 same goals run as several invocations (study B). Both studies use the same
 profile apart from study_id, so goal order and Thompson seeds are identical.
 
-    python scripts/raf/r6_split_compare.py --store <db> --single <study_A> --split <study_B> [--arm ctrl]
+    python scripts/raf/controller_split_compare.py --store <db> --single <single_run_study_id> --split <three_runs_study_id> [--arm <arm>]
 
 Criteria (proposed to the coordinator, Oct 16):
   (a) recorded counts equal the store recompute at each decision's cut_id
