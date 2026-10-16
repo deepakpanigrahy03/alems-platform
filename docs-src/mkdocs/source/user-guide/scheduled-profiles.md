@@ -1,7 +1,7 @@
 ---
 **Status:** CURRENT
 **Platforms verified:** nvidia_grace
-**Last updated:** 2026-10-15
+**Last updated:** 2026-10-16
 ---
 
 # Scheduled Profiles
@@ -14,6 +14,7 @@ alems run <profile-name>                     # profiles/<profile-name>.yaml
 alems run <profile-name> --smoke             # first B0 item and the first block of each family
 alems run <profile-name> --max-items 3       # stop after 3 queue items
 alems run <profile-name> --families a,b      # run only these families of the profile
+alems run <profile-name> --items reruns.tsv  # run only the listed queue items (reruns)
 ```
 
 `alems run` takes the profile name, not a path; it searches `profiles/`, `profiles/examples/` and `config/experiment_configs/` and appends `.yaml`.
@@ -82,11 +83,11 @@ baseline: {duration_seconds: 10, num_samples: 10, pre_wait_seconds: 30, remeasur
 | `early_ordinal` | ordinal of every early point of the `clean` family |
 | `expected_store_suffix` | refuse to run against any other store |
 
-Recovery options: `FR` restarts from the task prompt and the initial tool state, `SR` resumes at the failed step, `RB` rolls back to the start of the suspect turn. `_warm` keeps the serving engine's prefix cache between attempts, `_cold` resets it.
+Recovery options: `FR` restarts from the task prompt and the initial tool state, `SR` resumes at the failed step, `RB` rolls back to the start of the suspect turn, `SG` resumes like `SR` and first states the actual public state of the tool instances involved in the failed turn (always including the instance that owns the failed call) and, for a failed tool call, that it did not take effect. The `SG` notice is built before the attempt starts, outside the measurement window, and never contains expected state, ground truth or checker output; its tokens count in the attempt. `_warm` keeps the serving engine's prefix cache between attempts, `_cold` resets it.
 
 ## What Happens Per Goal
 
-Before the first goal, when `baseline.remeasure` is true, a fresh idle baseline is measured and its id is written to every ledger record.
+Before the first goal, when `baseline.remeasure` is true, a fresh idle baseline is measured, the harness is rebuilt so that the runs use it, and its id is written to every ledger record. Each record also carries `baseline_runs`, the baseline ids the goal's runs actually used, read back from the store; a goal whose runs used any other baseline stops the run. The authoritative baseline of a run is always `runs.baseline_id` in the store.
 
 For each goal, in order: the idle check (CPU busy share and GPU utilization, with retries), `execute_goal` with the pre attempt hook of the `recovery.prepare` plugin, the energy guard (every attempt run must have nonzero package energy, otherwise the run stops), the validity classifier, and one rerun if the goal is invalid. The hook resets the cache, restores tool state and calls a decider; all of it happens before the attempt starts, outside the measurement window.
 
@@ -100,7 +101,7 @@ Next to the store, in `artifacts/<study.name>/`:
 | `<study>_run_ledger.jsonl` | one record per goal execution |
 | `<study>_smoke_*` | the same for `--smoke` runs |
 
-Ledger fields: `item_id`, `position`, `goal_index`, `plan`, `seeds`, `policy_order`, `idle_check`, `isolation_level`, `rerun`, `goal_id`, `goal_key`, `validity`, `detail`, `family`, `arm`, `attempt_meta` (per attempt injection, corruption, turn checks, tool sequence), `decisions`, `prepare` (resets, restore, cache statistics per attempt), `cache_metrics_after`, `wall_s`, `study`, `profile_sha256`, `engine` (commit and dirty flag), `argv`, `baseline_id`.
+Ledger fields: `item_id`, `position`, `goal_index`, `plan`, `seeds`, `policy_order`, `idle_check`, `isolation_level`, `rerun`, `goal_id`, `goal_key`, `validity`, `detail`, `family`, `arm`, `attempt_meta` (per attempt injection, corruption, turn checks, tool sequence), `decisions`, `prepare` (resets, restore, cache statistics per attempt), `cache_metrics_after`, `wall_s`, `study`, `profile_sha256`, `engine` (commit and dirty flag), `argv`, `baseline_id`, `baseline_runs`.
 
 The store receives the usual goal, attempt and run rows, plus the recovery data described in [Recovery Data](../developer/recovery-data.md).
 
@@ -117,6 +118,20 @@ python scripts/raf/make_raf_profiles.py --config scripts/raf/e1_gn100.yaml \
 ```
 
 A configuration in the pilot form (`policies`, `classes`, `points`, `tasks.<t>.late`) becomes one `clean` family with `b0_scope: all`. A configuration in the family form (from `scripts/raf/select_main_tasks.py`) is copied with `b0_scope: checks`. `scripts/raf/tests/test_raf_profile_equivalence.py` proves that a converted pilot configuration yields the same queue as the pilot driver did.
+
+| Builder flag | Effect |
+|---|---|
+| `--options a,b` | replace the recovery options (pilot form) |
+| `--b0 N` | B0 repetitions per task; 0 for none |
+| `--seeds bo,po` | block order and option order seeds |
+| `--tasks`, `--classes`, `--points` | keep only these (pilot form) |
+| `--families` | keep only these families (family form) |
+
+A follow up study on the same cells (for example other recovery options) reuses the configuration with `--options`, `--b0 0` and its own `--seeds`, so the failures are identical and only the options and the order differ.
+
+## Reruns
+
+`scripts/raf/make_rerun_items.py` reads a study ledger and the store (read only) and writes an items file: one line per goal to rerun, an item id, a tab, and the policy. Goals are selected by id or by the time their goal row was created (UTC, as stored). `alems run <profile> --items <file>` then runs exactly those goals, with state and ledger named `<study>_items_<file name>`, so the study's own ledger is never written. The analysis replaces each listed goal with its rerun.
 
 ## Known Limitations
 
