@@ -42,6 +42,7 @@ _LOG = ("SELECT attempt_id, status, injected_type, target_phase, target_step "
         "FROM failure_injection_log WHERE goal_id=?")
 _PASS = "SELECT pass_fail FROM goal_attempt WHERE attempt_id=?"
 SELF_CORRECTED = "self_corrected"        # detail key; an outcome, never a code
+ABANDONED = "abandoned"                  # detail key (R6): attempt number abandoned at
 
 
 def _rows(conn: Any, sql: str, goal_id: int) -> List[tuple]:
@@ -63,6 +64,11 @@ def classify(conn: Any, goal_id: int, plan: Dict[str, Any],
     log = _rows(conn, _LOG, goal_id)
     codes = _prepare_codes(prepare or {})
     detail = {"attempts": len(attempts)}
+    # R6: a controller abandon is an outcome (failed goal), never an invalid code.
+    abandoned_at = next((a for a in sorted(prepare or {})
+                         if (prepare or {})[a].get("abandon")), None)
+    if abandoned_at is not None:
+        detail[ABANDONED] = abandoned_at
     detail["rb_not_applicable"] = any(
         RB_NOT_APPLICABLE in (p.get("validity") or []) for p in (prepare or {}).values())
     codes += _contamination_codes(plan, attempt_meta or {}, detail)
@@ -134,6 +140,8 @@ def _injection_codes(a1, a2, f1, f2, log, plan, detail) -> List[str]:
             return [PRE_INJECTION_FAILURE]
         return [INJECTION_MISMATCH]
     want_a2 = 1 if str(plan["cls"]).startswith(PERSIST_PREFIX) else 0
+    if detail.get(ABANDONED) == 2:
+        want_a2 = 0          # attempt 2 never ran, so it cannot have fired
     if len(f1) != 1 or len(f2) != want_a2 or a2 is None:
         return [INJECTION_MISMATCH]
     if want_a2 and tuple(f2[0][2:5]) != (plan["cls"], plan["phase"], plan["ordinal"]):

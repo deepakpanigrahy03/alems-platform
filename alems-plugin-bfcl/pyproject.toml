@@ -29,6 +29,8 @@ bfcl_react = "alems_plugin_bfcl.react:BFCLReactAdapter"
 bfcl = "alems_plugin_bfcl.raf_hooks:make_prepare"
 
 [project.entry-points."alems.harness.deciders"]
+ctrl_beta = "alems_plugin_bfcl.decider.adapter:ctrl_beta"
+ctrl_laya = "alems_plugin_bfcl.decider.adapter:ctrl_laya"
 escalate_stub = "alems_plugin_bfcl.raf_hooks:escalate_stub"
 
 [project.entry-points."alems.harness.validity"]

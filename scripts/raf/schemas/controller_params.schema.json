@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alems/raf/controller_params/1.0.0",
+  "title": "RAF controller parameters (R5 output, R6 input)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "params_version", "data_tag", "platform", "model",
+               "work_unit", "energy_law", "classes", "x_star_calls", "budget"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "params_version": {"type": "string"},
+    "data_tag": {"type": "string", "description": "git tag of the data freeze the fit came from"},
+    "platform": {"type": "string"},
+    "model": {"type": "string"},
+    "work_unit": {"enum": ["calls", "joules"]},
+    "energy_law": {
+      "type": "object", "additionalProperties": false,
+      "required": ["a", "b", "d"],
+      "description": "e(c) = a + b c + d c^2 per call, c = context tokens, joules",
+      "properties": {
+        "a": {"$ref": "#/$defs/est"}, "b": {"$ref": "#/$defs/est"}, "d": {"$ref": "#/$defs/est"},
+        "n_calls": {"type": "integer", "minimum": 0}
+      }
+    },
+    "overhead": {
+      "type": "object", "additionalProperties": false,
+      "description": "O(context, attempt) from persistent cells (R5 6.2)",
+      "properties": {
+        "per_attempt_j": {"$ref": "#/$defs/est"},
+        "per_token_j": {"$ref": "#/$defs/est"}
+      }
+    },
+    "classes": {
+      "type": "object",
+      "description": "failure class to option to parameters",
+      "additionalProperties": {
+        "type": "object",
+        "propertyNames": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
+        "additionalProperties": {
+          "type": "object", "additionalProperties": false,
+          "required": ["alpha", "beta"],
+          "properties": {
+            "alpha": {"type": "number", "exclusiveMinimum": 0},
+            "beta": {"type": "number", "exclusiveMinimum": 0},
+            "e2_a": {"$ref": "#/$defs/est"},
+            "e2_b": {"$ref": "#/$defs/est"},
+            "p_repeat_after_fail": {"type": "number", "minimum": 0, "maximum": 1},
+            "n": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+    "x_star_calls": {
+      "type": "object", "additionalProperties": false, "required": ["value"],
+      "description": "restart below this many calls done (R5 6.8)",
+      "properties": {"value": {"type": "number"}, "lo": {"type": "number"}, "hi": {"type": "number"}}
+    },
+    "budget": {
+      "type": "object", "additionalProperties": false, "required": ["value_j"],
+      "description": "abandon when best expected cost exceeds this (R5 2.2)",
+      "properties": {"value_j": {"type": "number", "exclusiveMinimum": 0}, "rule": {"type": "string"}}
+    }
+  },
+  "$defs": {
+    "est": {
+      "type": "object", "additionalProperties": false, "required": ["value"],
+      "properties": {"value": {"type": "number"}, "lo": {"type": "number"}, "hi": {"type": "number"}}
+    }
+  }
+}

@@ -212,6 +212,7 @@ def _execute_goal_impl(
         failure_type = None
         outcome      = "failure"
         run_id       = None
+        _abandoned   = False   # RAF R6: set when the pre attempt hook abandons
 
         try:
             # Injection happens AFTER harness runs — never before.
@@ -243,18 +244,24 @@ def _execute_goal_impl(
                 # RAF LH 01 S4: optional prepare step outside every measurement
                 # window (C-BND); absent by default, so existing runs are unchanged.
                 _pre_hook = getattr(executor, "pre_attempt_hook", None)
-                if callable(_pre_hook):
-                    _pre_hook(attempt_num)
-                result = harness.run_agentic(
-                    executor=executor,
-                    task=task_prompt,
-                    task_id=task_id,
-                    is_cloud=is_cloud,
-                    run_number=rep_num,
-                    tool_graph=task.get("tool_graph"),
-                    # RAF LH 01 S1b: plugin frameworks; default keeps the builtin path.
-                    framework_type=task.get("framework", "builtin"),
-                )
+                _prep = _pre_hook(attempt_num) if callable(_pre_hook) else None
+                # RAF R6: a decider may abandon the goal before t0. No window
+                # opens; the attempt closes through the pre t0 failure path
+                # (result None) and the loop stops after finish_attempt.
+                _abandoned = isinstance(_prep, dict) and bool(_prep.get("abandon"))
+                if _abandoned:
+                    failure_type = "abandoned"
+                else:
+                    result = harness.run_agentic(
+                        executor=executor,
+                        task=task_prompt,
+                        task_id=task_id,
+                        is_cloud=is_cloud,
+                        run_number=rep_num,
+                        tool_graph=task.get("tool_graph"),
+                        # RAF LH 01 S1b: plugin frameworks; default keeps the builtin path.
+                        framework_type=task.get("framework", "builtin"),
+                    )
 
         except Exception as exc:
             # Harness raised — classify and record before moving to finish_attempt
@@ -407,6 +414,12 @@ def _execute_goal_impl(
             _flush_injection_log(conn, failure_injector, attempt_id, goal_id)
  
         prev_attempt_id = attempt_id
+        if _abandoned:
+            # RAF R6: no further attempts; never reaches the retry adapter, so
+            # the EAR decision log is unchanged for abandoned goals.
+            logger.info("execute_goal: goal=%d abandoned before attempt %d",
+                        goal_id, attempt_num)
+            break
         if result is not None:
             last_result = result
         if outcome != "success" and result is not None:

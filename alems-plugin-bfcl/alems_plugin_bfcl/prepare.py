@@ -35,6 +35,8 @@ RESTORE_MISMATCH = "RESTORE_MISMATCH"
 RB_NOT_APPLICABLE = "RB_NOT_APPLICABLE"
 POLICIES = ("B0", "FR_cold", "FR_warm", "SR_cold", "SR_warm",
             "RB_cold", "RB_warm", "SG_cold", "SG_warm")
+# R6: a decider may return ABANDON; it is a decision, never a starting policy.
+ABANDON = "ABANDON"
 
 
 def _http_post(url: str, timeout_s: float) -> int:
@@ -102,12 +104,19 @@ class PreAttempt:
         if attempt_number >= 2 and self.decide is not None:
             t_dec = time.perf_counter_ns()
             chosen = self.decide(attempt_number, ex)
-            self._switch(chosen)
-            # Decision cost is logged per decision (R6 addendum A rule 1).
+            abandon = chosen == ABANDON
+            if not abandon:
+                self._switch(chosen)
+            # Decision cost is logged per decision (R6 addendum A rule 1); the
+            # decider's own detail (p and J per option) joins the same record.
             ex._raf_decisions = dict(getattr(ex, "_raf_decisions", None) or {})
-            ex._raf_decisions[attempt_number] = {
-                "chosen": chosen, "policy": self.policy,
-                "ns": time.perf_counter_ns() - t_dec}
+            detail = (getattr(ex, "_raf_decision_detail", None) or {}).get(attempt_number)
+            entry = dict(detail or {})
+            entry.update({"chosen": chosen, "policy": self.policy,
+                          "ns": time.perf_counter_ns() - t_dec})
+            ex._raf_decisions[attempt_number] = entry
+            if abandon:
+                return self._abandon_record(attempt_number)
         rec = {"attempt": attempt_number, "policy": self.policy,
                "resets": [], "restore": None, "validity": [],
                # Before any reset: the cache as the previous attempt left it.
@@ -130,6 +139,15 @@ class PreAttempt:
         return rec
 
     # ── internals ───────────────────────────────────────────────────
+    def _abandon_record(self, attempt_number: int) -> Dict[str, Any]:
+        """Abandon: no reset, no restore; core reads abandon and stops (C2)."""
+        rec = {"attempt": attempt_number, "policy": self.policy, "abandon": True,
+               "resets": [], "restore": None, "validity": [], "cache_metrics": None}
+        store = dict(getattr(self.executor, "_raf_prepare", None) or {})
+        store[attempt_number] = rec
+        self.executor._raf_prepare = store
+        return rec
+
     def _switch(self, policy: Optional[str]) -> None:
         """Adopt a new recovery policy for this and later attempts."""
         if not policy or policy == self.policy:

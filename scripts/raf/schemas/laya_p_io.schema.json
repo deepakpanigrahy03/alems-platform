@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "alems/raf/laya_p_io/1.0.0",
+  "title": "laya_p request and response for POST /v1/systemone (R6 client, R7 server)",
+  "$defs": {
+    "request": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "items"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "items": {
+          "type": "array", "minItems": 1, "maxItems": 8,
+          "description": "one item per candidate option; no energy numbers, no task id (R5 6.7, D3)",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["option", "text"],
+            "properties": {
+              "option": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
+              "text": {"type": "string", "maxLength": 8000,
+                       "description": "failure class, failure point, option, attempt, error message, last user turn, last two agent messages"}
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "model_version", "calibration", "p"],
+      "properties": {
+        "schema_version": {"const": "1.0.0"},
+        "model_version": {"type": "string"},
+        "calibration": {"type": "string", "description": "temperature scaling id; uncalibrated responses are rejected by the client"},
+        "p": {
+          "type": "object",
+          "propertyNames": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
+          "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "latency_ms": {"type": "number", "minimum": 0}
+      }
+    }
+  },
+  "description": "Client rule: timeout 2 s from request send; any timeout, connection error, non 200, schema mismatch or missing option fails closed to beta_p and records the reason."
+}
