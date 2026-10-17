@@ -1,22 +1,25 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "alems/raf/laya_p_io/1.1.0",
-  "title": "laya_p request and response for POST /v1/systemone (R6 client, R7 server)",
+  "title": "laya-serve wire for laya_p (R7 contract, Oct 17): POST /v1/systemone, one text per call",
   "$defs": {
     "request": {
       "type": "object", "additionalProperties": false,
-      "required": ["schema_version", "template_version", "items"],
+      "required": ["state", "model", "questions"],
       "properties": {
-        "schema_version": {"const": "1.1.0"},
-        "template_version": {"const": "v3", "description": "laya_text template the texts were rendered with"},
-        "items": {
-          "type": "array", "minItems": 1, "maxItems": 8,
-          "items": {
-            "type": "object", "additionalProperties": false,
-            "required": ["option", "text"],
-            "properties": {
-              "option": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
-              "text": {"type": "string", "description": "laya_text v3 output for this option"}
+        "state": {"type": "string", "description": "laya_text v3 output for one option"},
+        "model": {"const": "ear_recovery_success_v3", "description": "laya_text.LAYA_MODEL"},
+        "questions": {
+          "type": "object", "additionalProperties": false,
+          "required": ["ear_recovery_success"],
+          "properties": {
+            "ear_recovery_success": {
+              "type": "object", "additionalProperties": false,
+              "required": ["type", "instructions"],
+              "properties": {
+                "type": {"const": "noul"},
+                "instructions": {"const": "Will this recovery attempt complete the user's task correctly, given the failure and the chosen option?"}
+              }
             }
           }
         }
@@ -24,19 +27,21 @@
     },
     "response": {
       "type": "object", "additionalProperties": true,
-      "required": ["template_version", "model_version", "calibration", "p"],
+      "required": ["model", "answers"],
       "properties": {
-        "template_version": {"type": "string", "description": "template the serving checkpoint was trained on; must equal the request's"},
-        "model_version": {"type": "string"},
-        "calibration": {"type": "string"},
-        "p": {
+        "model": {"const": "ear_recovery_success_v3"},
+        "answers": {
           "type": "object",
-          "propertyNames": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
-          "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1}
-        },
-        "latency_ms": {"type": "number", "minimum": 0}
+          "required": ["ear_recovery_success"],
+          "properties": {
+            "ear_recovery_success": {
+              "type": "object", "required": ["noul"],
+              "properties": {"noul": {"type": "number", "minimum": 0, "maximum": 1}}
+            }
+          }
+        }
       }
     }
   },
-  "description": "Client rule: timeout 2 s; any timeout, connection error, non 200, template mismatch, missing calibration or missing option fails closed to beta_p with the reason recorded."
+  "description": "Fail closed to beta_p: HTTP 400, 404, 422 or another model name -> template mismatch; missing or out of range noul -> bad answer; timeout over 2 s or refused connection -> unreachable. Reason recorded per decision."
 }

@@ -143,28 +143,37 @@ def _laya(resp=None, sleep=0.0, exc=None):
 TEXTS = {o: "text " + o for o in OPTIONS if o != ABANDON}
 
 
+def _reply(p, model="ear_recovery_success_v3"):
+    return {"model": model, "answers": {"ear_recovery_success": {"type": "noul", "noul": p}}}
+
+
 def test_laya_overrides_p():
-    resp = {"template_version": "v3", "calibration": "ts1",
-            "p": {o: 0.1 for o in OPTIONS if o != ABANDON}}
-    resp["p"]["RB_cold"] = 0.99
-    d = LayaP(BetaP(params()), "http://x", post=_laya(resp)).decide(
+    def post(url, body, t):
+        assert set(body) == {"state", "model", "questions"}       # R7 wire: no other keys
+        return _reply(0.99 if body["state"] == "text RB_cold" else 0.1)
+    d = LayaP(BetaP(params()), "http://x", post=post).decide(
         state(), list(OPTIONS), texts=TEXTS)
     assert d.option == "RB_cold" and d.decider == "laya_p"
 
 
 def test_laya_template_mismatch_fails_closed():
-    resp = {"template_version": "v2", "calibration": "ts1",
-            "p": {o: 0.9 for o in OPTIONS if o != ABANDON}}
     beta = BetaP(params())
-    d = FailClosed(LayaP(beta, "http://x", post=_laya(resp)), beta, deadline_s=0.5).decide(
-        state(), list(OPTIONS), seed=3, texts=TEXTS)
+    d = FailClosed(LayaP(beta, "http://x", post=_laya(_reply(0.9, "ear_recovery_success_v2"))),
+                   beta, deadline_s=0.5).decide(state(), list(OPTIONS), seed=3, texts=TEXTS)
     assert "template mismatch" in d.fallback_reason and d.decider == "beta_p"
+
+
+def test_laya_bad_answer_fails_closed():
+    beta = BetaP(params())
+    d = FailClosed(LayaP(beta, "http://x", post=_laya(_reply(1.7))), beta,
+                   deadline_s=0.5).decide(state(), list(OPTIONS), seed=3, texts=TEXTS)
+    assert "bad answer" in d.fallback_reason
 
 
 @pytest.mark.parametrize("post", [
     _laya(sleep=3.0, resp={}),
     _laya(exc=ConnectionRefusedError("down")),
-    _laya(resp={"p": {}}),                       # uncalibrated
+    _laya(resp={"model": "ear_recovery_success_v3", "answers": {}}),   # no noul
 ])
 def test_fail_closed(post):
     beta = BetaP(params())
@@ -175,8 +184,7 @@ def test_fail_closed(post):
 
 def test_hung_call_does_not_block_next_decision():
     calls = []
-    resp = {"template_version": "v3", "calibration": "ts1",
-            "p": {o: 0.5 for o in OPTIONS if o != ABANDON}}
+    resp = _reply(0.5)
 
     def post(url, body, t):
         calls.append(1)

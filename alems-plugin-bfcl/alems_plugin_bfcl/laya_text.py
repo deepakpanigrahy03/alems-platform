@@ -24,6 +24,11 @@ from typing import Any, Dict, List, Optional, Tuple
 TEMPLATE_VERSION = "v3"
 SCHEMA = "raf.failure_context/1"
 DECISION = "ear_recovery_success"          # R7 export default decision name
+# laya-serve wire (R7, laya_p_io 1.1.0): the checkpoint is registered under
+# this model name, and the question text must be byte identical to training.
+LAYA_MODEL = DECISION + "_" + TEMPLATE_VERSION
+LAYA_QUESTION = ("Will this recovery attempt complete the user's task correctly, "
+                 "given the failure and the chosen option?")
 
 # Constants copied from R7 laya_export.py (v2), unchanged.
 FIXED_NOTICE = "[notice] The previous step failed with an error and is being retried."

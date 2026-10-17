@@ -1,28 +1,36 @@
 """
 laya_p: p from laya-serve (R7), cost and sampling stream from beta_p.
 
-The texts are rendered by the adapter with laya_text v3 (one text per
-option) and passed in; this module only sends them. A response is accepted
-only if it is calibrated, covers every option, and was produced by a
-checkpoint trained on the same template version (coordinator: E3 needs a v3
-round 2 checkpoint). Any problem raises LayaUnavailable; the fail closed
-wrapper then uses beta_p and records the reason.
+Wire (R7, laya_p_io 1.1.0): POST /v1/systemone, one text per call, body
+exactly {state, model, questions}; the reply is accepted only if its model
+equals LAYA_MODEL (ear_recovery_success_v3), so a checkpoint trained on
+another template can never answer. Texts are rendered by the adapter with
+laya_text v3. Reasons recorded on fail closed: unreachable, template
+mismatch, bad answer (R7 contract).
 """
 
 import json
+import socket
+import urllib.error
 import urllib.request
 from typing import Any, Callable, Dict, List, Optional
 
-from ..laya_text import TEMPLATE_VERSION
+from ..laya_text import DECISION, LAYA_MODEL, LAYA_QUESTION
 from .base import Decision, FailureState
 from .beta_p import BetaP
 
 TIMEOUT_S = 2.0
-IO_SCHEMA = "1.1.0"
+DEFAULT_URL = "http://127.0.0.1:8000"
 
 
 class LayaUnavailable(Exception):
-    """Raised for timeout, connection error, bad status, bad schema or template mismatch."""
+    """Raised with reason unreachable, template mismatch or bad answer."""
+
+
+def request_body(text: str) -> Dict[str, Any]:
+    """Exactly the three keys laya-serve accepts (no others)."""
+    return {"state": text, "model": LAYA_MODEL,
+            "questions": {DECISION: {"type": "noul", "instructions": LAYA_QUESTION}}}
 
 
 def _post_json(url: str, body: Dict[str, Any], timeout_s: float) -> Dict[str, Any]:
@@ -30,45 +38,51 @@ def _post_json(url: str, body: Dict[str, Any], timeout_s: float) -> Dict[str, An
     req = urllib.request.Request(url, data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"},
                                  method="POST")
-    with opener.open(req, timeout=timeout_s) as resp:
-        if int(resp.status) != 200:
-            raise LayaUnavailable("status %s" % resp.status)
-        return json.loads(resp.read().decode())
+    try:
+        with opener.open(req, timeout=timeout_s) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        # 400, 404, 422: the server does not know this model or body.
+        raise LayaUnavailable("template mismatch: HTTP %s" % exc.code)
+    except (urllib.error.URLError, socket.timeout, ConnectionError, TimeoutError) as exc:
+        raise LayaUnavailable("unreachable: %s" % exc)
+
+
+def p_yes(resp: Dict[str, Any]) -> float:
+    """p from one reply; raises LayaUnavailable on another model or a bad answer."""
+    if resp.get("model") != LAYA_MODEL:
+        raise LayaUnavailable("template mismatch: model %r" % resp.get("model"))
+    try:
+        v = float(resp["answers"][DECISION]["noul"])
+    except (KeyError, TypeError, ValueError):
+        raise LayaUnavailable("bad answer: no noul")
+    if not 0.0 <= v <= 1.0:
+        raise LayaUnavailable("bad answer: noul %r out of range" % v)
+    return v
 
 
 class LayaP:
     name = "laya_p"
 
-    def __init__(self, base: BetaP, url: str,
+    def __init__(self, base: BetaP, url: str = DEFAULT_URL,
                  post: Optional[Callable[..., Dict[str, Any]]] = None) -> None:
         self.base = base
         self.url = url.rstrip("/") + "/v1/systemone"
         self.post = post or _post_json
 
     def _p(self, opts: List[str], texts: Dict[str, str]) -> Dict[str, float]:
-        missing_text = [o for o in opts if o not in texts]
-        if missing_text:
-            raise LayaUnavailable("no text for options %s" % missing_text)
-        body = {"schema_version": IO_SCHEMA, "template_version": TEMPLATE_VERSION,
-                "items": [{"option": o, "text": texts[o]} for o in opts]}
-        try:
-            resp = self.post(self.url, body, TIMEOUT_S)
-        except LayaUnavailable:
-            raise
-        except Exception as exc:
-            raise LayaUnavailable("%s: %s" % (type(exc).__name__, exc))
-        if resp.get("template_version") != TEMPLATE_VERSION:
-            raise LayaUnavailable("template mismatch: checkpoint %r, texts %r"
-                                  % (resp.get("template_version"), TEMPLATE_VERSION))
-        if not resp.get("calibration"):
-            raise LayaUnavailable("uncalibrated response")
-        p = resp.get("p") or {}
-        missing = [o for o in opts if o not in p]
+        missing = [o for o in opts if o not in texts]
         if missing:
-            raise LayaUnavailable("missing options %s" % missing)
-        out = {o: float(p[o]) for o in opts}
-        if any(not 0.0 <= v <= 1.0 for v in out.values()):
-            raise LayaUnavailable("p out of range")
+            raise LayaUnavailable("bad answer: no text for options %s" % missing)
+        out = {}
+        for o in opts:                            # one text per call (R7)
+            try:
+                resp = self.post(self.url, request_body(texts[o]), TIMEOUT_S)
+            except LayaUnavailable:
+                raise
+            except Exception as exc:
+                raise LayaUnavailable("unreachable: %s: %s" % (type(exc).__name__, exc))
+            out[o] = p_yes(resp)
         return out
 
     def decide(self, state: FailureState, options: List[str],
