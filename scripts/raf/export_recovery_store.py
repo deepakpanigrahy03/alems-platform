@@ -77,7 +77,7 @@ def export(db, ledgers, out):
 
     inj = q(con, f"""select attempt_id, injected_type, target_step, target_phase
                      from failure_injection_log where goal_id in ({in_list(gids)})
-                     and coalesce(status,'') not like '%skip%'""")
+                     and status = 'injected'""")
     inj = inj.drop_duplicates("attempt_id", keep="first")
 
     # samples: board and package per sample, with time window
@@ -107,19 +107,22 @@ def export(db, ledgers, out):
 
     # per call records
     calls = q(con, f"""select run_id, step_index, prompt_tokens, completion_tokens,
-                       request_start_ns, last_token_time_ns, prefill_energy_uj
+                       request_start_ns, last_token_time_ns, total_time_ms, prefill_energy_uj
                        from llm_interactions where run_id in ({in_list(runs)})
                        order by run_id, step_index""")
+    # last_token_time_ns is not populated in this schema version: end = start + total_time_ms
+    calls["end_ns"] = calls.last_token_time_ns.where(
+        calls.last_token_time_ns.notna(), calls.request_start_ns + calls.total_time_ms * 1e6)
     b = smp[smp.domain_id == BOARD_DOMAIN].sort_values(["run_id", "timestamp_ns"])
     bys = {r: g for r, g in b.groupby("run_id")}
     run_base = att.set_index("run_id").baseline_id.map(idle_board)
     ej = []
     for r in calls.itertuples():
         g = bys.get(r.run_id)
-        if g is None or pd.isna(r.request_start_ns) or pd.isna(r.last_token_time_ns):
+        if g is None or pd.isna(r.request_start_ns) or pd.isna(r.end_ns):
             ej.append(np.nan); continue
-        m = (g.timestamp_ns >= r.request_start_ns) & (g.timestamp_ns <= r.last_token_time_ns)
-        dur = (r.last_token_time_ns - r.request_start_ns) / 1e9
+        m = (g.timestamp_ns >= r.request_start_ns) & (g.timestamp_ns <= r.end_ns)
+        dur = (r.end_ns - r.request_start_ns) / 1e9
         ej.append(g.J[m].sum() - run_base.get(r.run_id, 0.0) * dur if m.any() else np.nan)
     calls["e_board_j"] = ej
     calls["context_tokens"] = calls.prompt_tokens
@@ -128,7 +131,7 @@ def export(db, ledgers, out):
     att = att.merge(last, on="run_id", how="left")
 
     lk = led.set_index("goal_id")
-    for c in ["task", "cls", "plan_cls", "point", "option", "family", "persistent",
+    for c in ["task", "cls", "plan_cls", "point", "option", "family", "persistent", "tok_uncached_rest",
               "fired_step", "fired_phase", "study"]:
         att[c] = att.goal_id.map(lk[c])
     att["calls_model"] = att.llm_calls
@@ -142,7 +145,7 @@ def export(db, ledgers, out):
                   "persistent", "study", "attempt", "attempt_id", "run_id", "baseline_id",
                   "e_board_j", "e_pkg_j", "e_gpu_j", "dur_s", "calls_total", "calls_model",
                   "turns", "last_prompt_tokens", "tok_billed", "tok_uncached", "pass_fail",
-                  "cls_observed", "fired_step", "fired_phase", "target_step"]
+                  "cls_observed", "fired_step", "fired_phase", "target_step", "tok_uncached_rest"]
     att = att[[c for c in goals_cols if c in att.columns]].sort_values(["goal_id", "attempt"])
     calls = calls.merge(att[["run_id", "goal_id", "task", "attempt"]], on="run_id", how="left")
     calls = calls.rename(columns={"step_index": "call_index"})

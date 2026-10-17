@@ -33,6 +33,7 @@ FEATURE_COLS = [
     "data_tag", "smoke", "family", "fired_step", "tools_a1", "baseline_id",
 ]
 FIT_KEYS = ("json_parse", "rate_limit", "timeout", "tool_error", "silent_detected")
+CONTAMINATING = {"silent_tool_output", "wrong_model_step", "silent_detected"}
 DEFAULT_KEY = "_default"
 
 
@@ -49,6 +50,8 @@ def observable_class(plan_cls, record_cls=None) -> str:
     c = str(c)
     if c.startswith("persistent_"):
         c = c[len("persistent_"):]
+    if c in CONTAMINATING:
+        c = "silent_detected"
     return c if c in FIT_KEYS else DEFAULT_KEY
 
 
@@ -116,6 +119,18 @@ def from_pilot(csv: str) -> pd.DataFrame:
 
 # --------------------------------------------------------------- ledger
 
+def _uncached_after_a1(r):
+    """Uncached prompt tokens from attempt 2 to goal end, from vLLM prefix cache
+    counters in the ledger: (queries delta) minus (hits delta)."""
+    try:
+        before = r["prepare"]["2"]["cache_metrics"]
+        after = r["cache_metrics_after"]
+        dq = after["prefix_cache_queries"] - before["prefix_cache_queries"]
+        dh = after["prefix_cache_hits"] - before["prefix_cache_hits"]
+        return float(dq - dh)
+    except (KeyError, TypeError):
+        return None
+
 def load_ledgers(paths: list[str]) -> pd.DataFrame:
     """One row per goal from raf_e*_run_ledger.jsonl (schema seen Oct 16).
 
@@ -142,7 +157,8 @@ def load_ledgers(paths: list[str]) -> pd.DataFrame:
                 tools_a1=len(a1.get("tools") or []),
                 rb_not_applicable=de.get("rb_not_applicable"),
                 baseline_id=r.get("baseline_id"), study=r.get("study"),
-                rerun=r.get("rerun", 0), valid=not r.get("validity")))
+                rerun=r.get("rerun", 0), valid=not r.get("validity"),
+                tok_uncached_rest=_uncached_after_a1(r)))
     led = pd.DataFrame(rows)
     # Latest record rule (coordinator Oct 16): per (item_id, policy, rep) the
     # highest goal_id wins; reruns get new goal_ids and supersede old ones.

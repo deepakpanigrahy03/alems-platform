@@ -96,6 +96,16 @@ def decide(params, failure_class, options, calls_done, tokens_context,
     return best, scores
 
 
+def predict_uncached_tokens(params, failure_class, option, calls_done,
+                            tokens_context=None, tokens_cached=None):
+    """Expected uncached prompt tokens to finish the goal with `option`
+    (token baseline, R6): tok_a + tok_b * calls_done; None if unfitted."""
+    o = _opt(params, failure_class, option)
+    if o is None or o.get("tok_a") is None:
+        return None
+    return max(o["tok_a"] + (o.get("tok_b") or 0.0) * calls_done, 0.0)
+
+
 def restart_below_threshold(params, failure_class, calls_done) -> bool | None:
     """Practitioner rule (spec 6.8): True if work done is below x*."""
     x = _cls(params, failure_class).get("_x_star_calls")
