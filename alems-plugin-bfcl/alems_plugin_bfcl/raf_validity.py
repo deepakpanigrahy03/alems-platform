@@ -72,6 +72,8 @@ def classify(conn: Any, goal_id: int, plan: Dict[str, Any],
     detail["rb_not_applicable"] = any(
         RB_NOT_APPLICABLE in (p.get("validity") or []) for p in (prepare or {}).values())
     codes += _contamination_codes(plan, attempt_meta or {}, detail)
+    if detail.get("not_applicable"):
+        return {"codes": codes, "detail": detail}
     if plan["policy"] == "B0":
         if attempts and not any(a[2] == "success" for a in attempts):
             codes.append(B0_FAILED)
@@ -123,6 +125,11 @@ def _contamination_codes(plan: Dict[str, Any], meta: Dict[int, Dict[str, Any]],
     if cls in CORRUPT_CLASSES:
         corr = (meta.get(1) or {}).get("corruption") or {}
         if corr.get("applied") is False:
+            if corr.get("reason") == "not_accepted":
+                # No accepted wrong step exists for this call: not applicable,
+                # counted and reported, never rerun (coordinator Oct 16).
+                detail["not_applicable"] = True
+                return []
             return [CORRUPTION_NOT_APPLIED]
         return [] if failed.get(1) else [DETECTION_MISSED]
     return [FALSE_DETECTION] if any(failed.values()) else []

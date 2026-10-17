@@ -69,6 +69,7 @@ DETECTED_NOTICE = ("The state after your last turn does not match the request. "
 from . import corrupt as _corrupt  # noqa: E402
 from .env import ERROR_PREFIX as _ERROR_PREFIX  # noqa: E402
 from .tasks import ground_truth as _ground_truth  # noqa: E402
+from . import wrong_step as _wrong_step  # noqa: E402
 from .turn_check import DetectedFailure, check_turn  # noqa: E402
 
 # Indirection so tests can replace the clock and sleep without real waits.
@@ -391,8 +392,11 @@ class AttemptRun:
         wrong_model_step: corrupt one argument and rewrite the assistant's
         tool call in history, so the context shows the model's own mistake.
         """
-        new, detail = _corrupt.corrupt_args(args, self._seed("wrong_model_step"),
-                                            self.seen_strings)
+        # E2b: only a corruption the tool accepts and that changes state differently.
+        name = (call.get("function") or {}).get("name", "")
+        seen = list(self.seen_strings) + list(getattr(self, "seen_numbers", []))
+        new, detail = _wrong_step.choose(self.s.provider.env, name, args,
+                                         self._seed("wrong_model_step"), seen)
         self.injection["corruption"] = detail
         if new is None:
             self.injection["applied"] = False
@@ -413,8 +417,15 @@ class AttemptRun:
     def _remember(self, args: dict, text: str) -> None:
         """Add the strings of one executed call to the seen pool (as the agent saw them)."""
         self.seen_strings.extend(_corrupt.strings_of(args))
+        if not hasattr(self, "seen_numbers"):
+            self.seen_numbers = []           # ints and floats seen in this attempt
+        self.seen_numbers.extend(v for _, v in _corrupt.leaves(args)
+                                 if isinstance(v, (int, float)) and not isinstance(v, bool))
         try:
-            self.seen_strings.extend(_corrupt.strings_of(json.loads(text)))
+            parsed = json.loads(text)
+            self.seen_strings.extend(_corrupt.strings_of(parsed))
+            self.seen_numbers.extend(v for _, v in _corrupt.leaves(parsed)
+                                     if isinstance(v, (int, float)) and not isinstance(v, bool))
         except ValueError:
             pass  # plain text results add nothing
 
