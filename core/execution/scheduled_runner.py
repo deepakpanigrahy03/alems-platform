@@ -24,6 +24,7 @@ Outputs under <store dir>/artifacts/<study.name>/:
 
 import hashlib
 import json
+import re
 import logging
 import os
 import statistics
@@ -38,9 +39,11 @@ from typing import Any, Callable, Dict, List, Optional
 import yaml
 
 from core.execution import schedule as sch
+from core.execution.run_persistence import PersistenceError
 from core.telemetry import vllm_metrics
 
 ATTEMPT_NUMBER_COL = "attempt_number"   # goal_attempt column holding 1, 2, 3
+MAX_PERSIST_FAILURES_IN_A_ROW = 3        # beyond this the store problem is systemic: stop
 
 logger = logging.getLogger(__name__)
 
@@ -412,7 +415,26 @@ def run_item(r: Runner, item: Dict[str, Any], ledger: str, common: Dict[str, Any
     walls = []
     for idx, g in enumerate(item["goals"]):
         for rerun in range(reruns + 1):
-            res = r.run_goal(g)
+            try:
+                res = r.run_goal(g)
+                r.persist_failures_in_a_row = 0
+            except PersistenceError as exc:
+                # One goal could not be saved completely (C-VAL INCOMPLETE_PERSISTENCE):
+                # record it, rerun once, never end the study for a single goal.
+                r.persist_failures_in_a_row = getattr(r, "persist_failures_in_a_row", 0) + 1
+                m = re.search(r"goal=(\d+)", str(exc))
+                rec = {"item_id": item["id"], "position": item["position"], "goal_index": idx,
+                       "plan": g, "seeds": r.sched["seeds"], "rerun": rerun,
+                       "goal_id": int(m.group(1)) if m else None,
+                       "validity": ["INCOMPLETE_PERSISTENCE"], "detail": {"error": str(exc)},
+                       "family": g.get("family"), "arm": g.get("arm")}
+                rec.update(common)
+                _append(ledger, rec)
+                print("%s %s %s goal=%s valid=['INCOMPLETE_PERSISTENCE']" % (
+                    item["id"], g["policy"], "rerun" if rerun else "", rec["goal_id"]))
+                if r.persist_failures_in_a_row >= MAX_PERSIST_FAILURES_IN_A_ROW:
+                    raise
+                continue
             if not r.energy_ok(res["goal_id"]):
                 raise SystemExit("goal %s has zero or NULL energy: stop (fallback reader?)"
                                  % res["goal_id"])

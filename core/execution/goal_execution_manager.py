@@ -802,6 +802,10 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
         except Exception as exc:
             m["failed"] = True
             failed.append(m["attempt_id"])
+            big = _oversized_ints(m.get("result"))
+            if big:
+                # Identify the field that SQLite cannot store (diagnostic only).
+                logger.error("execute_goal: integers beyond 64 bit in run result: %s", big[:10])
             logger.error("execute_goal: goal=%s attempt=%d INCOMPLETE_PERSISTENCE: %s",
                          goal_id, m["attempt_num"], exc)
     run_ids = [m["run_id"] for m in measured if m["run_id"] is not None]
@@ -895,6 +899,22 @@ def _write_attempt_spans(db, conn, run_id, m, workflow_type, goal_id, trace):
                 logger.warning("execute_goal: state reuse for run=%d failed: %s", run_id, _re)
     except Exception as exc:
         logger.warning("execute_goal: spans for run=%d failed: %s", run_id, exc)
+
+
+def _oversized_ints(obj, path: str = "", out=None) -> list:
+    """Paths of integers in a nested result that exceed SQLite's 64 bit range."""
+    out = [] if out is None else out
+    if isinstance(obj, bool):
+        return out
+    if isinstance(obj, int) and not (-(2 ** 63) <= obj < 2 ** 63):
+        out.append("%s=%d" % (path or "<root>", obj))
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            _oversized_ints(v, "%s.%s" % (path, k) if path else str(k), out)
+    elif isinstance(obj, (list, tuple)):
+        for i, v in enumerate(obj):
+            _oversized_ints(v, "%s[%d]" % (path, i), out)
+    return out
 
 
 def _flush_injection_log(
