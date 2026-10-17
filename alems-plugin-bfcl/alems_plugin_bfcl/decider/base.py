@@ -93,6 +93,7 @@ class OptionScore:
     p: Optional[float]                  # success probability, None if abandon
     j_pred: Optional[float]             # predicted J per success, joules
     e_pred: Optional[float] = None      # predicted energy of the attempt
+    p_source: Optional[str] = None      # sample, laya, p_repeat or p_repeat_default
 
 
 @dataclass(frozen=True)

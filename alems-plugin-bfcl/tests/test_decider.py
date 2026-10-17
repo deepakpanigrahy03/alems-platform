@@ -56,6 +56,16 @@ def test_failed_option_repeated_when_still_best():
     assert d.option == "SR_warm"
 
 
+def test_repeat_falls_back_to_default_and_is_logged():
+    p = params()                                  # timeout options have no p_repeat
+    p["classes"]["_default"] = {"options": {"SR_warm": {"alpha": 1.0, "beta": 1.0,
+                                                        "p_repeat_after_fail": 0.14}}}
+    d = BetaP(p).decide(state(previous_options=("SR_warm",)), list(OPTIONS), seed=1)
+    sr = next(s for s in d.scores if s.option == "SR_warm")
+    assert sr.p == 0.14 and sr.p_source == "p_repeat_default"
+    assert all(s.p_source == "sample" for s in d.scores if s.option != "SR_warm")
+
+
 def test_abandon_over_class_budget():
     d = BetaP(params(budget=1.0)).decide(state(), list(OPTIONS), seed=1)
     assert d.option == ABANDON

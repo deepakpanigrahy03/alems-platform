@@ -33,17 +33,28 @@ class TokenRule:
             self._beta = _load_beta()
         return self._beta.params
 
+    @staticmethod
+    def _from_params(params: Dict[str, Any], failure_class: str, option: str,
+                     calls_done: int) -> Optional[float]:
+        """tok_a + tok_b · calls_done from R5's params (_default fallback via R5._opt)."""
+        o = R5._opt(params, failure_class, option) or {}
+        if o.get("tok_a") is None:
+            return None
+        return float(o["tok_a"]) + float(o.get("tok_b") or 0.0) * calls_done
+
     def choose(self, failure_class: str, calls_done: int) -> Dict[str, Any]:
         """Option with the lowest predicted uncached tokens; None when nothing is fitted."""
         fn = getattr(R5, "predict_uncached_tokens", None)
+        source = "predict_uncached_tokens" if callable(fn) else "params_tok_a_tok_b"
         if not callable(fn):
-            return {"option": None, "tokens": {}, "reason": "predict_uncached_tokens missing"}
+            fn = self._from_params
         pred = {o: fn(self._params(), failure_class, o, calls_done) for o in OPTIONS}
         pred = {o: v for o, v in pred.items() if v is not None}
         if not pred:
-            return {"option": None, "tokens": {}, "reason": "no token fit for class"}
+            return {"option": None, "tokens": {}, "reason": "no token fit for class",
+                    "source": source}
         best = min(sorted(pred), key=lambda o: pred[o])
-        return {"option": best, "tokens": pred, "reason": None}
+        return {"option": best, "tokens": pred, "reason": None, "source": source}
 
     def __call__(self, attempt: int, ex: Any) -> Optional[str]:
         prev = tuple(getattr(ex, "_raf_ctrl_options", ()) or ())
@@ -56,6 +67,7 @@ class TokenRule:
                "study_id": ctx.get("study_id", "deploy"),
                "option": res["option"] or "keep", "decider_used": self.name,
                "predicted_uncached_tokens": res["tokens"], "fallback_reason": res["reason"],
+               "token_source": res.get("source"),
                "failure_class": state.failure_class, "calls_done": state.calls_done,
                "model_calls_done": state.model_calls_done, "work_source": state.work_source,
                "interface_version": INTERFACE_VERSION}

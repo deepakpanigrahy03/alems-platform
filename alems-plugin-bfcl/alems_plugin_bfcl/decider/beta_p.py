@@ -76,16 +76,25 @@ class BetaP:
             opts = [o for o in opts if o.startswith("FR_")] or opts
         return opts
 
+    def _repeat(self, cls: str, o: str) -> Tuple[Optional[float], str]:
+        """R5 6.6 item 3: class repeat estimate, else the pooled _default one."""
+        rep = self._opt(cls, o).get("p_repeat_after_fail")
+        if rep is not None:
+            return float(rep), "p_repeat"
+        rep = (R5._opt(self.params, "_default", o) or {}).get("p_repeat_after_fail")
+        return (float(rep), "p_repeat_default") if rep is not None else (None, "")
+
     def _p(self, state: FailureState, o: str, counts: Dict[str, Any],
-           rng: random.Random, p_override: Optional[Dict[str, float]]) -> float:
+           rng: random.Random, p_override: Optional[Dict[str, float]]) -> Tuple[float, str]:
         a, b = self.posterior(state, o, counts)
         sample = rng.betavariate(a, b)   # drawn for every option: stream stays aligned
         if p_override is not None and o in p_override:
-            return float(p_override[o])
-        rep = self._opt(state.failure_class, o).get("p_repeat_after_fail")
-        if rep is not None and o in state.previous_options:
-            return float(rep)            # R5 6.6 item 3
-        return sample
+            return float(p_override[o]), "laya"
+        if o in state.previous_options:
+            rep, src = self._repeat(state.failure_class, o)
+            if rep is not None:
+                return rep, src
+        return sample, "sample"
 
     def decide(self, state: FailureState, options: List[str],
                counts: Optional[Dict[str, Any]] = None, seed: int = 0,
@@ -94,10 +103,10 @@ class BetaP:
         rng = random.Random(seed)
         scores = []
         for o in self.candidates(state, options):
-            p = self._p(state, o, counts or {}, rng, p_override)
+            p, src = self._p(state, o, counts or {}, rng, p_override)
             e = self.energy(state, o)
             j = None if e is None or p <= 0 else e / p
-            scores.append(OptionScore(option=o, p=p, j_pred=j, e_pred=e))
+            scores.append(OptionScore(option=o, p=p, j_pred=j, e_pred=e, p_source=src))
         scores = self._escalate(state, scores)
         best = self._pick(scores)
         budget = self._budget(state.failure_class)

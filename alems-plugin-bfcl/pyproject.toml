@@ -34,6 +34,7 @@ ctrl_laya = "alems_plugin_bfcl.decider.adapter:ctrl_laya"
 escalate_stub = "alems_plugin_bfcl.raf_hooks:escalate_stub"
 keep = "alems_plugin_bfcl.raf_hooks:keep"
 token_rule = "alems_plugin_bfcl.decider.token_rule:token_rule"
+xstar_rule = "alems_plugin_bfcl.decider.xstar_rule:xstar_rule"
 
 [project.entry-points."alems.harness.validity"]
 bfcl_raf = "alems_plugin_bfcl.raf_hooks:classify"
