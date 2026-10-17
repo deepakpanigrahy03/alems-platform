@@ -60,10 +60,14 @@ def test_repeat_falls_back_to_default_and_is_logged():
     p = params()                                  # timeout options have no p_repeat
     p["classes"]["_default"] = {"options": {"SR_warm": {"alpha": 1.0, "beta": 1.0,
                                                         "p_repeat_after_fail": 0.14}}}
-    d = BetaP(p).decide(state(previous_options=("SR_warm",)), list(OPTIONS), seed=1)
-    sr = next(s for s in d.scores if s.option == "SR_warm")
-    assert sr.p == 0.14 and sr.p_source == "p_repeat_default"
-    assert all(s.p_source == "sample" for s in d.scores if s.option != "SR_warm")
+    import random
+    b = BetaP(p)
+    s = state(previous_options=("SR_warm",))
+    assert b._p(s, "SR_warm", {}, random.Random(1), None) == (0.14, "p_repeat_default")
+    d = b.decide(s, list(OPTIONS), seed=1)
+    # p 0.14 makes SR_warm worse than the next rung, so escalation drops it.
+    assert all(sc.option != "SR_warm" for sc in d.scores)
+    assert all(sc.p_source == "sample" for sc in d.scores)
 
 
 def test_abandon_over_class_budget():
