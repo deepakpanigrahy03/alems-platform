@@ -1,35 +1,34 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "alems/raf/laya_p_io/1.0.0",
+  "$id": "alems/raf/laya_p_io/1.1.0",
   "title": "laya_p request and response for POST /v1/systemone (R6 client, R7 server)",
   "$defs": {
     "request": {
       "type": "object", "additionalProperties": false,
-      "required": ["schema_version", "items"],
+      "required": ["schema_version", "template_version", "items"],
       "properties": {
-        "schema_version": {"const": "1.0.0"},
+        "schema_version": {"const": "1.1.0"},
+        "template_version": {"const": "v3", "description": "laya_text template the texts were rendered with"},
         "items": {
           "type": "array", "minItems": 1, "maxItems": 8,
-          "description": "one item per candidate option; no energy numbers, no task id (R5 6.7, D3)",
           "items": {
             "type": "object", "additionalProperties": false,
             "required": ["option", "text"],
             "properties": {
               "option": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
-              "text": {"type": "string", "maxLength": 8000,
-                       "description": "failure class, failure point, option, attempt, error message, last user turn, last two agent messages"}
+              "text": {"type": "string", "description": "laya_text v3 output for this option"}
             }
           }
         }
       }
     },
     "response": {
-      "type": "object", "additionalProperties": false,
-      "required": ["schema_version", "model_version", "calibration", "p"],
+      "type": "object", "additionalProperties": true,
+      "required": ["template_version", "model_version", "calibration", "p"],
       "properties": {
-        "schema_version": {"const": "1.0.0"},
+        "template_version": {"type": "string", "description": "template the serving checkpoint was trained on; must equal the request's"},
         "model_version": {"type": "string"},
-        "calibration": {"type": "string", "description": "temperature scaling id; uncalibrated responses are rejected by the client"},
+        "calibration": {"type": "string"},
         "p": {
           "type": "object",
           "propertyNames": {"pattern": "^(FR|SR|RB|SG)_(warm|cold)$"},
@@ -39,5 +38,5 @@
       }
     }
   },
-  "description": "Client rule: timeout 2 s from request send; any timeout, connection error, non 200, schema mismatch or missing option fails closed to beta_p and records the reason."
+  "description": "Client rule: timeout 2 s; any timeout, connection error, non 200, template mismatch, missing calibration or missing option fails closed to beta_p with the reason recorded."
 }

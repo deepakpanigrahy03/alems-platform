@@ -140,11 +140,25 @@ def _laya(resp=None, sleep=0.0, exc=None):
     return post
 
 
+TEXTS = {o: "text " + o for o in OPTIONS if o != ABANDON}
+
+
 def test_laya_overrides_p():
-    resp = {"calibration": "ts1", "p": {o: 0.1 for o in OPTIONS if o != ABANDON}}
+    resp = {"template_version": "v3", "calibration": "ts1",
+            "p": {o: 0.1 for o in OPTIONS if o != ABANDON}}
     resp["p"]["RB_cold"] = 0.99
-    d = LayaP(BetaP(params()), "http://x", post=_laya(resp)).decide(state(), list(OPTIONS))
+    d = LayaP(BetaP(params()), "http://x", post=_laya(resp)).decide(
+        state(), list(OPTIONS), texts=TEXTS)
     assert d.option == "RB_cold" and d.decider == "laya_p"
+
+
+def test_laya_template_mismatch_fails_closed():
+    resp = {"template_version": "v2", "calibration": "ts1",
+            "p": {o: 0.9 for o in OPTIONS if o != ABANDON}}
+    beta = BetaP(params())
+    d = FailClosed(LayaP(beta, "http://x", post=_laya(resp)), beta, deadline_s=0.5).decide(
+        state(), list(OPTIONS), seed=3, texts=TEXTS)
+    assert "template mismatch" in d.fallback_reason and d.decider == "beta_p"
 
 
 @pytest.mark.parametrize("post", [
@@ -155,13 +169,14 @@ def test_laya_overrides_p():
 def test_fail_closed(post):
     beta = BetaP(params())
     d = FailClosed(LayaP(beta, "http://x", post=post), beta, deadline_s=0.5).decide(
-        state(), list(OPTIONS), seed=3)
+        state(), list(OPTIONS), seed=3, texts=TEXTS)
     assert d.fallback_reason and d.decider == "beta_p"
 
 
 def test_hung_call_does_not_block_next_decision():
     calls = []
-    resp = {"calibration": "ts1", "p": {o: 0.5 for o in OPTIONS if o != ABANDON}}
+    resp = {"template_version": "v3", "calibration": "ts1",
+            "p": {o: 0.5 for o in OPTIONS if o != ABANDON}}
 
     def post(url, body, t):
         calls.append(1)
@@ -171,8 +186,8 @@ def test_hung_call_does_not_block_next_decision():
 
     beta = BetaP(params())
     fc = FailClosed(LayaP(beta, "http://x", post=post), beta, deadline_s=0.5)
-    assert fc.decide(state(), list(OPTIONS)).fallback_reason == "timeout"
-    second = fc.decide(state(), list(OPTIONS))
+    assert fc.decide(state(), list(OPTIONS), texts=TEXTS).fallback_reason == "timeout"
+    second = fc.decide(state(), list(OPTIONS), texts=TEXTS)
     assert second.fallback_reason is None and second.decider == "laya_p"
 
 

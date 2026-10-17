@@ -24,14 +24,16 @@ class FailClosed:
         self.name = getattr(primary, "name", "primary")
 
     def decide(self, state: FailureState, options: List[str],
-               counts: Optional[Dict[str, Any]] = None, seed: int = 0) -> Decision:
+               counts: Optional[Dict[str, Any]] = None, seed: int = 0,
+               texts: Optional[Dict[str, str]] = None) -> Decision:
         if self.primary is self.fallback:
             return self.fallback.decide(state, options, counts=counts, seed=seed)
         box: Dict[str, Any] = {}
 
         def run() -> None:
             try:
-                box["d"] = self.primary.decide(state, options, counts=counts, seed=seed)
+                box["d"] = self.primary.decide(state, options, counts=counts,
+                                               seed=seed, texts=texts)
             except Exception as exc:
                 box["e"] = exc
 

@@ -1,23 +1,28 @@
 """
-laya_p: p from laya-serve (R7), cost and sampling stream from beta_p (design v2).
+laya_p: p from laya-serve (R7), cost and sampling stream from beta_p.
 
-Any problem raises LayaUnavailable; the fail closed wrapper then uses
-beta_p. Text sent per option carries no energy numbers and no task id.
-Uncalibrated responses are rejected (laya_p_io schema).
+The texts are rendered by the adapter with laya_text v3 (one text per
+option) and passed in; this module only sends them. A response is accepted
+only if it is calibrated, covers every option, and was produced by a
+checkpoint trained on the same template version (coordinator: E3 needs a v3
+round 2 checkpoint). Any problem raises LayaUnavailable; the fail closed
+wrapper then uses beta_p and records the reason.
 """
 
 import json
 import urllib.request
 from typing import Any, Callable, Dict, List, Optional
 
+from ..laya_text import TEMPLATE_VERSION
 from .base import Decision, FailureState
 from .beta_p import BetaP
 
 TIMEOUT_S = 2.0
+IO_SCHEMA = "1.1.0"
 
 
 class LayaUnavailable(Exception):
-    """Raised for timeout, connection error, bad status or bad schema."""
+    """Raised for timeout, connection error, bad status, bad schema or template mismatch."""
 
 
 def _post_json(url: str, body: Dict[str, Any], timeout_s: float) -> Dict[str, Any]:
@@ -31,17 +36,6 @@ def _post_json(url: str, body: Dict[str, Any], timeout_s: float) -> Dict[str, An
         return json.loads(resp.read().decode())
 
 
-def option_text(state: FailureState, opt: str) -> str:
-    """R5 6.7 input fields only."""
-    return "\n".join([
-        "failure_class: %s" % state.failure_class,
-        "failure_turn: %d" % state.turns_done,
-        "option: %s" % opt,
-        "attempt: %d" % state.attempt,
-        "error: %s" % state.error_text,
-    ] + ["turn: %s" % t for t in state.last_turns])
-
-
 class LayaP:
     name = "laya_p"
 
@@ -51,15 +45,21 @@ class LayaP:
         self.url = url.rstrip("/") + "/v1/systemone"
         self.post = post or _post_json
 
-    def _p(self, state: FailureState, opts: List[str]) -> Dict[str, float]:
-        body = {"schema_version": "1.0.0",
-                "items": [{"option": o, "text": option_text(state, o)} for o in opts]}
+    def _p(self, opts: List[str], texts: Dict[str, str]) -> Dict[str, float]:
+        missing_text = [o for o in opts if o not in texts]
+        if missing_text:
+            raise LayaUnavailable("no text for options %s" % missing_text)
+        body = {"schema_version": IO_SCHEMA, "template_version": TEMPLATE_VERSION,
+                "items": [{"option": o, "text": texts[o]} for o in opts]}
         try:
             resp = self.post(self.url, body, TIMEOUT_S)
         except LayaUnavailable:
             raise
         except Exception as exc:
             raise LayaUnavailable("%s: %s" % (type(exc).__name__, exc))
+        if resp.get("template_version") != TEMPLATE_VERSION:
+            raise LayaUnavailable("template mismatch: checkpoint %r, texts %r"
+                                  % (resp.get("template_version"), TEMPLATE_VERSION))
         if not resp.get("calibration"):
             raise LayaUnavailable("uncalibrated response")
         p = resp.get("p") or {}
@@ -72,7 +72,8 @@ class LayaP:
         return out
 
     def decide(self, state: FailureState, options: List[str],
-               counts: Optional[Dict[str, Any]] = None, seed: int = 0) -> Decision:
+               counts: Optional[Dict[str, Any]] = None, seed: int = 0,
+               texts: Optional[Dict[str, str]] = None) -> Decision:
         opts = self.base.candidates(state, options)
         return self.base.decide(state, options, counts=counts, seed=seed,
-                                p_override=self._p(state, opts), name=self.name)
+                                p_override=self._p(opts, texts or {}), name=self.name)

@@ -255,7 +255,7 @@ class AttemptRun:
 
     def _record_failure(self, cls: str, kind: str, extra: dict) -> None:
         """Remember the failure point for attempt 2 (design 4.1)."""
-        f = {"cls": cls, "kind": kind, "turn": self.s.turn,
+        f = {"cls": cls, "kind": kind, "turn": self.s.turn, "attempt": self.attempt,
              "llm_ordinal": self.llm_ordinal, "tool_ordinal": self.tool_ordinal,
              "provider_calls": self.s.provider.env.calls_made,
              "state_hash": self.s.provider.state_hash(),
@@ -311,7 +311,9 @@ class AttemptRun:
         if cls == "rate_limit":
             # Rejected before generation: nothing is sent to the server.
             t = _now()
-            self._record_failure(cls, "llm", {"messages": copy.deepcopy(messages)})
+            # error_message: the same string stored as llm_interactions.error_message.
+            self._record_failure(cls, "llm", {"messages": copy.deepcopy(messages),
+                                              "error_message": "injected rate_limit 429"})
             self._interaction(messages, "", {}, t, t, "failure", "injected rate_limit 429")
             raise InjectedFailure(cls, "rate limit 429, retry after %.0f s" % RATE_LIMIT_RETRY_AFTER_S)
         payload = {"model": self.cfg.get("model_id"), "messages": messages,
@@ -332,7 +334,8 @@ class AttemptRun:
         content = msg.get("content") or ""
         if cls == "json_parse":
             # Full generation happened; the agent sees malformed output.
-            self._record_failure(cls, "llm", {"messages": copy.deepcopy(messages)})
+            self._record_failure(cls, "llm", {"messages": copy.deepcopy(messages),
+                                              "error_message": "injected json_parse"})
             self._interaction(messages, MALFORMED_OUTPUT, usage, t0, t1, "failure",
                               "injected json_parse")
             self._event("llm_call", t0, t1, {"ordinal": self.llm_ordinal, "injected": cls})
@@ -464,7 +467,8 @@ class AttemptRun:
                 self.s.messages.append(self._tool(call, notice_first and j == start))
             except InjectedFailure as exc:
                 self._record_failure(exc.cls, "tool",
-                                     {"messages": before, "call_index": j})
+                                     {"messages": before, "call_index": j,
+                                      "error_message": str(exc)})
                 raise
 
     def _finish_turn(self) -> None:
@@ -756,6 +760,19 @@ class BFCLReactAdapter(FrameworkAdapterABC):
         prep = (getattr(executor, "_raf_prepare", None) or {}).get(attempt)
         meta["raf"]["prepare"] = prep
         meta["pending_annotations"] = _annotations(attempt, run.calls, prep)
+        fc = getattr(session, "failure", None)
+        if fc and fc.get("attempt") == attempt:
+            # R6: what the controller knows at this failure, rendered by the same
+            # laya_text v3 functions at decision time and in R7's export 1.2.0.
+            from . import laya_text as _lt
+            from .decider.base import observable_class as _obs
+            _ctx = _lt.failure_context(fc.get("messages") or [], _obs(fc.get("cls")),
+                                       fc.get("error_message"))
+            meta["pending_annotations"].append(
+                {"annotation_type": "raf.failure_context", "annotation_version": "1",
+                 "source": "alems-plugin-bfcl",
+                 "payload": {"ctx": _ctx, "template_version": _lt.TEMPLATE_VERSION,
+                             "ctx_sha256": _lt.sha256_text(_lt.context_json(_ctx))}})
         meta["pending_state_reuse"] = _state_reuse_rows(run.calls)
         meta["pending_annotations"].append(
             {"annotation_type": "raf.context_checkpoint", "annotation_version": "1",
