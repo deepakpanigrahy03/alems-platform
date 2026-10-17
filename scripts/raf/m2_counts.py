@@ -29,13 +29,15 @@ def main() -> int:
     db = sqlite3.connect("file:%s?mode=ro" % a.store, uri=True)
     lines, kept = [], []
     seen = set()
+    runs = {}                                     # task -> [(llm, tool, score)] per repetition
     with open(a.ledger) as fh:
         rows = [json.loads(l) for l in fh if l.strip()]
-    for r in reversed(rows):                      # latest record per task wins
+    for r in reversed(rows):                      # latest record per (task, rep) wins
         task = r["plan"]["task"].replace("bfcl_", "")
-        if r["plan"]["policy"] != "B0" or task in seen:
+        key = (task, r["plan"].get("rep"))
+        if r["plan"]["policy"] != "B0" or key in seen:
             continue
-        seen.add(task)
+        seen.add(key)
         att = db.execute("SELECT attempt_number, run_id, pass_fail FROM goal_attempt "
                          "WHERE goal_id=? ORDER BY attempt_number DESC LIMIT 1",
                          (r["goal_id"],)).fetchone()
@@ -46,13 +48,25 @@ def main() -> int:
         tool = len((r["attempt_meta"].get(str(n)) or {}).get("tools") or [])
         score = 1 if passed == 1 else 0
         lines.append("%s B0 m2 llm=%d tool=%d score=%d goal=%d" % (task, llm, tool, score, r["goal_id"]))
-        if score == 1 and llm >= 3 and tool >= 3:
+        runs.setdefault(task, []).append((llm, tool, score))
+    # kept: two repetitions, both solved, identical llm and tool counts, at least 3 of each
+    for task, rs in sorted(runs.items()):
+        if len(rs) < 2:
+            print("drop %s: %d B0 repetition(s)" % (task, len(rs)))
+        elif any(s != 1 for _, _, s in rs):
+            print("drop %s: not solved in every B0" % task)
+        elif len(set((l, t) for l, t, _ in rs)) != 1:
+            print("drop %s: unstable counts %s" % (task, [(l, t) for l, t, _ in rs]))
+        elif rs[0][0] < 3 or rs[0][1] < 3:
+            print("drop %s: fewer than 3 llm or 3 tool calls" % task)
+        else:
             kept.append(task)
     with open(a.out + ".txt", "w") as fh:
         fh.write("\n".join(sorted(lines, key=lambda s: int(s.split()[0].rsplit("_", 1)[1]))) + "\n")
     with open(a.out + "_kept.txt", "w") as fh:
         fh.write("\n".join(sorted(kept, key=lambda t: int(t.rsplit("_", 1)[1]))) + "\n")
-    print("tasks", len(lines), "kept (solved, at least 3 llm and 3 tool calls)", len(kept))
+    print("tasks", len(runs), "B0 records", len(lines),
+          "kept (both B0 solved, identical counts, at least 3 llm and 3 tool calls)", len(kept))
     return 0
 
 
