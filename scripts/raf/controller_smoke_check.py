@@ -50,6 +50,8 @@ def main() -> int:
     ap.add_argument("--store", required=True)
     ap.add_argument("--after", type=int, default=0)
     ap.add_argument("--params", default=None)
+    ap.add_argument("--expect-abandon", action="store_true",
+                    help="fail when no goal of the smoke abandoned (abandon smokes only)")
     a = ap.parse_args()
     conn = sqlite3.connect("file:%s?mode=ro" % a.store, uri=True)
     from alems_plugin_bfcl.decider.base import OPTIONS
@@ -58,6 +60,8 @@ def main() -> int:
     rows = list(conn.execute(ROWS, (a.after,)))
     for aid, span, raw, goal_id, att_n in rows:
         p = json.loads(raw)
+        if p.get("decider") not in ("beta_p", "laya_p"):
+            continue                 # token_rule and other baselines do not learn
         tag = "annotation %d goal %s attempt %s" % (aid, p.get("goal_id"), p.get("decision_attempt"))
         # G1
         if goal_id != p.get("goal_id") or att_n != int(p["decision_attempt"]) - 1:
@@ -110,7 +114,7 @@ def main() -> int:
     cuts = [json.loads(r[2]).get("cut_id") for r in rows]
     print("cut_id per decision:", cuts)
     print("G6: structural (pre attempt hook before t0; decisions written after execute_goal)")
-    if abandoned == 0:
+    if abandoned == 0 and a.expect_abandon:
         fails.append("G4 no abandoned goal in the smoke")
     for f in fails:
         print("FAIL", f)
