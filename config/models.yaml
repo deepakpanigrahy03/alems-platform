@@ -120,6 +120,8 @@ providers:
         name: Qwen3 4B Instruct 2507 (vLLM GPU, RAF pilot candidate)
       - id: Qwen3-30B-A3B-Instruct-2507-FP8
         name: Qwen3 30B A3B Instruct 2507 FP8 (vLLM GPU, RAF main study)
+      - id: Llama-3.1-8B-Instruct
+        name: Llama 3.1 8B Instruct bf16 (vLLM GPU, RAF second model)
     execution_site: host
     transport: loopback_http
     remote_energy_available: false
