@@ -30,6 +30,20 @@ LAYA_MODEL = DECISION + "_" + TEMPLATE_VERSION
 LAYA_QUESTION = ("Will this recovery attempt complete the user's task correctly, "
                  "given the failure and the chosen option?")
 
+# Observable class (coordinator, Oct 16): the persistent prefix and the
+# contaminating subtypes are plan labels the controller never sees.
+PERSIST_PREFIX = "persistent_"
+CONTAMINATING = frozenset({"silent_tool_output", "wrong_model_step"})
+DETECTED = "silent_detected"
+
+
+def observable(cls: Optional[str]) -> str:
+    """Plan or record class to the class visible at decision time."""
+    c = str(cls or "unknown")
+    if c.startswith(PERSIST_PREFIX):
+        c = c[len(PERSIST_PREFIX):]
+    return DETECTED if c in CONTAMINATING else c
+
 # Constants copied from R7 laya_export.py (v2), unchanged.
 FIXED_NOTICE = "[notice] The previous step failed with an error and is being retried."
 BUDGET_TOTAL = 1024
@@ -94,9 +108,12 @@ def failure_context(messages: List[Dict[str, Any]], cls: str,
     """
     The failure context record: what the controller knows at the failure.
 
-    cls is the observable class. The error comes from the agent context when
-    present, else from the harness ("harness: <message>").
+    cls is mapped to the observable class here, whatever the caller passes
+    (persistent_ removed, contaminating subtypes to silent_detected), so no
+    plan label can reach the record, the text or the hashes. The error comes
+    from the agent context when present, else from the harness.
     """
+    cls = observable(cls)
     msgs = [m for m in copy.deepcopy(messages or []) if isinstance(m, dict)]
     notice = strip_notice(msgs)
     error, source = find_error(msgs)

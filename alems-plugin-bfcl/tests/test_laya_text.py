@@ -25,6 +25,13 @@ def test_context_from_agent_error_and_notice():
     assert MSGS[-1]["content"].endswith(LT.FIXED_NOTICE)       # input not mutated
 
 
+def test_plan_labels_never_reach_the_record():
+    assert LT.failure_context([], "persistent_tool_error", None)["cls"] == "tool_error"
+    assert LT.failure_context([], "silent_tool_output", None)["cls"] == "silent_detected"
+    assert LT.failure_context([], "persistent_wrong_model_step", None)["cls"] == "silent_detected"
+    assert LT.failure_context([], "json_parse", None)["cls"] == "json_parse"
+
+
 def test_harness_error_fallback():
     ctx = LT.failure_context([{"role": "user", "content": "u"}], "rate_limit",
                              "injected rate_limit 429")
