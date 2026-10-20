@@ -23,10 +23,12 @@ bfcl_state = "alems_plugin_bfcl.scorer:BFCLStateScorer"
 # Tool calling agent loop with injection hooks and FR/SR recovery (RAF LH 01, S1b).
 [project.entry-points."alems.frameworks"]
 bfcl_react = "alems_plugin_bfcl.react:BFCLReactAdapter"
+raf_sweep = "alems_plugin_bfcl.sweep:SweepAdapter"
 
 # RAF hooks for scheduled profiles (alems run; core/execution/scheduled_runner.py).
 [project.entry-points."alems.harness.prepare"]
 bfcl = "alems_plugin_bfcl.raf_hooks:make_prepare"
+sweep = "alems_plugin_bfcl.sweep:make_prepare"
 
 [project.entry-points."alems.harness.deciders"]
 ctrl_beta = "alems_plugin_bfcl.decider.adapter:ctrl_beta"
@@ -38,6 +40,7 @@ xstar_rule = "alems_plugin_bfcl.decider.xstar_rule:xstar_rule"
 
 [project.entry-points."alems.harness.validity"]
 bfcl_raf = "alems_plugin_bfcl.raf_hooks:classify"
+sweep = "alems_plugin_bfcl.sweep:classify"
 
 [tool.setuptools]
 packages = ["alems_plugin_bfcl", "alems_plugin_bfcl.upstream"]

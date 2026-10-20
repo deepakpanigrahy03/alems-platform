@@ -247,7 +247,7 @@ class Runner:
         from core.injection.scenario_injector import ScenarioInjector
         key = "%s_%s_%s_%s" % (self.study["name"], g["cls"], g["policy"], uuid.uuid4().hex[:8])
         ex = AgenticExecutor(self.model_cfg)
-        ex._raf_context = {"goal_key": key, "temperature": 0.0,
+        ex._raf_context = {"goal_key": key, "temperature": float(self.sched.get("temperature", 0.0)),
                            "seed": self.sched["seeds"]["model_seed"]}
         if g.get("turn_check"):
             ex._raf_context["turn_check"] = True       # per turn state check
@@ -265,6 +265,7 @@ class Runner:
                                              g.get("point"), g.get("rep", 1))}
             ex._raf_history = (lambda pop, _c=self.conn:
                                raf_history.read_history(_c, pop))
+        ex._raf_plan = dict(g)                         # RAF sweep: the plan for plugin prepare hooks (inert for BFCL)
         ex.pre_attempt_hook = self.make_prepare(
             ex, self.base_url, g["policy"], reset_path=self.reset_path, decide=decide,
             metrics=vllm_metrics.read)                 # core supplies the reader (INV-14)

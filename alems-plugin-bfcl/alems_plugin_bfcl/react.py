@@ -783,6 +783,8 @@ class BFCLReactAdapter(FrameworkAdapterABC):
                           for k in ("cls", "fired", "applied", "corruption", "turn_checks")}
         # B5: tool name sequence per attempt (trajectory divergence under cache state).
         store[attempt]["tools"] = [c["name"] for c in run.calls_tools]
+        # RAF samp: what this attempt actually sent to the server (gate and provenance)
+        store[attempt]["sent"] = {"temperature": float(ctx.get("temperature", 0.0)), "seed": int(ctx.get("seed", 0))}
         executor._raf_attempts = store
         if run.turn_checks:
             # Per turn check cost and outcome (spec 4.3); hashes kept for audit.
