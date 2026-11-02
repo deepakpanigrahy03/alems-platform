@@ -126,3 +126,6 @@ migrations/migration_manifest.json
 # Machine specific audit baselines (live in sandbox after 39.2)
 audit/gn100-2b96/
 audit/UBUNTU2505/
+
+papers/
+*.db
