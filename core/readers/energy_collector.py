@@ -176,9 +176,13 @@ class EnergyCollector:
                 tick_start_ns = time.time_ns()
                 curr = self._reader.read_energy()  # native key dict
                 tick_end_ns = time.time_ns()
-                # interval_ns = time since last tick, not read() duration
-                # read() takes ~0.3ms but scheduled interval is 1/hz seconds
-                interval_ns = int(interval_s * 1_000_000_000)
+                # interval_ns = MEASURED time since the previous tick, not the
+                # planned 1/hz: ticks run slightly long, and the planned value
+                # biased rail energy 3 to 5% low (Nov 4, 2026). The first tick
+                # of a run (no baseline yet) falls back to the planned interval.
+                prev_tick = getattr(self, '_prev_tick_ns', None) if self._prev else None
+                interval_ns = (tick_end_ns - prev_tick) if prev_tick else int(interval_s * 1_000_000_000)
+                self._prev_tick_ns = tick_end_ns
 
                 # Build canonical domain dict from this tick
                 domains: Dict[str, int] = {}
@@ -199,9 +203,12 @@ class EnergyCollector:
                         # Never substitute zero — absent means not measured
 
                     elif descriptor.domain_type == POWER_RAIL:
-                        # Instantaneous reading: store raw value, no delta
+                        # Instantaneous power (mW) -> energy over this tick (uJ):
+                        # mW * s * 1000 = uJ. The value lands in
+                        # energy_sample_domains.energy_uj, so it must be energy.
+                        # Bug B1 (fixed Nov 4): raw mW was stored here.
                         if c is not None:
-                            domains[descriptor.canonical_name] = c
+                            domains[descriptor.canonical_name] = int(c * interval_ns / 1_000_000)  # mW * ns / 1e6 = uJ
 
                 # Emit canonical sample to all registered adapters
                 if domains:
