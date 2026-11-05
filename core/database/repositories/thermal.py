@@ -75,12 +75,22 @@ class ThermalRepository:
                 if zone_type in ("cpu_temp", "package_celsius"):
                     continue
 
+                # The reader names duplicate zone types type, type_1, type_2 ...
+                # (ARMThermalReader). Map each name to (type, position) and
+                # write ONE row to that zone. Before this fix, the plain name
+                # was written to every zone of the type and the suffixed
+                # names were dropped, so all GB10 zones held zone 0.
+                base, pos = zone_type, 0
                 zone_ids = self._get_zone_ids(machine_id, zone_type)
-                if not zone_ids:
+                if not zone_ids and "_" in zone_type:
+                    head, _, tail = zone_type.rpartition("_")
+                    if tail.isdigit():
+                        base, pos = head, int(tail)
+                        zone_ids = self._get_zone_ids(machine_id, base)
+                if not zone_ids or pos >= len(zone_ids):
                     continue
 
-                # Write one row per zone_id matching this zone_type
-                for zone_id in zone_ids:
+                for zone_id in (zone_ids[pos],):
                     if temp is None:
                         quality_flag = "MISSING"
                         invalid_reason = "NULL_FROM_READER"

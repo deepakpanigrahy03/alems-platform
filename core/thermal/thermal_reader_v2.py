@@ -161,9 +161,16 @@ class ThermalReaderV2(ThermalReaderV2ABC):
         readings = self.read_all_zones()
         result: Dict[str, Optional[float]] = {}
 
-        for r in readings:
+        # Duplicate zone types (GN100: 7 x acpitz) must not overwrite each
+        # other: name them type, type_1, type_2 ... in zone_id order. The
+        # repository writer maps the suffix back to the zone by position.
+        seen: Dict[str, int] = {}
+        for r in sorted(readings, key=lambda x: x["zone_id"]):
             zid = r["zone_id"]
-            zone_type = self._zones[zid].get("zone_type", f"zone_{zid}")
+            base = self._zones[zid].get("zone_type", f"zone_{zid}")
+            n = seen.get(base, 0)
+            seen[base] = n + 1
+            zone_type = base if n == 0 else f"{base}_{n}"
             if r["quality_flag"] == "VALID":
                 result[zone_type] = r["temp_celsius"]
             else:
