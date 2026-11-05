@@ -30,10 +30,11 @@ def check_concurrent_gpu_processes(conn, run_id):
     Returns:
         Count of other GPU processes detected during run. 0 = single tenant.
     """
-    # Placeholder: no concurrent process detection implemented yet.
-    # When multi-tenant detection is added, query a gpu_process_samples table
-    # or similar artifact captured during measurement.
-    return 0
+    # Not implemented: return None (unknown), never 0. Returning 0 claimed
+    # "single tenant, HIGH confidence" on a shared machine without any check
+    # (fixed Nov 4, 2026). Implement by sampling the GPU process list during
+    # measurement into a gpu_process_samples table.
+    return None
 
 
 def assess_gpu_attribution(conn, run_id, run_row):
@@ -45,6 +46,13 @@ def assess_gpu_attribution(conn, run_id, run_row):
     """
     other_gpu_procs = check_concurrent_gpu_processes(conn, run_id)
 
+    if other_gpu_procs is None:
+        return {
+            'mode':       'single_active_workload_assumed',
+            'fraction':   1.0,
+            'confidence': 'UNVERIFIED',
+            'evidence':   'concurrent GPU process detection not implemented',
+        }
     if other_gpu_procs == 0:
         return {
             'mode':       'single_active_workload',
