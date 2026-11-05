@@ -57,6 +57,48 @@ ATTRIBUTION_METHOD_SAMPLE_V2   = "sample_based_v2"
 ATTRIBUTION_METHOD_FALLBACK_V1 = "time_fraction_fallback_v1"
 
 
+def _sum_v2_package_in_window(cursor, run_id, start_ns, end_ns):
+    """
+    PACKAGE energy from energy_samples_v2 + energy_sample_domains inside a
+    window, weighted by overlap (a 10 Hz sample is often only partly inside
+    a short LLM window). Each v2 row covers [timestamp_ns - interval_ns,
+    timestamp_ns]: EnergyCollector stamps the tick end. Returns None if the
+    run has no v2 PACKAGE rows in or near the window.
+    Added Nov 4, 2026: GB10 runs have no RAPL rows in energy_samples, so
+    the LLM window energy was always 0 while labelled sample_based_v2.
+    """
+    cursor.execute("""
+        SELECT v.timestamp_ns, v.interval_ns, d.energy_uj
+        FROM energy_samples_v2 v
+        JOIN energy_sample_domains d ON d.sample_id = v.rowid
+        JOIN energy_domains dom      ON dom.domain_id = d.domain_id
+        WHERE v.run_id = ? AND dom.name = 'PACKAGE'
+          AND v.timestamp_ns > ? AND v.timestamp_ns - v.interval_ns < ?
+    """, (run_id, start_ns, end_ns))
+    rows = cursor.fetchall()
+    if not rows:
+        return None
+    total, covered_ns = 0.0, 0
+    for ts, iv, e in rows:
+        if not iv or iv <= 0 or e is None:
+            continue
+        overlap = min(ts, end_ns) - max(ts - iv, start_ns)
+        if overlap > 0:
+            total += e * overlap / iv
+            covered_ns += overlap
+    # Above-idle basis (Nov 4, 2026): attributed_energy_uj counts energy above
+    # idle only, so subtract idle power over the covered time. Without this,
+    # idle (about 70% of package energy on GB10) pushed the LLM window above
+    # the attributed total and orchestration collapsed to 0.
+    cursor.execute(
+        "SELECT baseline_energy_uj, duration_ns FROM runs WHERE run_id = ?",
+        (run_id,))
+    r = cursor.fetchone()
+    if r and r[0] and r[1]:
+        total -= (float(r[0]) / float(r[1])) * covered_ns
+    return max(0, int(total))
+
+
 def _sum_samples_in_window(cursor: sqlite3.Cursor, run_id: int,
                             start_ns: int, end_ns: int,
                             cpu_fraction: float) -> int:
@@ -91,10 +133,13 @@ def _sum_samples_in_window(cursor: sqlite3.Cursor, run_id: int,
     """, (run_id, start_ns, end_ns))
 
     row = cursor.fetchone()
-    if not row or row[0] is None:
-        return 0
-
-    raw_uj = max(0, int(row[0]))
+    if not row or row[0] is None or not row[1]:
+        # No x86 RAPL rows: use the unified v2 tables (GB10 SPBM and others).
+        raw_uj = _sum_v2_package_in_window(cursor, run_id, start_ns, end_ns)
+        if raw_uj is None:
+            return 0
+    else:
+        raw_uj = max(0, int(row[0]))
     attributed_uj = int(raw_uj * cpu_fraction)
 
     logger.debug(
