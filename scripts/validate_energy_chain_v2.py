@@ -40,6 +40,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from platform_config import get_platform_config
 from dag_validator import validate_dag
 from proc_attr_validator import validate_proc_attr
+from agreement_validator import validate_agreement
 from check_validators import (
     validate_boundary,
     validate_activity_decomp,
@@ -273,6 +274,8 @@ def validate_run(conn, run_id):
     }
     # Merge DAG checks (ML1-INT, ML0-ML1, ML1-ML2)
     checks.update(dag_result['checks'])
+    # Cross-source agreement (Nov 4, 2026): catches unit and scaling bugs
+    checks.update(validate_agreement(conn, run_id, platform))
 
     # ── Summary counts ────────────────────────────────────────────────────
     statuses = [v.get('status', '') for v in checks.values()]

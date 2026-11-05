@@ -54,7 +54,7 @@ CHECK_INTERPRETATIONS = {
         'WARN_context': 'Board overhead extremely high. Possible sensor misalignment.',
     },
     'ML1-ML2': {
-        'PASS_context': 'SoC GPU rail vs GPU compute counter. Difference = NVLink-C2C + GPU memory.',
+        'PASS_context': 'SoC GPU rail vs GPU compute counter (DCGM, 1 Hz). Difference is unattributed (see difference covers).',
         'FAIL_action':  'gpu_spbm < gpu_dcgm. Cross-source temporal skew or DCGM overcounting.',
         'WARN_context': 'Ratio unusually high. Check for DCGM sampling gaps.',
     },
@@ -62,9 +62,9 @@ CHECK_INTERPRETATIONS = {
 
 # Residual interpretations by domain
 RESIDUAL_CONTEXT = {
-    'soc_residual':   'CMN-700 mesh interconnect, L3 cache slices, on-chip memory controllers',
-    'board_overhead': 'LPDDR5X DIMMs, NVMe storage, USB/DP controllers, Ethernet PHY, fans, VRM losses',
-    'nvlink_c2c':     'NVLink-C2C fabric, GPU memory interface (HBM3e PHYs + controllers), GPU VRM overhead',
+    'soc_residual':   'Unmetered on-chip: fabric, caches, memory controllers (components not confirmed for GB10)',
+    'board_overhead': 'Off-package, not separately metered: memory (LPDDR5X, soldered), storage, network, USB/display, fans, power conversion losses',
+    'nvlink_c2c':     'GPU rail energy not seen by the GPU counter (unattributed; may include NVLink-C2C, memory interface, GPU voltage regulators, and 1 Hz vs 10 Hz sampling differences)',
 }
 
 
@@ -494,6 +494,26 @@ def render_checks(run):
         _summary(status,
                  f"GOAL-AGGREGATION delta={c.get('delta_uj', 0):.0f}µJ"
                  f" attempts={c.get('n_attempts', 0)}")
+
+    # ── AGREEMENT: cross-source checks (Nov 4, 2026) ──────────────────────
+    for key, title in (('agree_rail', 'AGREE-RAIL'), ('agree_pkg', 'AGREE-PKG'),
+                       ('plaus_wall', 'PLAUS-WALL'), ('top_pair', 'TOP-PAIR')):
+        c = checks.get(key, {})
+        if not c:
+            continue
+        _section(title)
+        status = c.get('status', '?')
+        if c.get('reason'):
+            _line('reason:', c['reason'])
+        for name, d in (c.get('details') or {}).items():
+            _line(f'{name}:', f"stored {d['stored_j']:.4f}J  rail {d['rail_j']:.4f}J"
+                              f"  ratio {d['ratio']:.4f}")
+        for k in ('worst_rel_gap', 'package_counter_j', 'soc_pkg_rail_j',
+                  'ratio_rail_to_counter', 'ratio_wall_to_package', 'band',
+                  'frac_sys_total_above_dc_input', 'mean_gap_w', 'n', 'note'):
+            if k in c:
+                _line(f'{k}:', str(c[k]))
+        _summary(status, f"{title} {status}")
 
     return summary
 

@@ -87,8 +87,14 @@ def validate_boundary(run_row, platform):
     status  = 'OK' if delta <= 1000 else 'FAIL'
     reason  = None
     if work_uj < 0:
-        status = 'WARN'
-        reason = 'baseline exceeds total'
+        if platform == 'arm_spbm':
+            # GB10 attribution excludes the pre/post windows, so the x86
+            # identity attr = pre + work + post does not apply (bug B2).
+            status = 'N/A'
+            reason = 'identity not applicable on GB10 attribution (B2)'
+        else:
+            status = 'FAIL'
+            reason = 'negative work energy: baseline exceeds total'
     result = {
         'status':     status,
         'delta_uj':   round(delta, 0),

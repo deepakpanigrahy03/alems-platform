@@ -117,7 +117,7 @@ PLATFORM_CONFIGS = {
         # Derived quantities (computed from node differences, not raw sensors)
         'derived': {
             'soc_residual':   ('pkg', ['cpu_p', 'cpu_e', 'gpu_spbm', 'dla'],
-                               'SoC unmetered fabric (CMN-700 mesh, L3 cache, memory controllers)'),
+                               'SoC unmetered on-chip (fabric, caches, memory controllers; components not confirmed for GB10)'),
             'board_overhead': ('dc_input', ['pkg'],
                                'Off-die power (LPDDR5X, NVMe, USB/DP, Ethernet, fans, VRM losses)'),
             'nvlink_c2c':     ('gpu_spbm', ['gpu_dcgm'],

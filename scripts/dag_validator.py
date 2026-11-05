@@ -334,6 +334,21 @@ def validate_dag(conn, run_id, platform, run_row, workflow_type='agentic'):
             else:
                 status = 'OK'
 
+        # ML1-ML2 compares a 10 Hz rail with a 1 Hz counter: not meaningful
+        # with fewer than 10 DCGM samples (Nov 4, 2026).
+        if check_name == 'ML1-ML2' and status == 'OK':
+            _dcgm_n = results['dag_nodes'].get('gpu_dcgm', {}).get('n_samples', 0) or 0
+            if _dcgm_n < 10:
+                status = 'N/A'
+
+        # ML1-ML2 compares a 10 Hz rail with DCGM, whose value updates about
+        # once per second (rows are stored at 10 Hz but repeat). Require at
+        # least 10 s of window: 100 SoC GPU samples at 10 Hz (Nov 4, 2026).
+        if check_name == 'ML1-ML2' and status == 'OK':
+            _spbm_n = results['dag_nodes'].get('gpu_spbm', {}).get('n_samples', 0) or 0
+            if _spbm_n < 100:
+                status = 'N/A'
+
         # Get sample count for confidence scoring
         parent_samples = results['dag_nodes'].get(parent_name, {}).get('n_samples', 0)
 
