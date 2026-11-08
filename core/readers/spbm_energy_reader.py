@@ -397,7 +397,11 @@ class SPBMSampler:
     Thread-safe via daemon thread + bounded queue.
     """
 
-    def __init__(self, reader, sampling_hz=SPBM_SAMPLING_HZ):
+    def __init__(self, reader, sampling_hz=None):
+        if sampling_hz is None:
+            # B13: one policy for all samplers; SPBM_SAMPLING_HZ stays the hardware bound
+            from core.readers.sampling_policy import effective_hz
+            sampling_hz = effective_hz("SPBM", SPBM_SAMPLING_HZ)
         # type: (SPBMEnergyReader, int) -> None
         self._reader       = reader
         self._hz           = sampling_hz

@@ -2340,6 +2340,32 @@ CREATE INDEX IF NOT EXISTS idx_normalization_factors_run
 CREATE INDEX IF NOT EXISTS idx_normalization_factors_difficulty
     ON normalization_factors(difficulty_bucket, task_category);
 """
+# sampler_stats: per run, per source sampling record under the declared
+# sampling policy; tested by invariant S2. Migration v122.
+CREATE_SAMPLER_STATS = """
+CREATE TABLE IF NOT EXISTS sampler_stats (
+    run_id          INTEGER NOT NULL,
+    source          TEXT    NOT NULL,
+    ticks           INTEGER,
+    emitted         INTEGER,
+    empty           INTEGER,
+    errors          INTEGER,
+    max_gap_ns      INTEGER,
+    late_join       INTEGER,
+    parse_errors    INTEGER,
+    requested_hz    REAL,
+    probed_hz       REAL,
+    schema_max_hz   REAL,
+    effective_hz    REAL,
+    achieved_hz     REAL,
+    rate_limited    INTEGER,
+    policy_version  TEXT,
+    policy_sha256   TEXT,
+    PRIMARY KEY (run_id, source)
+);
+CREATE INDEX IF NOT EXISTS idx_sampler_stats_run_id ON sampler_stats(run_id);
+"""
+
 CREATE_RUN_QUALITY = """
 CREATE TABLE IF NOT EXISTS run_quality (
     run_id              INTEGER PRIMARY KEY,

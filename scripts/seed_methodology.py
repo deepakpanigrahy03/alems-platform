@@ -404,6 +404,21 @@ def _load_measured_methods() -> List[Dict]:
             "section":       "IOKit Backend",
         },
         {
+            "id":            "sampling_policy_v1",
+            "name":          "Declared sampling policy with capability probe",
+            "provenance":    "CALCULATED",
+            "layer":         "os",
+            "confidence":    0.95,
+            "description":   (
+                "Sampling rate per source kind = min(policy rate from config/sampling.yaml, "
+                "probed capability of the machine's source, schema safe maximum). "
+                "Per run record in sampler_stats; tested by invariant S2."
+            ),
+            "formula_latex": r"f_{eff} = \min(f_{req}, f_{probe}, f_{schema})",
+            "parameters":    {"policy_file": "config/sampling.yaml", "probe_seconds": 1.5,
+                              "probe_cache_days": 30},
+        },        
+        {
             "id":            "rocm_smi_energy_v1",
             "name":          "AMD ROCm SMI Energy Counter (Stub)",
             "provenance":    "MEASURED",

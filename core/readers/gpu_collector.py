@@ -635,13 +635,17 @@ class GPUCollector:
     15-B adds NVML/DCGM/IOKit/ROCm backends to _detect_backend().
     """
 
-    def __init__(self, rapl_reader=None, sampling_hz=DEFAULT_SAMPLING_HZ):
+    def __init__(self, rapl_reader=None, sampling_hz=None):
         """
         Args:
             rapl_reader: RAPLReader instance. Used for MSRPP1Backend detection.
                          Pass None on platforms without RAPL (e.g. GN100).
             sampling_hz: Sample rate. Default 10 Hz.
         """
+        if sampling_hz is None:
+            # B13: one policy for all samplers; DEFAULT_SAMPLING_HZ stays the hardware bound
+            from core.readers.sampling_policy import effective_hz
+            sampling_hz = effective_hz("GPU_COLLECTOR", DEFAULT_SAMPLING_HZ)
         self.sampling_hz = sampling_hz
         self.interval = 1.0 / sampling_hz
 

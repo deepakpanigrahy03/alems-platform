@@ -1,0 +1,37 @@
+# config/sampling.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# A-LEMS sampling policy: the declared, versioned, machine independent rate
+# per source kind. This file is required: the platform refuses to measure
+# without it (no silent default).
+#
+#   effective_hz = min(requested_hz, probed_hz, schema.sampling_hz)
+#
+#   requested_hz : this file (measurement policy, per source kind)
+#   probed_hz    : what this machine's source can deliver (detected, cached)
+#   schema bound : alems_sdk.measurement_schema sampling_hz (safe maximum)
+#
+# Every run records requested, probed, bound, effective and achieved rate,
+# the policy version and the SHA256 of this file (table sampler_stats).
+# rate_limited = 1 marks a run whose effective rate is below the policy.
+#
+# Rules
+# * Entries are source kinds (schema.source), never machines or hosts.
+# * Every source a reader can produce must be listed; an unlisted source fails.
+# * Change a rate only with evidence (config/methodology_refs/) and bump version.
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: 1
+
+sources:
+  RAPL:          # x86 package counter (updates about every 1 ms)
+    requested_hz: 100
+  SPBM:          # GB10 board and SoC rails (sensor 10 Hz)
+    requested_hz: 10
+  IOKIT:         # macOS powermetrics (floor about 21 ms per block on Mac mini, Nov 8 2026)
+    requested_hz: 10
+  GPU_COLLECTOR: # DCGM or MSR GPU energy collector
+    requested_hz: 10
+
+tolerance:
+  achieved_rate_rel: 0.20     # invariant S2: achieved within 20% of effective
+  max_gap_intervals: 2        # invariant S2: no gap longer than 2 effective intervals

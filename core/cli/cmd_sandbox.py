@@ -256,6 +256,7 @@ def _cmd_create(argv: List[str]) -> int:
         "gwp_values.yaml",
         "adapters.yaml",
         "sources.yaml",
+        "sampling.yaml",          # required sampling policy (no fallback)
         "query_registry.yaml",
         "metric_registry.yaml",
     ]

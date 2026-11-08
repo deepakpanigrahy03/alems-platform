@@ -382,6 +382,9 @@ class RunPersistenceService:
         # Quality score — written to run_quality table
         self._score_run(db, run_id, hw_id)
 
+        # B13: sampler loss and rates recorded per run and source, never silent (invariant S2)
+        self._insert_sampler_stats(db, run_id, result)
+
         # Stub row so ETL _backfill_normalization_factors never skips this run
         # All metric columns are NULL — ETL populates them after goal tracking
         task_meta = result.get("task_meta", {}) or {}
@@ -394,6 +397,26 @@ class RunPersistenceService:
         )
 
         return run_id
+
+    def _insert_sampler_stats(self, db, run_id: int, result: dict) -> None:
+        """B13: one row per sampler per run. result["sampler_stats"] is a list of
+        EnergyCollector._stats dicts filled by the energy engine after stop().
+        A missing list is itself recorded (source='none') so invariant S2 flags it."""
+        # table defined in core/database/schema.py (CREATE_SAMPLER_STATS, migration v122)
+        stats = result.get("sampler_stats") or [{"source": "none"}]
+        for s in stats:
+            db.db.execute(
+                """INSERT OR REPLACE INTO sampler_stats
+                   (run_id, source, ticks, emitted, empty, errors, max_gap_ns, late_join, parse_errors,
+                    requested_hz, probed_hz, schema_max_hz, effective_hz, achieved_hz,
+                    rate_limited, policy_version, policy_sha256)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (run_id, s.get("source"), s.get("ticks"), s.get("emitted"), s.get("empty"),
+                 s.get("errors"), s.get("max_gap_ns"), int(bool(s.get("late_join"))),
+                 s.get("parse_errors"), s.get("requested_hz"), s.get("probed_hz"),
+                 s.get("schema_max_hz"), s.get("effective_hz"), s.get("achieved_hz"),
+                 s.get("rate_limited"), s.get("policy_version"), s.get("policy_sha256")),
+            )
 
     def _score_run(self, db, run_id: int, hw_id) -> None:
         """

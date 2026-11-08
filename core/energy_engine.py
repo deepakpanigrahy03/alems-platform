@@ -1086,7 +1086,16 @@ class EnergyEngine:
             # Collect buffered v2 samples — inserted after insert_run() in experiment_runner
             self.last_v2_samples = list(self._energy_collector._flushed_v2_samples)
             self.last_legacy_samples = list(self._energy_collector._flushed_legacy_samples)
+            # B13: per run sampler stats (rates, ticks, gaps, errors) for sampler_stats / invariant S2
+            stats = dict(getattr(self._energy_collector, "_stats", {}) or {})
+            rdr = getattr(self._energy_collector, "_reader", None)
+            if rdr is not None and hasattr(rdr, "_parse_errors"):
+                stats["parse_errors"] = rdr._parse_errors
+                rdr._parse_errors = 0      # per run count, not since process start
+            self.last_sampler_stats = [stats] if stats else []
             self._energy_collector = None
+        else:
+            self.last_sampler_stats = []
         # SPEC_03A: NIC collector stop
         self.last_nic_samples = []
         if self._nic_collector is not None:

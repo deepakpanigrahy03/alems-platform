@@ -1,0 +1,25 @@
+method_id: sampling_policy_v1
+formula: "f_eff = min(f_requested, f_probed, f_schema); f_achieved = (n_emitted - 1) / (t_last - t_first)"
+parameters:
+  policy_file: config/sampling.yaml
+  probe_seconds: 1.5
+  probe_cache_days: 30
+  tolerance_achieved_rate_rel: 0.20
+  tolerance_max_gap_intervals: 2
+confidence: 0.95
+references:
+  - title: "powermetrics(1) manual: --sample-rate, elapsed time per sample"
+    authors: "Apple Inc."
+    year: 2024
+    ref_type: "manual"
+    relevance: "Interval in ms with no documented minimum; each block reports its elapsed time, used as the integration step"
+  - title: "Intel 64 and IA-32 Architectures Software Developer's Manual, Vol. 3B, RAPL"
+    authors: "Intel Corporation"
+    year: 2023
+    ref_type: "manual"
+    relevance: "RAPL energy status counters update about every 1 ms, bounding the useful x86 sampling rate"
+  - title: "A-LEMS sampling rate measurements"
+    authors: "A-LEMS"
+    year: 2026
+    ref_type: "internal"
+    relevance: "Apple M-series powermetrics: about 21 ms floor per block (about 48 Hz); 100 ms requested gives about 105 ms elapsed"

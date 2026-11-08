@@ -45,7 +45,26 @@ from core.models.normalized_energy_reading import NormalizedEnergyReading
 
 logger = logging.getLogger(__name__)
 
-POWERMETRICS_INTERVAL_MS = 500
+def _probe_powermetrics_hz() -> float:
+    """B13: native rate of powermetrics on this machine: shortest block it reports
+    when asked for 1 ms blocks (about 21 ms on the Mac mini, Nov 8 2026)."""
+    import statistics
+    import subprocess
+    out = subprocess.run(["sudo", "-n", "powermetrics", "--samplers", "cpu_power",
+                          "-i", "1", "-n", "15", "--format", "text"],
+                         capture_output=True, text=True, timeout=10).stdout
+    ms = [float(x) for x in re.findall(r"\(([\d.]+)\s*ms elapsed\)", out)]
+    if len(ms) < 5:
+        raise RuntimeError("powermetrics probe returned %d blocks" % len(ms))
+    return 1000.0 / statistics.median(ms[1:])
+
+
+def _powermetrics_interval_ms(reader=None) -> int:
+    """B13: interval from the sampling policy, never hard coded:
+    min(config/sampling.yaml IOKIT, probed for this machine, SCHEMA_APPLE_IOKIT bound)."""
+    from core.readers.measurement_schema import SCHEMA_APPLE_IOKIT
+    from core.readers.sampling_policy import effective_for_schema
+    return max(1, int(round(1000.0 / effective_for_schema(SCHEMA_APPLE_IOKIT, reader))))
 POWERMETRICS_SAMPLERS = "cpu_power,gpu_power,ane_power"
 
 
@@ -71,7 +90,9 @@ class IOKitPowerReader(EnergyReaderABC):
     METHOD_PARAMS      = {
         "source": "powermetrics cpu_power,gpu_power,ane_power",
         "conversion": "trapezoidal_power_integration",
-        "sampling_interval_ms": POWERMETRICS_INTERVAL_MS,
+        # B13: rate is chosen per machine by core/readers/sampling_policy.py
+        # (config/sampling.yaml IOKIT, probed rate, schema bound); recorded per run in sampler_stats
+        "sampling_interval_ms": "sampling_policy",
     }
     FALLBACK_METHOD_ID = "ml_energy_estimator"
     DOMAINS = ["cpu", "gpu"]   # matches SCHEMA_APPLE_IOKIT native_keys exactly
@@ -109,7 +130,7 @@ class IOKitPowerReader(EnergyReaderABC):
         cmd = [
             "sudo", "powermetrics",
             "--samplers", POWERMETRICS_SAMPLERS,
-            "-i", str(POWERMETRICS_INTERVAL_MS),
+            "-i", str(_powermetrics_interval_ms(self)),
             "-n", "-1",   # -1 means infinite per powermetrics --help,
                           # 0 means zero samples and exit immediately
             "--format", "text",
@@ -126,26 +147,41 @@ class IOKitPowerReader(EnergyReaderABC):
             logger.warning("IOKitPowerReader: failed to start sampling: %s", e)
             self._proc = None
 
+    _ELAPSED_RE = re.compile(r"\(([\d.]+)\s*ms elapsed\)")
+
     def _read_loop(self):
+        """B13: one block per powermetrics header. dt comes from the header's own
+        '(X ms elapsed)'. The block is processed as soon as CPU and GPU power are
+        parsed, not when the next header arrives, so no sample is one interval late
+        and the last block of a run is not lost."""
         if not self._proc:
             return
-        buffer = []
-        last_timestamp = None
+        buffer, elapsed_s, done = [], None, True
         for line in self._proc.stdout:
             line = line.strip()
             if line.startswith("*** Sampled"):
-                if buffer:
-                    self._process_sample(buffer, last_timestamp)
-                    last_timestamp = time.time()
-                buffer = [line]
-                if last_timestamp is None:
-                    last_timestamp = time.time()
-            else:
-                buffer.append(line)
+                if buffer and not done:
+                    self._process_sample(buffer, elapsed_s)   # fallback: block without both values
+                m = self._ELAPSED_RE.search(line)
+                elapsed_s = float(m.group(1)) / 1000.0 if m else None
+                if elapsed_s is None:
+                    self._parse_errors = getattr(self, "_parse_errors", 0) + 1
+                    logger.error("IOKitPowerReader: header without elapsed time: %s", line)
+                buffer, done = [line], False
+                continue
+            if done:
+                continue
+            buffer.append(line)
+            has_cpu = any("CPU Power:" in b for b in buffer)
+            has_gpu = any("GPU Power:" in b for b in buffer)
+            if has_cpu and has_gpu:
+                self._process_sample(buffer, elapsed_s)
+                done = True
 
-    def _process_sample(self, lines: List[str], prev_timestamp: Optional[float]):
+    def _process_sample(self, lines: List[str], elapsed_s: Optional[float]):
         now = time.time()
-        dt_s = min(now - prev_timestamp, 2.0) if prev_timestamp else 0.0
+        # B13: integrate over powermetrics' own elapsed interval; no cap.
+        dt_s = elapsed_s if elapsed_s and elapsed_s > 0 else 0.0
 
         cpu_mw = gpu_mw = None
         p_cluster_mhz = None
@@ -170,7 +206,8 @@ class IOKitPowerReader(EnergyReaderABC):
             if m and p_cluster_mhz is None:
                 p_cluster_mhz = int(m.group(1))
         if dt_s <= 0:
-            return  # first sample, no interval to integrate yet
+            self._parse_errors = getattr(self, "_parse_errors", 0) + 1
+            return  # no elapsed time: counted, not silent
         with self._lock:
             if cpu_mw is not None:
                 self._cumulative_uj["cpu"] += int(cpu_mw * dt_s * 1000)
@@ -203,6 +240,10 @@ class IOKitPowerReader(EnergyReaderABC):
         """
         with self._lock:
             self._samples = [s for s in self._samples if s["timestamp"] >= cutoff_time]
+
+    def probe_native_hz(self) -> float:
+        """B13: used by sampling_policy.probe_hz instead of the counter change probe."""
+        return _probe_powermetrics_hz()
 
     def read_energy_uj(self) -> Dict[str, int]:
         """

@@ -540,6 +540,116 @@ and should be excluded from any energy analysis.
 
 ---
 
+## Sampling Policy
+
+---
+**Method ID:** sampling_policy_v1
+**Schema version:** v122 (sampler_stats)
+**Platforms verified:** pending acceptance runs (see Platform Coverage)
+**Status:** REVIEW
+**Last updated:** 2026-11-08
+---
+
+### Overview
+
+A-LEMS samples every energy source at a declared rate.
+The rate a run actually uses is the lowest of three values: the rate requested by the sampling policy, the rate the machine's source can deliver, and the safe maximum for that kind of source.
+
+f_eff = min(f_requested, f_probed, f_schema)
+
+The policy (`config/sampling.yaml`) is versioned and machine independent: it names source kinds, never machines.
+The platform refuses to measure if the policy is missing, invalid, or has no entry for a source in use.
+Capability is detected automatically: on the first run on a machine, each reader is probed for about 1.5 s and the result is cached.
+Every run records what was requested, what the hardware allowed, and what was achieved, so a run whose rate differs from the policy is visible in its own record.
+
+The policy exists because two failure modes otherwise go unnoticed: rates hard coded per reader that drift apart (for example a collector polling a stream reader faster than the stream updates), and samples lost at run boundaries or on failed reads.
+
+### Platform Coverage
+
+| Platform | Architecture | Source | Canonical Role | Policy rate | Bound | Confidence | Status |
+|----------|-------------|--------|---------------|-------------|-------|------------|--------|
+| Intel i7-1165G7 platform | x86_64 | RAPL MSR counters | PACKAGE | 100 Hz | 100 Hz | 0.95 | PENDING |
+| NVIDIA Grace GB10 | aarch64 | SPBM rails (hwmon, IIO) | PACKAGE, rails | 10 Hz | 10 Hz | 0.95 | PENDING |
+| Apple M-series platform | arm64 | powermetrics (IOKit) | CPU_APPLE, GPU_APPLE | 10 Hz | 40 Hz | 0.95 | PENDING |
+| AMD Ryzen platform | x86_64 | RAPL counters | PACKAGE | 100 Hz | 100 Hz | 0.95 | PLANNED |
+
+Status moves to VERIFIED after acceptance runs pass invariant S2 on that platform.
+
+### Schema
+
+Table `sampler_stats` (schema version v122), one row per run and source.
+
+| Column | Type | Meaning |
+|--------|------|---------|
+| run_id | INTEGER | run |
+| source | TEXT | source kind; `none` if the run recorded no sampler stats (flagged by S2) |
+| ticks, emitted | INTEGER | ticks attempted, samples written |
+| empty, errors | INTEGER | ticks with no data, ticks that raised; energy is carried into the next sample |
+| max_gap_ns | INTEGER | longest interval between written samples |
+| late_join | INTEGER | 1 if the sampler did not stop within 5 s |
+| parse_errors | INTEGER | reader parse failures in the run (powermetrics blocks without elapsed time) |
+| requested_hz | REAL | policy rate |
+| probed_hz | REAL | measured capability of the machine's source; NULL if unknown |
+| schema_max_hz | REAL | safe maximum for the source kind |
+| effective_hz | REAL | rate used |
+| achieved_hz | REAL | (emitted - 1) / sampled span |
+| rate_limited | INTEGER | 1 if effective_hz < requested_hz |
+| policy_version, policy_sha256 | TEXT | policy in force |
+
+### Method Provenance
+
+* **method_id:** sampling_policy_v1, layer os, provenance CALCULATED.
+* **Formula:** f_eff = min(f_requested, f_probed, f_schema); f_achieved = (n_emitted - 1) / (t_last - t_first).
+* **Probe:** counter and rail readers: median interval between value changes over 1.5 s of 0.5 ms polling. Stream readers provide their own probe (powermetrics: shortest block elapsed time when asked for 1 ms blocks).
+* **Energy over each interval:** counters use counter deltas; rails integrate power over the measured interval; powermetrics integrates over the elapsed time reported in each block header.
+* **Confidence 0.95:** not 1.0 because the probe measures update rate from a short window and can misread a source whose update period varies with load, and because the achieved rate is computed from written samples, so a source that repeats stale values at a high rate looks faster than it is. It would reach 1.0 with vendor specified update periods for every source. Effect on results: the policy bounds sampling rate and records loss; energy totals depend on counters and integration, not on the probe.
+
+### Query Reference
+
+**Did every run sample at the policy rate?** Applies to all platforms. Expected: rate_limited 0, achieved within 20% of effective.
+
+```sql
+SELECT run_id, source, requested_hz, probed_hz, effective_hz,
+       ROUND(achieved_hz, 1) AS achieved_hz, rate_limited
+FROM sampler_stats
+ORDER BY run_id DESC
+LIMIT 20;
+```
+
+**Runs with sample loss.** Applies to all platforms. Expected: empty set.
+
+```sql
+SELECT run_id, source, ticks, emitted, empty, errors, late_join, parse_errors,
+       ROUND(max_gap_ns / 1e6, 1) AS max_gap_ms
+FROM sampler_stats
+WHERE empty > 0 OR errors > 0 OR late_join = 1 OR COALESCE(parse_errors, 0) > 0
+   OR source = 'none'
+ORDER BY run_id DESC;
+```
+
+**Which policy produced a result set.** Applies to all platforms. Expected: one row per policy in force.
+
+```sql
+SELECT policy_version, policy_sha256, COUNT(DISTINCT run_id) AS runs
+FROM sampler_stats
+GROUP BY policy_version, policy_sha256;
+```
+
+### Verification
+
+1. Policy loads: `PYTHONPATH=.:alems-sdk/src python3 -c "import core.readers.sampling_policy as p; print(p.validate()['version'])"`
+2. Missing policy is refused: `ALEMS_SAMPLING_CONFIG=/nonexistent PYTHONPATH=.:alems-sdk/src python3 -c "import core.readers.sampling_policy as p; p.validate()"` raises SamplingPolicyError.
+3. After one run: the queries above return one row per source, with rate_limited 0 and no loss rows.
+4. Capability cache: `cat ~/.alems/sampling_probe.json` shows probed_hz per reader.
+5. Invariant S2: `alems validate invariants` reports S2 PASS for the new runs.
+
+### Known Limitations
+
+- **Probe window:** 1.5 s cannot see update periods that change with load. Workaround: force a re-probe under load with `ALEMS_SAMPLING_REPROBE=1`.
+- **Stale value sources:** a source that repeats the same value faster than it updates inflates achieved_hz. Workaround: compare probed_hz with achieved_hz; probed_hz reflects real updates.
+- **Equal policy, different effective rates:** a machine that cannot reach the policy rate runs slower; rate_limited marks it. Workaround: none needed; filter on rate_limited when comparing machines.
+- **Historical runs:** runs before schema version v122 have no sampler_stats rows. Workaround: the audit command reconstructs coverage from stored samples.
+
 ## Reader Selection Logic
 
 `ReaderFactory` selects the appropriate reader automatically:

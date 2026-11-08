@@ -187,7 +187,7 @@ SCHEMA_APPLE_IOKIT = MeasurementSchema(
             parent_domain="UNIFIED",        # Apple unified memory: GPU under UNIFIED root
         ),
     ),
-    sampling_hz=10,
+    sampling_hz=40,     # hardware bound: powermetrics floor about 21 ms per block (48 Hz measured Nov 8 2026, Mac mini); 40 Hz with margin
     counter_width_bits=64,
 )
 
