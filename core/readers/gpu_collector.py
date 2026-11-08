@@ -19,7 +19,9 @@ core/readers/gpu_collector.py
 """
 
 import logging
+import os
 import queue
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -327,6 +329,52 @@ class NVMLBackend:
             pass
  
  
+# DCGM Python bindings locations, newest first. DCGM 4 moved them; a fixed
+# path broke GPU energy silently after the upgrade (B24).
+# ALEMS_DCGM_BINDINGS overrides for nonstandard installs.
+_DCGM_BINDING_PATHS = (
+    "/usr/share/datacenter-gpu-manager-4/bindings/python3",  # DCGM 4
+    "/usr/local/dcgm/bindings/python3",                       # DCGM 3
+)
+
+
+def _dcgm_binding_candidates():
+    # type: () -> List[str]
+    """Candidate folders for pydcgm, override first."""
+    override = os.environ.get("ALEMS_DCGM_BINDINGS")
+    return ([override] if override else []) + list(_DCGM_BINDING_PATHS)
+
+
+def _ensure_dcgm_bindings():
+    # type: () -> Optional[str]
+    """
+    Make pydcgm importable without relying on a hand written .pth file.
+
+    Returns:
+        The folder added to sys.path, "already" if pydcgm was importable, or
+        None if no candidate holds pydcgm.py.
+    """
+    try:
+        import pydcgm  # noqa: F401  (already importable via .pth or PYTHONPATH)
+        return "already"
+    except ImportError:
+        pass
+    for path in _dcgm_binding_candidates():
+        if not os.path.isfile(os.path.join(path, "pydcgm.py")):
+            continue
+        if path not in sys.path:
+            sys.path.insert(0, path)
+        return path
+    return None
+
+
+def _dcgm_installed():
+    # type: () -> bool
+    """True if the DCGM daemon binary exists: then a load failure is an error, not a skip."""
+    import shutil
+    return shutil.which("nv-hostengine") is not None
+
+
 class DCGMBackend:
     """
     NVIDIA DCGM backend for DGX/HGX systems.
@@ -334,9 +382,11 @@ class DCGMBackend:
  
     DCGM field 156 = DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION (cumulative mJ).
     Validated on GN100: spark_hwmon loaded, 4 energy accumulators confirmed.
-    RAPL absent on GB10 — DCGM is the only energy path on this platform.
+    RAPL absent on GB10. Package and rail energy come from SPBM; DCGM field 156
+    is the GPU counter used for GPU attribution and the SPBM to DCGM cross check.
  
-    Bindings at /usr/local/dcgm/bindings/python3/ — registered via .pth file.
+    Bindings located by _ensure_dcgm_bindings() (DCGM 4 path, then DCGM 3,
+    or ALEMS_DCGM_BINDINGS); scripts/setup_dcgm_venv.sh also registers them via .pth.
     Run scripts/setup_dcgm_venv.sh once after activating venv on GN100.
     """
     SOURCE = 'dcgm'
@@ -359,6 +409,8 @@ class DCGMBackend:
         Uses DcgmGroup + WatchFields pattern — validated on GN100 GB10.
         Sets _handle=None on any failure so is_available() returns False cleanly.
         """
+        # B24: locate the bindings before importing (DCGM 4 moved them)
+        self._bindings_path = _ensure_dcgm_bindings()
         try:
             import pydcgm
             import dcgm_fields
@@ -384,8 +436,16 @@ class DCGMBackend:
             import atexit
             atexit.register(self.cleanup)
         except Exception as e:
-            logger.debug("DCGMBackend init failed: %s", e)
             self._handle = None
+            if not _dcgm_installed():
+                # No DCGM on this machine (x86, Mac): expected, stay quiet
+                logger.debug("DCGMBackend init skipped (DCGM not installed): %s", e)
+                return
+            # DCGM is installed, so missing GPU energy is a measurement failure (FAD-2, DC-3)
+            logger.error(
+                "DCGMBackend: DCGM installed but unusable: %s. bindings=%s; searched %s. "
+                "GPU energy (DCGM field 156) will be missing from this run.",
+                e, self._bindings_path, _dcgm_binding_candidates())
  
     def cleanup(self):
         # type: () -> None

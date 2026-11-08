@@ -185,7 +185,8 @@ def detect_nvidia_dcgm():
         if backend.is_available():
             return backend.get_gpu_info()
     except Exception as e:
-        logger.debug("DCGM detection failed: %s", e)
+        # B24: on a DCGM host this hides missing GPU energy; report it
+        logger.warning("DCGM detection failed: %s", e)
     return []
  
  
