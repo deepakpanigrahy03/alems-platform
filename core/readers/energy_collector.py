@@ -109,6 +109,10 @@ class EnergyCollector:
             )
             return
 
+        # B13: rate decision (and the one time capability probe, about 1.5 s on a new
+        # machine) BEFORE the baseline read, so the first tick never spans the probe.
+        from core.readers.sampling_policy import describe
+        rates = describe(self._schema, self._reader)   # cached after first use
         # Baseline read before thread starts — prevents first-tick spike
         self._prev = self._reader.read_energy()
         # B13: reset per run state. A reused collector kept _prev_tick_ns from the
@@ -119,8 +123,6 @@ class EnergyCollector:
         self._running = True
 
         # B13: one policy for all samplers: min(config, probed for this machine, schema bound)
-        from core.readers.sampling_policy import describe
-        rates = describe(self._schema, self._reader)   # probes once per machine, cached
         self._stats.update(rates)
         self._effective_hz = rates["effective_hz"]
         interval_s = 1.0 / self._effective_hz  # seconds between ticks

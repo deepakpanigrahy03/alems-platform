@@ -420,11 +420,14 @@ class DCGMBackend:
             self._handle = pydcgm.DcgmHandle(ipAddress='127.0.0.1')
             self._system = self._handle.GetSystem()
             # Create group containing GPU 0 for field watching
-            self._group = pydcgm.DcgmGroup(self._handle, groupName='alems_gpu_energy')
+            # B26: unique names per backend instance; fixed names collided ("Duplicate key")
+            # when two backends lived in one process or a crashed run left its group behind.
+            _tag = "%d_%d" % (os.getpid(), id(self) & 0xFFFF)
+            self._group = pydcgm.DcgmGroup(self._handle, groupName='alems_gpu_energy_' + _tag)
             self._group.AddGpu(0)
             # Create field group for energy + util + temp fields
             self._field_group = pydcgm.DcgmFieldGroup(
-                self._handle, 'alems_fields',
+                self._handle, 'alems_fields_' + _tag,
                 [self.FIELD_TOTAL_ENERGY, self.FIELD_GPU_UTIL, self.FIELD_GPU_TEMP])
             # Watch at 100ms interval — GPUCollector samples at 10Hz so this is fine
             self._group.samples.WatchFields(self._field_group, 100000, 1.0, 0)
@@ -459,6 +462,11 @@ class DCGMBackend:
             return
         try:
             self._field_group.Delete()
+            # B26: delete the group too, so the daemon keeps no stale alems groups
+            # (DCGM caps the number of groups; leaked groups eventually block new runs)
+            grp = getattr(self, "_group", None)
+            if grp is not None:
+                grp.Delete()
         except Exception:
             pass
         try:

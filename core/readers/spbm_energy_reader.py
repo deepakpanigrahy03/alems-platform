@@ -283,6 +283,30 @@ class SPBMEnergyReader(EnergyReaderABC):
             logger.warning("SPBMEnergyReader.read_energy_safe: %s", e)
             return {ch: None for ch in SPBM_ENERGY_CHANNELS}
 
+    def probe_native_hz(self):
+        """
+        Native update rate of the SPBM power rails (B13).
+
+        read_energy() also returns firmware energy accumulators that change on
+        almost every read (about 1.3 kHz), so the default change probe measured
+        the accumulators, not the 10 Hz rail sensors that bound the useful rate.
+        Probing read_power() measures the rails.
+
+        Returns:
+            Rail update rate in Hz, or None if it cannot be measured.
+        """
+        from core.readers.sampling_policy import _probe_counter
+
+        class _Rails:
+            """Adapter: the probe calls read_energy(); give it the rail powers."""
+            def __init__(self, reader):
+                self._r = reader
+
+            def read_energy(self):
+                return self._r.read_power()
+
+        return _probe_counter(_Rails(self))
+
     def read_power(self):
         # type: () -> Dict[str, Optional[int]]
         """

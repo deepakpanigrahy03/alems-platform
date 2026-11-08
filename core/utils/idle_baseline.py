@@ -288,6 +288,10 @@ def get_system_state():
 # Core measurement function
 # =============================================================================
 
+# B28: fewer samples give no spread (std 0) and a mean that one noisy window dominates
+MIN_BASELINE_SAMPLES = 3
+
+
 def measure_idle_baseline(
     energy_reader,                       # type: EnergyReaderABC
     core_pinner,                         # type: CorePinner
@@ -536,6 +540,14 @@ def measure_idle_baseline(
         canonical_power[canonical_name] = power
         canonical_std[canonical_name]   = raw_std.get(raw_key, 0.0)
 
+    # B28: a baseline needs enough samples for a mean and a spread. Count what was
+    # actually measured (a domain may have dropped out), never the planned number.
+    actual_samples = min((len(v) for v in all_powers.values()), default=0)
+    if actual_samples < MIN_BASELINE_SAMPLES:
+        raise RuntimeError(
+            "idle baseline rejected: %d of %d samples completed (minimum %d); "
+            "not saved, not used" % (actual_samples, num_samples, MIN_BASELINE_SAMPLES))
+
     # Determine gpu_method for provenance — stored in metadata, inserted by insert_baseline
     gpu_method = getattr(energy_reader, 'METHOD_ID', None)
     current_state["gpu_method"] = gpu_method
@@ -554,7 +566,7 @@ def measure_idle_baseline(
         timestamp=time.time(),
         power_watts=canonical_power,         # canonical uppercase keys always
         duration_seconds=duration_seconds * num_samples,
-        sample_count=num_samples,
+        sample_count=actual_samples,         # B28: measured, not planned
         std_dev_watts=canonical_std,
         cpu_temperature_c=None,              # MIC-1: NULL not 0.0 when unavailable
         method="idle_measurement",
@@ -605,7 +617,13 @@ def apply_baseline_correction(raw_energy_uj, baseline_power_watts, duration_seco
     for domain, energy_uj in raw_energy_uj.items():
         if domain in baseline_power_watts:
             idle_uj = int(baseline_power_watts[domain] * duration_seconds * 1_000_000)
-            corrected[domain] = max(0, energy_uj - idle_uj)
+            diff = energy_uj - idle_uj
+            if diff < 0:
+                # B29: idle above run energy means the baseline is wrong for this run;
+                # clamping hides it (FAD-2). Logged here; invariant M4 fails the run.
+                logger.error("baseline above run energy for %s: run %d uJ, idle %d uJ over %.1f s",
+                             domain, energy_uj, idle_uj, duration_seconds)
+            corrected[domain] = max(0, diff)
         else:
             corrected[domain] = energy_uj    # no baseline for this domain — use raw
     return corrected

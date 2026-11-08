@@ -181,6 +181,17 @@ class EnergyEngine:
         # Platform differences declared in reader.get_measurement_schema().
         # Zero platform-specific branching here — collector is generic.
         self._energy_collector = None      # initialized in start_measurement per run
+        # B13: validate the sampling policy and warm the capability probe now, so a
+        # bad policy stops before any run and the probe never runs inside a run.
+        try:
+            from core.readers import sampling_policy
+            sampling_policy.validate()
+            _rdr = getattr(self, "energy_reader", None)
+            if _rdr is not None:
+                sampling_policy.probe_hz(_rdr)
+        except Exception as e:
+            logger.error("sampling policy check at engine start failed: %s", e)
+            raise
         self._nic_collector = None         # SPEC_03A: initialized in start_measurement
         self.last_spbm_samples = []        # kept for backward compat, always empty now
 

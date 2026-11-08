@@ -812,14 +812,28 @@ class ExperimentRunner:
 
             progress.info("baseline  %ss x %s samples (%ss total)", duration, samples, duration * samples)
 
+            # B28: measured before any run. Retry, then stop the experiment cleanly:
+            # a batch without a valid idle baseline produces wrong dynamic energy.
+            last_err = None
+            for attempt in range(3):
+                try:
+                    harness.baseline = harness.energy_engine.measure_idle_baseline(
+                        duration_seconds=duration,
+                        num_samples=samples,
+                        pre_wait_seconds=pre_wait,
+                        force_remeasure=True if attempt else force_remeasure,
+                        measure_gpu=baseline_config.get("measure_gpu", True),
+                    )
+                    last_err = None
+                    break
+                except Exception as e:
+                    last_err = e
+                    progress.info("baseline  attempt %d of 3 failed: %s", attempt + 1, e)
+            if last_err is not None:
+                raise RuntimeError(
+                    "idle baseline could not be measured after 3 attempts (%s); "
+                    "experiment stopped before any run" % last_err)
             try:
-                harness.baseline = harness.energy_engine.measure_idle_baseline(
-                    duration_seconds=duration,
-                    num_samples=samples,
-                    pre_wait_seconds=pre_wait,
-                    force_remeasure=force_remeasure,
-                    measure_gpu=baseline_config.get("measure_gpu", True),
-                )
                 
                 # Insert to DB (only once, when measured)
                 if harness.baseline is not None:
@@ -834,8 +848,9 @@ class ExperimentRunner:
 
             except Exception as e:
                 import traceback
-                logger.warning("baseline measurement failed: %s; continuing without baseline", e, exc_info=True)
-                return None
+                # B28: saving or reporting the baseline failed after a valid measurement
+                logger.error("baseline save failed: %s; experiment stopped before any run", e, exc_info=True)
+                raise
         else:
             # Load from cache if not already in memory
             # Always the store's own baseline: a baseline already in memory may
