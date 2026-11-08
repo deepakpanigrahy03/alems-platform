@@ -1221,6 +1221,8 @@ You can use tools like calculator or web search if needed.
             logger.error("No API key available")
             return {"content": "Error: No API key", "tokens": {}}
  
+        # B17: start time taken before the call so a failed call still has one
+        call_start_ns = time.time_ns()
         try:
             result              = self._adapter.call(prompt, temp)
             content             = result["content"]
@@ -1322,7 +1324,7 @@ You can use tools like calculator or web search if needed.
                 "streaming_enabled":   0,
                 "first_token_time_ns": None,
                 "last_token_time_ns":  None,
-                "request_start_ns":    None,
+                "request_start_ns":    call_start_ns,   # B17: known even when the call failed
                 "error_message":        str(e),
                 "error_type":           _detect_error_type(str(e)),
                 "status":               "failure",

@@ -369,9 +369,25 @@ print(resolve_store())
         ;;
 
     measure)
-        echo "  Running energy baseline measurement..."
-        python3 scripts/measure_baseline.py "$@" 2>/dev/null || \
-            echo "  measure_baseline.py not yet implemented — coming in next chunk"
+        # B30: baseline for the store of the place you run from.
+        #   inside a sandbox  -> that sandbox's store
+        #   engine checkout   -> the engine root's own store
+        #   anywhere else     -> refuse: there is no store
+        _status="$(alems dev status 2>/dev/null)"
+        _store="$(echo "$_status" | awk '/Store:/{print $2}')"
+        _env="$(echo "$_status" | awk '/Env:/{print $2}')"
+        _sbx=""; _d="$PWD"
+        while [ "$_d" != "/" ]; do
+            if [ -f "$_d/.sandbox-env" ]; then _sbx="$_d"; break; fi
+            _d="$(dirname "$_d")"
+        done
+        if [ -z "$_sbx" ] && { [ -z "$_env" ] || [ "$_env" = "unknown" ]; }; then
+            echo "  alems measure: run it inside a sandbox or the engine root; no store here"
+            exit 1
+        fi
+        _engine="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
+        echo "  measuring idle baseline into: $_store"
+        ( cd "$_engine" && ALEMS_STORE="$_store" python3 scripts/measure_sandbox_baseline.py "$@" )
         ;;
 
     report)

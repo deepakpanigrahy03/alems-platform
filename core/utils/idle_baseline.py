@@ -518,6 +518,11 @@ def measure_idle_baseline(
     for raw_key, power in raw_power.items():
         if schema_map is not None:
             canonical_name = schema_map.get(raw_key)
+            if canonical_name is None and raw_key == "gpu_dcgm":
+                # B32: gpu_dcgm is added by this function (DCGM collector), not by the
+                # energy reader, so it is never in the reader's schema. Without it the
+                # baseline had no GPU idle and GPU dynamic energy kept the idle part.
+                canonical_name = BASELINE_DOMAIN_MAP["gpu_dcgm"][0]
             if canonical_name is None:
                 logger.warning(
                     "measure_idle_baseline: raw_key '%s' not in %s's "
