@@ -116,6 +116,11 @@ class EnergyAnalyzer:
         # Step 3: Calculate the three key metrics
         # ====================================================================
         # Workload energy = total energy - min baseline
+        # B29: idle above package energy means the baseline does not fit this run;
+        # the value stays 0 but is never silent (invariant M4 fails the run).
+        if package_uj - idle_uj < 0:
+            logger.error("dynamic energy negative: package %d uJ, idle %d uJ; baseline above run power",
+                         package_uj, idle_uj)
         workload_uj = max(0, package_uj - idle_uj)
 
         # Reasoning energy = core energy - min core baseline
