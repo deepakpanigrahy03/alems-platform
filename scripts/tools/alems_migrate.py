@@ -764,12 +764,37 @@ def _ensure_gpu_config(conn) -> None:
         print(f"WARNING: gpu_config provisioning failed: {e}")
 
 
+def _guard_cross_checkout(path: str) -> None:
+    """
+    B19b: refuse to migrate a store that belongs to another checkout.
+
+    Engine stores live at <root>/<host>/envs/<user>/<env>/<checkout>/experiments.db.
+    If <checkout> is not this repository's folder name, the store is someone
+    else's: stop. Sandbox stores and explicit --store paths outside envs/ pass.
+    Override for a deliberate operation: ALEMS_MIGRATE_ALLOW_FOREIGN=1.
+    """
+    parts = Path(path).parts
+    if "envs" not in parts or os.environ.get("ALEMS_MIGRATE_ALLOW_FOREIGN") == "1":
+        return
+    i = parts.index("envs")
+    owner = parts[i + 3] if len(parts) > i + 3 else ""
+    here = Path(__file__).resolve().parents[2].name
+    if owner and owner != here:
+        raise MigrationError(
+            "refusing to migrate %s: it belongs to checkout '%s', this is '%s'. "
+            "Run migrate from that checkout, or set ALEMS_MIGRATE_ALLOW_FOREIGN=1 "
+            "if this is deliberate." % (path, owner, here))
+
+
 def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod") -> None:
     ensure_tables(conn)
     schema_files = discover_repo_files(SCHEMA_DIR, "v")
     seed_files = discover_repo_files(SEED_DIR, "s")
 
     pending_schema = preflight(conn, "schema", schema_files, env_mode=env_mode)
+    # B18: check seeds too BEFORE applying anything; a failing check must leave
+    # the store untouched, never half migrated.
+    pending_seed = preflight(conn, "seed", seed_files, env_mode=env_mode)
     for version in pending_schema:
         try:
             apply_one(conn, schema_files[version], version, "schema", hostname, machine_id, commit)
@@ -785,7 +810,7 @@ def cmd_migrate(conn, hostname: str, machine_id, commit, env_mode: str = "prod")
             raise
         print(f"Applied schema {schema_files[version].name}")
 
-    pending_seed = preflight(conn, "seed", seed_files, env_mode=env_mode)
+    # pending_seed computed above, before any schema was applied (B18)
     for version in pending_seed:
         apply_one(conn, seed_files[version], version, "seed", hostname, machine_id, commit)
         print(f"Applied seed {seed_files[version].name}")
@@ -1291,6 +1316,11 @@ def main() -> int:
     commit = get_repo_commit()
     # Explicit store wins (G28); otherwise the normal resolution.
     db_path = os.path.abspath(args.store) if args.store else get_db_path()
+    try:
+        _guard_cross_checkout(db_path)   # B19b: before lock and before any write
+    except MigrationError as e:
+        print(f"alems_migrate: {e}", file=sys.stderr)
+        return 2
     try:
         from core.storage.inprocess_writer import _ProjectLock
         _mig_lock = _ProjectLock(db_path, timeout_s=60.0)

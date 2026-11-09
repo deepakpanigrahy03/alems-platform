@@ -125,7 +125,15 @@ def resolve_store(explicit: Optional[str] = None) -> str:
                 return f"{_base}/{_host}/envs/{_user}/{_env}/{_project}/{_db_name}"
             _host = _socket.gethostname().lower()
             _db_name = os.environ.get("ALEMS_DB_NAME", "experiments.db")
-            return f"{_base}/{_host}/{_db_name}"
+            _shared = f"{_base}/{_host}/{_db_name}"
+            # B19b: this store is shared by every checkout without .alems-env and
+            # every sandbox-less command; using it silently let one branch write into
+            # another's data. Still allowed (legacy machines), never silent.
+            logger.warning(
+                "resolve_store: no sandbox and no .alems-env in %s; using the SHARED "
+                "machine store %s. Run inside a sandbox or add .alems-env to isolate.",
+                _repo_root, _shared)
+            return _shared
     except Exception as exc:
         logger.debug("resolve_store: ALEMS_DATA_ROOT layer failed: %s", exc)
 

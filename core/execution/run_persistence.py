@@ -330,6 +330,7 @@ class RunPersistenceService:
             with _stage(stages, "persist_samples"):
                 self._insert_samples(db, run_id, result)
                 self._insert_events(db, run_id, result)
+                self._link_tool_failures(db, run_id)   # B7b
         return run_id
 
     def run_derived(self, db, run_id: int, result: dict, stages=None) -> None:
@@ -632,6 +633,30 @@ class RunPersistenceService:
         except Exception as _e:
             logger.warning("network_etl failed run_id=%d: %s", run_id, _e)
             _capture(_e, "ALEMS-ETL-0103")
+
+    def _link_tool_failures(self, db, run_id: int) -> None:
+        """
+        B7b: link tool_failure_events of this run's attempts to the failed tool
+        call they came from. Recorded before events existed, so the link is
+        filled here, after _insert_events. Harness level failures (no failed
+        tool call event) stay unlinked, which is correct.
+        """
+        try:
+            db.db.execute(
+                """UPDATE tool_failure_events
+                   SET orchestration_event_id = (
+                       SELECT oe.event_id FROM orchestration_events oe
+                       WHERE oe.attempt_id = tool_failure_events.attempt_id
+                         AND oe.event_type = 'tool_call' AND oe.tool_success = 0
+                         AND (oe.tool_name = tool_failure_events.tool_name
+                              OR tool_failure_events.tool_name = 'harness')
+                       ORDER BY oe.start_time_ns DESC LIMIT 1)
+                   WHERE orchestration_event_id IS NULL
+                     AND attempt_id IN (SELECT DISTINCT attempt_id FROM orchestration_events
+                                        WHERE run_id = ? AND attempt_id IS NOT NULL)""",
+                (run_id,))
+        except Exception as e:
+            logger.error("link tool failures failed run_id=%d: %s", run_id, e)
 
     def _insert_events(self, db, run_id: int, result: dict) -> None:
         """

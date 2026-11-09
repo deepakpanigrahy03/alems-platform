@@ -371,6 +371,17 @@ def _execute_goal_impl(
         energy_uj = attributed_energy_or_none(result)
         orchestration_uj = orchestration_energy_or_none(result)
 
+        # B7a: failure_cause is the coarse, CHECK constrained category of the
+        # classifier's fine grained failure_type; it was never passed (always NULL).
+        failure_cause = None
+        if outcome != "success":
+            _ft = (failure_type or "tool_error").lower()
+            _rules = (("rate", "rate_limit"), ("timeout", "timeout"),
+                      ("context", "context_overflow"), ("api", "api_error"),
+                      ("http", "api_error"), ("wrong", "wrong_answer"),
+                      ("halluc", "wrong_answer"))
+            failure_cause = next((c for k, c in _rules if k in _ft), "tool_error")
+
         goal_tracker.finish_attempt(
             conn=conn,
             attempt_id=attempt_id,
@@ -380,6 +391,7 @@ def _execute_goal_impl(
             orchestration_uj=orchestration_uj,
             compute_uj=None,
             failure_type=failure_type,
+            failure_cause=failure_cause,
         )
         # A+ eligibility: the harness returned, so t1 was reached and the
         # window is closed. Pre t0 failures (result None) get no run.
@@ -806,6 +818,19 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
         conn.execute(
             "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
             (m["attempt_id"], rid))
+        # B7b: events carry attempt_id only from here; link this attempt's
+        # failures to its failed tool call event now (persist_raw was too early).
+        conn.execute(
+            """UPDATE tool_failure_events
+               SET orchestration_event_id = (
+                   SELECT oe.event_id FROM orchestration_events oe
+                   WHERE oe.attempt_id = tool_failure_events.attempt_id
+                     AND oe.event_type = 'tool_call' AND oe.tool_success = 0
+                     AND (oe.tool_name = tool_failure_events.tool_name
+                          OR tool_failure_events.tool_name = 'harness')
+                   ORDER BY oe.start_time_ns DESC LIMIT 1)
+               WHERE attempt_id = ? AND orchestration_event_id IS NULL""",
+            (m["attempt_id"],))
         conn.commit()
     _persist_stage_rows(db, measured)
     return winning, run_ids, failed
@@ -904,6 +929,19 @@ def _flush_injection_log(
             # validates against failure_taxonomy at load time). Do NOT pass through
             # _TOOL_FAILURE_TYPE_MAP — that map predates A1 and maps tool_error→other
             # which is no longer in the taxonomy.
+            # B35: the result path may already have recorded this failure for the
+            # attempt; one failure must be one row. Mark that row as injected
+            # instead of inserting a duplicate.
+            _msg = f"INJECTED[{injected_type}]: scenario {row.get('scenario_id')} rule {row.get('rule_index')}"
+            _dup = conn.execute(
+                "SELECT failure_id FROM tool_failure_events "
+                "WHERE attempt_id = ? AND failure_type = ? ORDER BY failure_id LIMIT 1",
+                (attempt_id, injected_type)).fetchone()
+            if _dup:
+                conn.execute("UPDATE tool_failure_events SET error_message = ? WHERE failure_id = ?",
+                             (_msg, _dup[0]))
+                conn.commit()
+                continue
             record_tool_failure(
                 conn=conn,
                 attempt_id=attempt_id,
