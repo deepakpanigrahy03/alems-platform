@@ -160,3 +160,16 @@ WHERE ea.planning_energy_uj > 0;
    LLM windows is attributed to E_llm_window.
 3. E_background includes A-LEMS instrumentation cost — not separately isolated.
 4. cloud energy is client-side only — remote provider GPU energy not captured.
+
+
+---
+
+## Thermal Penalty Model
+
+### Method ID: `thermal_penalty_weighted`
+
+Estimates energy lost to CPU thermal throttling. Only intervals with CPU temperature above 85 °C contribute.
+
+$$E_{thermal} = E_{pkg} \times \frac{\sum_{i: T_i > 85} \Delta t_i}{\sum_i \Delta t_i} \times 0.20$$
+
+Inputs: thermal_samples.cpu_temp and the interval sample_end_ns minus sample_start_ns. The factor 0.20 is an empirical estimate of the frequency reduction at thermal throttle on Intel x86; it is not validated on ARM or Apple. Provenance INFERRED, confidence 0.85.

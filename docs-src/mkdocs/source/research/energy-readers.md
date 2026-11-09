@@ -964,10 +964,7 @@ typically stable at or near maximum, so the practical impact is small.
 
 `TurbostatReader` on UBUNTU2505 and Alex AMD machine. Factory dispatches
 `ARMCPUFreqReader` only when `caps.os == 'Linux'` and `caps.arch == 'aarch64'`.
-# ============================================================
-# docs-src/mkdocs/source/research/07-energy-readers-methodology.md
-# APPEND this block at the end of the file (after line 501)
-# ============================================================
+
 
 ---
 
@@ -1230,3 +1227,69 @@ FROM runs ORDER BY run_id DESC LIMIT 1;
 - **cache_references proxy:** `L1D_TLB_ACCESS` used as proxy for total
   cache accesses. Cross-platform `cache_miss_rate` comparisons should
   account for this semantic difference vs Linux perf LLC-accesses.
+
+---
+
+## GPU Dual Channel Energy Measurement
+
+### Overview
+
+On GN100 (NVIDIA Grace GB10) GPU energy is available from two independent instruments: DCGM (field 156, GPU compute) and the SPBM hwmon GPU rail (domain_id 7, a broad rail covering GPU compute, GPU memory, NVLink-C2C and other on package GPU consumers). Three methods use the SPBM rail.
+
+### Method ID: `gpu_spbm_total_v1`
+
+Total GPU energy from the SPBM broad rail, the sum of per interval deltas written by SPBMEnergyReader into energy_sample_domains for domain_id 7 over the run.
+
+$$E_{gpu,spbm} = \sum_i \Delta E_{gpu,spbm,i}$$
+
+Output column gpu_spbm_total_uj (µJ). GN100 only: on hardware without SPBM the domain has no rows and the value is NULL (MIC-3), not an error. Verified 2026-06-21 on run 90: SPBM total 231.0 J versus DCGM 174.2 J for the same run, SPBM above DCGM as expected for a broader rail.
+
+### Method ID: `gpu_spbm_dynamic_v1`
+
+SPBM rail energy minus its idle baseline (domain_id 7 idle power from idle_baseline_domains times run duration), the same rate times duration pattern as the DCGM baselined value.
+
+$$E_{gpu,spbm,dyn} = \max(0,\ E_{gpu,spbm,total} - E_{gpu,spbm,baseline})$$
+
+Clamped to zero: a negative value here indicates a baseline problem, not a signal.
+
+### Method ID: `gpu_residual_dynamic_v1`
+
+Residual GPU energy outside compute, mainly GPU memory traffic and NVLink-C2C (hypothesized; not decomposable with current instrumentation).
+
+$$E_{gpu,residual} = E_{gpu,spbm,dyn} - E_{gpu,dyn}$$
+
+Not clamped: a negative residual is a valid diagnostic of baseline drift or window misalignment between the two instruments. Baseline uncertainty enters twice, so any paper using this value must report confidence intervals, not only point estimates.
+
+### Known Limitations
+
+Whether the SPBM GPU rail is inside the SPBM package counter is not yet verified (B33 design, experiment 8.1). DCGM and SPBM measure the same physical GPU with different boundaries and must never be added together.
+
+---
+
+## SPBM Full Power Telemetry
+
+### Overview
+
+SPBM exposes six power channels on GN100 that have no hardware cumulative counter: SOC_PKG, CPU_GPU, VCORE, DC_INPUT, PREREG, DLA. Their energy is computed by integrating sampled power.
+
+### Method ID: `SPBM_INSTANTANEOUS_POWER_INTEGRATION_V1`
+
+$$E_{rail} = \sum_i P_{rail,i} \cdot \Delta t_i$$
+
+Rectangular integration at the sampling rate of the run (10 Hz policy). One parameterised method covers all six rails. Raw power readings are MEASURED; integrated energy is CALCULATED. No numeric confidence is asserted until a characterisation against a known load is done (open item). Trapezoidal integration was considered and deferred.
+
+### Method ID: `spbm_conversion_loss_v1`
+
+$$E_{loss} = E_{dc\_input} - E_{pkg}$$
+
+Difference between the DC_INPUT rail and the package counter. Hypothesized to be conversion and voltage regulation loss outside the package, but the physical measurement point of DC_INPUT is not verified against NVIDIA documentation; until it is, this value must not be called board, wall or system input power in any paper. It is documented only as the difference between two named rails.
+
+### Method ID: `spbm_conversion_efficiency_v1`
+
+$$\eta = E_{pkg} / E_{dc\_input}$$
+
+Dimensionless ratio, normally within [0, 1]; the same DC_INPUT caution applies. Provided because ratios compare more easily across workloads of different length and power than absolute differences.
+
+### Known Limitations
+
+DC_INPUT and SYS_TOTAL have been observed to disagree; DC_INPUT is treated as a diagnostic rail, not a contract boundary (B33 design 4.6).

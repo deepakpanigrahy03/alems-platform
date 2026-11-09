@@ -1,144 +1,480 @@
 # config/methodology_docs.yaml
 # =============================================================================
-# METHODOLOGY DOCS MAP — Single source of truth
+# METHODOLOGY DOCS MAP — single source of truth for every seeded method
 # =============================================================================
-# Maps method_id → (doc_file, section_keyword)
-#
-# IMPORTANT: Section headings in docs MUST match section keyword here.
-# Use dedicated methodology docs (07-09) — NOT general research docs (01-05).
-# Dedicated docs have stable headings. General docs change frequently.
+# method_id -> doc file (relative to docs_base), section heading text, method_anchor.
+# seed_methodology.py takes each method's description from this doc section;
+# this map overrides any doc or section written inside the seed entries.
+# section must match a heading in the doc (validate_methodology_refs.py checks).
+# method_anchor is permanent (MPC-5): the 18 anchors already in the DB keep
+# their values; all others are assigned here for the first time (B22, Nov 9).
 # =============================================================================
 
 docs_base: "docs-src/mkdocs/source/research"
 
 methods:
-  # ── Four-Axis Energy Attribution Framework ───────────────────────────────────
   energy_attribution_v1:
     doc: "energy-attribution.md"
+    method_anchor: "energy-attribution-v1"
     section: "Attribution Model v1 — Four-Axis Framework"
+
   llm_wait_attribution_v1:
     doc: "llm-wait-energy.md"
+    method_anchor: "llm-wait-attribution-v1"
     section: "LLM Wait Energy Attribution"
+
   network_wait_energy_v1:
     doc: "network-wait-energy.md"
+    method_anchor: "network-wait-energy-v1"
     section: "Network Wait Energy Attribution"
+
   llm_energy_sample_v2:
     doc: "llm-energy-sample.md"
+    method_anchor: "llm-energy-sample-v2"
     section: "LLM Energy Attribution v2"
 
-  # ── Output Quality (SPEC 35J) ────────────────────────────────────────────
   output_quality_normalization_v1:
     doc: "output-quality.md"
+    method_anchor: "output-quality-normalization-v1"
     section: "Output Quality Normalization Methodology"
 
-    
-  # ── Energy Readers ──────────────────────────────────────────────────────────
+  hallucination_detection_v1:
+    doc: "output-quality.md"
+    method_anchor: "hallucination-detection-v1"
+    section: "Hallucination Detection Methodology"
+
+  hallucination_wasted_energy_v1:
+    doc: "output-quality.md"
+    method_anchor: "hallucination-wasted-energy-v1"
+    section: "Hallucination Wasted Energy Methodology"
 
   rapl_msr_pkg_energy:
     doc: "energy-readers.md"
+    method_anchor: "rapl-msr-pkg-energy"
     section: "RAPL Energy Measurement"
 
   iokit_power_reader:
     doc: "energy-readers.md"
+    method_anchor: "iokit-power-reader"
     section: "IOKit Power Reader"
+
+  iokit_gpu_energy_v1:
+    doc: "energy-readers.md"
+    method_anchor: "iokit-gpu-energy-v1"
+    section: "IOKit Power Reader"
+
   sampling_policy_v1:
     doc: "energy-readers.md"
     method_anchor: "sampling-policy"
     section: "Sampling Policy"
+
   iokit_thermal_reader:
     doc: "energy-readers.md"
+    method_anchor: "iokit-thermal-reader"
     section: "IOKit Thermal Reader"
+
+  ioreport_cpufreq_v1:
+    doc: "energy-readers.md"
+    method_anchor: "ioreport-cpufreq-v1"
+    section: "IOReport CPU Frequency (ioreport_cpufreq_v1)"
+
+  cpu_active_ratio_v1:
+    doc: "energy-readers.md"
+    method_anchor: "cpu-active-ratio-v1"
+    section: "IOReport CPU Frequency (ioreport_cpufreq_v1)"
 
   ml_energy_estimator:
     doc: "energy-readers.md"
+    method_anchor: "ml-energy-estimator"
+    section: "Estimator (ML-Based Energy Estimation)"
+
+  ml_energy_estimator_v1:
+    doc: "energy-readers.md"
+    method_anchor: "ml-energy-estimator-v1"
     section: "Estimator (ML-Based Energy Estimation)"
 
   dummy_energy_reader:
     doc: "energy-readers.md"
+    method_anchor: "dummy-energy-reader"
     section: "Dummy Energy Reader"
 
-  # ── System Measurement ──────────────────────────────────────────────────────
+  gpu_rapl_pp1_v1:
+    doc: "energy-readers.md"
+    method_anchor: "gpu-rapl-pp1-v1"
+    section: "Method ID: `gpu_rapl_pp1_v1`"
+
+  gpu_dynamic_baseline_v1:
+    doc: "energy-readers.md"
+    method_anchor: "gpu-dynamic-baseline-v1"
+    section: "Method ID: `gpu_dynamic_baseline_v1`"
+
+  gpu_dynamic_run_local_v1:
+    doc: "energy-readers.md"
+    method_anchor: "gpu-dynamic-run-local-v1"
+    section: "Method ID: `gpu_dynamic_run_local_v1`"
+
+  device_telemetry_v1:
+    doc: "energy-readers.md"
+    method_anchor: "device-telemetry-v1"
+    section: "Device Telemetry"
+
+  arm_pmu_v1:
+    doc: "energy-readers.md"
+    method_anchor: "arm-pmu-v1"
+    section: "ARM PMU Reader (arm_pmu_v1)"
+
+  arm_cpufreq_v1:
+    doc: "energy-readers.md"
+    method_anchor: "arm-cpufreq-v1"
+    section: "ARM cpufreq Reader (arm_cpufreq_v1)"
+
+  arm_thermal_sysfs_v1:
+    doc: "energy-readers.md"
+    method_anchor: "arm-thermal-sysfs-v1"
+    section: "ARM Thermal Reader (arm_thermal_sysfs_v1)"
+
+  kperf_pmu_v1:
+    doc: "energy-readers.md"
+    method_anchor: "kperf-pmu-v1"
+    section: "Apple Silicon PMU Counters (kperf_pmu_v1)"
+
+  gpu_spbm_total_v1:
+    doc: "energy-readers.md"
+    method_anchor: "gpu-spbm-total-v1"
+    section: "GPU Dual Channel Energy Measurement"
+
+  gpu_spbm_dynamic_v1:
+    doc: "energy-readers.md"
+    method_anchor: "gpu-spbm-dynamic-v1"
+    section: "GPU Dual Channel Energy Measurement"
+
+  gpu_residual_dynamic_v1:
+    doc: "energy-readers.md"
+    method_anchor: "gpu-residual-dynamic-v1"
+    section: "GPU Dual Channel Energy Measurement"
+
+  SPBM_INSTANTANEOUS_POWER_INTEGRATION_V1:
+    doc: "energy-readers.md"
+    method_anchor: "spbm-instantaneous-power-integration-v1"
+    section: "SPBM Full Power Telemetry"
+
+  spbm_conversion_loss_v1:
+    doc: "energy-readers.md"
+    method_anchor: "spbm-conversion-loss-v1"
+    section: "SPBM Full Power Telemetry"
+
+  spbm_conversion_efficiency_v1:
+    doc: "energy-readers.md"
+    method_anchor: "spbm-conversion-efficiency-v1"
+    section: "SPBM Full Power Telemetry"
+
+  nvml_total_energy_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "nvml-total-energy-v1"
+    section: "NVML Backend (NVIDIA Discrete GPUs)"
+
+  nvml_power_integration_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "nvml-power-integration-v1"
+    section: "NVML Backend (NVIDIA Discrete GPUs)"
+
+  dcgm_energy_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "dcgm-energy-v1"
+    section: "DCGM Backend (GN100)"
+
+  rocm_smi_energy_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "rocm-smi-energy-v1"
+    section: "ROCm Backend (AMD GPUs)"
+
+  gpu_attribution_exclusive_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "gpu-attribution-exclusive-v1"
+    section: "Attribution Method"
+
+  gpu_baseline_2sigma_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "gpu-baseline-2sigma-v1"
+    section: "GPU Idle Baseline (2 Sigma Method)"
+
+  gpu_phase_alignment_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "gpu-phase-alignment-v1"
+    section: "D8 — GPU AXIS 2B (phase projection, exact)"
+
+  energy_domain_registry_v1:
+    doc: "unified-energy-schema.md"
+    method_anchor: "energy-domain-registry-v1"
+    section: "Core Tables"
+
+  nvlink_c2c_isolation_v1:
+    doc: "network-wait-energy.md"
+    method_anchor: "nvlink-c2c-isolation-v1"
+    section: "NVLink-C2C Energy Isolation"
+
+  power_rail_sampling_v1:
+    doc: "power-rail-schema.md"
+    method_anchor: "power-rail-sampling-v1"
+    section: "Power Rail Sampling"
+
+  power_rail_etl_v1:
+    doc: "power-rail-schema.md"
+    method_anchor: "power-rail-etl-v1"
+    section: "ETL Integration"
+
+  network_wait_rapl_slice_v2:
+    doc: "network-energy-cross-platform.md"
+    method_anchor: "network-wait-rapl-slice-v2"
+    section: "Section 3.1 — Strategy A: RAPL Slice"
+
+  network_wait_spbm_fraction_v1:
+    doc: "network-energy-cross-platform.md"
+    method_anchor: "network-wait-spbm-fraction-v1"
+    section: "Section 3.2 — Strategy B: SPBM DC_INPUT"
+
+  network_wait_time_fraction_v1:
+    doc: "network-energy-cross-platform.md"
+    method_anchor: "network-wait-time-fraction-v1"
+    section: "Section 3.3 — Strategy C: Time Fraction Fallback"
+
+  nic_sysfs_reader_v1:
+    doc: "network-energy-cross-platform.md"
+    method_anchor: "nic-sysfs-reader-v1"
+    section: "Section 4 — SPEC_03A NIC Observability"
+
+  nic_window_validator_v1:
+    doc: "network-energy-cross-platform.md"
+    method_anchor: "nic-window-validator-v1"
+    section: "Section 4 — SPEC_03A NIC Observability"
 
   perf_counters:
     doc: "system-measurement.md"
+    method_anchor: "perf-counters"
     section: "Performance Counter Methodology"
 
   thermal_sensor:
     doc: "system-measurement.md"
+    method_anchor: "thermal-sensor"
     section: "Thermal Measurement"
 
   msr_reader:
     doc: "system-measurement.md"
+    method_anchor: "msr-reader"
     section: "C-State Measurement"
 
   turbostat_reader:
     doc: "system-measurement.md"
+    method_anchor: "turbostat-reader"
     section: "Turbostat CPU Frequency Reader"
 
   os_scheduler_reader:
     doc: "system-measurement.md"
+    method_anchor: "os-scheduler-reader"
     section: "OS Scheduler Measurement"
 
   os_memory_reader:
     doc: "system-measurement.md"
+    method_anchor: "os-memory-reader"
     section: "OS Memory Measurement"
 
   network_measurement:
     doc: "system-measurement.md"
+    method_anchor: "network-measurement"
     section: "Network Measurement"
 
   system_clock:
     doc: "system-measurement.md"
+    method_anchor: "system-clock"
     section: "System Wall Clock"
 
-  # ── Derived Metrics ─────────────────────────────────────────────────────────
+  thermal_zone_sysfs_v2:
+    doc: "thermal-subsystem.md"
+    method_anchor: "thermal-zone-sysfs-v2"
+    section: "thermal_zone_sysfs_v2"
+
+  cooling_sysfs_v1:
+    doc: "thermal-subsystem.md"
+    method_anchor: "cooling-sysfs-v1"
+    section: "cooling_sysfs_v1"
+
+  cpuidle_sysfs_v1:
+    doc: "cpu-idle-states.md"
+    method_anchor: "cpuidle-sysfs-v1"
+    section: "Method Provenance"
+
+  system_metadata_v1:
+    doc: "experiment-classification.md"
+    method_anchor: "system-metadata-v1"
+    section: "Experiment Classification Methodology"
 
   ttft_tpot_wall_clock:
     doc: "derived-metrics.md"
+    method_anchor: "ttft-tpot-wall-clock"
     section: "LLM Timing Measurement"
+
+  ttft_measurement_v1:
+    doc: "derived-metrics.md"
+    method_anchor: "ttft-measurement-v1"
+    section: "Streaming Latency Metrics — TTFT and TPOT"
+
+  tpot_measurement_v1:
+    doc: "derived-metrics.md"
+    method_anchor: "tpot-measurement-v1"
+    section: "Streaming Latency Metrics — TTFT and TPOT"
 
   dynamic_energy_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "dynamic-energy-calculation"
+    section: "Dynamic Energy Calculation"
+
+  cpu_fraction_attribution:
+    doc: "derived-metrics.md"
+    method_anchor: "cpu-fraction-attribution"
     section: "Dynamic Energy Calculation"
 
   ipc_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "ipc-calculation"
     section: "IPC Calculation"
 
   cache_miss_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "cache-miss-calculation"
     section: "Cache Miss Rate Calculation"
+
+  perf_cache_counters:
+    doc: "derived-metrics.md"
+    method_anchor: "perf-cache-counters"
+    section: "Hardware Telemetry Metrics (Chunk 12)"
+
+  disk_io_stats:
+    doc: "derived-metrics.md"
+    method_anchor: "disk-io-stats"
+    section: "Hardware Telemetry Metrics (Chunk 12)"
 
   efficiency_metrics_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "efficiency-metrics-calculation"
     section: "Energy Efficiency Metrics"
 
   orchestration_tax_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "orchestration-tax-calculation"
     section: "Orchestration Tax Calculation"
 
   complexity_score_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "complexity-score-calculation"
     section: "Orchestration Complexity Score"
 
   carbon_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "carbon-calculation"
     section: "Carbon Emission Calculation"
 
   water_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "water-calculation"
     section: "Water Consumption Calculation"
 
   methane_calculation:
     doc: "derived-metrics.md"
+    method_anchor: "methane-calculation"
     section: "Methane Emission Calculation"
 
-  # ── Baseline ────────────────────────────────────────────────────────────────
+  phase_attribution_cpu_v1:
+    doc: "derived-metrics.md"
+    method_anchor: "phase-attribution-cpu-v1"
+    section: "Phase Energy Attribution"
+
+  phase_attribution_sample_v2:
+    doc: "derived-metrics.md"
+    method_anchor: "phase-attribution-sample-v2"
+    section: "Phase Energy Attribution v2"
+
+  thermal_penalty_weighted:
+    doc: "energy-attribution.md"
+    method_anchor: "thermal-penalty-weighted"
+    section: "Thermal Penalty Model"
 
   idle_baseline_cpu_pinning_2sigma:
     doc: "measurement-methodology.md"
+    method_anchor: "idle-baseline-cpu-pinning-2sigma"
     section: "Idle Baseline Methodology"
 
-  cpu_fraction_attribution:
-    doc: "derived-metrics.md"
-    section: "Dynamic Energy Calculation"
+  normalization_factors_v1:
+    doc: "normalization.md"
+    method_anchor: "normalization-factors-v1"
+    section: "Factor Taxonomy"
+
+  measurement_boundary_v1:
+    doc: "measurement-boundary.md"
+    method_anchor: "measurement-boundary-v1"
+    section: "Measurement Boundary Methodology"
+
+  measurement_coverage_v1:
+    doc: "measurement-boundary.md"
+    method_anchor: "measurement-coverage-v1"
+    section: "Measurement Coverage"
+
+  goal_execution_rollup_v1:
+    doc: "goal-execution.md"
+    method_anchor: "goal-execution-rollup-v1"
+    section: "Goal Execution and Overhead Fraction Methodology"
+
+  goal_overhead_fraction_v1:
+    doc: "goal-execution.md"
+    method_anchor: "goal-overhead-fraction-v1"
+    section: "Goal Execution and Overhead Fraction Methodology"
+
+  goal_tracking_runtime_v1:
+    doc: "goal-tracking.md"
+    method_anchor: "goal-tracking-runtime-v1"
+    section: "Goal Tracking Runtime"
+
+  etl_queue_management_v1:
+    doc: "goal-tracking.md"
+    method_anchor: "etl-queue-management-v1"
+    section: "ETL Queue"
+
+  tool_failure_wasted_energy_v1:
+    doc: "tool-failure.md"
+    method_anchor: "tool-failure-wasted-energy-v1"
+    section: "Tool Failure Wasted Energy"
+
+  attribution_etl_v1:
+    doc: "tool-failure.md"
+    method_anchor: "attribution-etl-v1"
+    section: "Attribution ETL"
+
+  tool_instrumentation_v1:
+    doc: "tool-instrumentation.md"
+    method_anchor: "tool-instrumentation-v1"
+    section: "Tool Instrumentation Methodology"
+
+  failure_classification_v1:
+    doc: "retry-methodology.md"
+    method_anchor: "failure-classification-v1"
+    section: "Failure Classification"
+
+  failure_injection_v1:
+    doc: "failure-injection-guide.md"
+    method_anchor: "failure-injection-v1"
+    section: "1. Overview"
+
+  failure_injection_v2:
+    doc: "retry-methodology.md"
+    method_anchor: "failure-injection-v2"
+    section: "Failure Injection v2"
+
+  quality_scorer_v1:
+    doc: "run-quality.md"
+    method_anchor: "quality-scorer-v1"
+    section: "Run Quality Methodology"
+
+  outlier_detection_v1:
+    doc: "outlier-detection.md"
+    method_anchor: "outlier-detection-v1"
+    section: "Outlier Detection Methodology"
+

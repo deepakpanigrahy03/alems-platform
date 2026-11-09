@@ -1864,7 +1864,9 @@ def _extract_section(doc_path: Path, keyword: str) -> str:
         None,
     )
     if start is None:
-        return content
+        # B22: a missing heading must not turn the whole document into one
+        # method's description; return a marker the validator rejects.
+        return f"[Section not found: '{keyword}' in {doc_path.name}]"
     level = len(lines[start]) - len(lines[start].lstrip("#"))
     end   = next(
         (i for i, ln in enumerate(lines[start + 1:], start + 1)

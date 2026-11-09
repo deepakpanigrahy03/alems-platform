@@ -438,3 +438,29 @@ researchers should control for across experiment repetitions.
 - `07-energy-readers-methodology.md` — CPU RAPL measurement, GPU PP1 section
 - `measurement-methodology.md` — Overall A-LEMS measurement model
 - arXiv:2605.27599 — "The Energy Blind Spot" (LOCO Workshop paper)
+
+---
+
+## ROCm Backend (AMD GPUs)
+
+### Method ID: `rocm_smi_energy_v1`
+
+Reads the AMD cumulative GPU energy counter through rsmi_dev_energy_count_get() and reports the counter delta over the run.
+
+$$E_{gpu} = \Delta \text{ROCm}_{energy}$$
+
+Status: stub. No AMD GPU is in the lab (as of 2026-06); the method is declared so that the reader can be activated when AMD hardware joins. Values from this method are not validated.
+
+---
+
+## GPU Idle Baseline (2 Sigma Method)
+
+### Method ID: `gpu_baseline_2sigma_v1`
+
+GPU idle power is measured at 10 Hz by the GPU collector during the idle period before an experiment, with the same 2 sigma method as the CPU baseline (see Idle Baseline Methodology in measurement-methodology.md). It is stored in idle_baselines.gpu_power_watts, and the GPU baseline energy of a run is
+
+$$E_{gpu,baseline} = P_{gpu,idle} \times t_{run}$$
+
+### Known Limitations
+
+A stored idle value from a different thermal state can exceed a short run's own GPU power and give negative dynamic energy; such values are logged, not clamped silently (B29), and the per domain idle rules of the B33 contract replace this method for new runs once implemented.

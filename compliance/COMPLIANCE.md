@@ -118,8 +118,10 @@ references:
 
 ### Rule MPC-4: Every New Method Gets a Doc Section and a Stable Anchor
  
-Step 1: Add a section heading with an explicit anchor to the appropriate
-research doc in `docs-src/mkdocs/source/research/`:
+Step 1: Add a section heading to the appropriate research doc in
+`docs-src/mkdocs/source/research/`. The validator matches the heading TEXT
+against the `section` field (case insensitive). An explicit `{ #anchor }` tag
+is optional; the validator ignores it:
  
 ```markdown
 ## Your Method Name { #your-method-anchor }
@@ -136,8 +138,8 @@ Step 2: Add an entry to `config/methodology_docs.yaml`:
 ```yaml
 your_method_id:
   doc: "energy-readers.md"          # filename relative to docs_base
-  method_anchor: "your-method-anchor"  # permanent, never changes once assigned
-  section: "Your Method Name"       # human display only
+  method_anchor: "your-method-anchor"  # permanent DB identifier (MPC-5); must equal the anchor seeded into the DB
+  section: "Your Method Name"       # must match the doc heading text exactly (validator checks it)
 ```
  
 Step 3: Run the validator before committing:
@@ -146,8 +148,10 @@ Step 3: Run the validator before committing:
 python3 scripts/tools/validate_methodology_refs.py
 ```
  
-The validator checks that the doc exists, the anchor exists as a proper
-heading in that doc, and the anchor is unique across the entire docs corpus.
+The validator checks that the doc exists, that the `section` text appears as
+a heading in that doc, that every `method_anchor` is unique, and (with
+`--check-db`) that every anchor stored in the DB has an entry in
+`config/methodology_docs.yaml`.
 It must pass clean before any commit touching methodology docs or seed data.
  
 ### Rule MPC-5: method_anchor Is Permanent

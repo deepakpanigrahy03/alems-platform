@@ -106,9 +106,30 @@ def check_anchor_uniqueness(methods: dict, results: list) -> None:
 
 
 def check_seed_coverage(methods: dict, results: list) -> None:
-    """Warn if a method_id in the docs map is not in seed_methodology.py."""
+    """
+    Warn if a method_id in the docs map is not in seed_methodology.py.
+
+    B22: reader methods are seeded from the reader classes that
+    seed_methodology._load_readers() returns (METHOD_ID and
+    FALLBACK_METHOD_ID), not from literal text, so those ids count as seeded.
+    """
     seed_text = SEED_METHODOLOGY.read_text()
+    reader_ids = set()
+    try:
+        if str(REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(REPO_ROOT))
+        from scripts.seed_methodology import _load_readers
+        for cls in _load_readers():
+            for attr in ("METHOD_ID", "FALLBACK_METHOD_ID"):
+                value = getattr(cls, attr, None)
+                if value:
+                    reader_ids.add(value)
+    except Exception as exc:
+        results.append(("WARN", "seed_readers",
+                        f"could not load reader classes from seed: {exc}"))
     for method_id in methods:
+        if method_id in reader_ids:
+            continue
         if f'"{method_id}"' not in seed_text and f"'{method_id}'" not in seed_text:
             results.append((
                 "WARN",
@@ -147,6 +168,16 @@ def check_db_consistency(docs: dict, results: list) -> None:
             "WHERE method_anchor IS NOT NULL"
         )
         db_anchors = {row[0] for row in cur.fetchall()}
+        # B22: every registry description must be a real doc section
+        cur.execute(
+            "SELECT id, substr(description, 1, 80) FROM measurement_method_registry "
+            "WHERE description IS NULL OR description = '' "
+            "OR description LIKE '[Documentation not found%' "
+            "OR description LIKE '[Section not found%'"
+        )
+        for method_id, desc in cur.fetchall():
+            results.append(("FAIL", f"db:{method_id}",
+                            f"registry description is a placeholder: {desc}"))
         conn.close()
     except Exception as exc:
         results.append(("WARN", "db", f"DB query failed: {exc}"))
