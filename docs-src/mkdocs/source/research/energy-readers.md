@@ -1278,6 +1278,27 @@ $$E_{rail} = \sum_i P_{rail,i} \cdot \Delta t_i$$
 
 Rectangular integration at the sampling rate of the run (10 Hz policy). One parameterised method covers all six rails. Raw power readings are MEASURED; integrated energy is CALCULATED. No numeric confidence is asserted until a characterisation against a known load is done (open item). Trapezoidal integration was considered and deferred.
 
+### Storage and units
+
+Each sample stores rail energy for that sample interval in microjoules.
+The interval is the measured time between consecutive ticks, not the planned sampling period, so a late tick integrates its full duration.
+Conversion: $E_{\mu J} = P_{mW} \cdot \Delta t_{ns} / 10^6$; for example 50,000 mW over a measured 100 ms gives 5,000,000 µJ.
+Rows are written to `energy_sample_domains` with domain ids 20 (DLA) and 25 to 29.
+The catalog `energy_domains` labels these domains `unit = 'uj'` and `is_cumulative = 0` (seed files s021 and s022): each row is energy for one interval, not a running counter, so per run energy is the sum of rows.
+
+Verification (any store with GN100 runs; the ratio should lie between 0.99 and 1.01):
+
+```sql
+-- Stored SOC_PKG energy vs the rail power integral for the latest run.
+WITH r AS (SELECT MAX(run_id) AS run_id FROM energy_sample_domains WHERE domain_id = 25),
+ st AS (SELECT SUM(energy_uj) AS stored_uj FROM energy_sample_domains
+        WHERE domain_id = 25 AND run_id = (SELECT run_id FROM r)),
+ rl AS (SELECT SUM(s.power_mw * s.interval_ns / 1e6) AS rail_uj
+        FROM power_rail_samples s JOIN power_rails p ON p.rail_id = s.rail_id
+        WHERE p.rail_name = 'soc_pkg' AND s.run_id = (SELECT run_id FROM r))
+SELECT stored_uj, rail_uj, ROUND(stored_uj / rail_uj, 4) AS ratio FROM st, rl;
+```
+
 ### Method ID: `spbm_conversion_loss_v1`
 
 $$E_{loss} = E_{dc\_input} - E_{pkg}$$
@@ -1293,3 +1314,9 @@ Dimensionless ratio, normally within [0, 1]; the same DC_INPUT caution applies. 
 ### Known Limitations
 
 DC_INPUT and SYS_TOTAL have been observed to disagree; DC_INPUT is treated as a diagnostic rail, not a contract boundary (B33 design 4.6).
+
+- **Stores written before the energy storage fix hold power, not energy**: in stores whose rail rows were written by A-LEMS before commit 9764052, domains 25 to 29 hold instantaneous power in mW per sample, not energy.
+  The catalog relabel (s021, s022) changes labels only and never rewrites stored samples.
+  Workaround: check `environment_config.git_commit` of the experiment; for older commits, integrate `power_rail_samples` instead of summing these domains.
+- **VCORE and PREREG are not additive**: they overlap other rails and must never appear in a sum with CPU or package rails.
+  Workaround: report them as separate channels.
