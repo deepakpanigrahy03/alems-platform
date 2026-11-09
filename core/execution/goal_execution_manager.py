@@ -820,17 +820,21 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
             (m["attempt_id"], rid))
         # B7b: events carry attempt_id only from here; link this attempt's
         # failures to its failed tool call event now (persist_raw was too early).
-        conn.execute(
-            """UPDATE tool_failure_events
-               SET orchestration_event_id = (
-                   SELECT oe.event_id FROM orchestration_events oe
-                   WHERE oe.attempt_id = tool_failure_events.attempt_id
-                     AND oe.event_type = 'tool_call' AND oe.tool_success = 0
-                     AND (oe.tool_name = tool_failure_events.tool_name
-                          OR tool_failure_events.tool_name = 'harness')
-                   ORDER BY oe.start_time_ns DESC LIMIT 1)
-               WHERE attempt_id = ? AND orchestration_event_id IS NULL""",
-            (m["attempt_id"],))
+        # B41a: the link must never block persistence (e.g. a store without the table).
+        try:
+            conn.execute(
+                """UPDATE tool_failure_events
+                   SET orchestration_event_id = (
+                       SELECT oe.event_id FROM orchestration_events oe
+                       WHERE oe.attempt_id = tool_failure_events.attempt_id
+                         AND oe.event_type = 'tool_call' AND oe.tool_success = 0
+                         AND (oe.tool_name = tool_failure_events.tool_name
+                              OR tool_failure_events.tool_name = 'harness')
+                       ORDER BY oe.start_time_ns DESC LIMIT 1)
+                   WHERE attempt_id = ? AND orchestration_event_id IS NULL""",
+                (m["attempt_id"],))
+        except Exception as exc:
+            logger.error("execute_goal: run=%d tool failure link failed: %s", rid, exc)
         conn.commit()
     _persist_stage_rows(db, measured)
     return winning, run_ids, failed

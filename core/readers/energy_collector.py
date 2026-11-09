@@ -145,6 +145,10 @@ class EnergyCollector:
         Flush must happen AFTER thread joins to avoid concurrent writes.
         """
         self._running = False
+        # B41b: start() returns before creating stats when the schema has no
+        # domains; stop must still work and report zero samples.
+        if not hasattr(self, "_stats"):
+            self._stats = {"ticks": 0, "emitted": 0, "empty": 0, "errors": 0}
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=5.0)
             if self._thread.is_alive():
