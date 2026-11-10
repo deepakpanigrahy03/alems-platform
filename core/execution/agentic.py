@@ -422,6 +422,16 @@ class AgenticExecutor:
                 result = self._execute_tool(
                     step["tool"], args, step_counter
                 )
+                # a calculator expression that names
+                # earlier results instead of numbers is filled once by the model from the
+                # step results so far, then the tool runs again. Literal expressions never
+                # reach this branch, so agents that write numbers behave as before.
+                if (step["tool"] == "calculator" and step_results
+                        and self._tool_failed(result)
+                        and self._has_names(args.get("expression", ""))):
+                    call_counter += 1
+                    args = self._fill_args_from_results(step, args, step_results, call_counter)
+                    result = self._execute_tool(step["tool"], args, step_counter)
                 tool_end = time.time()
                 step_results.append(
                     {
@@ -1141,6 +1151,42 @@ You can use tools like calculator or web search if needed.
  
         return step_results
  
+    @staticmethod
+    def _tool_failed(result) -> bool:
+        """True when a tool result reports failure (string error, ToolResult or dict)."""
+        if isinstance(result, str):
+            head = result.lstrip()[:60]
+            return head.startswith("INJECTED:") or head.startswith("Error") or "Error:" in head
+        ok = getattr(result, "success", None)
+        if ok is not None:
+            return not ok
+        if isinstance(result, dict):
+            return result.get("success") is False or bool(result.get("error"))
+        return False
+
+    @staticmethod
+    def _has_names(expr) -> bool:
+        """True when an expression holds words (variable names) rather than only numbers."""
+        import re as _re
+        return bool(_re.search(r"[A-Za-z_]{2,}", str(expr)))
+
+    def _fill_args_from_results(self, step, args, step_results, call_counter):
+        """Ask the model once for a numeric expression built from earlier step results."""
+        import re as _re
+        prior = "\n".join("step %s: %s" % (sr["step"], str(sr["result"])[:400]) for sr in step_results)
+        prompt = (
+            "Earlier steps returned:\n%s\n\n"
+            "Next step: %s\n"
+            "Planned calculator expression: %s\n"
+            "Rewrite the expression using only numbers taken from the results above.\n"
+            "Reply with the expression only, on one line, no words, no units."
+        ) % (prior, step.get("description", ""), args.get("expression", ""))
+        out = self._call_llm(prompt, temperature=0.0, call_counter=call_counter)
+        expr = _re.sub(r"```[a-z]*\n?", "", out.get("content", "")).replace("```", "").strip()
+        expr = expr.split("\n")[0].strip().rstrip(".")
+        logger.info("calculator args filled from step results: %r -> %r", args.get("expression"), expr)
+        return dict(args, expression=expr)
+
     def _resolve_step_args(self, template: dict, step_results: dict,
                            task_prompt: str = None) -> dict:
         """
