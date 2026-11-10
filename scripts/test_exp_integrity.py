@@ -368,6 +368,40 @@ def check_llm_interactions(conn, run_ids: list) -> list:
     return results
 
 
+def check_dcgm_coverage(conn, run_ids: list) -> list:
+    """GPU sampling coverage per run (EIC-4, MIC-3): one row per run with DCGM
+    samples, no cap, run window coverage at least 0.99, gaps reported."""
+    results = []
+    if not run_ids:
+        return results
+    table = "energy_validation_dcgm_coverage"
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                        (table,)).fetchone():
+        return [warn("dcgm_coverage: table absent (energy_validation inactive)")]
+    ph = ",".join("?" * len(run_ids))
+    n_dcgm = conn.execute(f"SELECT COUNT(DISTINCT run_id) FROM gpu_samples "
+                          f"WHERE source='dcgm' AND run_id IN ({ph})", run_ids).fetchone()[0]
+    rows = conn.execute(f"SELECT run_id, shared_window_coverage, coverage_null_reason, "
+                        f"cap_detected, interior_gaps_gt_300ms FROM {table} "
+                        f"WHERE run_id IN ({ph})", run_ids).fetchall()
+    if len(rows) < n_dcgm:
+        results.append(fail(f"dcgm_coverage: {len(rows)} rows for {n_dcgm} runs with DCGM samples"))
+    for run_id, share, reason, cap, gaps in rows:
+        if cap:
+            results.append(fail(f"dcgm_coverage run={run_id}: sample cap detected"))
+        elif share is None:
+            results.append(warn(f"dcgm_coverage run={run_id}: NULL ({reason})"))
+        elif share < 0.99:
+            results.append(warn(f"dcgm_coverage run={run_id}: {share:.4f} < 0.99"))
+        if gaps:
+            results.append(warn(f"dcgm_coverage run={run_id}: {gaps} interior gaps > 300 ms"))
+    if rows and all(r[1] == 0 for r in rows):
+        results.append(fail("dcgm_coverage: all coverage values zero (sentinel)"))
+    if not results:
+        results.append(ok(f"dcgm_coverage: {len(rows)} runs, all >= 0.99, no cap, no gaps"))
+    return results
+
+
 def check_expected_empty(conn) -> list:
     """Tables expected empty — verify they haven't been accidentally populated."""
     results = []
@@ -728,6 +762,7 @@ def main():
     all_results += check_run_quality(conn, run_ids)
     all_results += check_orchestration_events(conn, run_ids, workflow)
     all_results += check_llm_interactions(conn, run_ids)
+    all_results += check_dcgm_coverage(conn, run_ids)
     all_results += check_expected_empty(conn)
     all_results += check_etl_queue(conn, goal_ids)
     all_results += check_retry_policy(conn)

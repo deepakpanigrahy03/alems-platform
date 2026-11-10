@@ -794,6 +794,7 @@ class ExperimentHarness:
             "v2_samples":     list(self.energy_engine.last_v2_samples),
             "legacy_samples": list(self.energy_engine.last_legacy_samples),
             "sampler_stats":  list(getattr(self.energy_engine, "last_sampler_stats", []) or []),
+            "dcgm_coverage":  dict(getattr(self.energy_engine, "last_dcgm_coverage", {}) or {}),
             "rail_result":    self.energy_engine.last_rail_result,
             "nic_samples":    list(getattr(self.energy_engine, "last_nic_samples", [])),
             "cpu_samples": cpu_samples,
@@ -828,6 +829,7 @@ class ExperimentHarness:
             result["spbm_samples"]   = list(self.energy_engine.last_spbm_samples)
             result["v2_samples"]     = list(self.energy_engine.last_v2_samples)
             result["sampler_stats"]  = list(getattr(self.energy_engine, "last_sampler_stats", []) or [])
+            result["dcgm_coverage"]  = dict(getattr(self.energy_engine, "last_dcgm_coverage", {}) or {})
             result["rail_result"]    = self.energy_engine.last_rail_result
             logger.info("energy samples added to result: %d", len(self.energy_engine.last_samples))
         else:
@@ -1423,6 +1425,7 @@ class ExperimentHarness:
             "v2_samples":     list(self.energy_engine.last_v2_samples),
             "legacy_samples": list(self.energy_engine.last_legacy_samples),
             "sampler_stats":  list(getattr(self.energy_engine, "last_sampler_stats", []) or []),
+            "dcgm_coverage":  dict(getattr(self.energy_engine, "last_dcgm_coverage", {}) or {}),
             "rail_result":    self.energy_engine.last_rail_result,
             "nic_samples":    list(getattr(self.energy_engine, "last_nic_samples", [])),
             "cpu_samples": cpu_samples,
@@ -1458,6 +1461,7 @@ class ExperimentHarness:
             result["spbm_samples"]   = list(self.energy_engine.last_spbm_samples)
             result["v2_samples"]     = list(self.energy_engine.last_v2_samples)
             result["sampler_stats"]  = list(getattr(self.energy_engine, "last_sampler_stats", []) or [])
+            result["dcgm_coverage"]  = dict(getattr(self.energy_engine, "last_dcgm_coverage", {}) or {})
             result["legacy_samples"]     = list(self.energy_engine.last_legacy_samples)
             result["rail_result"]    = self.energy_engine.last_rail_result
             logger.info("energy samples added to result: %d", len(self.energy_engine.last_samples))

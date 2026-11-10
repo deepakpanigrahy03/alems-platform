@@ -386,6 +386,12 @@ class RunPersistenceService:
         # B13: sampler loss and rates recorded per run and source, never silent (invariant S2)
         self._insert_sampler_stats(db, run_id, result)
 
+        # B9: DCGM coverage record, every path (EPS-1)
+        self._insert_dcgm_coverage(db, run_id, result)
+
+        # B9: DCGM coverage record, every path (EPS-1)
+        self._insert_dcgm_coverage(db, run_id, result)
+
         # Stub row so ETL _backfill_normalization_factors never skips this run
         # All metric columns are NULL — ETL populates them after goal tracking
         task_meta = result.get("task_meta", {}) or {}
@@ -418,6 +424,39 @@ class RunPersistenceService:
                  s.get("schema_max_hz"), s.get("effective_hz"), s.get("achieved_hz"),
                  s.get("rate_limited"), s.get("policy_version"), s.get("policy_sha256")),
             )
+
+    def _insert_dcgm_coverage(self, db, run_id: int, result: dict) -> None:
+        """
+        B9: one coverage row per run with GPU samples, in the energy_validation
+        namespace table. Written only when the extension is active (table
+        present), like tool_selection_events. NULL coverage keeps its reason.
+        """
+        cov = result.get("dcgm_coverage") or {}
+        table = "energy_validation_dcgm_coverage"
+        if not cov.get("source"):
+            return   # no GPU backend on this platform
+        if not db.db.conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+            logger.debug("dcgm coverage not stored: %s absent (extension inactive)", table)
+            return
+        from core.readers.gpu_collector import coverage_for_run
+        win = db.db.conn.execute(
+            "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+        share, reason = coverage_for_run(cov, *(win or (None, None)))
+        db.db.execute(
+            """INSERT OR REPLACE INTO energy_validation_dcgm_coverage
+               (run_id, source, ready_status, ready_wait_ms, sampler_start_utc_ns,
+                first_valid_utc_ns, last_valid_utc_ns, first_valid_mono_ns, last_valid_mono_ns,
+                row_count, interior_gaps_gt_300ms, max_gap_ms, shared_window_coverage,
+                coverage_null_reason, cap_detected)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (run_id, cov.get("source"), cov.get("ready_status"), cov.get("ready_wait_ms"),
+             cov.get("sampler_start_utc_ns"), cov.get("first_valid_utc_ns"),
+             cov.get("last_valid_utc_ns"), cov.get("first_valid_mono_ns"),
+             cov.get("last_valid_mono_ns"), cov.get("row_count"),
+             cov.get("interior_gaps_gt_300ms"), cov.get("max_gap_ms"), share, reason,
+             int(bool(cov.get("cap_detected")))),
+        )
 
     def _score_run(self, db, run_id: int, hw_id) -> None:
         """

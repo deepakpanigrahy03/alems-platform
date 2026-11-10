@@ -881,6 +881,14 @@ tables:
     - event_time
     owner: failure_recovery
     run_linkage: run_id
+  energy_validation_dcgm_coverage:
+    evidence: extension_registry name=energy_validation; written by run persistence on every execution path (GPU sampler coverage, B9)
+    golden_class: raw
+    kind: table
+    natural_key:
+    - run_id
+    owner: energy_validation
+    run_linkage: run_id
   tool_selection_events:
     evidence: extension_registry name=orchestration; written by tool selector
     golden_class: raw

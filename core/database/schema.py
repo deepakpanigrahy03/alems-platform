@@ -3811,6 +3811,35 @@ CREATE INDEX IF NOT EXISTS idx_stage_event_run_id ON stage_event(run_id);
 CREATE INDEX IF NOT EXISTS idx_stage_event_status ON stage_event(status);
 """
 
+# energy_validation_dcgm_coverage
+# Namespace energy_validation (extension migration e001; same DDL here so a
+# fresh install equals a migrated store, MSC-5). One row per run with GPU
+# energy samples: sampler readiness, valid sample span, interior gaps over
+# 300 ms, share of the run window covered, cap detection (B9). Written at
+# persistence on every execution path. Method dcgm_shared_window_coverage_v1.
+# shared_window_coverage is NULL with coverage_null_reason when not computable.
+CREATE_ENERGY_VALIDATION_DCGM_COVERAGE = """
+CREATE TABLE IF NOT EXISTS energy_validation_dcgm_coverage (
+    run_id                  INTEGER PRIMARY KEY REFERENCES runs(run_id),
+    source                  TEXT    NOT NULL,
+    ready_status            TEXT    NOT NULL CHECK(ready_status IN ('ready', 'timeout', 'unavailable')),
+    ready_wait_ms           REAL,
+    sampler_start_utc_ns    INTEGER,
+    first_valid_utc_ns      INTEGER,
+    last_valid_utc_ns       INTEGER,
+    first_valid_mono_ns     INTEGER,
+    last_valid_mono_ns      INTEGER,
+    row_count               INTEGER NOT NULL CHECK(row_count >= 0),
+    interior_gaps_gt_300ms  INTEGER CHECK(interior_gaps_gt_300ms IS NULL OR interior_gaps_gt_300ms >= 0),
+    max_gap_ms              REAL,
+    shared_window_coverage  REAL    CHECK(shared_window_coverage IS NULL OR shared_window_coverage BETWEEN 0 AND 1),
+    coverage_null_reason    TEXT,
+    cap_detected            INTEGER NOT NULL DEFAULT 0 CHECK(cap_detected IN (0, 1)),
+    method_id               TEXT    NOT NULL DEFAULT 'dcgm_shared_window_coverage_v1',
+    created_at              TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 CREATE_SCHEMA_NAMESPACE_TABLES = """
 CREATE TABLE IF NOT EXISTS schema_namespace_tables (
     namespace    TEXT NOT NULL,

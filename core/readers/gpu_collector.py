@@ -33,8 +33,35 @@ logger = logging.getLogger(__name__)
 # NVML caps at ~50 Hz; 10 Hz balances detail vs collector overhead.
 DEFAULT_SAMPLING_HZ = 10
 
-# 2000 samples = ~3.3 min at 10 Hz before oldest-drop kicks in.
-MAX_QUEUE_SIZE = 2000
+# B9 fix: the sample queue is unbounded. A bounded queue with oldest drop lost
+# the start of every run longer than about 200 s at 10 Hz. One hour at 10 Hz
+# is about 36,000 small objects, so memory is not a concern.
+# Readiness protocol and coverage record (method dcgm_shared_window_coverage_v1):
+READY_TIMEOUT_S = 5.0     # longest wait for a first valid reading before the run window
+READY_POLL_S = 0.05       # poll interval while waiting for readiness
+INTERIOR_GAP_MS = 300.0   # gap between consecutive sample ends reported above this
+
+
+def coverage_for_run(cov, start_ns, end_ns):
+    # type: (dict, Optional[int], Optional[int]) -> tuple
+    """
+    Share of the run window [start_ns, end_ns] covered by valid GPU samples.
+
+    Coverage is the overlap of [first_valid, last_valid] with the run window,
+    divided by the window length. Interior gaps are reported separately.
+
+    Returns:
+        (coverage in [0, 1], None) or (None, reason). Never 0 for unknown (MIC-1).
+    """
+    if cov.get("ready_status") != "ready":
+        return None, "readiness_" + str(cov.get("ready_status"))
+    if start_ns is None or end_ns is None or end_ns <= start_ns:
+        return None, "run_window_unknown"
+    first, last = cov.get("first_valid_utc_ns"), cov.get("last_valid_utc_ns")
+    if first is None or last is None:
+        return None, "no_valid_samples"
+    overlap = min(last, end_ns) - max(first, start_ns)
+    return max(0.0, min(1.0, overlap / float(end_ns - start_ns))), None
 
 
 @dataclass
@@ -721,7 +748,9 @@ class GPUCollector:
         self.backend = self._detect_backend(rapl_reader)
         self.source = self.backend.SOURCE
 
-        self._queue = queue.Queue(maxsize=MAX_QUEUE_SIZE)
+        self._queue = queue.Queue()   # unbounded (B9): no sample is ever dropped
+        self.last_coverage = {}       # coverage facts of the last stopped run
+        self._ready_status = "unavailable"
         self._thread = None
         self._running = False
         self._samples_taken = 0
@@ -811,6 +840,9 @@ class GPUCollector:
         self._samples_dropped = 0
         self._prev_energy_uj = None
         self._prev_ts_ns = None
+        # B9: block until a valid reading, so the run window opens on a live
+        # counter and the first delta is kept (it used to be skipped).
+        self._wait_ready()
 
         self._thread = threading.Thread(
             target=self._sampling_loop,
@@ -830,6 +862,8 @@ class GPUCollector:
         if self._thread is not None:
             self._thread.join(timeout=2.0)
             self._thread = None
+        # B9: keep the energy since the last tick (same rule as EnergyCollector)
+        self._final_sample()
 
         samples = []
         while not self._queue.empty():
@@ -840,6 +874,8 @@ class GPUCollector:
 
         logger.info("GPUCollector stopped: %d samples taken, %d dropped",
                     self._samples_taken, self._samples_dropped)
+        # B9: per run coverage facts, persisted to energy_validation_dcgm_coverage
+        self.last_coverage = self._coverage_stats(samples)
 
         # No per run cleanup (G37): it closed the DCGM handle and every later
         # run in the process recorded no GPU samples. Cleanup runs at exit
@@ -851,6 +887,104 @@ class GPUCollector:
         # type: () -> int
         """Current sample count — for coverage checks during run."""
         return self._samples_taken
+
+    def _read_once(self):
+        # type: () -> tuple
+        """One energy read with its wall clock time; (ts_ns, None) on failure (PAC-4)."""
+        ts_ns = time.time_ns()
+        try:
+            return ts_ns, self.backend.read_energy_uj(gpu_index=0)
+        except Exception as e:
+            logger.debug("GPUCollector readiness read failed: %s", e)
+            return ts_ns, None
+
+    def _wait_ready(self):
+        # type: () -> None
+        """
+        Readiness protocol: poll until the backend returns a valid energy
+        reading or READY_TIMEOUT_S passes. The valid reading becomes the
+        baseline of the first delta. On timeout sampling still starts and
+        the run's coverage is stored as NULL with a reason. Never raises.
+        """
+        self._sampler_start_ns = time.time_ns()
+        self._ready_status = "timeout"
+        self._first_valid_mono_ns = None
+        self._last_valid_mono_ns = None
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < READY_TIMEOUT_S:
+            ts_ns, value = self._read_once()
+            if value is not None:
+                self._ready_status = "ready"
+                self._first_valid_mono_ns = time.monotonic_ns()
+                self._last_valid_mono_ns = self._first_valid_mono_ns
+                self._prev_energy_uj, self._prev_ts_ns = value, ts_ns
+                break
+            time.sleep(READY_POLL_S)
+        self._ready_wait_ms = (time.monotonic() - t0) * 1000.0
+        if self._ready_status != "ready":
+            logger.warning("GPUCollector: no valid %s reading within %.1f s; "
+                           "coverage will be NULL", self.source, READY_TIMEOUT_S)
+
+    def _final_sample(self):
+        # type: () -> None
+        """
+        One last reading after the sampling thread has stopped, so the
+        interval between the last tick and stop() is kept. Skipped when no
+        valid baseline exists (never a fabricated sample); a counter that
+        went backwards is skipped as in the loop. Never raises (PAC-4).
+        """
+        if self._prev_energy_uj is None or self._prev_ts_ns is None:
+            return
+        ts_ns, energy_uj = self._read_once()
+        if energy_uj is None or energy_uj < self._prev_energy_uj:
+            return
+        try:
+            signals = self.backend.read_signals(gpu_index=0) or {}
+        except Exception as e:
+            logger.debug("GPUCollector final signals read failed: %s", e)
+            signals = {}
+        self._queue.put_nowait(GpuSample(
+            gpu_index=0, sample_start_ns=self._prev_ts_ns, sample_end_ns=ts_ns,
+            interval_ns=ts_ns - self._prev_ts_ns,
+            energy_start_uj=self._prev_energy_uj, energy_end_uj=energy_uj,
+            energy_uj=energy_uj - self._prev_energy_uj,
+            power_mw=signals.get('power_mw'),
+            util_gpu_pct=signals.get('util_gpu_pct'),
+            util_mem_pct=signals.get('util_mem_pct'),
+            sm_clock_mhz=signals.get('sm_clock_mhz'),
+            mem_clock_mhz=signals.get('mem_clock_mhz'),
+            mem_used_mb=signals.get('mem_used_mb'),
+            temperature_c=signals.get('temperature_c'),
+            source=self.source))
+        self._samples_taken += 1
+        self._last_valid_mono_ns = time.monotonic_ns()
+        self._prev_energy_uj, self._prev_ts_ns = energy_uj, ts_ns
+
+    def _coverage_stats(self, samples):
+        # type: (list) -> Dict[str, Any]
+        """
+        Coverage facts of one run from its samples. Gaps are measured between
+        consecutive sample end times, so a long interval and a skipped reading
+        (blank value, wraparound) both count. cap_detected means a sample was
+        dropped, which the unbounded queue only allows through a regression.
+        """
+        ends = sorted(s.sample_end_ns for s in samples)
+        gaps_ns = [b - a for a, b in zip(ends, ends[1:])]
+        limit_ns = int(INTERIOR_GAP_MS * 1e6)
+        return {
+            "source": self.source,
+            "ready_status": getattr(self, "_ready_status", "unavailable"),
+            "ready_wait_ms": getattr(self, "_ready_wait_ms", None),
+            "sampler_start_utc_ns": getattr(self, "_sampler_start_ns", None),
+            "first_valid_utc_ns": min((s.sample_start_ns for s in samples), default=None),
+            "last_valid_utc_ns": ends[-1] if ends else None,
+            "first_valid_mono_ns": getattr(self, "_first_valid_mono_ns", None),
+            "last_valid_mono_ns": getattr(self, "_last_valid_mono_ns", None),
+            "row_count": len(samples),
+            "interior_gaps_gt_300ms": sum(1 for g in gaps_ns if g > limit_ns),
+            "max_gap_ms": (max(gaps_ns) / 1e6) if gaps_ns else None,
+            "cap_detected": self._samples_dropped > 0,
+        }
 
     def _sampling_loop(self):
         """
@@ -913,6 +1047,9 @@ class GPUCollector:
                             except queue.Empty:
                                 pass
 
+                if energy_uj is not None:
+                    # last valid reading on the monotonic clock (coverage record)
+                    self._last_valid_mono_ns = time.monotonic_ns()
                 self._prev_energy_uj = energy_uj
                 self._prev_ts_ns = ts_ns
 

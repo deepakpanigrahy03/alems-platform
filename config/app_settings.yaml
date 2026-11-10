@@ -101,7 +101,7 @@ webui:
 # Extension system (35D) — research extensions active on this machine.
 # Remove this section entirely to return to legacy mode (all extensions run as before).
 extensions:
-  active: [tool_selection]
+  active: [tool_selection, energy_validation]
 
 plugins:
   synthetic:

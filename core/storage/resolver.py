@@ -239,6 +239,50 @@ def _find_sandbox_dir() -> Optional[Path]:
     return Path(active) if active else None
 
 
+def _sandbox_dir_for_config() -> Optional[Path]:
+    """
+    Sandbox that owns researcher config for this process: ALEMS_SANDBOX, else the
+    nearest alems-sandbox.yaml walking up from cwd. Unlike stores, the active
+    sandbox is NOT a fallback: a run from the engine root reads engine config.
+    """
+    env = os.environ.get("ALEMS_SANDBOX")
+    if env:
+        return Path(env).expanduser()
+    current = Path.cwd()
+    for parent in [current, *current.parents]:
+        if (parent / "alems-sandbox.yaml").exists():
+            return parent
+        if parent == Path.home() or parent == parent.parent:
+            break
+    return None
+
+
+def resolve_config_file(name: str) -> Path:
+    """
+    Path of a researcher config file (tasks.yaml, models.yaml, ...).
+
+    Inside a sandbox: <sandbox>/config/<name>, copied there by sandbox create.
+    Otherwise, or when the sandbox lacks the file: <engine>/config/<name>.
+
+    Args:
+        name: file name inside a config folder, e.g. "tasks.yaml".
+
+    Returns:
+        Path to read (existence of the engine copy is checked by the caller).
+    """
+    engine_file = Path(__file__).parent.parent.parent / "config" / name
+    sandbox = _sandbox_dir_for_config()
+    if sandbox is None:
+        return engine_file
+    sandbox_file = sandbox / "config" / name
+    if sandbox_file.exists():
+        return sandbox_file
+    # Sandbox without its own copy: engine file, said out loud (no silent switch)
+    logger.warning("config %s not in sandbox %s; using engine copy %s",
+                   name, sandbox, engine_file)
+    return engine_file
+
+
 def _legacy_env_override() -> Optional[str]:
     """ALEMS_DATA_ROOT from the engine .alems-env, read exactly as layer 6 does."""
     env_file = Path(__file__).parent.parent.parent / ".alems-env"

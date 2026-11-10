@@ -33,8 +33,9 @@ def load_tasks(config_path: Optional[str] = None) -> List[Dict[str, Any]]:
         FileNotFoundError: If config file does not exist.
     """
     if config_path is None:
-        # Assume we're running from project root
-        config_path = Path(__file__).parent.parent.parent / "config" / "tasks.yaml"
+        # Sandbox config/tasks.yaml inside a sandbox, engine config/tasks.yaml otherwise
+        from core.storage.resolver import resolve_config_file
+        config_path = resolve_config_file("tasks.yaml")
     else:
         config_path = Path(config_path)
 

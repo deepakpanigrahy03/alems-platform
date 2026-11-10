@@ -34,7 +34,21 @@ import os
 logger = logging.getLogger(__name__)
 
 # Path to yaml — relative to project root
-_YAML_PATH = Path(__file__).parent.parent / "config" / "models.yaml"
+_YAML_PATH = Path(__file__).parent.parent / "config" / "models.yaml"   # engine copy
+
+
+_ENGINE_YAML_PATH = _YAML_PATH   # default, kept to detect an explicit override
+
+
+def _yaml_path() -> Path:
+    """
+    models.yaml for this process. An explicit _YAML_PATH override (tests, tools)
+    wins; otherwise the sandbox copy inside a sandbox, else the engine copy.
+    """
+    if _YAML_PATH != _ENGINE_YAML_PATH:
+        return _YAML_PATH
+    from core.storage.resolver import resolve_config_file
+    return resolve_config_file("models.yaml")
 
 # Module-level cache — loaded once per process
 _cache: Optional[Dict] = None
@@ -215,10 +229,11 @@ def _load() -> Dict:
     if _cache is not None:
         return _cache   # early return — already loaded
 
-    if not _YAML_PATH.exists():
-        raise FileNotFoundError(f"models.yaml not found at {_YAML_PATH}")
-
-    with open(_YAML_PATH, "r") as f:
+    yaml_path = _yaml_path()
+    if not yaml_path.exists():
+        raise FileNotFoundError(f"models.yaml not found at {yaml_path}")
+    logger.debug("models.yaml: %s", yaml_path)
+    with open(yaml_path, "r") as f:
         raw = yaml.safe_load(f)
 
     global_defaults = raw.get("_defaults", {})

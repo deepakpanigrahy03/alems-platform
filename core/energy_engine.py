@@ -827,6 +827,10 @@ class EnergyEngine:
             # Darwin: IOReportCPUFreqReader — start unconditionally when available
             self.turbostat.start_monitoring(interval_ms=interval_ms)
 
+        # B9: GPU sampling first; start() waits for a valid DCGM reading, so the
+        # energy window opens with the GPU counter already live (no start loss).
+        # GPUCollector.start() is no-op if no backend available (PAC-4 compliant)
+        self.gpu_collector.start()
         # EnergyCollector: generic loop replacing _sampling_loop + SPBMSampler (16B3)
         try:
             schema = self.energy_reader.get_measurement_schema()
@@ -849,9 +853,7 @@ class EnergyEngine:
         except Exception as e:
             logger.warning("EnergyCollector start failed (PAC-2): %s", e)
             self._energy_collector = None
-        # GPU energy sampling — runs at 10 Hz alongside EnergyCollector
-        # GPUCollector.start() is no-op if no backend available (PAC-4 compliant)
-        self.gpu_collector.start()
+        # GPU energy sampling started above, before the EnergyCollector (B9)
         # SPEC_03A: NIC byte counter sampling at 100Hz
         try:
             self._nic_collector = NICCollector(run_id=self.current_run_id)
@@ -1135,6 +1137,8 @@ class EnergyEngine:
         # Stop GPU collector and store samples for harness access
         # Returns empty list if NoneBackend or no samples collected
         self.last_gpu_samples = self.gpu_collector.stop()
+        # B9: coverage facts of this run, persisted by run_persistence (EEI-1)
+        self.last_dcgm_coverage = dict(getattr(self.gpu_collector, "last_coverage", {}) or {})
         (self.last_gpu_dynamic_local_uj,
          self.last_gpu_idle_power_w_local) = self._resolve_gpu_dynamic_local_uj(
             self.last_gpu_samples

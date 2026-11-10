@@ -78,7 +78,7 @@ from .schema import (CREATE_STAGE_GRAPH, CREATE_STAGE_EVENT, CREATE_SANDBOX_IDEN
                      CREATE_METRIC_DISPLAY_REGISTRY,
                      CREATE_QUERY_REGISTRY,
                      CREATE_STANDARDIZATION_REGISTRY,
-                     CREATE_SCHEMA_NAMESPACE_TABLES,
+                     CREATE_SCHEMA_NAMESPACE_TABLES, CREATE_ENERGY_VALIDATION_DCGM_COVERAGE,
                      CREATE_EVAL_CRITERIA,
                      CREATE_COMPONENT_REGISTRY,
                      CREATE_PAGE_CONFIGS,
@@ -466,7 +466,8 @@ class SQLiteAdapter(DatabaseInterface):
         # so both exist before this point; graph first.
         self.conn.executescript(CREATE_STAGE_GRAPH)
         self.conn.executescript(CREATE_STAGE_EVENT)
-        self.conn.executescript(CREATE_SCHEMA_NAMESPACE_TABLES)     
+        self.conn.executescript(CREATE_SCHEMA_NAMESPACE_TABLES)
+        self.conn.executescript(CREATE_ENERGY_VALIDATION_DCGM_COVERAGE)   # namespace energy_validation (B9)     
         # INV-D1 enforced by the store (v117). Last, because it needs every
         # sample, interaction and event table and its key columns to exist.
         self.conn.executescript(CREATE_NATURAL_KEY_INDEXES)     
