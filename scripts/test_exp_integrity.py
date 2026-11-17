@@ -379,8 +379,19 @@ def check_dcgm_coverage(conn, run_ids: list) -> list:
                         (table,)).fetchone():
         return [warn("dcgm_coverage: table absent (energy_validation inactive)")]
     ph = ",".join("?" * len(run_ids))
-    n_dcgm = conn.execute(f"SELECT COUNT(DISTINCT run_id) FROM gpu_samples "
-                          f"WHERE source='dcgm' AND run_id IN ({ph})", run_ids).fetchone()[0]
+    # Only runs made after the coverage record existed (e001 applied) must have a row
+    applied = conn.execute("SELECT MIN(applied_at) FROM migration_history "
+                           "WHERE source = 'ext:energy_validation' AND status = 'applied'").fetchone()[0]
+    since_ns = (conn.execute("SELECT CAST(strftime('%s', ?) AS INTEGER) * 1000000000",
+                             (applied,)).fetchone()[0] if applied else None) or 0
+    n_dcgm = conn.execute(f"SELECT COUNT(DISTINCT g.run_id) FROM gpu_samples g JOIN runs r "
+                          f"USING(run_id) WHERE g.source='dcgm' AND g.run_id IN ({ph}) "
+                          f"AND r.start_time_ns >= ?", run_ids + [since_ns]).fetchone()[0]
+    n_old = conn.execute(f"SELECT COUNT(DISTINCT g.run_id) FROM gpu_samples g JOIN runs r "
+                         f"USING(run_id) WHERE g.source='dcgm' AND g.run_id IN ({ph}) "
+                         f"AND r.start_time_ns < ?", run_ids + [since_ns]).fetchone()[0]
+    if n_old:
+        results.append(warn(f"dcgm_coverage: {n_old} runs predate the coverage record (no row expected)"))
     rows = conn.execute(f"SELECT run_id, shared_window_coverage, coverage_null_reason, "
                         f"cap_detected, interior_gaps_gt_300ms FROM {table} "
                         f"WHERE run_id IN ({ph})", run_ids).fetchall()
