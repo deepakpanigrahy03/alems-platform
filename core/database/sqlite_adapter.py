@@ -468,15 +468,6 @@ class SQLiteAdapter(DatabaseInterface):
         self.conn.executescript(CREATE_STAGE_EVENT)
         self.conn.executescript(CREATE_SCHEMA_NAMESPACE_TABLES)
         self.conn.executescript(CREATE_ENERGY_VALIDATION_DCGM_COVERAGE)   # namespace energy_validation (B9)     
-        # namespace thermal_exposure (extension migration e001)
-        from .schema import (CREATE_TE_CHANNEL, CREATE_TE_SENSOR, CREATE_TE_SESSION, CREATE_TE_IDLE_WINDOW, CREATE_TE_CLOCK_ANCHOR, CREATE_TE_SESSION_CHECK, CREATE_TE_AMBIENT_SAMPLES)
-        self.conn.executescript(CREATE_TE_CHANNEL)
-        self.conn.executescript(CREATE_TE_SENSOR)
-        self.conn.executescript(CREATE_TE_SESSION)
-        self.conn.executescript(CREATE_TE_IDLE_WINDOW)
-        self.conn.executescript(CREATE_TE_CLOCK_ANCHOR)
-        self.conn.executescript(CREATE_TE_SESSION_CHECK)
-        self.conn.executescript(CREATE_TE_AMBIENT_SAMPLES)
         # INV-D1 enforced by the store (v117). Last, because it needs every
         # sample, interaction and event table and its key columns to exist.
         self.conn.executescript(CREATE_NATURAL_KEY_INDEXES)     
