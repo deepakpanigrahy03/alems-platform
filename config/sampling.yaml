@@ -20,7 +20,7 @@
 # * Change a rate only with evidence (config/methodology_refs/) and bump version.
 # ─────────────────────────────────────────────────────────────────────────────
 
-version: 1
+version: 2
 
 sources:
   RAPL:          # x86 package counter (updates about every 1 ms)
@@ -31,6 +31,12 @@ sources:
     requested_hz: 10
   GPU_COLLECTOR: # DCGM or MSR GPU energy collector
     requested_hz: 10
+  THERMAL_ZONE:  # sysfs thermal zones; GB10 zones change on a ~50 ms grid (value-change probe, Nov 18 2026)
+    requested_hz: 20
+  AMBIENT:       # external room temperature probe (none fitted yet: recorded as unavailable)
+    requested_hz: 1
+  COOLING:       # cooling devices (fan or throttle state)
+    requested_hz: 1
 
 tolerance:
   achieved_rate_rel: 0.20     # invariant S2: achieved within 20% of effective

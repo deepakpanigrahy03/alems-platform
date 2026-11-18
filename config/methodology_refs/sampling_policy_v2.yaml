@@ -1,0 +1,36 @@
+method_id: sampling_policy_v2
+formula: "f_eff = min(f_requested, f_probed, f_bound); thermal sources: f_eff = min(f_requested, f_bound) (value-change probe is evidence only); f_achieved = (n_emitted - 1) / (t_last - t_first)"
+parameters:
+  policy_file: config/sampling.yaml
+  policy_version: 2
+  supersedes: sampling_policy_v1
+  added_sources: {THERMAL_ZONE: 20, AMBIENT: 1, COOLING: 1}
+  thermal_bound_source: alems_sdk.measurement_schema.SOURCE_RATE_BOUNDS
+  thermal_probe_sets_rate: false
+  repeated_readings_kept: true
+  probe_seconds: 1.5
+  probe_cache_days: 30
+  tolerance_achieved_rate_rel: 0.20
+  tolerance_max_gap_intervals: 2
+confidence: 0.95
+references:
+  - title: "Advanced Configuration and Power Interface (ACPI) Specification, Thermal Management: _TZP (Thermal Zone Polling)"
+    authors: "UEFI Forum"
+    year: 2022
+    ref_type: "manual"
+    relevance: "Firmware sets how often an ACPI thermal zone is re-evaluated; the update cadence is platform specific and not fixed by the sysfs interface"
+  - title: "Linux kernel thermal sysfs interface (thermal_zone temp attribute)"
+    authors: "Linux kernel developers"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Zone temperature is exposed in millidegrees Celsius; reading the file returns the last value the driver holds, so a repeated value does not prove the sensor did not update"
+  - title: "A-LEMS data inventory of GB10 stores"
+    authors: "A-LEMS"
+    year: 2026
+    ref_type: "internal"
+    relevance: "Thermal zones were recorded at 1 Hz outside the sampling policy, with no achieved-rate check; v2 declares THERMAL_ZONE at 20 Hz so the rate is checked per run"
+  - title: "A-LEMS thermal value-change probe"
+    authors: "A-LEMS"
+    year: 2026
+    ref_type: "internal"
+    relevance: "GB10 idle, 60 s, ~11k reads/s per sensor: all 7 ACPI zones change only on multiples of ~50 ms (p10 50 ms), so 20 Hz polling is needed to see every update; GPU temperature changes on a ~500 ms grid in whole degrees. Evidence of update behaviour, not a documented hardware rate"

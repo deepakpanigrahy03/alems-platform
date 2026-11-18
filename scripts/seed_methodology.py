@@ -435,6 +435,23 @@ def _load_measured_methods() -> List[Dict]:
                               "probe_cache_days": 30},
         },        
         {
+            "id":            "sampling_policy_v2",
+            "name":          "Declared sampling policy v2 with thermal, ambient and cooling sources",
+            "provenance":    "CALCULATED",
+            "layer":         "os",
+            "confidence":    0.95,
+            "description":   (
+                "Sampling rate per source kind = min(policy rate from config/sampling.yaml, "
+                "probed capability, safe maximum). Adds THERMAL_ZONE (20 Hz), AMBIENT (1 Hz) "
+                "and COOLING (1 Hz). For thermal sources the value-change probe is evidence "
+                "only and never sets the rate. Per run record in sampler_stats; invariant S2."
+            ),
+            "formula_latex": r"f_{eff} = \min(f_{req}, f_{probe}, f_{bound});\ f_{eff}^{thermal} = \min(f_{req}, f_{bound})",
+            "parameters":    {"policy_file": "config/sampling.yaml", "policy_version": 2,
+                              "probe_seconds": 1.5, "probe_cache_days": 30,
+                              "thermal_probe_sets_rate": False},
+        },
+        {
             "id":            "rocm_smi_energy_v1",
             "name":          "AMD ROCm SMI Energy Counter (Stub)",
             "provenance":    "MEASURED",
