@@ -30,6 +30,7 @@ kperf = "core.readers.darwin.kperf_pmu_reader:KPerfPMUReader"
 synthetic_cpu = "core.readers.synthetic_cpu_reader:SyntheticCPUReader"
 
 [project.entry-points."alems.readers.thermal"]
+ambient_probe = "extensions.thermal_exposure.ambient_reader:AmbientReader"
 sensor = "core.readers.sensor_reader:SensorReader"
 arm_thermal = "core.readers.arm_thermal_reader:ARMThermalReader"
 iokit_thermal = "core.readers.darwin.iokit_thermal_reader:IOKitThermalReader"
@@ -100,6 +101,7 @@ json = "core.execution.outputs.json_output:JSONOutputAdapter"
 tool_selection = "extensions.tool_selection.extension:ToolSelectionExtension"
 output_quality = "extensions.output_quality.extension:OutputQualityExtension"
 energy_validation = "extensions.energy_validation.extension:EnergyValidationExtension"
+thermal_exposure = "extensions.thermal_exposure.extension:ThermalExposureExtension"
 
 # Injection engines — discovered by scenario_loader.build_injector().
 # Register custom injection engines here with their mode name as the key.

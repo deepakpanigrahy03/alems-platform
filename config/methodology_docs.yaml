@@ -68,6 +68,11 @@ methods:
     method_anchor: "sampling-policy"
     section: "Sampling Policy"
 
+  sampling_policy_v2:
+    doc: "energy-readers.md"
+    method_anchor: "sampling-policy-v2"
+    section: "Sampling Policy Version 2"
+
   iokit_thermal_reader:
     doc: "energy-readers.md"
     method_anchor: "iokit-thermal-reader"

@@ -1,0 +1,142 @@
+# config/machine_profiles/gpu_soc_a.yaml
+# -----------------------------------------------------------------------------
+# Machine profile: logical class "gpu_soc_a" (NVIDIA Grace GB10 class, aarch64,
+# SPBM board and SoC rails, ACPI thermal zones). Never a hostname.
+#
+# This file holds DECISIONS only: which channels and sensors the thermal
+# exposure analysis uses, their role, boundary and the main pair for E0.
+# FACTS (units, whether a rail, domain or zone exists, canonical role of a
+# zone) come from the discovered catalog on the machine (power_rails,
+# energy_domains, thermal_zones via detect_hardware / hw_config) and are
+# checked by the loader; a profile naming something the machine did not
+# discover is rejected.
+#
+# Status: DRAFT. Channel roles and boundaries come from power_rails.notes and
+# the energy_domains descriptions (seed s021). They must be confirmed by the
+# GB10 energy characterisation before E0; until then unclear boundaries stay
+# NULL, which keeps those channels out of the energy-attribution model.
+# One source per channel: rails come from power_rail_samples only, never also
+# from energy_domains 25 to 29, so the same energy is never counted twice.
+# GPU power comes from the gpu rail, never from gpu_samples.power_mw.
+# -----------------------------------------------------------------------------
+
+profile_id: gpu_soc_a
+profile_version: 1
+
+main_channel: gpu
+main_sensor: gpu_temp
+
+channels:
+  - name: dc_input
+    source_table: power_rail_samples
+    source_key: dc_input            # power_rails.rail_name
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: aggregate
+    parent: null
+    boundary: null                  # physical boundary undocumented (s021)
+    meaning: DC wall input after the adapter
+
+  - name: sys_total
+    source_table: power_rail_samples
+    source_key: sys_total
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: aggregate
+    parent: dc_input
+    boundary: total system draw (power_rails.notes)
+    meaning: Total system draw
+
+  - name: soc_pkg
+    source_table: power_rail_samples
+    source_key: soc_pkg
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: aggregate
+    parent: sys_total
+    boundary: full SoC package (power_rails.notes)
+    meaning: Full SoC package
+
+  - name: cpu_gpu
+    source_table: power_rail_samples
+    source_key: cpu_gpu
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: aggregate
+    parent: soc_pkg
+    boundary: CPU and GPU combined rail (power_rails.notes)
+    meaning: CPU plus GPU combined rail
+
+  - name: cpu_p
+    source_table: power_rail_samples
+    source_key: cpu_p
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: component
+    parent: cpu_gpu
+    boundary: CPU performance cores (power_rails.notes)
+    meaning: CPU performance cores
+
+  - name: cpu_e
+    source_table: power_rail_samples
+    source_key: cpu_e
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: component
+    parent: cpu_gpu
+    boundary: CPU efficiency cores (power_rails.notes)
+    meaning: CPU efficiency cores
+
+  - name: gpu
+    source_table: power_rail_samples
+    source_key: gpu
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: component
+    parent: cpu_gpu
+    boundary: GPU compute rail (power_rails.notes)
+    meaning: GPU compute rail
+
+  - name: vcore
+    source_table: power_rail_samples
+    source_key: vcore
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: overlapping       # not additive with CPU rails (s021)
+    parent: cpu_gpu
+    boundary: null
+    meaning: CPU vcore rail
+
+  - name: prereg
+    source_table: power_rail_samples
+    source_key: prereg
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: overlapping       # not additive with CPU rails (s021)
+    parent: soc_pkg
+    boundary: null
+    meaning: Pre-regulator board input
+
+  - name: dla
+    source_table: power_rail_samples
+    source_key: dla
+    unit: mW
+    measurement_kind: power_reading
+    channel_role: component
+    parent: soc_pkg
+    boundary: null                  # is_cumulative decision pending (s021)
+    meaning: Deep Learning Accelerator
+
+sensors:
+  # 7 ACPI zones. canonical_role is read from thermal_zones, not typed here.
+  - {name: soc_zone_0, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 0, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_1, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 1, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_2, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 2, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_3, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 3, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_4, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 4, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_5, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 5, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_6, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 6, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
+  # GPU temperature: whole degrees in gpu_samples.temperature_c (1 C resolution)
+  - {name: gpu_temp, source_table: gpu_samples, gpu_index: 0, canonical_role: GPU, nominal_resolution_c: 1.0, valid_min_c: -10.0, valid_max_c: 125.0}
+  # Room temperature is not listed: no probe is fitted, so it has no usable
+  # reader; sessions record ambient as unavailable instead.
