@@ -387,6 +387,22 @@ def _load_measured_methods() -> List[Dict]:
             "section":       "DCGM Backend (GN100)",
         },
         {
+            "id":            "dcgm_shared_window_coverage_v1",
+            "name":          "DCGM Readiness and Shared Window Coverage",
+            "provenance":    "CALCULATED",
+            "layer":         "silicon",
+            "confidence":    0.95,
+            "description":   (
+                "Per run record of GPU energy sampling validity: sampler waits for a "
+                "valid DCGM field 156 reading before the energy window opens, keeps "
+                "every sample (no buffer cap), and stores first and last valid sample "
+                "times, row count, interior gaps over 300 ms and the share of the run "
+                "window covered. Coverage is NULL with a reason when not computable."
+            ),
+            "formula_latex": r"C = \frac{\min(t_{last}, t_{end}) - \max(t_{first}, t_{start})}{t_{end} - t_{start}}",
+            "parameters":    {"ready_timeout_s": 5.0, "interior_gap_ms": 300.0},
+        },
+        {
             "id":            "iokit_gpu_energy_v1",
             "name":          "Apple IOKit GPU Energy (powermetrics)",
             "provenance":    "MEASURED",
