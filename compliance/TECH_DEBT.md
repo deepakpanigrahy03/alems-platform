@@ -40,3 +40,6 @@ Fix: Remove the three confirmed-dead implementations (base.py,
      before removing, since these classes may still be live for other
      methods even if dead for this one.
 Priority: Before next major release. Not a paper blocker.
+
+## TD: thermal loop scheduling (fixed 2026-11-18)
+The energy engine thermal loop scheduled each sample from the actual time of the previous one (drift accumulated) and an exception in a read ended the thread silently. Fixed: fixed-step schedule on the monotonic clock, failed reads counted and logged, THERMAL_ZONE sampler_stats row per run.

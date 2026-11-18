@@ -50,6 +50,7 @@ nav:
     - Adding a Platform: developer/adding-a-platform.md
     - Adding a Reader: developer/adding-a-reader.md
     - Adding a Provider: developer/adding-a-provider.md
+    - Thermal Exposure: developer/thermal-exposure.md
     - Adding a Model: developer/adding-a-model.md
     - Adding a Task: developer/adding-a-task.md
     - Adding a Tool Provider: developer/adding-a-tool-provider.md
