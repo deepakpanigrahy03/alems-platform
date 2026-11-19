@@ -353,10 +353,10 @@ class ExperimentHarness:
         # ====================================================================
         # Step 1: Get Raw Energy Measurement (Layer 1)
         # ====================================================================
+        from core.recording import hook as _recording_hook
+        _recording_hook.notify_run_start()   # open recording pauses before the run's start stamp
         run_start_dt = datetime.now()  # Human-readable start time
         run_start_perf = time.perf_counter()  # High-precision for duration
-        from core.recording import hook as _recording_hook
-        _recording_hook.notify_run_start()   # open recording pauses; no-op when none is open
         self.energy_engine.start_measurement()
         # F3: t0 anchor — read immediately after start_measurement() before any task work.
         # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
@@ -373,12 +373,12 @@ class ExperimentHarness:
         raw_energy = (
             self.energy_engine.stop_measurement()
         )  # RawEnergyMeasurement (Layer 1)
-        _recording_hook.notify_run_end()     # open recording resumes; no-op when none is open
         # rapl_after_task captured AFTER stop_measurement() so MAX(pkg_end_uj)
         # from energy_samples cannot overshoot this anchor.
         _rapl_after_task     = self.energy_engine.rapl.read_energy()
         _gpu_after_task      = ReaderFactory.get_gpu_energy_uj(self.energy_engine.rapl)
         run_end_dt           = datetime.now()   # t2: human-readable (post-framework)
+        _recording_hook.notify_run_end()     # open recording resumes after the run's end stamp
         run_end_perf         = time.perf_counter()
         _total_ticks_t2      = read_total_cpu_ticks()
         _pid_ticks_t2        = read_process_cpu_ticks(os.getpid())
@@ -921,10 +921,10 @@ class ExperimentHarness:
         # ====================================================================
         # Step 1: Get Raw Energy Measurement (Layer 1)
         # ====================================================================
+        from core.recording import hook as _recording_hook
+        _recording_hook.notify_run_start()   # open recording pauses before the run's start stamp
         run_start_dt = datetime.now()  # Human-readable start time
         run_start_perf = time.perf_counter()  # High-precision for duration
-        from core.recording import hook as _recording_hook
-        _recording_hook.notify_run_start()   # open recording pauses; no-op when none is open
         self.energy_engine.start_measurement()
         # F3: t0 anchor — read immediately after start_measurement() before any task work.
         # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
@@ -978,12 +978,12 @@ class ExperimentHarness:
         raw_energy = (
             self.energy_engine.stop_measurement()
         )  # RawEnergyMeasurement (Layer 1)
-        _recording_hook.notify_run_end()     # open recording resumes; no-op when none is open
         # rapl_after_task captured AFTER stop_measurement() so MAX(pkg_end_uj)
         # from energy_samples cannot overshoot this anchor.
         _rapl_after_task     = self.energy_engine.rapl.read_energy()
         _gpu_after_task      = ReaderFactory.get_gpu_energy_uj(self.energy_engine.rapl)
         run_end_dt           = datetime.now()   # t2: human-readable (post-framework)
+        _recording_hook.notify_run_end()     # open recording resumes after the run's end stamp
         run_end_perf         = time.perf_counter()
         _total_ticks_t2      = read_total_cpu_ticks()
         _pid_ticks_t2        = read_process_cpu_ticks(os.getpid())
