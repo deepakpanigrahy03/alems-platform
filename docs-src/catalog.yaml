@@ -437,3 +437,10 @@ catalog:
     status: current
     last_validated: "2026-11-18"
     nav_entry: "Thermal Exposure: developer/thermal-exposure.md"
+
+  - topic: "Continuous experiment recording: time line, between-runs te_ sample tables, clock anchors, session checks"
+    file: research/experiment-recording.md
+    audience: researcher
+    status: current
+    last_validated: "2026-11-18"
+    nav_entry: "Experiment Recording: research/experiment-recording.md"

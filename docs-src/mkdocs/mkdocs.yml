@@ -77,6 +77,7 @@ nav:
     - Phase Attribution: research/phase-attribution.md
     - Span Vocabulary Agent: research/span-vocabulary-agent.md
     - Energy Readers: research/energy-readers.md
+    - Experiment Recording: research/experiment-recording.md
     - Plugin Conformance: research/plugin-conformance.md
     - System Measurement: research/system-measurement.md
     - Derived Metrics: research/derived-metrics.md

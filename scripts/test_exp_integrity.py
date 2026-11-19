@@ -368,6 +368,34 @@ def check_llm_interactions(conn, run_ids: list) -> list:
     return results
 
 
+def check_recording(conn, run_ids: list) -> list:
+    """Continuous recording (EIC-4): recordings covering these runs are closed or
+    aborted, store no between-runs sample inside a run, and have no failed check."""
+    if not run_ids or not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                                       "AND name='te_thermal_samples'").fetchone():
+        return []
+    ph = ",".join("?" * len(run_ids))
+    sessions = conn.execute(
+        f"SELECT DISTINCT s.session_id, s.status FROM te_session s JOIN runs r "
+        f"ON r.start_time_ns >= s.start_ns AND (s.end_ns IS NULL OR r.start_time_ns < s.end_ns) "
+        f"WHERE s.run_id IS NULL AND r.run_id IN ({ph})", run_ids).fetchall()
+    results = []
+    for sid, status in sessions:
+        if status == "open":
+            results.append(warn(f"recording session={sid}: still open"))
+        inside = conn.execute(
+            f"SELECT COUNT(*) FROM te_thermal_samples t JOIN runs r ON t.timestamp_ns >= "
+            f"r.start_time_ns AND t.timestamp_ns < r.end_time_ns WHERE t.session_id = ? "
+            f"AND r.run_id IN ({ph})", [sid] + list(run_ids)).fetchone()[0]
+        if inside:
+            results.append(fail(f"recording session={sid}: {inside} samples inside runs"))
+        failed = conn.execute("SELECT GROUP_CONCAT(check_name) FROM te_session_check "
+                              "WHERE session_id = ? AND result = 'fail'", (sid,)).fetchone()[0]
+        if failed:
+            results.append(warn(f"recording session={sid}: failed checks {failed}"))
+    return results
+
+
 def check_dcgm_coverage(conn, run_ids: list) -> list:
     """GPU sampling coverage per run (EIC-4, MIC-3): one row per run with DCGM
     samples, no cap, run window coverage at least 0.99, gaps reported."""
@@ -763,6 +791,7 @@ def main():
     all_results += check_orchestration_events(conn, run_ids, workflow)
     all_results += check_llm_interactions(conn, run_ids)
     all_results += check_dcgm_coverage(conn, run_ids)
+    all_results += check_recording(conn, run_ids)
     all_results += check_expected_empty(conn)
     all_results += check_etl_queue(conn, goal_ids)
     all_results += check_retry_policy(conn)

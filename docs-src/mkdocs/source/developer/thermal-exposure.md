@@ -58,3 +58,11 @@ Reads every thermal zone and the GPU temperature as fast as possible and reports
 | Intel i7-1165G7 (x86_64) | none yet; extension activates with empty registers | PENDING |
 | AMD Ryzen (x86_64) | none yet | PENDING |
 | Apple M1 Pro (arm64) | none yet | PLANNED |
+
+## Continuous experiment recording { #thermal-exposure-recording }
+
+`extensions/thermal_exposure/recorder.py` (`ExperimentRecorder`) records an experiment between its runs: a pre-window before the first run, every gap, and an optional cool-down. It is registered in the `alems.recorders` entry point group; `core/recording/session.py` builds the platform readers (the same discovery and `ReaderFactory` calls as the harness), a writer factory on the resolved store, and loads the recorder. `core/recording/hook.py` is called by the harness just before a run's measurement starts (`notify_run_start`, the recorder pauses and stops reading) and just after it stops (`notify_run_end`, the recorder resumes); with no recording open both calls do nothing.
+
+Samples inside a run stay in the core sample tables under the run's `run_id`. Samples outside runs go to `te_thermal_samples`, `te_cooling_samples`, `te_gpu_temp_samples`, `te_power_rail_samples` and `te_ambient_samples`, keyed to one `te_session` row (no row in `runs`). Sample times follow the time line in [Experiment Recording](../research/experiment-recording.md). Writes go through a short-lived `InProcessWriter` per flush (every 2 s), so the recorder never holds the store lock while a run saves; a failed write keeps the rows for the next flush. A recording left open by a dead process is marked `aborted` at the next start (`recover_open_sessions`, idempotent, samples untouched).
+
+Opt in with `--record-continuous` (`--record-pre-window-s`, `--record-cooldown-max-s`) on `run_experiment.py`, or a `recording:` section in an experiment config (see `config/experiment_configs/examples/example_record_continuous.yaml`). `scripts/tools/thermal_record.py --seconds N` records N seconds with no load and prints the checks.

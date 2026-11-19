@@ -395,10 +395,17 @@ def _split_sql_statements(script: str) -> list:
             continue
 
         if ch == ";":
-            stmt = "".join(current).strip()
-            if stmt:
-                statements.append(stmt)
-            current = []
+            # Cut only where SQLite itself sees a complete statement, so a
+            # CREATE TRIGGER ... BEGIN ...; END; body stays in one piece.
+            # For every non-trigger statement this is true at the first
+            # unquoted semicolon, giving exactly the previous split.
+            if sqlite3.complete_statement("".join(current) + ";"):
+                stmt = "".join(current).strip()
+                if stmt:
+                    statements.append(stmt)
+                current = []
+            else:
+                current.append(ch)
             i += 1
             continue
 

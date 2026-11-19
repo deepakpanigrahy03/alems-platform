@@ -56,6 +56,11 @@ def parse_arguments():
         help="Provider from models.yaml e.g. groq, llama_cpp, ollama_remote")
     parser.add_argument("--country", type=str, default="US")
     parser.add_argument("--save-db", action="store_true")
+    parser.add_argument("--record-continuous", action="store_true",
+                        help="record thermal data between runs for the whole experiment")
+    parser.add_argument("--record-pre-window-s", type=float, default=30.0)
+    parser.add_argument("--record-cooldown-max-s", type=float, default=0.0,
+                        help="0 = no cool-down; otherwise wait up to this many seconds")
     parser.add_argument(
         "--quality-enabled",
         action="store_true",
@@ -566,6 +571,11 @@ def run_all_experiments(args):
         profile=getattr(args, "profile", None) or getattr(args, "config", None),
     )
     runner = ExperimentRunner(config, args)
+    if getattr(args, "record_continuous", False):
+        # opt-in: continuous recording around the whole experiment, closed at exit
+        from core.recording.session import open_recording
+        open_recording(pre_window_s=args.record_pre_window_s,
+                       cooldown_max_s=args.record_cooldown_max_s)
 
     # B3: build serving engine adapter and cache collector from YAML config.
     # serving_engine section optional — RemoteAPIAdapter used if absent (INV-7).

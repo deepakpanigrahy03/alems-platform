@@ -132,3 +132,12 @@ Status: by design until session recording.
 energy_validation_dcgm_coverage is defined in core/database/schema.py and created by sqlite_adapter.create_tables() on every store, although it is a namespace table (CH39-5, MSC-5: extension migration plus namespace create path). thermal_exposure keeps its tables only in its extension migration.
 Impact: the table appears on stores where energy_validation is inactive; create_tables() on a store copy adds it.
 Status: found 2026-11-18; owner energy_validation.
+
+## KG-RECORD-01: Short gaps at run boundaries (continuous recording)
+The recorder pauses at a run's start notification and resumes after the run's measurement stops; the milliseconds the engine needs to start and stop its own samplers are covered by neither. Measured: longest between-runs thermal gap 89 ms at 20 Hz (limit 100 ms). A run that raises between start and stop leaves the recording paused until the next run ends (a reported gap, never wrong data).
+
+## KG-RECORD-02: No CLI command for continuous recording
+The minimal command is `scripts/tools/thermal_record.py`; an `alems` subcommand needs core CLI registration and is left to the experiment runner work.
+
+## KG-RECORD-03: Overlapping experiments record duplicates
+Two opted-in experiments on one machine each store their own copy of the same machine readings, reflecting both workloads. No lock; to be handled with the sampler consolidation (KG-SAMPLING-01).

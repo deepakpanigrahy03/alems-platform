@@ -355,6 +355,8 @@ class ExperimentHarness:
         # ====================================================================
         run_start_dt = datetime.now()  # Human-readable start time
         run_start_perf = time.perf_counter()  # High-precision for duration
+        from core.recording import hook as _recording_hook
+        _recording_hook.notify_run_start()   # open recording pauses; no-op when none is open
         self.energy_engine.start_measurement()
         # F3: t0 anchor — read immediately after start_measurement() before any task work.
         # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
@@ -371,6 +373,7 @@ class ExperimentHarness:
         raw_energy = (
             self.energy_engine.stop_measurement()
         )  # RawEnergyMeasurement (Layer 1)
+        _recording_hook.notify_run_end()     # open recording resumes; no-op when none is open
         # rapl_after_task captured AFTER stop_measurement() so MAX(pkg_end_uj)
         # from energy_samples cannot overshoot this anchor.
         _rapl_after_task     = self.energy_engine.rapl.read_energy()
@@ -920,6 +923,8 @@ class ExperimentHarness:
         # ====================================================================
         run_start_dt = datetime.now()  # Human-readable start time
         run_start_perf = time.perf_counter()  # High-precision for duration
+        from core.recording import hook as _recording_hook
+        _recording_hook.notify_run_start()   # open recording pauses; no-op when none is open
         self.energy_engine.start_measurement()
         # F3: t0 anchor — read immediately after start_measurement() before any task work.
         # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
@@ -973,6 +978,7 @@ class ExperimentHarness:
         raw_energy = (
             self.energy_engine.stop_measurement()
         )  # RawEnergyMeasurement (Layer 1)
+        _recording_hook.notify_run_end()     # open recording resumes; no-op when none is open
         # rapl_after_task captured AFTER stop_measurement() so MAX(pkg_end_uj)
         # from energy_samples cannot overshoot this anchor.
         _rapl_after_task     = self.energy_engine.rapl.read_energy()

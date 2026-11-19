@@ -1,0 +1,20 @@
+method_id: experiment_recording_v1
+formula: "t_sample = t_wall_at_open + (monotonic_now - monotonic_at_open)"
+parameters:
+  pre_window_s: 30
+  anchor_interval_s: 10
+  mapping_error_limit_ms: 5
+  cooldown_tolerance_c: 2.0
+  cooldown_hold_s: 60
+confidence: 0.95
+references:
+  - title: "clock_gettime(2): CLOCK_MONOTONIC and CLOCK_REALTIME"
+    authors: "Linux man-pages project"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Monotonic clock never steps; realtime clock can be stepped by NTP."
+  - title: "timedatectl(1): timesync-status"
+    authors: "systemd project"
+    year: 2024
+    ref_type: "manual"
+    relevance: "NTP offset read without privileges for the clock anchors."
