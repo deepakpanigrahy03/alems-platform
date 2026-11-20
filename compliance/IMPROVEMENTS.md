@@ -110,3 +110,9 @@
 | disk_reader | 10Hz sampling | zram detection fixed | Monitor on new hardware |
 | perf_reader | once per run | Subprocess overhead acceptable | OK |
 | thermal_reader | 1Hz | Appropriate for thermal | OK |
+
+## IMP-RECORD-01: Optional cool-down wait between repetitions
+Pause an experiment between repetitions until the chip is back near its starting temperature, so every repetition starts from the same thermal state. Changes experiment duration; not part of continuous recording.
+
+## IMP-RECORD-02: Fair split of shared energy between concurrent workloads
+Attribute machine-level readings between overlapping experiments (for example by per-process GPU and CPU use).

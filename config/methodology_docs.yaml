@@ -488,3 +488,8 @@ methods:
     method_anchor: "outlier-detection-v1"
     section: "Outlier Detection Methodology"
 
+
+experiment_recording_v1:
+  doc: "experiment-recording.md"
+  method_anchor: "experiment-recording-time-line"
+  section: "Experiment Recording Time Line"

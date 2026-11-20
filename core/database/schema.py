@@ -73,7 +73,8 @@ CREATE TABLE IF NOT EXISTS experiments (
 # Valid experiment_type values — single source of truth for triggers and application validation
 VALID_EXPERIMENT_TYPES = (
     'normal', 'overhead_study', 'retry_study', 'failure_injection',
-    'quality_sweep', 'calibration', 'ablation', 'pilot', 'debug'
+    'quality_sweep', 'calibration', 'ablation', 'pilot', 'debug',
+    'thermal_session'
 )
 
 CREATE_EXPERIMENT_TYPE_TRIGGERS = """
@@ -83,7 +84,8 @@ BEGIN
     SELECT CASE
         WHEN NEW.experiment_type IS NULL OR NEW.experiment_type NOT IN (
             'normal','overhead_study','retry_study','failure_injection',
-            'quality_sweep','calibration','ablation','pilot','debug'
+            'quality_sweep','calibration','ablation','pilot','debug',
+            'thermal_session'
         )
         THEN RAISE(ABORT, 'Invalid experiment_type value')
     END;
@@ -95,7 +97,8 @@ BEGIN
     SELECT CASE
         WHEN NEW.experiment_type IS NULL OR NEW.experiment_type NOT IN (
             'normal','overhead_study','retry_study','failure_injection',
-            'quality_sweep','calibration','ablation','pilot','debug'
+            'quality_sweep','calibration','ablation','pilot','debug',
+            'thermal_session'
         )
         THEN RAISE(ABORT, 'Invalid experiment_type value')
     END;

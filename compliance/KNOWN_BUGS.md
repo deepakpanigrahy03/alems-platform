@@ -121,3 +121,6 @@ scheduler_monitor.read_loadavg() documents "Run Queue Length (approximated by th
 
 ## Pre-existing failures confirmed on main (2026-11-18)
 Same result on main (54bb47d) and on the thermal sampling branch, same task: test_runs_regression_extended.sh fails energy_measurement_mode (spbm_pkg_v1, expected MEASURED), phase accounting closure, tcp_retransmits NULL; test_exp_integrity.py fails retry_policy (expected 4 rows, got 3) and warns etl_queue (entries never processed in a dev store), D4 delta, D2 conservation.
+
+## Migrate splitter cut trigger bodies (fixed)
+`scripts/tools/alems_migrate.py` split every migration at each unquoted `;`, breaking any `CREATE TRIGGER ... BEGIN ...; END;` (first trigger migration, v123, would have failed). Fixed: split only where `sqlite3.complete_statement()` reports a complete statement. Proof: all 86 existing migration files (301 statements) split identically to before.
