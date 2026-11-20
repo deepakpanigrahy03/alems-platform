@@ -3,8 +3,8 @@ Idle reference, cooling and recording checks for one recording
 (thermal_exposure extension).
 
 The recorder owns the threads, the time line and the writer; this class
-owns everything 46.4 adds on top of it and is called by the recorder at
-fixed points:
+owns the idle reference, the cooling rule and the recording checks, and
+is called by the recorder at fixed points:
 
   prepare()          at open, before sampling starts: settings, sensor and
                      channel names from te_sensor / te_channel, previous
