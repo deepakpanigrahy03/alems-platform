@@ -116,3 +116,6 @@ Pause an experiment between repetitions until the chip is back near its starting
 
 ## IMP-RECORD-02: Fair split of shared energy between concurrent workloads
 Attribute machine-level readings between overlapping experiments (for example by per-process GPU and CPU use).
+
+## IMP-SPANS-01: Validate agent spans at write time
+Route `SpanWriter` through the vocabulary descriptor so unknown kinds, wrong parents and bad attributes are refused for every vocabulary, not only recording spans.

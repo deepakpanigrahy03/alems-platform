@@ -1875,6 +1875,27 @@ def _load_derived_methods() -> List[Dict]:
             "doc":           "experiment-recording.md",
             "section":       "Experiment Recording Time Line",
             "fn":            None,
+        },
+        {
+            "id":            "recording_spans_v1",
+            "name":          "Experiment Recording Spans",
+            "provenance":    "MEASURED",
+            "layer":         "silicon",
+            "confidence":    0.95,
+            "output_metric": "spans.start_ns",
+            "output_unit":   "ns",
+            "applicable_on": ["spans", "span_attributes", "span_placements", "te_session_check"],
+            "formula_latex": r"\mathrm{span} = [t_{\mathrm{pause}_i}, t_{\mathrm{resume}_i}),\ "
+                             r"\mathrm{run}(i) = r : |t_{\mathrm{start}}(r) - t_{\mathrm{pause}_i}| \le \tau",
+            "parameters":    {
+                "version":                 1,
+                "vocabulary":              "thermal_session",
+                "slot_match_tolerance_ns": 5000000,
+                "placement_device":        "system",
+            },
+            "doc":           "experiment-recording.md",
+            "section":       "Recording Spans",
+            "fn":            None,
         }, 
 
 

@@ -24,6 +24,17 @@ MIG = ROOT / "migrations" / "extensions" / "thermal_exposure"
 # core tables the extension tables and view refer to (stubs, FKs not enforced)
 STUBS = """
 CREATE TABLE runs (run_id INTEGER PRIMARY KEY, exp_id INTEGER, start_time_ns INTEGER);
+CREATE TABLE spans (span_id TEXT PRIMARY KEY, trace_id TEXT NOT NULL, parent_span_id TEXT,
+  run_id INTEGER, vocabulary TEXT NOT NULL, vocabulary_version TEXT NOT NULL,
+  kind TEXT NOT NULL, name TEXT NOT NULL, start_ns INTEGER NOT NULL, end_ns INTEGER,
+  start_wall TEXT, status TEXT NOT NULL CHECK (status IN ('open','closed','error')),
+  tenant_kind TEXT, tenant_ref TEXT, provenance_ref TEXT);
+CREATE TABLE span_placements (placement_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  span_id TEXT NOT NULL, node TEXT NOT NULL, device TEXT NOT NULL, phase TEXT,
+  start_ns INTEGER NOT NULL, end_ns INTEGER);
+CREATE TABLE span_attributes (attr_id INTEGER PRIMARY KEY AUTOINCREMENT, span_id TEXT NOT NULL,
+  key TEXT NOT NULL, value_text TEXT, value_type TEXT NOT NULL
+  CHECK (value_type IN ('string','int','float','bool','json')), UNIQUE (span_id, key));
 CREATE TABLE thermal_zones (zone_id INTEGER PRIMARY KEY);
 CREATE TABLE cooling_devices (device_id INTEGER PRIMARY KEY);
 CREATE TABLE thermal_samples_v2 (run_id INTEGER, zone_id INTEGER, timestamp_ns INTEGER,
