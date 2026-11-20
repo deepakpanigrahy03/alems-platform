@@ -36,6 +36,10 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from extensions.thermal_exposure.session_spans import (
+    RECOVER_PLACEMENTS_SQL, RECOVER_SPANS_SQL, SessionSpans, partition_problems)
+from extensions.thermal_exposure.vocabulary import THERMAL_SESSION
+
 logger = logging.getLogger(__name__)
 
 CLOCK_BASIS = "wall_at_open_plus_monotonic_v1"
@@ -72,6 +76,11 @@ _OPEN_IN_PROCESS: set = set()
 # seconds after a run ends before the recorder writes again, so a run saving
 # its own data never waits behind the recorder for the store lock
 RESUME_SETTLE_S = 3.0
+
+# a run slot is linked to the runs row whose start_time_ns lies within this
+# distance of the slot start (pause is aligned to the run's own start stamp;
+# measured mapping error about 0.001 ms, shortest real run far above 5 ms)
+SLOT_MATCH_TOLERANCE_NS = 5_000_000
 
 _VALUE = {"THERMAL_ZONE": "temp_celsius", "COOLING": "cur_state",
           "GPU_TEMP": "temperature_c", "POWER_RAIL": "power_mw",
@@ -193,6 +202,11 @@ class ExperimentRecorder:
         self._resume_mono: Optional[int] = None
         self._fail_counts: Dict[str, int] = {k: 0 for k in self.rates}
         self._gsid: Optional[str] = None
+        # spans of this recording (vocabulary thermal_session)
+        self._spans: Optional[SessionSpans] = None
+        self._span_ids: Dict[str, str] = {}
+        self._slots: List[Tuple[str, int]] = []      # (run slot span id, run number)
+        self._gap_start: Optional[int] = None
 
     # ── time line ────────────────────────────────────────────────────────────
 
@@ -213,6 +227,7 @@ class ExperimentRecorder:
         self._base_wall = self.clock.wall_ns()
         self._base_mono = self.clock.mono_ns()
         self.session_id = self._insert_session()
+        self._open_spans()
         for name in self.rates:
             self._spawn(self._source_loop, name, "rec-%s" % name.lower())
         self._spawn(self._anchor_loop, None, "rec-anchor")
@@ -241,6 +256,7 @@ class ExperimentRecorder:
             self._runs += 1
             if self._workload_start is None:
                 self._workload_start = self._pause_ts
+            self._span_pause(self._pause_ts)      # in memory only; written after the run
             for st in self._stats.values():
                 st.last_ns = None        # the run is not a gap of this recorder
 
@@ -252,6 +268,7 @@ class ExperimentRecorder:
             self._paused = False
             self._workload_end = self._ts()
             self._pause_ts = None
+            self._span_resume(self._workload_end)
             self._resume_mono = self.clock.mono_ns()
             self._active.set()
 
@@ -276,6 +293,7 @@ class ExperimentRecorder:
                 logger.warning("recorder thread %s still running at close", t.name)
         self._resume_mono = None      # no settle delay for the final writes
         end_ns = self._ts()
+        self._finish_spans(status, cooldown_status, end_ns)
         _retry(self._flush_strict, "final sample write")
         _retry(lambda: self._finish_session(status, reason, cooldown_status, end_ns),
                "session close")
@@ -467,8 +485,10 @@ class ExperimentRecorder:
                 kept += len(rows)
                 with self._lock:
                     self._buffers[name] = rows + self._buffers[name]
-        if kept:
-            raise RuntimeError("%d rows kept for the next write" % kept)
+        spans_ok = self._flush_spans()     # between runs only, like the samples
+        if kept or not spans_ok:
+            raise RuntimeError("%d rows kept for the next write%s"
+                               % (kept, "" if spans_ok else "; spans kept"))
 
     def _write_source(self, name: str, rows: List[tuple]) -> bool:
         """
@@ -562,6 +582,152 @@ class ExperimentRecorder:
 
     # ── cool-down and checks ─────────────────────────────────────────────────
 
+# ── session spans ────────────────────────────────────────────────────────
+    # Boundaries come only from the recorder's own instants: open, pause (a
+    # run starts), resume (a run ends) and close. Spans are buffered and
+    # written by the flush, which never writes during a run.
+
+    def _open_spans(self) -> None:
+        """Session and pre-window spans, written at once so a crash leaves them open."""
+        self._spans = SessionSpans(THERMAL_SESSION, self._gsid, self.node_name)
+        sid = self._spans.open("session", "recording:%d" % self.session_id, self._base_wall)
+        self._span_ids = {"session": sid}
+        self._span_ids["pre"] = self._spans.open("idle_window", "idle_window:pre",
+                                                 self._base_wall, sid)
+        _retry(self._flush_spans_strict, "span open")
+
+    def _span_pause(self, ts: int) -> None:
+        """A run starts at ts. Never raises: a span error must not break a run."""
+        if self._spans is None:
+            return
+        try:
+            self._span_pause_strict(ts)
+        except Exception as exc:
+            logger.error("recording span at run start failed: %s", exc)
+
+    def _span_pause_strict(self, ts: int) -> None:
+        """Close the pre-window (first run) or the gap, then open this run's slot."""
+        sp, ids = self._spans, self._span_ids
+        if "workload" not in ids:
+            sp.close(ids["pre"], ts, self._pre_window_attrs(ts))
+            ids["workload"] = sp.open("workload", "workload", ts, ids["session"])
+        elif self._gap_start is not None:
+            # gaps are created only once both ends are known, so the
+            # tentative gap after the last run is never written
+            gid = sp.open("gap", "gap:%d" % (self._runs - 1), self._gap_start, ids["workload"])
+            sp.close(gid, ts, {"seconds": (ts - self._gap_start) / 1e9})
+        self._gap_start = None
+        ids["slot"] = sp.open("run_slot", "run_slot:%d" % self._runs, ts, ids["workload"])
+
+    def _span_resume(self, ts: int) -> None:
+        """A run ends at ts: fix the slot end (its run_id is matched at close)."""
+        if self._spans is None or "slot" not in self._span_ids:
+            return
+        try:
+            slot = self._span_ids.pop("slot")
+            self._spans.set_end(slot, ts)
+            self._slots.append((slot, self._runs))
+            self._gap_start = ts
+        except Exception as exc:
+            logger.error("recording span at run end failed: %s", exc)
+
+    def _pre_window_attrs(self, end_ns: int) -> Dict[str, Any]:
+        """Attributes of the pre-window idle span ending at end_ns."""
+        return {"purpose": "pre", "planned_s": float(self.pre_window_s),
+                "actual_s": (end_ns - self._base_wall) / 1e9}
+
+    def _finish_spans(self, status: str, cooldown_status: str, end_ns: int) -> None:
+        """Close every span at the close of the recording. Never raises."""
+        if self._spans is None:
+            return
+        try:
+            self._finish_spans_strict(status, cooldown_status, end_ns)
+        except Exception as exc:
+            logger.error("recording session %d: closing spans failed: %s",
+                         self.session_id, exc)
+
+    def _finish_spans_strict(self, status: str, cooldown_status: str, end_ns: int) -> None:
+        """Workload, cooling tail and session; the top level ends exactly at end_ns."""
+        sp, ids = self._spans, self._span_ids
+        if "workload" not in ids:                       # no run: all pre-window
+            sp.close(ids["pre"], end_ns, self._pre_window_attrs(end_ns))
+        else:
+            self._close_slots()
+            wl_end = self._workload_end
+            sp.close(ids["workload"], wl_end, {"runs": self._runs})
+            if end_ns > wl_end:
+                tail = sp.open("cooling_tail", "cooling_tail", wl_end, ids["session"])
+                sp.close(tail, end_ns, {
+                    "status": cooldown_status, "reached": cooldown_status == "completed",
+                    "seconds": (end_ns - wl_end) / 1e9,
+                    "tolerance_c": (self.cooldown or {}).get("tolerance_c")})
+        sp.close(ids["session"], end_ns, {
+            "session_id": int(self.session_id), "profile_id": PROFILE_ID,
+            "pacing_plugin": PACING_PLUGIN, "machine_profile": self.machine_profile},
+            "closed" if status == "closed" else "error")
+
+    def _close_slots(self) -> None:
+        """Close each run slot with the run_id of the one run that starts at its start."""
+        for slot, index in self._slots:
+            run_id, match = self._match_run(self._spans.start_of(slot))
+            if match != "matched":
+                logger.warning("recording session %d: run slot %d has no unique run "
+                               "(%s)", self.session_id, index, match)
+            self._spans.close(slot, None, {"slot_index": index, "run_match": match,
+                                           "run_id": run_id})
+
+    def _match_run(self, start_ns: int) -> Tuple[Optional[int], str]:
+        """
+        run_id of the run whose start_time_ns lies within the tolerance of a
+        slot start. run_id is assigned after measurement (EEI-4), so this is
+        the only safe link. Returns (run_id or None, matched/none/ambiguous/pending).
+        """
+        tol = SLOT_MATCH_TOLERANCE_NS
+        try:
+            w = self.writer_factory()
+            w.open()
+            try:
+                rows = w.execute("SELECT run_id FROM runs WHERE start_time_ns BETWEEN ? AND ?",
+                                 (start_ns - tol, start_ns + tol))
+            finally:
+                w.close()
+        except Exception as exc:
+            logger.warning("run slot match failed: %s", exc)
+            return None, "pending"
+        if len(rows) == 1:
+            return int(rows[0]["run_id"]), "matched"
+        return None, ("none" if not rows else "ambiguous")
+
+    def _flush_spans(self) -> bool:
+        """Write dirty spans; False (spans kept) if the write failed. Never raises."""
+        try:
+            self._flush_spans_strict()
+            return True
+        except Exception as exc:
+            logger.warning("recorder span write failed: %s", exc)
+            return False
+
+    def _flush_spans_strict(self) -> None:
+        """One batch for every dirty span; on failure they stay dirty."""
+        if self._spans is None:
+            return
+        items = self._spans.drain()
+        if not items:
+            return
+        try:
+            w = self.writer_factory()
+            w.open()
+            try:
+                with w.batch():
+                    for sql, params in self._spans.statements(items):
+                        w.execute(sql, params)
+            finally:
+                w.close()
+        except Exception:
+            self._spans.requeue(items)
+            raise
+        self._spans.mark_written(items)
+
     def _run_cooldown(self) -> str:
         """
         Optional cool-down after the last run: every zone back within
@@ -604,9 +770,27 @@ class ExperimentRecorder:
                          st.max_gap_ns / 1e6, gap_limit / 1e6, "ms, between runs only",
                          "experiment_recording_v1"))
         rows.extend(self._clock_checks())
+        rows.extend(self._span_checks())
         self._write_rows("INSERT OR REPLACE INTO te_session_check (session_id, check_name, "
                          "result, value, threshold, note, method_id) "
                          "VALUES (?, ?, ?, ?, ?, ?, ?)", rows)
+
+    def _span_checks(self) -> List[tuple]:
+        """Span structure (no gap, no overlap) and run slot matching, for te_session_check."""
+        if self._spans is None:
+            return []
+        tree = self._spans.tree()
+        problems = partition_problems(tree)
+        unmatched = sum(1 for r in tree if r["kind"] == "run_slot"
+                        and r["attrs"].get("run_match") != "matched")
+        return [
+            (self.session_id, "spans_partition", "fail" if problems else "pass",
+             float(len(problems)), 0.0,
+             (problems[0] if problems else "no gap, no overlap")[:200], "recording_spans_v1"),
+            (self.session_id, "spans_run_match", "warn" if unmatched else "pass",
+             float(unmatched), 0.0, "run slots without exactly one runs row",
+             "recording_spans_v1"),
+        ]
 
     def _clock_checks(self) -> List[tuple]:
         """Mapping error (limit 5 ms) and clock steps (warn below one interval)."""
@@ -664,6 +848,10 @@ def recover_open_sessions(writer_factory: Callable[[], Any], node_name: str) -> 
                     "status_reason = 'process ended without closing the recording', "
                     "cooldown_status = COALESCE(cooldown_status, 'aborted') "
                     "WHERE session_id = ? AND status = 'open'", [(s,) for s in stale])
+                # open spans of these recordings close in the same transaction;
+                # only spans still 'open' change, so a second run changes nothing
+                w.execute_many(RECOVER_SPANS_SQL, [(s, s, s) for s in stale])
+                w.execute_many(RECOVER_PLACEMENTS_SQL, [(s,) for s in stale])
     finally:
         w.close()
     if stale:

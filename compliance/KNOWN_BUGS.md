@@ -124,3 +124,6 @@ Same result on main (54bb47d) and on the thermal sampling branch, same task: tes
 
 ## Migrate splitter cut trigger bodies (fixed)
 `scripts/tools/alems_migrate.py` split every migration at each unquoted `;`, breaking any `CREATE TRIGGER ... BEGIN ...; END;` (first trigger migration, v123, would have failed). Fixed: split only where `sqlite3.complete_statement()` reports a complete statement. Proof: all 86 existing migration files (301 statements) split identically to before.
+
+## Agent spans cannot be aligned with samples or recording spans
+`SpanWriter.open_span/close_span/add_placement` stamp `time.perf_counter_ns()`, a per-process counter with an arbitrary origin, while samples use wall-clock `timestamp_ns`. Agent span times cannot be compared with samples, with other processes or with recording spans. Also: `span_builder._build` writes `socket.gethostname()` as the placement node (hostname rule) and always writes a single `attempt:1`, whatever the retries. Found 2026-11-18; owner: span builder. Not changed.

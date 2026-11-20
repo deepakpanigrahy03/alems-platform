@@ -129,6 +129,7 @@ engine_backed = "core.telemetry.engine_backed_collector:EngineBackedCollector"
 [project.entry-points."alems.spans.vocabularies"]
 agent   = "core.vocabularies.agent:AgentVocabulary"
 generic = "core.vocabularies.generic"
+thermal_session = "extensions.thermal_exposure.vocabulary"
 
 [project.entry-points."alems.attribution.models"]
 legacy_v1 = "core.attribution.legacy_v1:LegacyV1AttributionModel"

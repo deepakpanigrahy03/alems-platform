@@ -493,3 +493,7 @@ experiment_recording_v1:
   doc: "experiment-recording.md"
   method_anchor: "experiment-recording-time-line"
   section: "Experiment Recording Time Line"
+recording_spans_v1:
+  doc: "experiment-recording.md"
+  method_anchor: "recording-spans"
+  section: "Recording Spans"

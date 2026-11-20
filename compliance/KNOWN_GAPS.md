@@ -141,3 +141,9 @@ The minimal command is `scripts/tools/thermal_record.py`; an `alems` subcommand 
 
 ## KG-RECORD-03: Overlapping experiments record duplicates
 Two opted-in experiments on one machine each store their own copy of the same machine readings, reflecting both workloads. No lock; to be handled with the sampler consolidation (KG-SAMPLING-01).
+
+## KG-RECORD-04: Recording spans from the session runner not yet written
+The `thermal_session` vocabulary defines warmup, post idle window, goal_slot, pause and calibration_step; only a session runner produces them. The recorder writes session, pre idle window, workload, run_slot, gap and cooling_tail.
+
+## KG-RECORD-05: Recording placements use the node name 'local'
+`open_recording()` passes no node name, so every placement uses the recorder default `local` (logical, never a hostname). Multi-node analysis needs a configured logical node name.

@@ -393,7 +393,32 @@ def check_recording(conn, run_ids: list) -> list:
                               "WHERE session_id = ? AND result = 'fail'", (sid,)).fetchone()[0]
         if failed:
             results.append(warn(f"recording session={sid}: failed checks {failed}"))
+        results.extend(_recording_span_problems(conn, sid))
     return results
+
+
+def _recording_span_problems(conn, sid) -> list:
+    """Spans of one recording (EIC-4): one session span, top level and each
+    workload tiled with no gap or overlap, every span with a placement."""
+    try:
+        from extensions.thermal_exposure.session_spans import partition_problems
+    except ImportError as exc:
+        return [warn(f"recording session={sid}: span check unavailable ({exc})")]
+    cur = conn.execute(
+        "SELECT s.span_id, s.parent_span_id, s.kind, s.start_ns, s.end_ns, s.status, "
+        "p.span_id AS placed FROM spans s JOIN te_session t ON s.trace_id = t.global_session_id "
+        "LEFT JOIN span_placements p ON p.span_id = s.span_id "
+        "WHERE t.session_id = ? AND s.vocabulary = 'thermal_session'", (sid,))
+    cols = [d[0] for d in cur.description]
+    rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    if not rows:
+        # recordings made before spans existed have none; not an error
+        return [warn(f"recording session={sid}: no spans")]
+    out = [fail(f"recording session={sid}: {p}") for p in partition_problems(rows)[:5]]
+    unplaced = sum(1 for r in rows if r["placed"] is None)
+    if unplaced:
+        out.append(fail(f"recording session={sid}: {unplaced} spans without placement"))
+    return out
 
 
 def check_dcgm_coverage(conn, run_ids: list) -> list:

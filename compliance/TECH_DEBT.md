@@ -49,3 +49,6 @@ Core migration v123 allows `experiment_type = 'thermal_session'`; the final reco
 
 ## TD-RECORD-02: Recorder keeps its own GPU monitoring handle during runs
 The recorder's DCGM/NVML backend stays open while paused. Reads stop during a run, but the handle is released only at close.
+
+## TD-SPANS-01: Older vocabularies not on the span vocabulary descriptor
+`alems_sdk.spans.SpanVocabulary` declares kinds, parents, placement and typed attributes and validates spans. The `agent` (class) and `generic` (module) vocabularies predate it, are not validated when written, and `GROUP_CONTRACT["alems.spans.vocabularies"]` stays `None` because a class contract would reject both in the conformance kit. Move both onto the descriptor and add a descriptor contract kind to the kit.

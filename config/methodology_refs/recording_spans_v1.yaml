@@ -1,0 +1,19 @@
+method_id: recording_spans_v1
+formula: "span boundaries = recorder pause/resume instants on the recording time line; run slot run_id = the one runs row with |start_time_ns - slot_start| <= tolerance"
+parameters:
+  vocabulary: thermal_session
+  vocabulary_version: 1
+  slot_match_tolerance_ns: 5000000
+  placement_device: system
+confidence: 0.95
+references:
+  - title: "OpenTelemetry Tracing Specification: Span"
+    authors: "OpenTelemetry project"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Span model (parent, start, end, attributes) that the span tables follow."
+  - title: "clock_gettime(2): CLOCK_MONOTONIC and CLOCK_REALTIME"
+    authors: "Linux man-pages project"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Span times use the recording time line, which is built on the monotonic clock."
