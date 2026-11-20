@@ -128,3 +128,9 @@ Take the last process-list checkpoint just before a run without delaying the run
 
 ## IMP-RECORD-04: GPU power between runs
 Record GPU power between runs (and inside idle windows) so machines whose main channel is GPU power get a matched idle power.
+
+## IMP-SENSORS-01: Thermal safety guard from discovered limits
+The catalog records per-sensor limits: on GB10 NVML reports GPU slowdown 86 C, shutdown 90 C, max operating 99 C (shutdown below max operating, stored as reported). The load guard required before the session runner should stop at a margin below the discovered slowdown limit instead of a typed number.
+
+## IMP-SENSORS-02: Record catalog-only sensors
+Add a per-sensor recording path for hwmon inputs and Mac helper sensors so that profiles on x86, AMD and Mac can name them.

@@ -61,3 +61,9 @@ The worktree dev store applied `e003` before `te_session.idle_baseline_id` was c
 
 ## TD-IDLE-01: Counter wraparound range not passed to the idle power rule
 `idle_power_from_counter_v1` corrects a wraparound only when the counter range is known; the recorder does not yet pass `max_energy_range_uj`, so a wrapped interval is dropped (never guessed).
+
+## TD-SENSORS-01: Two discovery paths for thermal zones
+`scripts/detect_hardware.py` (no venv, writes hw_config thermal paths) and `core/thermal/thermal_discovery.py` / `core/thermal/thermal_descriptors.py` (venv) each walk sysfs. They agree today; merge once install runs detection inside the venv.
+
+## TD-SENSORS-02: Conformance kit does not run descriptor validation
+`alems_sdk.thermal_catalog.validate_descriptor` is applied by `scripts/detect_thermal.py` and by tests, not yet by the SDK conformance kit for third-party thermal readers.

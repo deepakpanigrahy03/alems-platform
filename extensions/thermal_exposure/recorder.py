@@ -30,7 +30,6 @@ import hashlib
 import logging
 import os
 import re
-import statistics
 import subprocess
 import threading
 import time
@@ -199,8 +198,6 @@ class ExperimentRecorder:
         self._buffers: Dict[str, List[tuple]] = {k: [] for k in self.rates}
         self._stats = {k: _SourceStats(hz) for k, hz in self.rates.items()}
         self._last_keys: Dict[str, List[Any]] = {k: [] for k in self.rates}
-        self._pre_temps: Dict[Any, List[float]] = {}   # zone -> pre-window temps
-        self._recent_temps: Dict[Any, float] = {}       # zone -> latest VALID temp
         self._anchors: List[Tuple[int, int]] = []       # (drift_ns, stepped)
         self._runs = 0
         self._workload_start: Optional[int] = None
@@ -373,7 +370,6 @@ class ExperimentRecorder:
                 self._last_keys[name] = [r.get(_KEY[name]) for r in rows]
             for r in rows:
                 self._buffers[name].append(self._to_row(name, r, t0))
-                self._track_temp(name, r)
                 self.idle.observe(name, r, t0)
 
     def _account(self, name: str, t0: int, interval_ns: int, failed: Optional[str]) -> None:
@@ -415,14 +411,6 @@ class ExperimentRecorder:
             return (sid, r["domain_id"], ts, value, flag, reason)
         return (sid, r.get("sensor_name") or "ambient", ts, value, flag, reason)
 
-    def _track_temp(self, name: str, r: Dict) -> None:
-        """Keep pre-window and latest zone temperatures for the cool-down rule."""
-        if name != "THERMAL_ZONE" or r.get("quality_flag", "VALID") != "VALID":
-            return
-        zid, temp = r.get("zone_id"), r.get("temp_celsius")
-        self._recent_temps[zid] = temp
-        if self._workload_start is None:
-            self._pre_temps.setdefault(zid, []).append(temp)
 
     # ── clock anchors ────────────────────────────────────────────────────────
 

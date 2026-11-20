@@ -1980,6 +1980,22 @@ def _load_derived_methods() -> List[Dict]:
             "doc":           "experiment-recording.md",
             "section":       "Idle Drift",
             "fn":            None,
+        },
+        {
+            "id":            "sensor_resolution_observed_v1",
+            "name":          "Observed Temperature Sensor Step",
+            "provenance":    "MEASURED",
+            "layer":         "silicon",
+            "confidence":    0.9,
+            "output_metric": "te_sensor.observed_step_c",
+            "output_unit":   "C",
+            "applicable_on": ["te_sensor", "te_session_check"],
+            "formula_latex": r"\delta = \min\{\,|T_{i+1} - T_i| > 0 : n(\delta) \ge 2\,\}",
+            "parameters":    {"version": 1, "min_step_repeats": 2, "probe_seconds": 60,
+                              "probe_rate_hz": 50},
+            "doc":           "experiment-recording.md",
+            "section":       "Sensor Resolution Observed",
+            "fn":            None,
         }, 
 
 

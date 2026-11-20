@@ -1,0 +1,20 @@
+method_id: sensor_resolution_observed_v1
+formula: "observed step = smallest non-zero |T_{i+1} - T_i| seen at least twice during the install-time probe (scripts/detect_thermal.py) or in a recording's idle windows; status measured, else insufficient_transitions with the step NULL"
+parameters:
+  min_step_repeats: 2
+  probe_seconds: 60
+  probe_rate_hz: 50
+  step_decimals: 6
+  nominal_rule: "observed step when measured, else interface resolution"
+confidence: 0.9
+references:
+  - title: "Linux kernel thermal sysfs ABI (thermal_zone*/temp, trip_point_*), hwmon sysfs interface"
+    authors: "Linux kernel documentation"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Interfaces report millidegrees; the real granularity differs per sensor and must be observed."
+  - title: "NVML API Reference: nvmlDeviceGetTemperature, nvmlDeviceGetTemperatureThreshold"
+    authors: "NVIDIA"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Whole-degree GPU temperature and the slowdown/shutdown thresholds recorded as limits."

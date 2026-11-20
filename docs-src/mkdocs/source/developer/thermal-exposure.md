@@ -66,3 +66,35 @@ Reads every thermal zone and the GPU temperature as fast as possible and reports
 Samples inside a run stay in the core sample tables under the run's `run_id`. Samples outside runs go to `te_thermal_samples`, `te_cooling_samples`, `te_gpu_temp_samples`, `te_power_rail_samples` and `te_ambient_samples`, keyed to one `te_session` row (no row in `runs`). Sample times follow the time line in [Experiment Recording](../research/experiment-recording.md). Writes go through a short-lived `InProcessWriter` per flush (every 2 s), so the recorder never holds the store lock while a run saves; a failed write keeps the rows for the next flush. A recording left open by a dead process is marked `aborted` at the next start (`recover_open_sessions`, idempotent, samples untouched).
 
 Opt in with `--record-continuous` (`--record-pre-window-s`, `--record-cooldown-max-s`) on `run_experiment.py`, or a `recording:` section in an experiment config (see `config/experiment_configs/examples/example_record_continuous.yaml`). `scripts/tools/thermal_record.py --seconds N` records N seconds with no load and prints the checks.
+
+## Thermal sensor catalog
+
+Sensor facts are discovered on each machine, never typed into machine profiles.
+
+**Discovery.** `scripts/detect_thermal.py` runs at install (step 4d, inside the venv, no sudo) and on demand. It asks the platform's thermal readers which sensors they read (`describe_sensors()`), adds sensors no reader records (Linux hwmon inputs, extra Mac helper sensors) with `read_by: discovery_utility`, probes everything for about 60 s and writes `config/hw_config.json` key `thermal_sensors`:
+
+| Field | Content |
+|---|---|
+| `catalog` | one descriptor per temperature: id, kind (`sensor` or `derived`), interface, reported format, interface resolution, limits (trip points, NVML thresholds; unsupported ones with `temp_c` null), device, driver, label, identity key and confidence (strong, inferred, ambiguous), `read_by` |
+| `catalog_sha256` | hash of the catalog facts only (no measurements, times or load), so it changes only when the machine's sensors change |
+| `measurements` | per id: observed step and status, value-change interval p10/p50/p90 (only with 5 or more changes), min/median/max, advisory `possible_duplicate_of` |
+| `sources`, `probe`, `provenance` | read latency and failures per reader; achieved duration, rounds, interruptions; time, kernel, GPU driver and NVML version, load and GPU use before and after |
+
+`detect_hardware.py` never replaces this key. Options: `--dry-run` (print, write nothing), `--seconds`, `--hz`.
+
+**Reader contract (SDK 1.1).** Both thermal reader contracts (`alems_sdk.readers.ThermalReaderABC`, `ThermalReaderV2ABC`) have optional methods:
+
+| Method | Returns |
+|---|---|
+| `describe_sensors()` | descriptors (`alems_sdk.thermal_catalog.descriptor`, validated by `validate_descriptor`) |
+| `read_sensors()` | `{descriptor id: C or None}` for what the reader records |
+| `read_discovery_sensors()` | the same plus sensors described as `discovery_utility` |
+| `describe_signals()`, `read_signals()` | non-temperature signals, typed `{value, unit, status}` (Mac thermal pressure) |
+
+A reader that implements none of them still works: each `read_all_thermal()` key is reported as `derived` with formula `unknown (legacy reader key)`, never as a sensor. Averages and maxima are always `derived` with their formula and inputs.
+
+**Profiles.** `thermal_exposure.machine_profile: auto` picks the profile from `platform_class` through `config/machine_profiles/index.yaml`; a platform without an entry gets no profile. A profile holds decisions only. The loader copies each sensor's resolution and its origin from the catalog into `te_sensor`, rejects a typed resolution that disagrees, and keeps a typed value without a catalog only as `typed_unverified`.
+
+**Adding a platform.** Implement `describe_sensors()` / `read_sensors()` on its thermal reader, run `scripts/detect_thermal.py --dry-run` on the machine, then add a profile and an index entry once its sensors can be recorded per sensor.
+
+**Mac.** Install builds the die-temperature helper from `core/readers/darwin/vendor/sensors.m` with `clang` (no sudo; the binary is not committed). Thermal pressure uses `sudo -n powermetrics` through the NOPASSWD rule install sets, and starts only in `initialize()`, never when a reader is constructed or described.

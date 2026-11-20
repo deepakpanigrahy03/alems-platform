@@ -71,7 +71,9 @@ def _registry_source(cfg: Dict) -> Optional[Source]:
     from core.readers.factory import ReaderFactory
     register_all_readers()
     reader = ReaderFactory.get_thermal_reader(cfg)
-    if not reader.is_available():
+    # describe whatever the reader can see, even if its availability flag is
+    # narrower (the Mac reader's flag only checks the battery)
+    if not reader.describe_sensors():
         return None
     read = getattr(reader, "read_discovery_sensors", reader.read_sensors)
     return reader.get_name(), reader.describe_sensors(), read

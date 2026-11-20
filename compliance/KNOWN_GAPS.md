@@ -162,3 +162,9 @@ No energy counter is read between runs on Apple Silicon (IOKit); idle power is `
 
 ## KG-RECORD-10: Decision sensor and thresholds provisional
 The cooling and drift decision sensor is a recording setting (default: profile main sensor) and every idle, cooling and drift threshold is provisional until calibration. A machine-profile key for the decision sensor comes with the profile schema of the session runner.
+
+## KG-SENSORS-01: Catalog sensors not recorded per sensor
+Mac die sensors, Linux hwmon inputs (Intel coretemp cores, AMD k10temp/amdgpu) and the GB10 board-power driver's temperatures (cpu clusters, soc, gpu, dla, tj_max in 0.01 C steps) are discovered and probed but not recorded: te_sensor.source_table accepts only thermal_samples_v2, gpu_samples and te_ambient_samples, and the recorder reads Linux thermal zones only. No machine profile exists for Mac or x86 for that reason (index.yaml maps nvidia_grace only).
+
+## KG-SENSORS-02: Finer GB10 temperature sensors pending evaluation
+The GB10 board-power driver reports soc and gpu temperatures in 0.01 C steps, against 0.1 C (ACPI zones) and 1 C (NVML). Whether they should become the exposure or decision sensors is an E0 decision (response to load, relation to NVML GPU temperature).

@@ -131,6 +131,10 @@ Drift is the post-window median minus the pre-window median, per sensor and chan
 
 **Other GPU users.** Between runs the recorder reads the GPU process list every few seconds (read only; no process is ever signalled). An external process with GPU utilisation above zero at a checkpoint fails `gpu_external_activity`; one holding a GPU context only warns `gpu_external_process`. Inside runs nothing is observable, so `gpu_interference_inside_runs` is always `unknown`. A clean result means no external activity at checkpoints, never that the runs were isolated.
 
+### Sensor Resolution Observed { #sensor-resolution-observed }
+
+A temperature interface's format is not the sensor's granularity: Linux sysfs reports millidegrees for every zone, yet NVIDIA Grace GB10 ACPI zones change in 0.1 C steps, Intel x86 package and core sensors in 1 C steps, and the GB10 board-power driver's temperatures in 0.01 C steps. The rules that use resolution (stability slope floor, cooling band) therefore take it from observation, not from a typed value. At install, `scripts/detect_thermal.py` reads every sensor for 60 s and records the smallest non-zero step seen at least twice (`measured`); a sensor that changed too little gets `insufficient_transitions` and no step. When the machine profile loads, `te_sensor.nominal_resolution_c` is the observed step when measured, otherwise the interface resolution (`interface_only`); a profile that types a disagreeing value is rejected. Each recording re-checks the decision and guard sensors (`sensor_resolution_<name>`): a finer step than the catalog, or a catalog that changed since the profile loaded, is a warning.
+
 **Declared idle state.** `server.state` declares whether a model server is loaded or stopped while idle (with a server loaded the GPU can stay in its highest power state, near 57 C on NVIDIA Grace GB10). It is checked at the checkpoints against the configured server process names (`idle_state_verification`: fail if the server is absent or its process id changed). Idle references are compared only between recordings with the same declared state.
 
 ## Schema
@@ -167,6 +171,7 @@ Values that could not be read are NULL with a quality flag, never 0.
 | `te_session.cooling_complete`, `drift_session`, `ambient_status` | cooling outcome, drift session flag, room probe availability |
 | `te_session.checks_config_sha256` | hash of the idle, cooling, check and server settings |
 | `te_session_check.result` | `pass`, `warn`, `fail` or `unknown` (a check that could not be made) |
+| `te_sensor.interface_resolution_c`, `observed_step_c`, `resolution_status`, `catalog_sha256` | origin of `nominal_resolution_c`: interface format, step seen by the install probe (NULL if too few changes), `measured` / `interface_only` / `typed_unverified`, and the sensor catalog used |
 
 ### Recording spans
 
@@ -344,6 +349,13 @@ WHERE s.status = 'closed'
 ORDER BY s.session_id;
 ```
 
+**Sensor resolution and its origin** — answers: what resolution do the rules use for each sensor, and where does it come from? Applies to: every platform with a loaded machine profile. Expected: on NVIDIA Grace GB10, ACPI zones 0.1 (interface 0.001, `measured`) and GPU temperature 1.0.
+```sql
+SELECT sensor_name, nominal_resolution_c, interface_resolution_c, observed_step_c,
+       resolution_status, substr(catalog_sha256, 1, 12) AS catalog
+FROM te_sensor ORDER BY sensor_name;
+```
+
 ## Verification
 
 1. `python scripts/tools/thermal_record.py --seconds 60` records one minute with no load and
@@ -406,3 +418,7 @@ For the idle reference and checks:
   Workaround: set `idle.measure: true` for thermal and clean-comparison work.
 - **No energy counter on Apple Silicon between runs**: idle power is `unknown` there.
   Workaround: None until a counter reader exists.
+- **Observed step is not accuracy**: the install probe shows the practical granularity of the acquisition path during one idle minute; a sensor that barely changed gets no step, and a finer step may appear under load.
+  Workaround: the recording check warns when a recording shows a finer step; rerun `scripts/detect_thermal.py` and reload the profile.
+- **Only Linux thermal zones and GPU temperature are recorded per sensor**: Mac die sensors, Linux hwmon inputs (Intel coretemp cores, AMD k10temp, the GB10 board-power driver's 0.01 C sensors) are in the sensor catalog but not recorded.
+  Workaround: None yet; they are listed with `read_by: discovery_utility`.

@@ -394,7 +394,13 @@ class IOKitThermalReader(ThermalReaderABC):
         )
 
     def is_available(self) -> bool:
-        return self._available
+        """
+        True if any temperature source works: the die-sensor helper or the
+        battery. Macs without a battery (Mac mini, Mac Studio) rely on the
+        helper alone. Runs decide through available_sensors (initialize());
+        this flag now says the same.
+        """
+        return self._available or self._binary_available
 
     def get_name(self) -> str:
         return "IOKitThermalReader"
