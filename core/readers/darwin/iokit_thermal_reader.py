@@ -115,8 +115,9 @@ class IOKitThermalReader(ThermalReaderABC):
             SENSORS_BINARY, os.X_OK
         )
         self._available = self._check_available()
-        if self._available:
-            self._start_pressure_sampling()
+        # pressure sampling starts in initialize() (runs), never here: describing
+        # sensors or probing them must not launch any subprocess under sudo
+        self._pressure_started = False
         if not self._binary_available:
             logger.warning(
                 "IOKitThermalReader: vendored sensors binary not found at %s, "
@@ -137,7 +138,7 @@ class IOKitThermalReader(ThermalReaderABC):
             return False
 
     def _start_pressure_sampling(self):
-        cmd = ["sudo", "powermetrics", "--samplers", "thermal",
+        cmd = ["sudo", "-n", "powermetrics", "--samplers", "thermal",
                "-i", "1000", "-n", "-1", "--format", "text"]
         try:
             self._proc = subprocess.Popen(
@@ -246,6 +247,112 @@ class IOKitThermalReader(ThermalReaderABC):
             "is_throttling":    self.is_throttling(),
         }
     
+    # ── Sensor catalog (SDK describe_sensors / read_sensors / signals) ─────
+
+    @staticmethod
+    def _parse_sensor_csv(text):
+        # type: (str) -> Dict[str, Optional[float]]
+        """Helper output (header line, value line) -> {sensor name: C or None}."""
+        lines = [ln for ln in text.strip().split("\n") if ln.strip()]
+        if len(lines) < 2:
+            return {}
+        names = [n.strip().replace(" (°C)", "") for n in lines[0].split(",")]
+        out = {}
+        for name, raw in zip(names, [v.strip() for v in lines[1].split(",")]):
+            try:
+                out[name] = float(raw)
+            except ValueError:
+                out[name] = None          # unparsable value is missing, never 0
+        return out
+
+    def _read_named(self):
+        # type: () -> Dict[str, Optional[float]]
+        """Every helper sensor by its real name; {} when the helper is not built."""
+        if not self._binary_available:
+            return {}
+        try:
+            r = subprocess.run([SENSORS_BINARY, "-o"], capture_output=True, text=True, timeout=5)
+            return self._parse_sensor_csv(r.stdout) if r.returncode == 0 else {}
+        except Exception as e:
+            logger.warning("IOKitThermalReader: helper read failed: %s", e)
+            return {}
+
+    @staticmethod
+    def _recorded(name):
+        # type: (str) -> bool
+        """Die probes this reader records (same rule as _read_die_temps)."""
+        low = name.lower()
+        return "tdie" in low and not any(ex in low for ex in EXCLUDED_SENSOR_SUBSTRINGS)
+
+    def _read_battery_c(self):
+        # type: () -> Optional[float]
+        """Battery temperature from ioreg (deciKelvin), or None."""
+        try:
+            r = subprocess.run(["ioreg", "-rc", "AppleSmartBattery"],
+                               capture_output=True, text=True, timeout=5)
+            m = re.search(r'"Temperature"\s*=\s*(\d+)', r.stdout)
+            return round(int(m.group(1)) / 10.0 - 273.15, 2) if m else None
+        except Exception:
+            return None
+
+    def describe_sensors(self):
+        # type: () -> List[Dict]
+        """Helper sensors by real name, battery, and the derived maximum."""
+        from alems_sdk.thermal_catalog import descriptor
+        names = sorted(self._read_named())
+        descs = [descriptor("iokit:%s" % n, "sensor", "iokit_hid", "celsius_float", n, "strong",
+                            self.get_name() if self._recorded(n) else "discovery_utility",
+                            source_ref=SENSORS_BINARY, label=n) for n in names]
+        if self._available:
+            descs.append(descriptor("ioreg:AppleSmartBattery:Temperature", "sensor", "ioreg",
+                                    "decikelvin", "AppleSmartBattery", "strong", self.get_name(),
+                                    interface_resolution_c=0.1, label="battery"))
+        dies = ["iokit:%s" % n for n in names if self._recorded(n)]
+        note = None if self._binary_available else "die sensors unavailable: helper binary not built"
+        descs += [descriptor("%s:%s" % (self.get_name(), k), "derived", "derived", "celsius_float",
+                             "%s:%s" % (self.get_name(), k), "strong", self.get_name(),
+                             derived_from=dies, formula="max of die sensors", notes=note)
+                  for k in ("cpu_temp", "package_temp_celsius")]
+        return descs
+
+    def _sensor_values(self, everything):
+        # type: (bool) -> Dict[str, Optional[float]]
+        """Helper sensors (recorded ones, or all), battery and the derived maximum."""
+        named = self._read_named()
+        out = {"iokit:%s" % n: v for n, v in named.items() if everything or self._recorded(n)}
+        dies = [v for n, v in named.items() if self._recorded(n) and v is not None]
+        peak = round(max(dies), 2) if dies else None
+        out.update({"%s:cpu_temp" % self.get_name(): peak,
+                    "%s:package_temp_celsius" % self.get_name(): peak})
+        if self._available:
+            out["ioreg:AppleSmartBattery:Temperature"] = self._read_battery_c()
+        return out
+
+    def read_sensors(self):
+        # type: () -> Dict[str, Optional[float]]
+        """Temperatures this reader records, by catalog id."""
+        return self._sensor_values(everything=False)
+
+    def read_discovery_sensors(self):
+        # type: () -> Dict[str, Optional[float]]
+        """All helper sensors, including those not recorded (tdev, NAND, ...)."""
+        return self._sensor_values(everything=True)
+
+    def describe_signals(self):
+        # type: () -> List[Dict]
+        """Thermal pressure: categorical, not a temperature."""
+        return [{"id": "powermetrics:thermal_pressure", "quantity": "thermal_pressure",
+                 "unit": "level", "values": list(PRESSURE_LEVEL_RANK),
+                 "requires": "sudo -n powermetrics (NOPASSWD rule set by install)",
+                 "started_by": "initialize()"}]
+
+    def read_signals(self):
+        # type: () -> Dict[str, Dict]
+        """Latest pressure level with its status."""
+        level = self.get_pressure_level()
+        status = "ok" if level else ("not_started" if not self._pressure_started else "unavailable")
+        return {"powermetrics:thermal_pressure": {"value": level, "unit": "level", "status": status}}
+
     def get_pressure_level(self) -> Optional[str]:
         """Not part of ThermalReaderABC. Categorical, logging/provenance only."""
         with self._lock:
@@ -278,6 +385,9 @@ class IOKitThermalReader(ThermalReaderABC):
         # (line 352), empty dict means no throttling data configured, same
         # as ARMThermalReader's own no-op value.
         self.throttle_thresholds = {}
+        if self._available and not self._pressure_started:
+            self._pressure_started = True        # once; same behaviour for runs as before
+            self._start_pressure_sampling()
         logger.debug(
             "IOKitThermalReader.initialize(): %d sensors ready: %s",
             len(self.available_sensors), self.available_sensors,

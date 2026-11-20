@@ -222,6 +222,44 @@ class ARMThermalReader(ThermalReaderABC):
         )
         return result
 
+    # ── Sensor catalog (SDK describe_sensors / read_sensors) ──────────────
+
+    def _key_ids(self):
+        # type: () -> Dict[str, str]
+        """Reader key -> catalog id; zone type and index come from sysfs, not the key."""
+        import os
+        from core.thermal.thermal_descriptors import zone_id
+        out = {}
+        for key, path in self._zones.items():
+            zdir = os.path.dirname(path)
+            with open(os.path.join(zdir, "type")) as fh:
+                out[key] = zone_id(int(os.path.basename(zdir)[len("thermal_zone"):]), fh.read().strip())
+        return out
+
+    def describe_sensors(self):
+        # type: () -> List[Dict]
+        """Each zone as a sensor; cpu_temp and package_celsius as derived means."""
+        import os
+        from alems_sdk.thermal_catalog import descriptor
+        from core.thermal.thermal_descriptors import list_zones, zone_descriptors
+        dirs = {os.path.dirname(p) for p in self._zones.values()}
+        zones = [z for z in list_zones() if z["dir"].rstrip("/") in {d.rstrip("/") for d in dirs}]
+        ids = self._key_ids()
+        cpu = [ids[k] for k in self._cpu_zone_keys if k in ids]
+        derived = [descriptor("%s:%s" % (self.get_name(), k), "derived", "derived", "celsius_float",
+                              "%s:%s" % (self.get_name(), k), "strong", self.get_name(),
+                              derived_from=cpu, formula="mean of VALID inputs")
+                   for k in ("cpu_temp", "package_celsius")]
+        return zone_descriptors(self.get_name(), zones) + derived
+
+    def read_sensors(self):
+        # type: () -> Dict[str, Optional[float]]
+        """Zone temperatures under their catalog ids, plus the derived means."""
+        values, ids = self.read_all_thermal(), self._key_ids()
+        out = {ids[k]: v for k, v in values.items() if k in ids}
+        out.update({"%s:%s" % (self.get_name(), k): values.get(k) for k in ("cpu_temp", "package_celsius")})
+        return out
+
     def read_temperatures(self):
         # type: () -> Dict
         """

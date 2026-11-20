@@ -394,6 +394,7 @@ def check_recording(conn, run_ids: list) -> list:
         if failed:
             results.append(warn(f"recording session={sid}: failed checks {failed}"))
         results.extend(_recording_span_problems(conn, sid))
+        results.extend(_recording_idle_problems(conn, sid, run_ids))
     return results
 
 
@@ -418,6 +419,32 @@ def _recording_span_problems(conn, sid) -> list:
     unplaced = sum(1 for r in rows if r["placed"] is None)
     if unplaced:
         out.append(fail(f"recording session={sid}: {unplaced} spans without placement"))
+    return out
+
+
+def _recording_idle_problems(conn, sid, run_ids: list) -> list:
+    """Idle reference of one recording (EIC-4): no energy counter row inside a
+    run, and a measured reference has pre idle rows."""
+    has = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' "
+                                      "AND name IN ('te_energy_samples', 'te_idle_window')")}
+    if "te_energy_samples" not in has:
+        return []                      # store without the idle reference migration
+    out = []
+    ph = ",".join("?" * len(run_ids))
+    inside = conn.execute(
+        f"SELECT COUNT(*) FROM te_energy_samples e JOIN runs r ON e.timestamp_ns >= "
+        f"r.start_time_ns AND e.timestamp_ns < r.end_time_ns WHERE e.session_id = ? "
+        f"AND r.run_id IN ({ph})", [sid] + list(run_ids)).fetchone()[0]
+    if inside:
+        out.append(fail(f"recording session={sid}: {inside} energy counter rows inside runs"))
+    ref = conn.execute("SELECT idle_reference FROM te_session WHERE session_id = ?",
+                       (sid,)).fetchone()
+    pre = conn.execute("SELECT COUNT(*) FROM te_idle_window WHERE session_id = ? "
+                       "AND phase = 'pre'", (sid,)).fetchone()[0]
+    if ref and ref[0] == "matched" and not pre:
+        out.append(fail(f"recording session={sid}: measured idle reference without pre rows"))
+    if ref and ref[0] is None:
+        out.append(warn(f"recording session={sid}: no idle reference (recorded before it existed)"))
     return out
 
 

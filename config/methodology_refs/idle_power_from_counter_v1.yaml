@@ -1,0 +1,19 @@
+method_id: idle_power_from_counter_v1
+formula: "P_i = (E_{i+1} - E_i) / (t_{i+1} - t_i) per interval of a cumulative counter; a negative delta is one wraparound (corrected when the counter range is known, otherwise the interval is dropped); median and MAD of P_i per idle window"
+parameters:
+  counter_kind: cumulative (energy_domains.is_cumulative = 1)
+  read_rate_hz: 10
+  read_only_inside: idle windows (pre, post)
+  unit: mW
+confidence: 0.9
+references:
+  - title: "Intel 64 and IA-32 Architectures Software Developer's Manual, Vol. 3B, Power and Thermal Management (RAPL)"
+    authors: "Intel Corporation"
+    year: 2024
+    ref_type: "manual"
+    relevance: "RAPL energy status counters are cumulative and wrap; power is the counter delta over time."
+  - title: "Linux powercap framework (intel-rapl) documentation"
+    authors: "Linux kernel documentation"
+    year: 2024
+    ref_type: "manual"
+    relevance: "energy_uj and max_energy_range_uj semantics used for the wraparound rule."

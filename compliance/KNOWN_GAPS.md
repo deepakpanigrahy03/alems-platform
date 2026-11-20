@@ -147,3 +147,18 @@ The `thermal_session` vocabulary defines warmup, post idle window, goal_slot, pa
 
 ## KG-RECORD-05: Recording placements use the node name 'local'
 `open_recording()` passes no node name, so every placement uses the recorder default `local` (logical, never a hostname). Multi-node analysis needs a configured logical node name.
+
+## KG-RECORD-06: Other GPU users inside runs are not observable
+The recorder is paused during runs, so the GPU process list is read only at checkpoints between runs (every few seconds and after each run). `gpu_interference_inside_runs` is always `unknown`; a clean checkpoint result is not proof that a run was isolated.
+
+## KG-RECORD-07: No GPU power between runs
+Between runs only GPU temperature is recorded. A machine profile whose main channel comes from `gpu_samples` (for example x86 with an NVIDIA GPU) has no matched idle power; it is stored as unavailable. To be added before the second-machine work.
+
+## KG-RECORD-08: Store idle baseline is not a matched reference
+With `recording.idle.measure: false` a recording references the newest `idle_baselines` row (mean, store-wide, no temperature, server state unknown). The exposure analysis must refuse `idle_reference = 'store_baseline'` recordings unless explicitly overridden.
+
+## KG-RECORD-09: No idle power on Apple Silicon
+No energy counter is read between runs on Apple Silicon (IOKit); idle power is `unknown` there.
+
+## KG-RECORD-10: Decision sensor and thresholds provisional
+The cooling and drift decision sensor is a recording setting (default: profile main sensor) and every idle, cooling and drift threshold is provisional until calibration. A machine-profile key for the decision sensor comes with the profile schema of the session runner.

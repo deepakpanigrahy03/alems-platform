@@ -94,10 +94,11 @@ class FakeWriter:
 
 @pytest.fixture
 def store():
-    """In-memory store with e001 + e002 applied."""
+    """In-memory store with e001 + e002 + e003 applied."""
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.executescript(STUBS)
-    for f in ("e001_create_thermal_exposure.sql", "e002_recording_between_runs.sql"):
+    for f in ("e001_create_thermal_exposure.sql", "e002_recording_between_runs.sql",
+              "e003_idle_windows_and_checks.sql"):
         for stmt in _split((MIG / f).read_text()):
             conn.execute(stmt)
     conn.commit()

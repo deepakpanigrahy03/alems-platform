@@ -1,0 +1,80 @@
+# config/experiment_configs/examples/example_record_idle_measured.yaml
+# =============================================================================
+# EXAMPLE: recording with a measured idle reference and cooling check (opt-in)
+# Verifies: the recording measures its own idle power and idle temperature in
+#           a pre idle window that must be thermally stable before the first
+#           run, waits after the last run until the machine is back at that
+#           idle reference, then measures a post idle window. Results go to
+#           te_idle_window (median and MAD per sensor and power channel) and
+#           te_session_check (acceptance, cooling, drift, valid share, room
+#           temperature, other GPU users, declared idle state, carry-over).
+#           With idle.measure false (default) none of this waits; the store
+#           idle baseline is referenced instead (te_session.idle_reference).
+#
+# All durations and limits below are provisional engineering values until
+# the calibration sessions measure the machine; the values used are stored
+# with the recording (te_session.checks_config_sha256 and each check row).
+# Expected wall time: about 10 min pre window (up to 30 min if the machine
+# is still settling), the runs, up to 10 min cool-down, 10 min post window.
+#
+# Check after the run:
+#   SELECT session_id, idle_reference, idle_equilibrium, cooling_complete,
+#          drift_session, carryover_contaminated, decision_sensor
+#   FROM te_session ORDER BY session_id DESC LIMIT 1;
+#   SELECT phase, COALESCE(sensor_name, channel_name), median_value, mad_value,
+#          unit, sample_count FROM te_idle_window WHERE session_id = <id>;
+#   SELECT check_name, result, value, threshold, note FROM te_session_check
+#   WHERE session_id = <id> ORDER BY check_name;
+#
+# Task: tg_single_calc. Provider: llama_cpp (model loaded in the A-LEMS
+# process, so there is no separate server process name to verify; the
+# declared state is stored and its verification is 'unknown').
+# =============================================================================
+study:
+  name: "Example: recording with measured idle reference"
+  experiment_type: "normal"
+  experiment_goal: "Measure a matched idle reference and cooling for one recording"
+  workflow_modes: ["comparison"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: llama_cpp
+
+execution:
+  repetitions: 2
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  name: "no_retry"
+
+recording:
+  enabled: true
+  pre_window_s: 30            # ignored while idle.measure is true (idle.pre_s is used)
+  cooldown_max_s: 600         # maximum cool-down; a timeout is never counted as cooled
+  cooldown:
+    tolerance_c: 2.0          # engineering part of the band around the pre median
+    mad_k: 3.0                # noise part of the band (k x pre MAD)
+    hold_s: 60                # stay in band this long, no sampling gap
+  idle:
+    measure: true             # false: no idle wait, store idle baseline referenced
+    pre_s: 600                # pre idle window, extended until stable ...
+    pre_max_s: 1800           # ... up to this length
+    extend_step_s: 120
+    final_s: 120              # stability tests on the final interval
+    post_s: 600               # post idle window after a completed cool-down
+    decision_sensor: soc_zone_0   # provisional; chosen from calibration evidence
+    guard_sensors: [gpu_temp]     # must also be back in band
+  checks:
+    min_coverage: 0.98
+    slope_limit_c_per_min: 0.1
+    power_rel_mad_limit: 0.05
+    drift_tolerance_c: 0.5
+    drift_tolerance_rel: 0.05
+    min_valid_share: 0.98
+    room_change_c: 1.0
+  server:
+    state: server_loaded      # model resident while idle (fixed for a campaign)
+    process_names: []         # e.g. [vllm] for a separate server process

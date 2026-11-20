@@ -39,6 +39,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from extensions.thermal_exposure.session_spans import (
     RECOVER_PLACEMENTS_SQL, RECOVER_SPANS_SQL, SessionSpans, partition_problems)
 from extensions.thermal_exposure.vocabulary import THERMAL_SESSION
+from extensions.thermal_exposure.idle_session import IdleSession
 
 logger = logging.getLogger(__name__)
 
@@ -63,12 +64,16 @@ TABLES: Dict[str, Tuple[str, Tuple[str, ...]]] = {
     "AMBIENT": ("te_ambient_samples",
                 ("session_id", "sensor_name", "timestamp_ns", "temp_celsius",
                  "quality_flag", "invalid_reason")),
+    # cumulative energy counters, read only inside idle windows (idle_session)
+    "ENERGY": ("te_energy_samples",
+               ("session_id", "domain_id", "timestamp_ns", "energy_uj",
+                "quality_flag", "invalid_reason")),
 }
 
 # key column per source: used to write READ_FAILED rows for the same
 # sensors after a whole-reader failure
 _KEY = {"THERMAL_ZONE": "zone_id", "COOLING": "device_id", "GPU_TEMP": "gpu_index",
-        "POWER_RAIL": "rail_id", "AMBIENT": "sensor_name"}
+        "POWER_RAIL": "rail_id", "AMBIENT": "sensor_name", "ENERGY": "domain_id"}
 # value column per source: NULL when the read failed (MIC-1, never 0)
 # global_session_ids of recordings open in this process: recovery never aborts them
 _OPEN_IN_PROCESS: set = set()
@@ -84,7 +89,7 @@ SLOT_MATCH_TOLERANCE_NS = 5_000_000
 
 _VALUE = {"THERMAL_ZONE": "temp_celsius", "COOLING": "cur_state",
           "GPU_TEMP": "temperature_c", "POWER_RAIL": "power_mw",
-          "AMBIENT": "temp_celsius"}
+          "AMBIENT": "temp_celsius", "ENERGY": "energy_uj"}
 
 
 class SystemClock:
@@ -150,6 +155,8 @@ class ExperimentRecorder:
                  optional cool-down after the last run.
         anchor_s / flush_s: clock anchor and write intervals.
         clock: SystemClock or a test double.
+        settings: the experiment's recording section (idle, cooldown, checks,
+                 server); rules and defaults live in idle_session / idle_checks.
     """
 
     def __init__(self, readers: Dict[str, Callable[[], List[Dict]]],
@@ -158,7 +165,8 @@ class ExperimentRecorder:
                  pre_window_s: float = 30.0, cooldown: Optional[Dict] = None,
                  anchor_s: float = 10.0, flush_s: float = 2.0,
                  clock: Optional[SystemClock] = None,
-                 offset_fn: Callable[[], Tuple[Optional[int], Optional[str]]] = read_timesync_offset_ns
+                 offset_fn: Callable[[], Tuple[Optional[int], Optional[str]]] = read_timesync_offset_ns,
+                 settings: Optional[Dict[str, Any]] = None
                  ) -> None:
         self.readers = dict(readers)
         if "AMBIENT" not in self.readers and "AMBIENT" in rates_hz:
@@ -207,6 +215,8 @@ class ExperimentRecorder:
         self._span_ids: Dict[str, str] = {}
         self._slots: List[Tuple[str, int]] = []      # (run slot span id, run number)
         self._gap_start: Optional[int] = None
+        # idle reference, cooling rule and recording checks (idle_session.py)
+        self.idle = IdleSession(self, settings or {})
 
     # ── time line ────────────────────────────────────────────────────────────
 
@@ -228,13 +238,14 @@ class ExperimentRecorder:
         self._base_mono = self.clock.mono_ns()
         self.session_id = self._insert_session()
         self._open_spans()
+        self.idle.prepare()              # names, carry-over, energy mapping; never raises
         for name in self.rates:
             self._spawn(self._source_loop, name, "rec-%s" % name.lower())
         self._spawn(self._anchor_loop, None, "rec-anchor")
         self._spawn(self._flush_loop, None, "rec-flush")
         logger.info("recording opened: session %d, sources %s, pre-window %.0f s",
                     self.session_id, ",".join(sorted(self.rates)), self.pre_window_s)
-        self._stop.wait(self.pre_window_s)            # first run starts after this
+        self.idle.wait_pre_window()                   # first run starts after this
         return self.session_id
 
     def _spawn(self, target: Callable, arg: Any, name: str) -> None:
@@ -284,7 +295,8 @@ class ExperimentRecorder:
             self.resume()
             if status == "closed":
                 reason = reason or "closed while a run was still open"
-        cooldown_status = self._run_cooldown() if status == "closed" else "aborted"
+        cooldown_status = self.idle.run_cooldown() if status == "closed" else "aborted"
+        post = self.idle.run_post_window(cooldown_status) if status == "closed" else None
         self._stop.set()
         self._active.set()            # wake any thread blocked on a pause
         for t in self._threads:
@@ -293,10 +305,11 @@ class ExperimentRecorder:
                 logger.warning("recorder thread %s still running at close", t.name)
         self._resume_mono = None      # no settle delay for the final writes
         end_ns = self._ts()
-        self._finish_spans(status, cooldown_status, end_ns)
+        self._finish_spans(status, cooldown_status, end_ns, post)
         _retry(self._flush_strict, "final sample write")
         _retry(lambda: self._finish_session(status, reason, cooldown_status, end_ns),
                "session close")
+        _retry(lambda: self.idle.write_results(end_ns), "idle results")
         _retry(lambda: self._write_checks(end_ns), "session checks")
         dropped = sum(len(v) for v in self._buffers.values())
         if dropped:
@@ -337,6 +350,8 @@ class ExperimentRecorder:
         """One read; rows stamped with the read-start time."""
         if self._paused:
             return
+        if name == "ENERGY" and not self.idle.energy_active():
+            return                       # counters are read only inside idle windows
         gen, t0 = self._gen, self._ts()
         try:
             rows, failed = self.readers[name]() or [], None
@@ -359,6 +374,7 @@ class ExperimentRecorder:
             for r in rows:
                 self._buffers[name].append(self._to_row(name, r, t0))
                 self._track_temp(name, r)
+                self.idle.observe(name, r, t0)
 
     def _account(self, name: str, t0: int, interval_ns: int, failed: Optional[str]) -> None:
         """Update rate and gap counters (caller holds the lock)."""
@@ -395,6 +411,8 @@ class ExperimentRecorder:
                     flag, reason)
         if name == "POWER_RAIL":
             return (sid, r["rail_id"], ts, r.get("interval_ns"), value, flag, reason)
+        if name == "ENERGY":
+            return (sid, r["domain_id"], ts, value, flag, reason)
         return (sid, r.get("sensor_name") or "ambient", ts, value, flag, reason)
 
     def _track_temp(self, name: str, r: Dict) -> None:
@@ -636,31 +654,38 @@ class ExperimentRecorder:
         return {"purpose": "pre", "planned_s": float(self.pre_window_s),
                 "actual_s": (end_ns - self._base_wall) / 1e9}
 
-    def _finish_spans(self, status: str, cooldown_status: str, end_ns: int) -> None:
+    def _finish_spans(self, status: str, cooldown_status: str, end_ns: int,
+                      post: Optional[int] = None) -> None:
         """Close every span at the close of the recording. Never raises."""
         if self._spans is None:
             return
         try:
-            self._finish_spans_strict(status, cooldown_status, end_ns)
+            self._finish_spans_strict(status, cooldown_status, end_ns, post)
         except Exception as exc:
             logger.error("recording session %d: closing spans failed: %s",
                          self.session_id, exc)
 
-    def _finish_spans_strict(self, status: str, cooldown_status: str, end_ns: int) -> None:
-        """Workload, cooling tail and session; the top level ends exactly at end_ns."""
+    def _finish_spans_strict(self, status: str, cooldown_status: str, end_ns: int,
+                             post: Optional[int] = None) -> None:
+        """Workload, cooling tail, post idle window and session; top level ends at end_ns."""
         sp, ids = self._spans, self._span_ids
+        tail_end = post if post is not None else end_ns   # the post window follows the tail
         if "workload" not in ids:                       # no run: all pre-window
             sp.close(ids["pre"], end_ns, self._pre_window_attrs(end_ns))
         else:
             self._close_slots()
             wl_end = self._workload_end
             sp.close(ids["workload"], wl_end, {"runs": self._runs})
-            if end_ns > wl_end:
+            if tail_end > wl_end:
                 tail = sp.open("cooling_tail", "cooling_tail", wl_end, ids["session"])
-                sp.close(tail, end_ns, {
+                sp.close(tail, tail_end, {
                     "status": cooldown_status, "reached": cooldown_status == "completed",
-                    "seconds": (end_ns - wl_end) / 1e9,
-                    "tolerance_c": (self.cooldown or {}).get("tolerance_c")})
+                    "seconds": (tail_end - wl_end) / 1e9,
+                    "tolerance_c": self.idle.band_c()})
+        if post is not None and "workload" in ids:
+            pid = sp.open("idle_window", "idle_window:post", post, ids["session"])
+            sp.close(pid, end_ns, {"purpose": "post", "planned_s": self.idle.cfg["post_s"],
+                                   "actual_s": (end_ns - post) / 1e9})
         sp.close(ids["session"], end_ns, {
             "session_id": int(self.session_id), "profile_id": PROFILE_ID,
             "pacing_plugin": PACING_PLUGIN, "machine_profile": self.machine_profile},
@@ -728,35 +753,13 @@ class ExperimentRecorder:
             raise
         self._spans.mark_written(items)
 
-    def _run_cooldown(self) -> str:
-        """
-        Optional cool-down after the last run: every zone back within
-        tolerance of its pre-window median for hold_s, or the max_s cap.
-        """
-        cd = self.cooldown
-        if not cd or not cd.get("max_s"):
-            return "not_requested"
-        base = {z: statistics.median(v) for z, v in self._pre_temps.items() if v}
-        if not base:
-            logger.warning("cool-down requested but no pre-window temperatures")
-            return "timed_out"
-        tol, hold, deadline = cd.get("tolerance_c", 2.0), cd.get("hold_s", 60.0), \
-            time.monotonic() + cd["max_s"]
-        ok_since: Optional[float] = None
-        while time.monotonic() < deadline:
-            with self._lock:
-                cur = dict(self._recent_temps)
-            ok = all(z in cur and cur[z] <= b + tol for z, b in base.items())
-            ok_since = (ok_since or time.monotonic()) if ok else None
-            if ok_since is not None and time.monotonic() - ok_since >= hold:
-                return "completed"
-            time.sleep(1.0)
-        return "timed_out"
+
 
     def _write_checks(self, end_ns: int) -> None:
         """Rate, gap and clock checks into te_session_check."""
         rows = []
-        for name, st in self._stats.items():
+        # ENERGY is read only inside idle windows; idle_session checks its coverage
+        for name, st in ((n, s) for n, s in self._stats.items() if n != "ENERGY"):
             # intervals, not reads: n reads span n-1 intervals within each stretch
             achieved = (st.intervals / (st.active_ns / 1e9)) if st.active_ns > 0 else None
             rate_ok = achieved is not None and abs(achieved - st.hz) <= 0.2 * st.hz
@@ -771,6 +774,7 @@ class ExperimentRecorder:
                          "experiment_recording_v1"))
         rows.extend(self._clock_checks())
         rows.extend(self._span_checks())
+        rows.extend(self.idle.check_rows())
         self._write_rows("INSERT OR REPLACE INTO te_session_check (session_id, check_name, "
                          "result, value, threshold, note, method_id) "
                          "VALUES (?, ?, ?, ?, ?, ?, ?)", rows)

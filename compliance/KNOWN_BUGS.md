@@ -127,3 +127,9 @@ Same result on main (54bb47d) and on the thermal sampling branch, same task: tes
 
 ## Agent spans cannot be aligned with samples or recording spans
 `SpanWriter.open_span/close_span/add_placement` stamp `time.perf_counter_ns()`, a per-process counter with an arbitrary origin, while samples use wall-clock `timestamp_ns`. Agent span times cannot be compared with samples, with other processes or with recording spans. Also: `span_builder._build` writes `socket.gethostname()` as the placement node (hostname rule) and always writes a single `attempt:1`, whatever the retries. Found 2026-11-18; owner: span builder. Not changed.
+
+## Migrate --plan does not list extension migrations
+`alems dev migrate --plan` printed "Total: 0 migrations to apply" while `thermal_exposure/e003` was pending; `--run` then applied it ("1 extension"). `cmd_plan` does not call `_get_pending_extension_migrations()`, so the plan step cannot show extension changes. Found 2026-11-20; owner: migrate tool. Not changed (IMP-MIGRATE-01).
+
+## SoC zone resolution in the GB10 machine profile was 100 times too fine (fixed)
+`gpu_soc_a.yaml` declared `nominal_resolution_c: 0.001` for the 7 ACPI zones. The sensors report millidegrees in steps of 100: the smallest step between stored values is 0.1 C in all 7 zones and raw sysfs reads end in 00. Effect: the idle stability rule's resolution floor was 100 times too lenient (a flat 0.1 C-step trace could pass as stable). Fixed to 0.1 C, profile reloaded. Found 2026-11-20 in an idle recording.

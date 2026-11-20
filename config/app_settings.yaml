@@ -110,4 +110,4 @@ plugins:
     package_uj: 9999999
 
 thermal_exposure:
-  machine_profile: gpu_soc_a
+  machine_profile: auto          # profile from platform class (config/machine_profiles/index.yaml)

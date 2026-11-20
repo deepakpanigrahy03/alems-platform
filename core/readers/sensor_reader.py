@@ -206,6 +206,39 @@ class SensorReader(ThermalReaderABC):
 
         return readings
 
+    # ── Sensor catalog (SDK describe_sensors / read_sensors) ──────────────
+
+    def _role_zones(self) -> Dict[str, Dict]:
+        """role -> {"index", "type", "dir"} for configured roles that map to a zone."""
+        import os
+        zones = self.discovered_zones or self._discover_thermal_zones()
+        out = {}
+        for role, stype in self.sensors_to_monitor.items():
+            infos = zones.get(stype) or []
+            if infos:
+                zdir = os.path.dirname(infos[0]["path"])
+                out[role] = {"index": int(os.path.basename(zdir)[len("thermal_zone"):]),
+                             "type": stype, "dir": zdir}
+        return out
+
+    def describe_sensors(self) -> List[Dict]:
+        """The zones this reader records, one descriptor each (role in notes)."""
+        from core.thermal.thermal_descriptors import zone_descriptors
+        roles = self._role_zones()
+        descs = zone_descriptors(self.get_name(), list(roles.values()))
+        for d, role in zip(descs, roles):
+            d["notes"] = "SensorReader role %s" % role
+        return descs
+
+    def read_sensors(self) -> Dict[str, Optional[float]]:
+        """Configured roles under their zone catalog ids (None when a read failed)."""
+        from core.thermal.thermal_descriptors import zone_id
+        if not self._initialized:
+            self.initialize()
+        values = self.read_all_thermal()
+        return {zone_id(z["index"], z["type"]): values.get(role)
+                for role, z in self._role_zones().items()}
+
     def _validate_paths(self) -> Dict[str, str]:
         """
         Validate which sensor paths are actually accessible.

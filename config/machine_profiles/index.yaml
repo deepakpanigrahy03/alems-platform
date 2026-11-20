@@ -1,0 +1,18 @@
+# config/machine_profiles/index.yaml
+# -----------------------------------------------------------------------------
+# Machine profile per platform class, used when app_settings.yaml sets
+# thermal_exposure.machine_profile: auto. platform_class comes from
+# config/hw_config.json (written by scripts/detect_hardware.py).
+#
+# A platform with no entry gets no profile: the thermal registers stay empty
+# and a log line says so. Sensor facts are still discovered on every platform
+# (scripts/detect_thermal.py); a profile only records decisions (which
+# channels and sensors the analysis uses, the main pair, channel roles).
+#
+# Add a platform only when its sensors can be recorded per sensor:
+# te_sensor.source_table accepts thermal_samples_v2, gpu_samples and
+# te_ambient_samples, and the recorder records Linux thermal zones.
+# -----------------------------------------------------------------------------
+version: 1
+profiles:
+  nvidia_grace: gpu_soc_a
