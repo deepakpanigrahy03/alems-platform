@@ -125,7 +125,7 @@ class SensorReader(ThermalReaderABC):
 
         # Open file handles for configured sensors
         for role, sensor_type in self.sensors_to_monitor.items():
-            sensor_infos = self.discovered_zones.get(sensor_type, [])
+            sensor_infos = self.discovered_zones.get(sensor_type, []) or self._hwmon_by_name(sensor_type)
             if sensor_infos:
                 path = sensor_infos[0]["path"]
                 try:
@@ -142,6 +142,20 @@ class SensorReader(ThermalReaderABC):
         logger.info(
             f"SensorReader initialized with {len(self.thermal_fds)} thermal sensors"
         )
+
+    @staticmethod
+    def _hwmon_by_name(name):
+        # type: (str) -> List[Dict]
+        """
+        A hwmon temperature input found by driver name at start (k10temp, coretemp).
+
+        hwmon numbers can change between boots, so the stored path is not used;
+        the package input (Tctl, "Package id") is preferred when there are several.
+        """
+        from core.thermal.thermal_descriptors import hwmon_inputs
+        hits = [h for h in hwmon_inputs() if h["name"] == name]
+        pref = [h for h in hits if h["label"].lower().startswith(("tctl", "package"))]
+        return [{"path": h["path"]} for h in (pref or hits)][:1]
 
     def close(self):
         """Close all open thermal file handles."""
@@ -228,7 +242,37 @@ class SensorReader(ThermalReaderABC):
         descs = zone_descriptors(self.get_name(), list(roles.values()))
         for d, role in zip(descs, roles):
             d["notes"] = "SensorReader role %s" % role
-        return descs
+        return descs + self._cpu_hwmon_descriptors()
+
+    # CPU temperature drivers read through hwmon (AMD k10temp/zenpower, Intel coretemp)
+    _CPU_HWMON = ("k10temp", "zenpower", "coretemp")
+
+    def _cpu_hwmon_inputs(self):
+        # type: () -> List[Dict]
+        """CPU hwmon temperature inputs, found by driver name; cached, [] when there are none."""
+        if getattr(self, "_cpu_hwmon_cache", None) is None:
+            from core.thermal.thermal_descriptors import hwmon_inputs
+            self._cpu_hwmon_cache = [h for h in hwmon_inputs() if h["name"] in self._CPU_HWMON]
+        return self._cpu_hwmon_cache
+
+    def _cpu_hwmon_descriptors(self):
+        # type: () -> List[Dict]
+        """Catalog descriptors of the CPU hwmon inputs, recorded by this reader."""
+        from core.thermal.thermal_descriptors import hwmon_descriptors
+        ids = {h["id"] for h in self._cpu_hwmon_inputs()}
+        return [d for d in hwmon_descriptors(self.get_name()) if d["id"] in ids]
+
+    def _cpu_hwmon_values(self):
+        # type: () -> Dict[str, Optional[float]]
+        """CPU hwmon temperatures in C; a failed read is None, never 0."""
+        out = {}
+        for h in self._cpu_hwmon_inputs():
+            try:
+                with open(h["path"]) as fh:
+                    out[h["id"]] = int(fh.read().strip()) / 1000.0
+            except (OSError, ValueError):
+                out[h["id"]] = None
+        return out
 
     def read_sensors(self) -> Dict[str, Optional[float]]:
         """Configured roles under their zone catalog ids (None when a read failed)."""
@@ -236,8 +280,10 @@ class SensorReader(ThermalReaderABC):
         if not self._initialized:
             self.initialize()
         values = self.read_all_thermal()
-        return {zone_id(z["index"], z["type"]): values.get(role)
-                for role, z in self._role_zones().items()}
+        out = {zone_id(z["index"], z["type"]): values.get(role)
+               for role, z in self._role_zones().items()}
+        out.update(self._cpu_hwmon_values())
+        return out
 
     def _validate_paths(self) -> Dict[str, str]:
         """

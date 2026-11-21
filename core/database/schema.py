@@ -1646,6 +1646,10 @@ CREATE TABLE IF NOT EXISTS thermal_samples (
     sample_start_ns      INTEGER,   -- epoch ns at sample start (explicit)
     sample_end_ns        INTEGER,   -- epoch ns at sample end (= timestamp_ns)
     interval_ns    INTEGER,            -- elapsed ns for this thermal sample
+    -- v124: per-sensor readings by sensor catalog id (scripts/detect_thermal.py)
+    sensors_json         TEXT,      -- {catalog id: C or null}; catalog ids only
+    sensor_quality_json  TEXT,      -- {catalog id: VALID|OUT_OF_RANGE|READ_FAILED|UNAVAILABLE}
+    catalog_sha256       TEXT,      -- sensor catalog the sample was read against
     FOREIGN KEY(run_id) REFERENCES runs(run_id)
 );
 CREATE INDEX IF NOT EXISTS idx_thermal_run_time ON thermal_samples(run_id, timestamp_ns);

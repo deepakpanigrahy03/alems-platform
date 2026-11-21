@@ -419,8 +419,12 @@ class ThermalReaderABC(_ThermalCatalogMixin, BaseReader):
     Interface for temperature sensor readers.
 
     Concrete implementations:
-        SensorReader       — Linux, reads /sys/class/thermal/thermal_zoneN/temp
-        DummyThermalReader — stub returning empty dict for unsupported platforms
+        SensorReader           — x86 Linux, configured thermal zones
+        ARMThermalReader       — aarch64 Linux, every thermal zone
+        IOKitThermalReader     — macOS, die sensors (helper) and battery
+        SyntheticThermalReader — pipeline tests
+        DummyThermalReader     — stub returning empty dict for unsupported platforms
+    Optional sensor catalog methods: see _ThermalCatalogMixin.
     """
 
     @abstractmethod

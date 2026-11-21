@@ -377,7 +377,8 @@ def check_recording(conn, run_ids: list) -> list:
     ph = ",".join("?" * len(run_ids))
     sessions = conn.execute(
         f"SELECT DISTINCT s.session_id, s.status FROM te_session s JOIN runs r "
-        f"ON r.start_time_ns >= s.start_ns AND (s.end_ns IS NULL OR r.start_time_ns < s.end_ns) "
+        f"ON r.start_time_ns >= s.start_ns AND ((s.end_ns IS NULL AND s.status = 'open') "
+        f"OR r.start_time_ns < s.end_ns) "
         f"WHERE s.run_id IS NULL AND r.run_id IN ({ph})", run_ids).fetchall()
     results = []
     for sid, status in sessions:

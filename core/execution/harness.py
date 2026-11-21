@@ -479,6 +479,10 @@ class ExperimentHarness:
                 sample_start_ns  = thermal_tuple[3] if len(thermal_tuple) > 3 else None
                 sample_end_ns    = thermal_tuple[4] if len(thermal_tuple) > 4 else None
                 interval_ns      = thermal_tuple[5] if len(thermal_tuple) > 5 else None
+                # catalog readings (v124): values, quality, catalog hash
+                sensors          = thermal_tuple[6] if len(thermal_tuple) > 6 else None
+                sensor_quality   = thermal_tuple[7] if len(thermal_tuple) > 7 else None
+                catalog_sha256   = thermal_tuple[8] if len(thermal_tuple) > 8 else None
  
                 time_since_start = (ts * 1e9 - start_time_ns) / 1e9
  
@@ -493,6 +497,9 @@ class ExperimentHarness:
                     "wifi_temp":       readings.get("wifi_temp"),
                     "throttle_event":  1 if throttled else 0,
                     "all_zones":       readings,         # serialised to JSON in insert
+                    "sensors":         sensors,          # v124, serialised in insert
+                    "sensor_quality":  sensor_quality,   # v124, serialised in insert
+                    "catalog_sha256":  catalog_sha256,
                 }
                 )
                 if readings.get("cpu_temp"):
@@ -1056,6 +1063,10 @@ class ExperimentHarness:
                 sample_start_ns  = thermal_tuple[3] if len(thermal_tuple) > 3 else None
                 sample_end_ns    = thermal_tuple[4] if len(thermal_tuple) > 4 else None
                 interval_ns      = thermal_tuple[5] if len(thermal_tuple) > 5 else None
+                # catalog readings (v124): values, quality, catalog hash
+                sensors          = thermal_tuple[6] if len(thermal_tuple) > 6 else None
+                sensor_quality   = thermal_tuple[7] if len(thermal_tuple) > 7 else None
+                catalog_sha256   = thermal_tuple[8] if len(thermal_tuple) > 8 else None
  
                 time_since_start = (ts * 1e9 - start_time_ns) / 1e9
  
@@ -1070,6 +1081,9 @@ class ExperimentHarness:
                     "wifi_temp":       readings.get("wifi_temp"),
                     "throttle_event":  1 if throttled else 0,
                     "all_zones":       readings,         # serialised to JSON in insert
+                    "sensors":         sensors,          # v124, serialised in insert
+                    "sensor_quality":  sensor_quality,   # v124, serialised in insert
+                    "catalog_sha256":  catalog_sha256,
                 }
                 )
                 if readings.get("cpu_temp"):

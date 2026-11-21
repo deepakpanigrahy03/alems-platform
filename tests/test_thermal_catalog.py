@@ -176,3 +176,22 @@ def test_write_keeps_other_keys_and_no_sensors_is_not_an_error(tmp_path, monkeyp
     data = json.loads(cfg.read_text())
     assert data["cpu_model"] == "x" and data["thermal"] == {"paths": {}}
     assert data["thermal_sensors"]["catalog"] == []
+
+
+def test_conformance_kit_requires_read_with_describe():
+    from alems_sdk._kit_families import MeasurementKit
+
+    class _DescribesOnly(_OldReader):
+        def describe_sensors(self):
+            return []
+
+    class _Both(_DescribesOnly):
+        def read_sensors(self):
+            return {}
+    msgs = []
+    kit = MeasurementKit()
+    kit.fail = lambda m: msgs.append(m)
+    kit._check_thermal_catalog(_DescribesOnly)
+    kit._check_thermal_catalog(_Both)
+    kit._check_thermal_catalog(_OldReader)            # old readers are untouched
+    assert len(msgs) == 1 and "read_sensors" in msgs[0]

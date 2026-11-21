@@ -23,12 +23,21 @@ import hashlib
 import json
 from typing import Any, Dict, Iterable, List, Optional
 
-DESCRIPTOR_SCHEMA_VERSION = 1
+DESCRIPTOR_SCHEMA_VERSION = 2      # 2: scope added
 
 KINDS = ("sensor", "derived")
+# what a value measures: a die maximum and a package sensor are different quantities
+SCOPES = ("die", "core", "package", "zone", "gpu", "battery", "board", "storage",
+          "network", "unknown")
+# reading validity range (same as the zone readers): outside is OUT_OF_RANGE, kept
+VALID_MIN_C, VALID_MAX_C = -10.0, 125.0
+QUALITY = ("VALID", "OUT_OF_RANGE", "READ_FAILED", "UNAVAILABLE")
+# |value| below this on a powered machine is an unused slot or a stub, not a
+# temperature (x86 SEN4 reads 0.05 C, GB10 spbm dla 0 C); stored OUT_OF_RANGE
+NEAR_ZERO_C = 1.0
 CONFIDENCE = ("strong", "inferred", "ambiguous")
 REQUIRED = ("id", "kind", "quantity", "unit", "interface", "reported_format",
-            "identity_key", "identity_confidence", "read_by")
+            "identity_key", "identity_confidence", "read_by", "scope")
 
 # fields that describe the machine; volatile values never enter the hash
 _HASHED = REQUIRED + ("interface_resolution_c", "limits", "source_ref", "device",
@@ -42,9 +51,9 @@ def descriptor(id: str, kind: str, interface: str, reported_format: str,
                source_ref: Optional[str] = None, device: Optional[str] = None,
                driver: Optional[str] = None, label: Optional[str] = None,
                derived_from: Optional[List[str]] = None, formula: Optional[str] = None,
-               notes: Optional[str] = None) -> Dict[str, Any]:
+               notes: Optional[str] = None, scope: str = "unknown") -> Dict[str, Any]:
     """Build one temperature descriptor (validated by validate_descriptor)."""
-    return {"id": id, "kind": kind, "quantity": "temperature", "unit": "C",
+    return {"id": id, "kind": kind, "quantity": "temperature", "unit": "C", "scope": scope,
             "interface": interface, "reported_format": reported_format,
             "interface_resolution_c": interface_resolution_c,
             "limits": list(limits or []), "source_ref": source_ref, "device": device,
@@ -76,6 +85,8 @@ def validate_descriptor(d: Dict[str, Any]) -> List[str]:
         errs.append("kind must be one of %s" % (KINDS,))
     if d.get("identity_confidence") not in CONFIDENCE:
         errs.append("identity_confidence must be one of %s" % (CONFIDENCE,))
+    if d.get("scope") not in SCOPES:
+        errs.append("scope must be one of %s" % (SCOPES,))
     res = d.get("interface_resolution_c")
     if res is not None and (not isinstance(res, (int, float)) or res <= 0):
         errs.append("interface_resolution_c must be > 0 or None (never 0)")
@@ -93,3 +104,40 @@ def catalog_sha256(descriptors: List[Dict[str, Any]]) -> str:
     blob = json.dumps({"schema": DESCRIPTOR_SCHEMA_VERSION, "sensors": canon},
                       sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(blob.encode()).hexdigest()
+
+
+def expected_ids(descriptors: List[Dict[str, Any]], reader_name: str,
+                 kinds: tuple = ("sensor",)) -> List[str]:
+    """
+    Catalog ids a reader records (read_by names it); the run's expected sensor set.
+
+    Only real sensors by default: a derived value is recomputed from its inputs
+    with the formula kept in the catalog, so storing it would only duplicate them.
+    """
+    def _by(d):
+        rb = d.get("read_by")
+        return reader_name in (rb if isinstance(rb, list) else [rb])
+    return sorted(d["id"] for d in descriptors if _by(d) and d.get("kind") in kinds)
+
+
+def sensor_quality(values: Dict[str, Optional[float]], expected: List[str],
+                   lo: float = VALID_MIN_C, hi: float = VALID_MAX_C):
+    """
+    Values and quality for every expected sensor of one read.
+
+    Returns ({id: C or None}, {id: quality}). Absent from the read: UNAVAILABLE;
+    read but None: READ_FAILED; outside [lo, hi]: OUT_OF_RANGE (value kept for
+    audit); otherwise VALID. Every expected id gets a quality word, so a
+    missing entry can never be taken for VALID.
+    """
+    vals, qual = {}, {}
+    for sid in expected:
+        if sid not in values:
+            vals[sid], qual[sid] = None, "UNAVAILABLE"
+        elif values[sid] is None:
+            vals[sid], qual[sid] = None, "READ_FAILED"
+        else:
+            v = float(values[sid])
+            ok = lo <= v <= hi and abs(v) >= NEAR_ZERO_C
+            vals[sid], qual[sid] = v, ("VALID" if ok else "OUT_OF_RANGE")
+    return vals, qual

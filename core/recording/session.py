@@ -74,6 +74,36 @@ def _gpu() -> Optional[Any]:
     return col if col.backend.is_available() else None
 
 
+def _catalog_sensors(readers: Dict) -> Optional[Callable[[], List[Dict]]]:
+    """
+    The platform thermal reader's catalog sensors as rows, or None.
+
+    Linux zones are already recorded by THERMAL_ZONE (te_thermal_samples), so
+    they are left out here and stored once; on Apple Silicon and for sensors
+    such as x86 coretemp this is the only between-runs path.
+    """
+    from alems_sdk.thermal_catalog import expected_ids, sensor_quality
+    try:
+        from core.readers.factory import ReaderFactory     # built exactly as _energy() does
+        cfg = json.loads(_HW_CONFIG.read_text()) if _HW_CONFIG.exists() else {}
+        reader = ReaderFactory.get_thermal_reader(cfg)
+        expected = expected_ids(reader.describe_sensors(), reader.get_name())
+    except Exception as exc:
+        logger.info("recording: no catalog sensors (%s)", exc)
+        return None
+    if "THERMAL_ZONE" in readers:
+        expected = [i for i in expected if not i.startswith("thermal_zone:")]
+    if not expected:
+        return None
+    sha = (cfg.get("thermal_sensors") or {}).get("catalog_sha256")
+
+    def _read() -> List[Dict]:
+        vals, qual = sensor_quality(reader.read_sensors() or {}, expected)
+        return [{"catalog_id": i, "temp_celsius": vals[i], "quality_flag": qual[i],
+                 "catalog_sha256": sha} for i in expected]
+    return _read
+
+
 # readers that return zeros instead of measurements (LIMITED / INFERRED):
 # never offered to the recorder, so no zero is ever stored as energy (MIC-1)
 _NO_MEASUREMENT_READERS = ("DummyEnergyReader", "EnergyEstimator")
@@ -133,6 +163,9 @@ def build_readers() -> Tuple[Dict[str, Callable[[], List[Dict]]], Callable[[], N
     energy = _energy()
     if energy is not None:
         readers["ENERGY"] = energy
+    sensors = _catalog_sensors(readers)
+    if sensors is not None:
+        readers["SENSORS"] = sensors
 
     def cleanup() -> None:
         """Release GPU handles (DCGM groups, NVML) opened for the recording."""
@@ -193,6 +226,9 @@ def open_recording(pre_window_s: float = 30.0, cooldown_max_s: float = 0.0,
     if cooldown_max_s > 0:
         cooldown["max_s"] = cooldown_max_s
     rates = rates_from_policy()
+    if "SENSORS" in readers:
+        # same requested rate as thermal zones; the achieved rate is checked per recording
+        rates["SENSORS"] = float(rates.get("THERMAL_ZONE", 1.0))
     if "ENERGY" in readers:
         rates["ENERGY"] = float((settings.get("idle") or {}).get("energy_hz", 10.0))
     cls = _recorder_class()

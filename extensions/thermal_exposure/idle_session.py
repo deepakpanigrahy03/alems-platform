@@ -56,7 +56,8 @@ _SERIES = {"THERMAL_ZONE": ("zone", "zone_id", "temp_celsius"),
            "GPU_TEMP": ("gpu", "gpu_index", "temperature_c"),
            "POWER_RAIL": ("rail", "rail_id", "power_mw"),
            "ENERGY": ("energy", "domain_id", "energy_uj"),
-           "AMBIENT": ("amb", "sensor_name", "temp_celsius")}
+           "AMBIENT": ("amb", "sensor_name", "temp_celsius"),
+           "SENSORS": ("catalog", "catalog_id", "temp_celsius")}
 
 
 class IdleSession:
@@ -128,6 +129,7 @@ class IdleSession:
                 self.baseline_id = self._latest_baseline()
             self._own = gu.own_pids(self.server.get("process_names") or [],
                                     self.server.get("pids") or [])
+            self._snapshot_catalog()
         except Exception as exc:
             logger.warning("idle session prepare failed (checks will be unknown): %s", exc)
         self.rec._spawn(self._gpu_loop, None, "rec-gpu-users")
@@ -232,6 +234,14 @@ class IdleSession:
                            "ORDER BY timestamp DESC LIMIT 1")
         return str(rows[0]["baseline_id"]) if rows else None
 
+    def _snapshot_catalog(self) -> None:
+        """Keep an immutable copy of the catalog this recording reads against."""
+        row = _catalog_snapshot_row()
+        if row is not None:
+            self.rec._write_rows("INSERT OR IGNORE INTO te_sensor_catalog (catalog_sha256, "
+                                 "schema_version, catalog_json, first_seen_utc) VALUES (?, ?, ?, ?)",
+                                 [row])
+
     def _map_energy(self) -> None:
         """Keep the energy reader only when the main channel is an energy counter."""
         rec = self.rec
@@ -293,7 +303,7 @@ class IdleSession:
     def _rate(self, key: Optional[Tuple[str, Any]]) -> float:
         """Requested rate of the recorder source behind a series key."""
         src = {"zone": "THERMAL_ZONE", "gpu": "GPU_TEMP", "rail": "POWER_RAIL",
-               "energy": "ENERGY", "amb": "AMBIENT"}.get(key[0] if key else "", "")
+               "energy": "ENERGY", "amb": "AMBIENT", "catalog": "SENSORS"}.get(key[0] if key else "", "")
         return float(self.rec.rates.get(src, 0.0))
 
     # ── pre idle window ─────────────────────────────────────────────────────
@@ -642,6 +652,24 @@ class IdleSession:
         if key is None:
             return "none"
         return self._names.get(key, ("%s:%s" % key, ""))[0]
+
+
+def _catalog_snapshot_row() -> Optional[tuple]:
+    """(sha, schema version, catalog JSON, now) of the machine's current catalog, or None."""
+    import os
+    from datetime import datetime, timezone
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                        "config", "hw_config.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            section = (json.load(fh) or {}).get("thermal_sensors") or {}
+    except (OSError, ValueError):
+        return None
+    if not section.get("catalog_sha256"):
+        return None
+    return (section["catalog_sha256"], section.get("schema_version"),
+            json.dumps(section.get("catalog") or [], sort_keys=True),
+            datetime.now(timezone.utc).isoformat())
 
 
 def _drop_source(rec: Any, name: str) -> None:

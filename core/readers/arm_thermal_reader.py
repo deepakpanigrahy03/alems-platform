@@ -248,9 +248,9 @@ class ARMThermalReader(ThermalReaderABC):
         cpu = [ids[k] for k in self._cpu_zone_keys if k in ids]
         derived = [descriptor("%s:%s" % (self.get_name(), k), "derived", "derived", "celsius_float",
                               "%s:%s" % (self.get_name(), k), "strong", self.get_name(),
-                              derived_from=cpu, formula="mean of VALID inputs")
+                              derived_from=cpu, formula="mean of VALID inputs", scope="zone")
                    for k in ("cpu_temp", "package_celsius")]
-        return zone_descriptors(self.get_name(), zones) + derived
+        return zone_descriptors(self.get_name(), zones) + derived + self._board_descriptors()
 
     def read_sensors(self):
         # type: () -> Dict[str, Optional[float]]
@@ -258,6 +258,51 @@ class ARMThermalReader(ThermalReaderABC):
         values, ids = self.read_all_thermal(), self._key_ids()
         out = {ids[k]: v for k, v in values.items() if k in ids}
         out.update({"%s:%s" % (self.get_name(), k): values.get(k) for k in ("cpu_temp", "package_celsius")})
+        out.update(self._board_values())
+        return out
+
+    def _board_inputs(self):
+        # type: () -> List[Dict]
+        """Named board sensors (spbm hwmon: CPU clusters, GPU, SoC); cached, [] elsewhere."""
+        if getattr(self, "_board", None) is None:
+            from core.thermal.thermal_descriptors import hwmon_inputs
+            self._board = [h for h in hwmon_inputs() if h["name"] == "spbm"]
+        return self._board
+
+    def _board_descriptors(self):
+        # type: () -> List[Dict]
+        """Catalog descriptors of the board sensors, recorded by this reader (converted values)."""
+        from core.thermal.thermal_descriptors import hwmon_descriptors
+        ids = {h["id"] for h in self._board_inputs()}
+        out = []
+        for d in hwmon_descriptors(self.get_name()):
+            if d["id"] in ids:
+                d.update(reported_format="decikelvin_shown_as_millidegree",
+                         interface_resolution_c=0.1,
+                         formula="C = hwmon_C * 10 - 273.2 (spbm_temp_decikelvin_v1)",
+                         notes="firmware reports 0.1 K; the spark_hwmon driver presents it as C; "
+                               "converted here; same sensor as the matching ACPI zone; a value "
+                               "below 1 C is an empty slot and is stored as missing")
+                out.append(d)
+        return out
+
+    # firmware tenths of a kelvin, shown by the driver as if Celsius (method spbm_temp_decikelvin_v1)
+    _SPBM_K_OFFSET = 273.2
+    _SPBM_MIN_C = 1.0          # below this on a powered chip: empty slot, not a reading
+
+    def _board_values(self):
+        # type: () -> Dict[str, Optional[float]]
+        """Board sensor temperatures in C, converted; a failed read or empty slot is None, never 0."""
+        out = {}
+        for h in self._board_inputs():
+            try:
+                with open(h["path"]) as fh:
+                    shown_c = int(fh.read().strip()) / 1000.0
+            except (OSError, ValueError):
+                out[h["id"]] = None
+                continue
+            c = round(shown_c * 10.0 - self._SPBM_K_OFFSET, 2)
+            out[h["id"]] = c if c >= self._SPBM_MIN_C else None
         return out
 
     def read_temperatures(self):

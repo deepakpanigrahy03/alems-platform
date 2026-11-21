@@ -1,0 +1,50 @@
+# config/experiment_configs/examples/example_record_sensor_catalog.yaml
+# =============================================================================
+# EXAMPLE: per-sensor temperatures by sensor catalog id, in and between runs
+# Verifies: every run sample stores thermal_samples.sensors_json,
+#           sensor_quality_json and catalog_sha256 for the thermal reader's
+#           expected sensors (missing is null with a quality word, never 0);
+#           between runs te_sensor_samples holds the catalog sensors that the
+#           zone sampler does not already record; te_sensor_catalog keeps the
+#           catalog snapshot; te_v_sensor_timeline joins both.
+#
+# Needs: scripts/detect_thermal.py run on this machine (config/hw_config.json).
+#
+# Check after the run:
+#   SELECT COUNT(*), SUM(sensors_json IS NOT NULL) FROM thermal_samples
+#   WHERE run_id IN (<run ids>);
+#   SELECT source_phase, catalog_id, quality_flag, COUNT(*)
+#   FROM te_v_sensor_timeline GROUP BY 1, 2, 3;
+#
+# Task: tg_single_calc — small, fast tool-graph task.
+# Provider: vllm_remote (OpenAI-compatible server on port 8000).
+# Reps: 2 — two runs give one gap between runs.
+# Idle reference: stored baseline (no 30 s idle wait per recording).
+# =============================================================================
+study:
+  name: "Example: per-sensor temperature recording"
+  experiment_type: "normal"
+  experiment_goal: "Record every catalog sensor in and between runs"
+  workflow_modes: ["comparison"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: vllm_remote
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 2
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  name: "no_retry"
+
+recording:
+  enabled: true
+  pre_window_s: 30
+  cooldown_max_s: 0
+  idle:
+    measure: false

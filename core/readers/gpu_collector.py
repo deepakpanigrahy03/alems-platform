@@ -301,7 +301,7 @@ class NVMLBackend:
                                   "gpu:%s" % uuid, "strong", "GPUCollector",
                                   interface_resolution_c=1.0, limits=self._thresholds(h),
                                   source_ref="nvmlDeviceGetTemperature(NVML_TEMPERATURE_GPU)",
-                                  device=name, label="gpu%d" % i))
+                                  device=name, label="gpu%d" % i, scope="gpu"))
         return out
 
     def read_temperature_sensors(self):

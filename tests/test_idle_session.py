@@ -54,7 +54,8 @@ def store():
     conn = base.sqlite3.connect(":memory:", check_same_thread=False)
     conn.executescript(base.STUBS)
     for f in ("e001_create_thermal_exposure.sql", "e002_recording_between_runs.sql",
-              "e003_idle_windows_and_checks.sql"):
+              "e003_idle_windows_and_checks.sql", "e004_sensor_resolution_provenance.sql",
+              "e005_sensor_samples_and_catalog.sql"):
         for stmt in base._split((base.MIG / f).read_text()):
             conn.execute(stmt)
     conn.executescript(PROFILE)

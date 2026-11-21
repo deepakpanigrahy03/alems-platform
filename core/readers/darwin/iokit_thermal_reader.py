@@ -52,6 +52,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 from typing import Dict, List, Optional
 
 from core.readers.interfaces import ThermalReaderABC
@@ -70,6 +71,9 @@ EXCLUDED_SENSOR_SUBSTRINGS = ("tcal", "noname")
 
 VENDOR_DIR = os.path.join(os.path.dirname(__file__), "vendor")
 SENSORS_BINARY = os.path.join(VENDOR_DIR, "sensors")
+# one helper run serves every read within this window (one sampler tick), so
+# read_all_thermal() and read_sensors() in the same tick cost one subprocess
+HELPER_CACHE_S = 0.02
 
 
 class IOKitThermalReader(ThermalReaderABC):
@@ -118,6 +122,7 @@ class IOKitThermalReader(ThermalReaderABC):
         # pressure sampling starts in initialize() (runs), never here: describing
         # sensors or probing them must not launch any subprocess under sudo
         self._pressure_started = False
+        self._named_cache = None            # (monotonic time, {name: C}) of the last helper run
         if not self._binary_available:
             logger.warning(
                 "IOKitThermalReader: vendored sensors binary not found at %s, "
@@ -167,6 +172,9 @@ class IOKitThermalReader(ThermalReaderABC):
         """
         if not self._binary_available:
             return {}
+        named = self._read_named()          # shared helper run (one per tick)
+        if named:
+            return {n: v for n, v in named.items() if self._recorded(n) and v is not None}
         try:
             result = subprocess.run(
                 [SENSORS_BINARY, "-o"], capture_output=True, text=True, timeout=5,
@@ -270,12 +278,28 @@ class IOKitThermalReader(ThermalReaderABC):
         """Every helper sensor by its real name; {} when the helper is not built."""
         if not self._binary_available:
             return {}
+        cached = self._named_cache
+        if cached is not None and time.monotonic() - cached[0] < HELPER_CACHE_S:
+            return dict(cached[1])
         try:
             r = subprocess.run([SENSORS_BINARY, "-o"], capture_output=True, text=True, timeout=5)
-            return self._parse_sensor_csv(r.stdout) if r.returncode == 0 else {}
+            named = self._parse_sensor_csv(r.stdout) if r.returncode == 0 else {}
+            self._named_cache = (time.monotonic(), named)
+            return dict(named)
         except Exception as e:
             logger.warning("IOKitThermalReader: helper read failed: %s", e)
             return {}
+
+    @staticmethod
+    def _scope(name):
+        # type: (str) -> str
+        """Scope of a helper sensor from its name (unknown when not documented)."""
+        low = name.lower()
+        if "tdie" in low:
+            return "die"
+        if "nand" in low:
+            return "storage"
+        return "unknown"
 
     @staticmethod
     def _recorded(name):
@@ -302,16 +326,16 @@ class IOKitThermalReader(ThermalReaderABC):
         names = sorted(self._read_named())
         descs = [descriptor("iokit:%s" % n, "sensor", "iokit_hid", "celsius_float", n, "strong",
                             self.get_name() if self._recorded(n) else "discovery_utility",
-                            source_ref=SENSORS_BINARY, label=n) for n in names]
+                            source_ref=SENSORS_BINARY, label=n, scope=self._scope(n)) for n in names]
         if self._available:
             descs.append(descriptor("ioreg:AppleSmartBattery:Temperature", "sensor", "ioreg",
                                     "decikelvin", "AppleSmartBattery", "strong", self.get_name(),
-                                    interface_resolution_c=0.1, label="battery"))
+                                    interface_resolution_c=0.1, label="battery", scope="battery"))
         dies = ["iokit:%s" % n for n in names if self._recorded(n)]
         note = None if self._binary_available else "die sensors unavailable: helper binary not built"
         descs += [descriptor("%s:%s" % (self.get_name(), k), "derived", "derived", "celsius_float",
                              "%s:%s" % (self.get_name(), k), "strong", self.get_name(),
-                             derived_from=dies, formula="max of die sensors", notes=note)
+                             derived_from=dies, formula="max of die sensors", notes=note, scope="die")
                   for k in ("cpu_temp", "package_temp_celsius")]
         return descs
 

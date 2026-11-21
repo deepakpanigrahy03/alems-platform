@@ -93,7 +93,7 @@ def _zone_descriptor(z: Dict, read_by: str, type_unique: bool) -> Dict:
                       interface_resolution_c=MILLIDEGREE_C,
                       limits=zone_trip_points(z["dir"]),
                       source_ref=os.path.join(z["dir"], "temp"), device=dev, driver=driver,
-                      label=z["type"])
+                      label=z["type"], scope="zone")
 
 
 def list_zones() -> List[Dict]:
@@ -140,7 +140,24 @@ def hwmon_descriptors(read_by: str = "discovery_utility") -> List[Dict]:
                        "strong" if h["device"] else "inferred", read_by,
                        interface_resolution_c=MILLIDEGREE_C, limits=h["limits"],
                        source_ref=h["path"], device=h["device"], driver=h["name"],
-                       label=h["label"]) for h in hwmon_inputs()]
+                       label=h["label"], scope=hwmon_scope(h["name"], h["label"]))
+            for h in hwmon_inputs()]
+
+
+# hwmon driver -> scope; coretemp splits package and cores by label
+_HWMON_SCOPE = {"k10temp": "package", "zenpower": "package", "amdgpu": "gpu", "nouveau": "gpu",
+                "nvme": "storage", "drivetemp": "storage", "mlx5": "network",
+                "iwlwifi_1": "network", "mt7925_phy0": "network", "acpitz": "zone",
+                "spbm": "board", "thinkpad": "board"}
+
+
+def hwmon_scope(name: str, label: str) -> str:
+    """Scope of one hwmon input from its driver and label (unknown when not known)."""
+    if name == "coretemp":
+        return "package" if label.lower().startswith("package") else "core"
+    if name == "spbm" and label == "gpu":
+        return "gpu"
+    return _HWMON_SCOPE.get(name, "unknown")
 
 
 def read_hwmon_c(path: str) -> Optional[float]:
