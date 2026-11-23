@@ -26,6 +26,23 @@ logger = logging.getLogger(__name__)
 # acpitz is what GN100 Grace reports; grace/neoverse/soc added for future ARM variants.
 CPU_ZONE_KEYWORDS = ["acpitz", "cpu", "package", "soc", "grace", "neoverse"]
 
+# Sort key for folders without a zone number: after every numbered zone.
+_NO_ZONE_NUMBER = 1 << 30
+
+
+def _zone_sort_key(zone_dir):
+    # type: (str) -> int
+    """
+    Numeric index of a /sys/class/thermal/thermal_zone<N>/ path.
+
+    Zone names are assigned in discovery order, so the order must follow
+    the zone number: a text sort puts thermal_zone10 before thermal_zone2
+    and attaches names to the wrong sensors on machines with 10 or more
+    zones. A folder without a number sorts last instead of failing.
+    """
+    suffix = zone_dir.rstrip("/").rsplit("thermal_zone", 1)[-1]
+    return int(suffix) if suffix.isdigit() else _NO_ZONE_NUMBER
+
 
 class ARMThermalReader(ThermalReaderABC):
     """
@@ -83,7 +100,8 @@ class ARMThermalReader(ThermalReaderABC):
         zones = {}
         type_counts = {}  # track how many times each type appears
 
-        for zone_dir in sorted(glob.glob("/sys/class/thermal/thermal_zone*/")):
+        # Numeric zone order (C2b): names follow zone numbers on any zone count
+        for zone_dir in sorted(glob.glob("/sys/class/thermal/thermal_zone*/"), key=_zone_sort_key):
             try:
                 zone_type = open(zone_dir + "type").read().strip()
                 temp_path = zone_dir + "temp"
