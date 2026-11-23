@@ -387,7 +387,8 @@ def main():
 
     for exp_id in exp_ids:
         exp_row = conn.execute(
-            "SELECT experiment_type, workflow_type, runs_completed, is_valid "
+            "SELECT experiment_type, workflow_type, runs_completed, is_valid, "
+            "declared_dedicated_machine "
             "FROM experiments WHERE exp_id=?", (exp_id,)
         ).fetchone()
         if not exp_row:
@@ -407,6 +408,7 @@ def main():
             "workflow_type":   exp_row[1],
             "runs_completed":  exp_row[2],
             "is_valid":        exp_row[3],
+            "declared_dedicated_machine": exp_row[4],
             "runs":            [],
         }
 

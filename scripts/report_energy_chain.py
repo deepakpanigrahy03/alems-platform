@@ -117,6 +117,11 @@ def render_metadata(exp):
     print(f"{BOLD}A-LEMS Energy Chain Validation  exp_id={exp['exp_id']}{RESET}")
     print(f"  type={exp['experiment_type']}  workflow={exp['workflow_type']}"
           f"  runs={exp['runs_completed']}  is_valid={exp['is_valid']}")
+    # A declaration by the experimenter; isolation itself is never verified here
+    ddm = exp.get('declared_dedicated_machine')
+    machine = ('declared dedicated (not verified)' if ddm == 1 else
+               'declared shared' if ddm == 0 else 'dedicated use not declared')
+    print(f"  machine: {machine}")
     print(f"{BOLD}{'='*W}{RESET}")
 
     # Detect platform from first run

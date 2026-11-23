@@ -143,6 +143,11 @@ def _apply_study_section(args, study: dict) -> None:
     if "experiment_goal" in study:
         args.experiment_goal = study["experiment_goal"]
 
+    if "declared_dedicated_machine" in study:
+        # A declaration by the experimenter, never verified isolation.
+        # Absent key leaves the attribute unset, stored as NULL (MIC-1).
+        args.declared_dedicated_machine = 1 if study["declared_dedicated_machine"] else 0
+
     if "workflow_modes" in study:
         # YAML carries a list — map to single workflow_mode arg
         modes = study["workflow_modes"]
