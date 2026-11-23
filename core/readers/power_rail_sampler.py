@@ -169,6 +169,26 @@ class PowerRailSampler:
             if sleep_s > 0:
                 self._stop_event.wait(sleep_s)
 
+    def read_once(self) -> List[Dict]:
+        """
+        Read every POWER rail once, for a caller with its own schedule and clock.
+
+        Returns one dict per rail: rail_id, power_mw (None when the read failed),
+        interval_ns since the previous read_once call, quality_flag, invalid_reason.
+        The background loop (start/stop) is unchanged.
+        """
+        now_ns = time.time_ns()
+        prev = getattr(self, "_prev_once_ns", None)
+        self._prev_once_ns = now_ns
+        rows = []
+        for rail_id, path in self._rail_paths.items():
+            val = _read_uw(path)
+            rows.append({"rail_id": rail_id, "power_mw": val,
+                         "interval_ns": (now_ns - prev) if prev is not None else None,
+                         "quality_flag": "VALID" if val is not None else "READ_FAILED",
+                         "invalid_reason": None if val is not None else "SYSFS_READ_FAILED"})
+        return rows
+
     def start(self) -> None:
         """Read limits once, then start background sampling thread."""
         self._read_limits_once()

@@ -136,6 +136,80 @@ continuous measurement. Not a practical concern for A-LEMS run durations.
 
 ---
 
+## DCGM Readiness and Shared Window Coverage { #dcgm-shared-window-coverage-v1 }
+
+### Overview
+GPU energy from DCGM field 156 is only as good as its coverage of the run.
+Three rules protect it.
+The sampler waits for a first valid field 156 reading (blank values occur until the field watch delivers its first sample) before the energy window opens, and that reading becomes the baseline of the first delta.
+The sample buffer is unbounded, so long runs keep every sample.
+When the sampler stops it takes one final reading, so the interval after the last tick is kept.
+Each run gets a coverage record in `energy_validation_dcgm_coverage`.
+
+### Platform Coverage
+| Platform | Architecture | Source | Canonical Role | Confidence | Status |
+|---|---|---|---|---|---|
+| NVIDIA Grace GB10 (GN100) | aarch64 | DCGM field 156 | GPU energy coverage | 0.95 | VERIFIED |
+| NVIDIA discrete GPUs (NVML) | x86_64 | NVML energy counter | GPU energy coverage | 0.95 | PENDING |
+| Intel, AMD, Apple | any | other GPU backends | same record when a backend is available | 0.95 | PENDING |
+
+### Schema
+| Column | Type | Meaning |
+|---|---|---|
+| run_id | INTEGER | run, primary key |
+| source | TEXT | GPU backend (dcgm) |
+| ready_status | TEXT | ready, timeout or unavailable |
+| ready_wait_ms | REAL | time spent waiting for the first valid reading |
+| sampler_start_utc_ns | INTEGER | sampler start, wall clock epoch ns |
+| first_valid_utc_ns, last_valid_utc_ns | INTEGER | span of valid samples, wall clock epoch ns |
+| first_valid_mono_ns, last_valid_mono_ns | INTEGER | same span on the monotonic clock (alignment only) |
+| row_count | INTEGER | stored gpu_samples rows |
+| interior_gaps_gt_300ms | INTEGER | consecutive sample ends more than 300 ms apart |
+| max_gap_ms | REAL | largest such distance |
+| shared_window_coverage | REAL | share of the run window covered, NULL when not computable |
+| coverage_null_reason | TEXT | readiness_timeout, run_window_unknown or no_valid_samples |
+| cap_detected | INTEGER | 1 if any sample was dropped (only possible through a regression) |
+
+### Method Provenance
+Method `dcgm_shared_window_coverage_v1`, CALCULATED, layer silicon, confidence 0.95.
+
+$$C = \frac{\min(t_{last}, t_{end}) - \max(t_{first}, t_{start})}{t_{end} - t_{start}}$$
+
+Confidence 0.95, not 1.0: the record proves which interval DCGM samples span, not how often the underlying counter updates; row cadence (10 Hz) is not the counter's value change rate, which is measured separately.
+The run window end is stamped after measurement teardown, about 100 to 200 ms after the GPU sampler stops, so coverage is slightly below 1.0 even when no data is lost (under 0.1% for runs of 250 s or more).
+To reach 1.0 the window end would be stamped when the samplers stop.
+
+### Query Reference
+**Runs whose GPU energy coverage is below 0.99 or not computable.** Applies to every platform with a GPU energy backend; typical coverage on GB10 is 0.991 to 0.999.
+```sql
+SELECT run_id, ready_status, row_count, interior_gaps_gt_300ms,
+       ROUND(shared_window_coverage, 4) AS coverage, coverage_null_reason
+FROM energy_validation_dcgm_coverage
+WHERE shared_window_coverage IS NULL OR shared_window_coverage < 0.99
+ORDER BY run_id;
+```
+**Where a gap over 300 ms occurred in one run, and whether its energy was kept** (replace 6 with a run id). A gap whose `interval_ms` equals `gap_ms` with positive energy is a late tick whose energy is kept.
+```sql
+WITH g AS (SELECT sample_end_ns, interval_ns, energy_uj,
+                  LAG(sample_end_ns) OVER (ORDER BY sample_end_ns) AS prev_end
+           FROM gpu_samples WHERE run_id = 6)
+SELECT ROUND((sample_end_ns - prev_end) / 1e6, 1) AS gap_ms,
+       ROUND(interval_ns / 1e6, 1) AS interval_ms, energy_uj
+FROM g WHERE sample_end_ns - prev_end > 300000000;
+```
+
+### Verification
+1. Run one goal of 250 s or more.
+2. Check that `row_count` is above 2,000 (a capped buffer stops at 2,000 at 10 Hz), `shared_window_coverage` is 0.99 or more and `cap_detected` is 0.
+3. Run `python scripts/test_exp_integrity.py --latest` and confirm the dcgm_coverage check passes.
+
+Example output from NVIDIA Grace GB10 platform: a 419.9 s run stored 4,198 rows with coverage 0.9994, no cap, and one late tick of 522.8 ms whose energy was kept.
+
+### Known Limitations
+- **Counter update rate**: the record does not measure how often field 156 changes value. Workaround: measure update behaviour separately (value change intervals at idle and load).
+- **Run window end**: stamped after teardown, so coverage under 1.0 does not by itself mean lost data. Workaround: use the gap query and `cap_detected` to tell lost data from window length.
+- **Historical stores**: runs recorded before this record existed have no row; their coverage must be computed from `gpu_samples` and `runs` directly. Workaround: shared window comparisons only.
+
 ## gpu_samples Table
 
 ```sql

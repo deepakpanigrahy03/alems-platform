@@ -387,6 +387,22 @@ def _load_measured_methods() -> List[Dict]:
             "section":       "DCGM Backend (GN100)",
         },
         {
+            "id":            "dcgm_shared_window_coverage_v1",
+            "name":          "DCGM Readiness and Shared Window Coverage",
+            "provenance":    "CALCULATED",
+            "layer":         "silicon",
+            "confidence":    0.95,
+            "description":   (
+                "Per run record of GPU energy sampling validity: sampler waits for a "
+                "valid DCGM field 156 reading before the energy window opens, keeps "
+                "every sample (no buffer cap), and stores first and last valid sample "
+                "times, row count, interior gaps over 300 ms and the share of the run "
+                "window covered. Coverage is NULL with a reason when not computable."
+            ),
+            "formula_latex": r"C = \frac{\min(t_{last}, t_{end}) - \max(t_{first}, t_{start})}{t_{end} - t_{start}}",
+            "parameters":    {"ready_timeout_s": 5.0, "interior_gap_ms": 300.0},
+        },
+        {
             "id":            "iokit_gpu_energy_v1",
             "name":          "Apple IOKit GPU Energy (powermetrics)",
             "provenance":    "MEASURED",
@@ -418,6 +434,23 @@ def _load_measured_methods() -> List[Dict]:
             "parameters":    {"policy_file": "config/sampling.yaml", "probe_seconds": 1.5,
                               "probe_cache_days": 30},
         },        
+        {
+            "id":            "sampling_policy_v2",
+            "name":          "Declared sampling policy v2 with thermal, ambient and cooling sources",
+            "provenance":    "CALCULATED",
+            "layer":         "os",
+            "confidence":    0.95,
+            "description":   (
+                "Sampling rate per source kind = min(policy rate from config/sampling.yaml, "
+                "probed capability, safe maximum). Adds THERMAL_ZONE (20 Hz), AMBIENT (1 Hz) "
+                "and COOLING (1 Hz). For thermal sources the value-change probe is evidence "
+                "only and never sets the rate. Per run record in sampler_stats; invariant S2."
+            ),
+            "formula_latex": r"f_{eff} = \min(f_{req}, f_{probe}, f_{bound});\ f_{eff}^{thermal} = \min(f_{req}, f_{bound})",
+            "parameters":    {"policy_file": "config/sampling.yaml", "policy_version": 2,
+                              "probe_seconds": 1.5, "probe_cache_days": 30,
+                              "thermal_probe_sets_rate": False},
+        },
         {
             "id":            "rocm_smi_energy_v1",
             "name":          "AMD ROCm SMI Energy Counter (Stub)",
@@ -1818,6 +1851,50 @@ def _load_derived_methods() -> List[Dict]:
             },
             "doc":           "22-retry-tool-failure-methodology.md",
             "section":       "Failure Injection v2",
+            "fn":            None,
+        },
+        {
+            "id":            "experiment_recording_v1",
+            "name":          "Continuous Experiment Recording Time Line",
+            "provenance":    "MEASURED",
+            "layer":         "silicon",
+            "confidence":    0.95,
+            "output_metric": "te_thermal_samples.timestamp_ns",
+            "output_unit":   "ns",
+            "applicable_on": ["te_thermal_samples", "te_cooling_samples", "te_gpu_temp_samples",
+                              "te_power_rail_samples", "te_ambient_samples", "te_clock_anchor"],
+            "formula_latex": r"t_{\mathrm{sample}} = t_{\mathrm{wall,open}} + (m_{\mathrm{now}} - m_{\mathrm{open}})",
+            "parameters":    {
+                "version":             1,
+                "pre_window_s":        30,
+                "anchor_interval_s":   10,
+                "mapping_limit_ms":    5,
+                "cooldown_tolerance_c": 2.0,
+                "cooldown_hold_s":     60,
+            },
+            "doc":           "experiment-recording.md",
+            "section":       "Experiment Recording Time Line",
+            "fn":            None,
+        },
+        {
+            "id":            "recording_spans_v1",
+            "name":          "Experiment Recording Spans",
+            "provenance":    "MEASURED",
+            "layer":         "silicon",
+            "confidence":    0.95,
+            "output_metric": "spans.start_ns",
+            "output_unit":   "ns",
+            "applicable_on": ["spans", "span_attributes", "span_placements", "te_session_check"],
+            "formula_latex": r"\mathrm{span} = [t_{\mathrm{pause}_i}, t_{\mathrm{resume}_i}),\ "
+                             r"\mathrm{run}(i) = r : |t_{\mathrm{start}}(r) - t_{\mathrm{pause}_i}| \le \tau",
+            "parameters":    {
+                "version":                 1,
+                "vocabulary":              "thermal_session",
+                "slot_match_tolerance_ns": 5000000,
+                "placement_device":        "system",
+            },
+            "doc":           "experiment-recording.md",
+            "section":       "Recording Spans",
             "fn":            None,
         }, 
 

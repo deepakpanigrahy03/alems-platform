@@ -46,6 +46,9 @@ _register_all_readers()
 # Platform adapter registry (35C) is used by verify_hardware.py and install.sh.
 # energy_engine uses get_platform_capabilities() from core.utils.platform directly.
 from core.readers.energy_collector import EnergyCollector
+
+# Sampling policy source kind for thermal zones (config/sampling.yaml, sampling_policy_v2)
+_THERMAL_SOURCE = "THERMAL_ZONE"
 from core.readers.normalized_writer import NormalizedWriter
 from core.readers.legacy_writer import LegacyWriter
 from core.utils.platform import get_platform_capabilities
@@ -284,13 +287,16 @@ class EnergyEngine:
             hasattr(self.msr, "helper_available") and self.msr.helper_available
         ) or self.msr.rdmsr_available
         # ====================================================================
-        # Thermal sampling (1Hz)
+        # Thermal sampling (rate from config/sampling.yaml, THERMAL_ZONE)
         # ====================================================================
         self.thermal_queue = queue.Queue()
         self.thermal_sampling_active = False
         self.thermal_sampling_thread = None
         self.thermal_config = config.get("thermal", {})
-        self.thermal_rate_hz = self.thermal_config.get("sampling_rate_hz", 1)
+        # rate comes from config/sampling.yaml (THERMAL_ZONE), never a silent default
+        self._thermal_rate_info = self._thermal_rate_from_policy()
+        self.thermal_rate_hz = self._thermal_rate_info["effective_hz"]
+        self._thermal_stats = {}       # filled per measurement by the sampling thread
 
         # Web UI settings - multiple servers support
         webui_config = self.settings.get("webui", {})
@@ -328,6 +334,10 @@ class EnergyEngine:
         
     def _start_thermal_sampling(self):
         """Start thermal sampling thread"""
+        # fresh per-measurement counters for the THERMAL_ZONE sampler_stats row
+        self._thermal_stats = {"ticks": 0, "emitted": 0, "empty": 0, "errors": 0,
+                               "max_gap_ns": 0, "first_start_ns": None,
+                               "last_start_ns": None}
         self.thermal_sampling_active = True
         self.thermal_sampling_thread = threading.Thread(
             target=self._thermal_sampling_loop
@@ -335,65 +345,152 @@ class EnergyEngine:
         self.thermal_sampling_thread.daemon = True
         self.thermal_sampling_thread.start()
 
+    def _thermal_rate_from_policy(self) -> Dict[str, Any]:
+        """
+        Thermal polling rate from the sampling policy (source THERMAL_ZONE).
+
+        effective = min(requested, safe bound). The value-change probe is
+        evidence only and is never used to set this rate (sampling_policy_v2).
+
+        Returns:
+            Dict with the rate fields of the THERMAL_ZONE sampler_stats row.
+        """
+        # local imports: the policy reads a file; keep engine import time unchanged
+        from core.readers import sampling_policy as _sp
+        from alems_sdk.measurement_schema import SOURCE_RATE_BOUNDS
+        if "sampling_rate_hz" in self.thermal_config:
+            # one source of truth for the rate; a settings value would hide the policy
+            logger.warning("thermal.sampling_rate_hz=%s in settings is ignored; the rate "
+                           "comes from config/sampling.yaml (%s)",
+                           self.thermal_config.get("sampling_rate_hz"), _THERMAL_SOURCE)
+        cfg = _sp.load_policy()
+        bound = SOURCE_RATE_BOUNDS.get(_THERMAL_SOURCE)
+        req = _sp.requested_hz(_THERMAL_SOURCE)
+        eff = _sp.effective_hz(_THERMAL_SOURCE, bound, None)
+        logger.info("thermal sampling: requested %.1f Hz, bound %s Hz, effective %.1f Hz",
+                    req, bound, eff)
+        return {"source": _THERMAL_SOURCE, "requested_hz": req, "probed_hz": None,
+                "schema_max_hz": bound, "effective_hz": eff,
+                "rate_limited": int(eff < req),
+                "policy_version": str(cfg["version"]), "policy_sha256": cfg["_sha256"]}
+
     def _thermal_sampling_loop(self):
         """
-        Thermal sampling thread (1Hz default).
- 
-        Chunk 2 final:
-            - Stores sample_start_ns + sample_end_ns explicitly
-            - timestamp_ns = sample_end_ns (backward compat)
-            - interval_ns stored for verification
-            - 4-tuple in queue: (now, readings, throttle_detected,
-              sample_start_ns, sample_end_ns, interval_ns)
+        Thermal sampling thread at the policy rate (THERMAL_ZONE).
+
+        Queue item (unchanged 6-tuple): (now, readings, throttle_detected,
+        sample_start_ns, sample_end_ns, interval_ns); timestamps stay wall
+        clock for backward compatibility.
+
+        Scheduling uses the monotonic clock and a fixed step, so read time does
+        not accumulate as drift. After a stall longer than one interval the
+        schedule restarts from now; the gap is kept in max_gap_ns, not hidden
+        by a burst of late reads.
         """
-        interval    = 1.0 / self.thermal_rate_hz
-        next_sample = time.time()
- 
+        interval_s = 1.0 / self.thermal_rate_hz
+        next_due = time.monotonic()
         while self.thermal_sampling_active:
-            now = time.time()
-            if now >= next_sample:
-                # Capture start timestamp before sensor read
-                sample_start_ns = time.time_ns()
- 
-                # Read all thermal sensors
-                readings          = self.sensor.read_all_thermal()
-                throttle_detected = False
- 
-                # Check throttling against per-sensor thresholds
-                for role, temp in readings.items():
-                    if temp and hasattr(self.sensor, "throttle_thresholds"):
-                        threshold = self.sensor.throttle_thresholds.get(role)
-                        if threshold and temp > threshold:
-                            throttle_detected = True
- 
-                # Capture end timestamp + compute interval
-                sample_end_ns = time.time_ns()
-                interval_ns   = sample_end_ns - sample_start_ns
- 
-                # Store 6-tuple: consumer unpacks all fields
-                self.thermal_queue.put((
-                    now,
-                    readings,
-                    throttle_detected,
-                    sample_start_ns,
-                    sample_end_ns,
-                    interval_ns,
-                ))
- 
-                next_sample = now + interval    # prevent drift
-            else:
-                time.sleep(min(0.1, next_sample - now))
+            wait = next_due - time.monotonic()
+            if wait > 0:
+                time.sleep(min(0.05, wait))   # short sleeps so a stop is seen quickly
+                continue
+            self._thermal_tick()
+            next_due += interval_s
+            if time.monotonic() - next_due > interval_s:
+                next_due = time.monotonic() + interval_s
+
+    def _thermal_tick(self) -> None:
+        """
+        One thermal read: queue the 6-tuple and update THERMAL_ZONE counters.
+
+        A failed read is counted and logged and the thread keeps running
+        (previously an exception here ended the thread silently).
+        """
+        st = self._thermal_stats
+        st["ticks"] += 1
+        now = time.time()
+        sample_start_ns = time.time_ns()
+        try:
+            readings = self.sensor.read_all_thermal()
+        except Exception as exc:
+            st["errors"] += 1
+            logger.warning("thermal read failed (tick %d): %s", st["ticks"], exc)
+            return
+        if not readings:
+            st["empty"] += 1                  # still queued, as before
+        throttle_detected = self._thermal_throttled(readings)
+        sample_end_ns = time.time_ns()
+        if st["last_start_ns"] is None:
+            st["first_start_ns"] = sample_start_ns
+        else:
+            st["max_gap_ns"] = max(st["max_gap_ns"], sample_start_ns - st["last_start_ns"])
+        st["last_start_ns"] = sample_start_ns
+        st["emitted"] += 1
+        self.thermal_queue.put((now, readings, throttle_detected,
+                                sample_start_ns, sample_end_ns,
+                                sample_end_ns - sample_start_ns))
+
+    def _thermal_throttled(self, readings) -> bool:
+        """
+        True if any role reading is above its throttle threshold (rule unchanged).
+
+        Accepts throttle_thresholds as a property or a method.
+        """
+        thresholds = getattr(self.sensor, "throttle_thresholds", None)
+        if callable(thresholds):
+            thresholds = thresholds()
+        if not thresholds or not isinstance(readings, dict):
+            return False
+        for role, temp in readings.items():
+            limit = thresholds.get(role)
+            if temp and limit and temp > limit:
+                return True
+        return False
+
+    def _record_thermal_sampler_stats(self) -> None:
+        """
+        Add one THERMAL_ZONE entry to last_sampler_stats (table sampler_stats).
+
+        achieved_hz = (emitted - 1) / span, as for energy sources; None with
+        fewer than two samples. If no energy entry exists, the 'none' marker
+        is kept so invariant S2 still flags the missing energy stats.
+        """
+        st = self._thermal_stats or {}
+        if not st.get("ticks"):
+            return                            # sampling did not run this measurement
+        entry = dict(self._thermal_rate_info)
+        first, last = st.get("first_start_ns"), st.get("last_start_ns")
+        span_s = (last - first) / 1e9 if first is not None and last is not None else 0.0
+        for key in ("ticks", "emitted", "empty", "errors", "max_gap_ns"):
+            entry[key] = st.get(key)
+        entry["late_join"] = bool(st.get("late_join"))
+        entry["achieved_hz"] = (st["emitted"] - 1) / span_s if span_s > 0 else None
+        stats = getattr(self, "last_sampler_stats", None)
+        if not isinstance(stats, list) or not stats:
+            stats = [{"source": "none"}]
+        stats.append(entry)
+        self.last_sampler_stats = stats
+        logger.info("thermal sampler stats: %s", entry)
 
     def _stop_thermal_sampling(self):
-        """Stop thermal sampling and collect remaining samples"""
+        """
+        Stop thermal sampling, collect queued samples, record THERMAL_ZONE stats.
+
+        Returns:
+            List of queued 6-tuples (format unchanged).
+        """
         self.thermal_sampling_active = False
         if self.thermal_sampling_thread:
             self.thermal_sampling_thread.join(timeout=2)
+            if self.thermal_sampling_thread.is_alive():
+                self._thermal_stats["late_join"] = True
+                logger.error("thermal sampling thread did not stop within 2 s")
 
         # Collect any remaining samples
         thermal_samples = []
         while not self.thermal_queue.empty():
             thermal_samples.append(self.thermal_queue.get())
+        self._record_thermal_sampler_stats()
         return thermal_samples
 
     # ------------------------------------------------------------------------

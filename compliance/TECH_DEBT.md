@@ -40,3 +40,15 @@ Fix: Remove the three confirmed-dead implementations (base.py,
      before removing, since these classes may still be live for other
      methods even if dead for this one.
 Priority: Before next major release. Not a paper blocker.
+
+## TD: thermal loop scheduling (fixed 2026-11-18)
+The energy engine thermal loop scheduled each sample from the actual time of the previous one (drift accumulated) and an exception in a read ended the thread silently. Fixed: fixed-step schedule on the monotonic clock, failed reads counted and logged, THERMAL_ZONE sampler_stats row per run.
+
+## TD-RECORD-01: experiment_type value 'thermal_session' unused
+Core migration v123 allows `experiment_type = 'thermal_session'`; the final recording design stores no experiment or run row for a recording, so the value is unused. Kept by decision (harmless, tested).
+
+## TD-RECORD-02: Recorder keeps its own GPU monitoring handle during runs
+The recorder's DCGM/NVML backend stays open while paused. Reads stop during a run, but the handle is released only at close.
+
+## TD-SPANS-01: Older vocabularies not on the span vocabulary descriptor
+`alems_sdk.spans.SpanVocabulary` declares kinds, parents, placement and typed attributes and validates spans. The `agent` (class) and `generic` (module) vocabularies predate it, are not validated when written, and `GROUP_CONTRACT["alems.spans.vocabularies"]` stays `None` because a class contract would reject both in the conformance kit. Move both onto the descriptor and add a descriptor contract kind to the kit.

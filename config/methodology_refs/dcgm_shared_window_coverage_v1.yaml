@@ -1,0 +1,19 @@
+method_id: dcgm_shared_window_coverage_v1
+provenance: CALCULATED
+confidence: 0.95
+formula: "coverage = (min(t_last_valid, t_run_end) - max(t_first_valid, t_run_start)) / (t_run_end - t_run_start)"
+parameters:
+  ready_timeout_s: 5.0
+  ready_poll_s: 0.05
+  interior_gap_ms: 300.0
+references:
+  - title: "NVIDIA Data Center GPU Manager (DCGM) User Guide"
+    authors: "NVIDIA Corporation"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Field 156 (DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION) cumulative counter; blank values before the field watch delivers its first sample"
+  - title: "A-LEMS GPU energy methodology: DCGM readiness and shared window coverage"
+    authors: "Deepak Panigrahy"
+    year: 2026
+    ref_type: "internal"
+    relevance: "Readiness protocol, unbounded sample buffer, per run coverage record; verified on NVIDIA Grace GB10 (GN100, aarch64) with a 420 s run (4,198 rows, coverage 0.9994)"

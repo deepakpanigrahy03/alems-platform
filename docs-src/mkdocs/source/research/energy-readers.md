@@ -650,6 +650,116 @@ GROUP BY policy_version, policy_sha256;
 - **Equal policy, different effective rates:** a machine that cannot reach the policy rate runs slower; rate_limited marks it. Workaround: none needed; filter on rate_limited when comparing machines.
 - **Historical runs:** runs before schema version v122 have no sampler_stats rows. Workaround: the audit command reconstructs coverage from stored samples.
 
+## Sampling Policy Version 2 { #sampling-policy-v2 }
+
+---
+**Method ID:** sampling_policy_v2
+**Schema version:** v122 (sampler_stats); thermal_exposure extension migration e001
+**Platforms verified:** NVIDIA Grace GB10 (GN100, aarch64)
+**Status:** REVIEW
+**Last updated:** 2026-11-18
+---
+
+### Overview
+
+Version 2 of the sampling policy adds three source kinds: THERMAL_ZONE (thermal zone temperatures, 20 Hz requested), AMBIENT (an external room temperature probe, 1 Hz) and COOLING (cooling device state, 1 Hz).
+Before version 2, thermal zones were read at a fixed 1 Hz outside the policy, so the achieved rate was never checked.
+From version 2, every run records a THERMAL_ZONE row in `sampler_stats` with the requested, effective and achieved rate and the largest gap, and invariant S2 applies (achieved within 20 % of effective, no gap longer than two intervals).
+
+For energy sources the rule is unchanged: f_eff = min(f_requested, f_probed, f_schema).
+For thermal sources the value-change probe is evidence only and never sets the rate: f_eff = min(f_requested, f_bound), where f_bound comes from `alems_sdk.measurement_schema.SOURCE_RATE_BOUNDS`.
+
+Three rates are kept apart: the requested polling rate (the policy), the achieved polling rate (`sampler_stats`), and the observed value-change behaviour of each sensor (the value-change probe). Repeated readings are stored; they are never dropped as stale, because a steady temperature or a coarse resolution produces repeated values even when the sensor updates.
+
+### Platform Coverage
+
+| Platform | Architecture | Source | Canonical Role | Confidence | Status |
+|----------|-------------|--------|---------------|------------|--------|
+| NVIDIA Grace GB10 (GN100) | aarch64 | ACPI thermal zones, sysfs | SOC | 0.95 | VERIFIED |
+| Intel i7-1165G7 | x86_64 | x86_pkg_temp sysfs | CPU_PACKAGE | 0.95 | PENDING |
+| AMD Ryzen | x86_64 | k10temp sysfs | CPU_PACKAGE | 0.95 | PENDING |
+| Apple M1 Pro | arm64 | IOKit (future) | CPU_PACKAGE | TBD | PLANNED |
+
+Verified on NVIDIA Grace GB10: achieved 20.0 Hz on all three execution paths (paired, single and goal execution) and in a sandbox; largest gap 50.6 to 88.2 ms against a 100 ms limit; 100 % VALID rows.
+
+### Schema
+
+No column is added. Version 2 writes one more row per run into an existing table.
+
+| Table | Change | Semantics |
+|-------|--------|-----------|
+| `sampler_stats` | one row with `source = 'THERMAL_ZONE'` per run | requested_hz, probed_hz (NULL: the probe never sets the thermal rate), schema_max_hz, effective_hz, achieved_hz, max_gap_ns, ticks, emitted, errors, policy_version, policy_sha256 |
+| `thermal_samples_v2` | rows at the policy rate (20 Hz on NVIDIA Grace GB10) instead of 1 Hz | unchanged columns; repeated values kept |
+
+### Method Provenance
+
+* **method_id:** sampling_policy_v2, layer os, provenance CALCULATED, supersedes sampling_policy_v1 for new runs (v1 stays valid for older runs).
+* **Formula:** f_eff = min(f_requested, f_probed, f_bound); thermal sources f_eff = min(f_requested, f_bound); f_achieved = (n_emitted - 1) / (t_last - t_first).
+* **Confidence 0.95:** the achieved rate and gaps are measured directly from sample timestamps, so the rate record itself is exact. It is not 1.0 because sample times are wall clock and the polling loop can be delayed by other work on the machine (observed worst gap 88 ms at 20 Hz). Reaching 1.0 would need a real-time sampling thread. The effect on results is bounded by invariant S2: a run with a gap above two intervals is flagged.
+* **Why 20 Hz:** a value-change probe on NVIDIA Grace GB10 (idle, 60 s, about 11,000 reads per second per sensor) found that all seven ACPI zones change only on multiples of about 50 ms, so 20 Hz polling is needed to see every update. The GPU temperature changes on a 500 ms grid in whole degrees. This is evidence of update behaviour, not a documented hardware rate.
+
+### Query Reference
+
+**Thermal sampling rate per run.** Answers: did each run reach the policy rate, and what was the largest gap?
+Applies to: every platform with a thermal reader. Expected: requested 20, achieved close to 20, max gap under 100 ms on NVIDIA Grace GB10.
+
+```sql
+SELECT run_id, requested_hz, effective_hz,
+       ROUND(achieved_hz, 2)       AS achieved_hz,
+       ROUND(max_gap_ns / 1e6, 1)  AS max_gap_ms,
+       errors, policy_version
+FROM sampler_stats
+WHERE source = 'THERMAL_ZONE'
+ORDER BY run_id;
+```
+
+**Spacing and gaps per thermal zone.** Answers: are all zones sampled evenly, and did any gap exceed two intervals?
+Applies to: every platform with registered thermal zones. Expected: mean gap 50 ms at 20 Hz, zero gaps over 100 ms.
+
+```sql
+WITH g AS (
+  SELECT run_id, zone_id, quality_flag,
+         timestamp_ns - LAG(timestamp_ns) OVER (PARTITION BY run_id, zone_id ORDER BY timestamp_ns) AS d
+  FROM thermal_samples_v2)
+SELECT run_id, zone_id, COUNT(*) AS n,
+       ROUND(AVG(d) / 1e6, 1) AS mean_gap_ms,
+       ROUND(MAX(d) / 1e6, 1) AS max_gap_ms,
+       SUM(d > 100e6)         AS gaps_over_100ms,
+       SUM(quality_flag = 'VALID') AS valid_rows
+FROM g GROUP BY run_id, zone_id;
+```
+
+**Repeated readings.** Answers: how often does a zone report the same value as its previous reading (these rows are kept)?
+Applies to: every platform. Expected on NVIDIA Grace GB10: 40 to 80 % repeats at idle.
+
+```sql
+WITH r AS (
+  SELECT run_id, zone_id, temp_celsius AS t,
+         LAG(temp_celsius) OVER (PARTITION BY run_id, zone_id ORDER BY timestamp_ns) AS p
+  FROM thermal_samples_v2)
+SELECT run_id, zone_id, COUNT(*) AS n, SUM(t = p) AS repeats
+FROM r GROUP BY run_id, zone_id;
+```
+
+### Verification
+
+1. `python3 -c "from core.readers import sampling_policy as p; print(p.load_policy()['version'], p.requested_hz('THERMAL_ZONE'))"` prints `2 20.0`.
+2. Run one short experiment with `--save-db`.
+3. Run the first query: one THERMAL_ZONE row per run, achieved within 20 % of effective, max gap at most two intervals.
+4. Run the second query: every zone has the same row count and no gap over two intervals.
+5. Optional evidence: `python3 scripts/tools/thermal_value_change_probe.py --seconds 60 --out <scratch file>` reports the observed value-change interval per sensor. It writes no store.
+
+### Known Limitations
+
+- **Polling rate is not the sensor update rate**: the probe measures how often values change, which a steady temperature or coarse resolution can hide.
+  Workaround: none needed for storage; analysis uses the observed interval as evidence only.
+- **Wall-clock sample times**: per-run thermal samples use wall-clock timestamps, which can jump if the system clock is stepped.
+  Workaround: continuous session recording uses a monotonic time line with clock anchors.
+- **GPU temperature resolution**: the GPU temperature is stored in whole degrees and updates about every 500 ms.
+  Workaround: None — accept the resolution; prefer zone sensors for small temperature rises.
+- **Mixed-rate stores**: runs recorded before this version used 1 Hz. Peak temperatures from 1 Hz runs can be slightly lower than from 20 Hz runs because short peaks are missed.
+  Workaround: compare runs only within one policy version (`sampler_stats.policy_version`, `policy_sha256`).
+
 ## Reader Selection Logic
 
 `ReaderFactory` selects the appropriate reader automatically:

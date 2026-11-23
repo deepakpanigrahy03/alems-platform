@@ -889,6 +889,71 @@ tables:
     - run_id
     owner: energy_validation
     run_linkage: run_id
+  te_ambient_samples:
+    evidence: extension_registry name=thermal_exposure; room temperature per session; NULL plus status UNAVAILABLE while no probe is fitted
+    golden_class: raw
+    kind: table
+    natural_key:
+    - run_id
+    - sensor_name
+    - timestamp_ns
+    owner: thermal_exposure
+    run_linkage: run_id
+  te_channel:
+    evidence: extension_registry name=thermal_exposure; power channel register loaded from config/machine_profiles at activation
+    golden_class: config
+    kind: table
+    natural_key:
+    - machine_profile
+    - channel_name
+    owner: thermal_exposure
+    run_linkage: none
+  te_clock_anchor:
+    evidence: extension_registry name=thermal_exposure; wall and monotonic clock anchors every 10 s during a session
+    golden_class: raw
+    kind: table
+    natural_key:
+    - session_id
+    - mono_ns
+    owner: thermal_exposure
+    run_linkage: session_id -> te_session.run_id
+  te_idle_window:
+    evidence: extension_registry name=thermal_exposure; matched idle medians per session (pre and post)
+    golden_class: derived
+    kind: table
+    natural_key:
+    - session_id
+    - phase
+    - channel_name
+    - sensor_name
+    owner: thermal_exposure
+    run_linkage: session_id -> te_session.run_id
+  te_sensor:
+    evidence: extension_registry name=thermal_exposure; temperature sensor register loaded from config/machine_profiles at activation
+    golden_class: config
+    kind: table
+    natural_key:
+    - machine_profile
+    - sensor_name
+    owner: thermal_exposure
+    run_linkage: none
+  te_session:
+    evidence: extension_registry name=thermal_exposure; one row per thermal session; points to the session window run
+    golden_class: raw
+    kind: table
+    natural_key:
+    - global_session_id
+    owner: thermal_exposure
+    run_linkage: run_id
+  te_session_check:
+    evidence: extension_registry name=thermal_exposure; per session quality checks (rates, gaps, clock, drift, other users)
+    golden_class: derived
+    kind: table
+    natural_key:
+    - session_id
+    - check_name
+    owner: thermal_exposure
+    run_linkage: session_id -> te_session.run_id
   tool_selection_events:
     evidence: extension_registry name=orchestration; written by tool selector
     golden_class: raw

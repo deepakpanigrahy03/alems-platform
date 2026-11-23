@@ -68,6 +68,11 @@ methods:
     method_anchor: "sampling-policy"
     section: "Sampling Policy"
 
+  sampling_policy_v2:
+    doc: "energy-readers.md"
+    method_anchor: "sampling-policy-v2"
+    section: "Sampling Policy Version 2"
+
   iokit_thermal_reader:
     doc: "energy-readers.md"
     method_anchor: "iokit-thermal-reader"
@@ -182,6 +187,11 @@ methods:
     doc: "gpu-energy.md"
     method_anchor: "dcgm-energy-v1"
     section: "DCGM Backend (GN100)"
+
+  dcgm_shared_window_coverage_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "dcgm-shared-window-coverage-v1"
+    section: "DCGM Readiness and Shared Window Coverage"
 
   rocm_smi_energy_v1:
     doc: "gpu-energy.md"
@@ -478,3 +488,12 @@ methods:
     method_anchor: "outlier-detection-v1"
     section: "Outlier Detection Methodology"
 
+
+experiment_recording_v1:
+  doc: "experiment-recording.md"
+  method_anchor: "experiment-recording-time-line"
+  section: "Experiment Recording Time Line"
+recording_spans_v1:
+  doc: "experiment-recording.md"
+  method_anchor: "recording-spans"
+  section: "Recording Spans"

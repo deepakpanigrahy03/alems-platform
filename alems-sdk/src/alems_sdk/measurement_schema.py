@@ -295,3 +295,20 @@ def find_idle_core_uj(min_energy: dict) -> int:
             return min_energy[name]
     # Defensive fallback
     return min_energy.get("CORE", min_energy.get("CPU_P", min_energy.get("core", 0)))
+
+
+
+# ---------------------------------------------------------------------------
+# Safe maximum polling rate for non-energy sources (sampling policy v2).
+# MeasurementSchema describes energy sources only (domains, counter width,
+# microjoules), so thermal, ambient and cooling sources keep their bound here
+# instead of posing as an energy source. Used as the hardware_max_hz argument
+# of sampling_policy.effective_hz(). A bound limits how often we poll; it is
+# never a claim about how often the sensor itself updates.
+# Read only: change a value only with evidence in config/methodology_refs/.
+# ---------------------------------------------------------------------------
+SOURCE_RATE_BOUNDS = {
+    "THERMAL_ZONE": 20,   # zones observed changing on a ~50 ms grid; sysfs reads are cheap file reads
+    "COOLING":      10,   # cooling device cur_state reads, same sysfs cost as zones
+    "AMBIENT":      1,    # no external probe chosen yet; raise with evidence when one is fitted
+}

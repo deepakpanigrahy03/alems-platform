@@ -101,10 +101,13 @@ webui:
 # Extension system (35D) — research extensions active on this machine.
 # Remove this section entirely to return to legacy mode (all extensions run as before).
 extensions:
-  active: [tool_selection, energy_validation]
+  active: [tool_selection, energy_validation, thermal_exposure]
 
 plugins:
   synthetic:
     enabled: false
     mode: constant
     package_uj: 9999999
+
+thermal_exposure:
+  machine_profile: gpu_soc_a

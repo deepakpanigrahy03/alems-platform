@@ -45,7 +45,7 @@ GROUP_CONTRACT: Dict[str, object] = {
     "alems.attribution.models":  ("alems_sdk.attribution", "AttributionModelABC"),
     "alems.preflight.checks":    CALLABLE,
     "alems.models.fragments":    MAPPING,    # data: provider name -> definition
-    "alems.spans.vocabularies":  None,   # G46: no SDK contract yet
+    "alems.spans.vocabularies":  None,   # descriptor alems_sdk.spans.SpanVocabulary (checked by attribute, not by class)
     "alems.databases":           None,   # G46: storage backend contract not wired
 }
 

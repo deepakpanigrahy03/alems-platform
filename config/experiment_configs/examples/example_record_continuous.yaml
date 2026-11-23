@@ -1,0 +1,47 @@
+# config/experiment_configs/examples/example_record_continuous.yaml
+# =============================================================================
+# EXAMPLE: continuous recording between runs (opt-in)
+# Verifies: the experiment is recorded from a 30 s pre-window before the first
+#           run to the end of the last run. Inside each run the run's own
+#           samplers record as usual (core sample tables, run_id); between runs
+#           the recorder writes te_thermal_samples, te_cooling_samples,
+#           te_gpu_temp_samples, te_power_rail_samples and te_ambient_samples
+#           under one te_session row. Runs, views and queries are unchanged.
+#
+# Check after the run:
+#   SELECT session_id, status, cooldown_status FROM te_session
+#   ORDER BY session_id DESC LIMIT 1;
+#   SELECT owner, COUNT(*) FROM te_v_recording_thermal
+#   WHERE session_id = <id> GROUP BY owner;
+#
+# Task: tg_single_calc — small, fast tool-graph task.
+# Provider: llama_cpp.
+# Reps: 2 — two runs give one gap between runs.
+# Cool-down: off (0). Set cooldown_max_s > 0 to wait after the last run until
+#            every thermal zone is within 2 C of its pre-window median for
+#            60 s, or the cap is reached (stop reason stored in te_session).
+# =============================================================================
+study:
+  name: "Example: continuous recording between runs"
+  experiment_type: "normal"
+  experiment_goal: "Record the experiment continuously, including gaps between runs"
+  workflow_modes: ["comparison"]
+
+tasks:
+  - id: tg_single_calc
+
+providers:
+  - name: llama_cpp
+
+execution:
+  repetitions: 2
+  cool_down_seconds: 5
+  save_db: true
+
+retry_policy:
+  name: "no_retry"
+
+recording:
+  enabled: true
+  pre_window_s: 30
+  cooldown_max_s: 0

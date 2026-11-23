@@ -108,3 +108,22 @@ attributed_energy_uj = 0 when source is NULL.
 **Paper impact:** D2 phase partition cannot be verified for planning component.
 Document as known limitation: "Planning phase energy (<5% of total) not separately attributed."
 **Workaround:** None. execution + synthesis phases correctly attributed.
+
+## Bug: thermal zone discovery sorts as text
+core/thermal/thermal_discovery.py line 83 sorts thermal_zone* folders as text (thermal_zone10 before thermal_zone2) while its docstring says "sorted by zone_index". read_all_thermal() names duplicate zones in zone_id order; insert_thermal_samples_v2() maps them back in zone_index order.
+**Impact:** none on NVIDIA Grace GB10 (7 zones, single digit). On a machine with 10 or more zones of one type, readings are written to the wrong zone.
+**Fix:** numeric sort in discovery; sort by zone_index in read_all_thermal(). Same class as the ARM reader zone sort fix.
+
+## Bug: run_queue_length is an instant snapshot
+scheduler_monitor.read_loadavg() documents "Run Queue Length (approximated by the 1-minute load average)" but the run value uses the instantaneous runnable count from /proc/loadavg, which flips between 0 and 1 between identical runs (observed 2026-11-18, 9 runs).
+**Impact:** the column has no useful resolution per run.
+**Fix:** use load1 as documented, or record the runnable count over the run.
+
+## Pre-existing failures confirmed on main (2026-11-18)
+Same result on main (54bb47d) and on the thermal sampling branch, same task: test_runs_regression_extended.sh fails energy_measurement_mode (spbm_pkg_v1, expected MEASURED), phase accounting closure, tcp_retransmits NULL; test_exp_integrity.py fails retry_policy (expected 4 rows, got 3) and warns etl_queue (entries never processed in a dev store), D4 delta, D2 conservation.
+
+## Migrate splitter cut trigger bodies (fixed)
+`scripts/tools/alems_migrate.py` split every migration at each unquoted `;`, breaking any `CREATE TRIGGER ... BEGIN ...; END;` (first trigger migration, v123, would have failed). Fixed: split only where `sqlite3.complete_statement()` reports a complete statement. Proof: all 86 existing migration files (301 statements) split identically to before.
+
+## Agent spans cannot be aligned with samples or recording spans
+`SpanWriter.open_span/close_span/add_placement` stamp `time.perf_counter_ns()`, a per-process counter with an arbitrary origin, while samples use wall-clock `timestamp_ns`. Agent span times cannot be compared with samples, with other processes or with recording spans. Also: `span_builder._build` writes `socket.gethostname()` as the placement node (hostname rule) and always writes a single `attempt:1`, whatever the retries. Found 2026-11-18; owner: span builder. Not changed.

@@ -70,6 +70,16 @@ def apply_config(args) -> None:
     if serving_engine:
         args.serving_engine = serving_engine
 
+    # Continuous recording between runs (opt-in, off by default).
+    # Precedence: CLI --record-continuous > YAML recording.enabled > off.
+    recording = cfg.get("recording") or {}
+    if recording and not getattr(args, "record_continuous", False):
+        args.record_continuous = bool(recording.get("enabled", False))
+        args.record_pre_window_s = float(recording.get(
+            "pre_window_s", getattr(args, "record_pre_window_s", 30.0)))
+        args.record_cooldown_max_s = float(recording.get(
+            "cooldown_max_s", getattr(args, "record_cooldown_max_s", 0.0)))
+
     # Quality gate (39.5a): controls LLM judge and OutputQualityExtension.persist().
     # Cheap local scorers (exact_match, numeric, structural, semantic) run always
     # per task expectation block regardless of this flag.
