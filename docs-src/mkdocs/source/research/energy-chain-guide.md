@@ -108,7 +108,29 @@ sampling) would have a higher ratio (potentially 2x to 3x). The ratio itself
 is a diagnostic signal: tracking it across workload types tells you how
 memory-bound versus compute-bound your inference workload is.
 
+## Three Kinds of Checks
+
+The validator reports three kinds of checks and never merges them into one label.
+
+**Expected containment.** A labelled child channel should not exceed its labelled parent: cpu_gpu within soc_pkg, and gpu, cpu_p and cpu_e within cpu_gpu.
+Each check reports the share of samples where the child exceeds the parent and the distribution (5th, 50th and 95th percentile) of the parent minus child power.
+Passing shows consistency with the expected hierarchy; it does not establish a physical boundary.
+
+**Observed ordering.** Package energy is compared with dc_input.
+The physical boundary of dc_input is not documented, so this is reported as an observed ordering only.
+
+**Additivity residual.** A declared disjoint set is compared with its parent and the residual is reported: gpu plus cpu_p plus cpu_e against cpu_gpu, and cpu_p plus cpu_e plus gpu plus dla against package.
+VCORE and PREREG overlap other rails and are never part of a sum.
+
+**Conflict.** sys_total is often above dc_input.
+This is reported as WARN with the distribution of the difference, never as FAIL.
+
+A check on a window with missing samples, or shorter than 10 s, reports N/A with the reason, never OK.
+The SoC GPU counter and DCGM differ by the SoC GPU-to-DCGM gap, G = (E_SoC_GPU minus E_DCGM) / E_DCGM; the validator prints G over the run window, and its cause is not attributed.
+
 ## Reading the Confidence Scores
+
+The confidence score is a heuristic combining sample count, calibration against past residuals and a fixed source score; it is not a statistical confidence and is not used in paper results.
 
 Every conservation check carries a confidence score between 0 and 1, with
 HIGH above 0.8, MEDIUM between 0.5 and 0.8, and LOW below 0.5.

@@ -108,13 +108,18 @@ def _top_pair(conn, run_id):
     pairs = [(a, b) for a, b in rows if a is not None and b is not None]
     if len(pairs) < MIN_SAMPLES:
         return {'status': 'N/A', 'reason': 'missing data or run too short'}
-    above = sum(1 for a, b in pairs if a > b)
-    gap_w = sum(a - b for a, b in pairs) / len(pairs) / 1000.0
+    gaps_w = sorted((a - b) / 1000.0 for a, b in pairs)   # mW to W, per sample
+    above = sum(1 for g in gaps_w if g > 0)
     frac = above / len(pairs)
-    return {'status': 'WARN' if frac > 0.5 else 'OK',
+
+    def _q(q):
+        return round(gaps_w[min(len(gaps_w) - 1, int(q * len(gaps_w)))], 3)
+    # known conflict between two top level channels: WARN at most, never FAIL
+    return {'status': 'WARN' if frac > 0.5 else 'OK', 'kind': 'conflict',
             'frac_sys_total_above_dc_input': round(frac, 4),
-            'mean_gap_w': round(gap_w, 3), 'n': len(pairs),
-            'note': 'child above parent; label or calibration conflict, not a code error'}
+            'mean_gap_w': round(sum(gaps_w) / len(gaps_w), 3), 'n': len(pairs),
+            'gap_w_p05': _q(0.05), 'gap_w_p50': _q(0.50), 'gap_w_p95': _q(0.95),
+            'note': 'sys_total above dc_input: labelled conflict, reported, never FAIL'}
 
 
 def validate_agreement(conn, run_id, platform):

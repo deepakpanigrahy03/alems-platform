@@ -4,7 +4,7 @@ report_energy_chain.py — Human-readable report for energy chain validation.
 Reads the JSON output from validate_energy_chain_v2.py and renders:
   - Metadata block (measurement sources, conservation model)
   - Per-run DAG visual with ASCII tree
-  - Per-run check results with confidence scores
+  - Per-run check results with heuristic confidence scores
   - Conservation summary with status codes
 
 All interpretive text lives HERE, not in the validator.
@@ -54,7 +54,7 @@ CHECK_INTERPRETATIONS = {
         'WARN_context': 'Board overhead extremely high. Possible sensor misalignment.',
     },
     'ML1-ML2': {
-        'PASS_context': 'SoC GPU rail vs GPU compute counter (DCGM, 1 Hz). Difference is unattributed (see difference covers).',
+        'PASS_context': 'SoC GPU counter vs DCGM field 156 (update rate measured in X1). The difference is the SoC GPU-to-DCGM gap; its cause is not established.',
         'FAIL_action':  'gpu_spbm < gpu_dcgm. Cross-source temporal skew or DCGM overcounting.',
         'WARN_context': 'Ratio unusually high. Check for DCGM sampling gaps.',
     },
@@ -64,7 +64,7 @@ CHECK_INTERPRETATIONS = {
 RESIDUAL_CONTEXT = {
     'soc_residual':   'Unmetered on-chip: fabric, caches, memory controllers (components not confirmed for GB10)',
     'board_overhead': 'Off-package, not separately metered: memory (LPDDR5X, soldered), storage, network, USB/display, fans, power conversion losses',
-    'nvlink_c2c':     'GPU rail energy not seen by the GPU counter (unattributed; may include NVLink-C2C, memory interface, GPU voltage regulators, and 1 Hz vs 10 Hz sampling differences)',
+    'soc_gpu_dcgm_gap': 'SoC GPU counter energy not reported by DCGM; G = (E_SoC_GPU - E_DCGM) / E_DCGM (run window here; shared window in the analysis pipeline); cause not established',
 }
 
 
@@ -99,7 +99,7 @@ def _conf(conf):
     if comps.get('source') is not None:
         parts.append(f"src={comps['source']}")
     comp_str = f"  ({', '.join(parts)})" if parts else ""
-    return f"confidence: {score:.2f} {level}{comp_str}"
+    return f"heuristic confidence: {score:.2f} {level}{comp_str} (not a statistical measure)"
 
 
 def _status_line(status, msg):
@@ -130,7 +130,7 @@ def render_metadata(exp):
         'arm_spbm': {
             'ML0': 'Board monitor (SPBM INA shunt, 10 Hz)',
             'ML1': 'SoC monitor (SPBM sysfs IIO, 10 Hz)',
-            'ML2': 'GPU monitor (DCGM field 156, 1 Hz)',
+            'ML2': 'GPU monitor (DCGM field 156 (update rate measured in X1))',
         },
         'x86_rapl': {
             'ML1': 'CPU package (Intel RAPL MSR, ~100 Hz)',
@@ -216,8 +216,8 @@ def render_dag(run):
         board_pct = _dpct('board_overhead')
         soc_res   = _dj('soc_residual')
         soc_pct   = _dpct('soc_residual')
-        c2c       = _dj('nvlink_c2c')
-        c3_ratio  = _dratio('nvlink_c2c')
+        gap_j     = _dj('soc_gpu_dcgm_gap')
+        gap_g     = (run.get('derived', {}).get('soc_gpu_dcgm_gap') or {}).get('gap_fraction')
 
         print(f"  ML0")
         print(f"   DC_INPUT {'─'*10} {_ej('dc_input')}")
@@ -232,7 +232,7 @@ def render_dag(run):
         print(f"   ├── GPU_SPBM {'─'*7} {_ej('gpu_spbm')}")
         print(f"   │      │")
         print(f"   │      │  {c3_color}ML1-ML2: gpu_spbm >= gpu_dcgm [{c3_status}]{RESET}  "
-              f"c2c={c2c} ({c3_ratio})")
+              f"gap={gap_j} (G={gap_g if gap_g is not None else 'n/a'})")
         print(f"   │      ▼")
         print(f"   │   ML2")
         print(f"   │   GPU_DCGM {'─'*7} {_ej('gpu_dcgm')}")
@@ -318,8 +318,8 @@ def render_checks(run):
         elif check_name == 'ML0-ML1' and derived.get('board_overhead'):
             ctx = RESIDUAL_CONTEXT.get('board_overhead', '')
             _line('off-die covers:', ctx)
-        elif check_name == 'ML1-ML2' and derived.get('nvlink_c2c'):
-            ctx = RESIDUAL_CONTEXT.get('nvlink_c2c', '')
+        elif check_name == 'ML1-ML2' and derived.get('soc_gpu_dcgm_gap'):
+            ctx = RESIDUAL_CONTEXT.get('soc_gpu_dcgm_gap', '')
             _line('difference covers:', ctx)
 
         # Interpretation
@@ -333,17 +333,17 @@ def render_checks(run):
         # Summary line
         if check_name == 'ML1-INT':
             _summary(status, f"ML1-INT residual={_pct(c.get('residual_pct'))}"
-                     + (f" confidence={c['confidence']['score']:.2f}({c['confidence']['level']})"
+                     + (f" heuristic_conf={c['confidence']['score']:.2f}({c['confidence']['level']})"
                         if c.get('confidence') else ""))
         elif check_name == 'ML0-ML1':
             _summary(status, f"ML0-ML1 off-die={_pct(c.get('residual_pct'))}"
-                     + (f" confidence={c['confidence']['score']:.2f}({c['confidence']['level']})"
+                     + (f" heuristic_conf={c['confidence']['score']:.2f}({c['confidence']['level']})"
                         if c.get('confidence') else ""))
         elif check_name == 'ML1-ML2':
-            d = run.get('derived', {}).get('nvlink_c2c', {})
+            d = run.get('derived', {}).get('soc_gpu_dcgm_gap', {})
             ratio = d.get('ratio', '')
-            _summary(status, f"ML1-ML2 ratio={ratio}x"
-                     + (f" confidence={c['confidence']['score']:.2f}({c['confidence']['level']})"
+            _summary(status, f"ML1-ML2 G={d.get('gap_fraction')} ratio={ratio}x"
+                     + (f" heuristic_conf={c['confidence']['score']:.2f}({c['confidence']['level']})"
                         if c.get('confidence') else ""))
 
     # ── IDLE-SPLIT ────────────────────────────────────────────────────────
@@ -497,7 +497,14 @@ def render_checks(run):
 
     # ── AGREEMENT: cross-source checks (Nov 4, 2026) ──────────────────────
     for key, title in (('agree_rail', 'AGREE-RAIL'), ('agree_pkg', 'AGREE-PKG'),
-                       ('plaus_wall', 'PLAUS-WALL'), ('top_pair', 'TOP-PAIR')):
+                       ('plaus_wall', 'PLAUS-WALL'), ('top_pair', 'TOP-PAIR (conflict)'),
+                       ('cpu_gpu_in_soc_pkg', 'CONTAINMENT cpu_gpu <= soc_pkg'),
+                       ('gpu_in_cpu_gpu', 'CONTAINMENT gpu <= cpu_gpu'),
+                       ('cpu_p_in_cpu_gpu', 'CONTAINMENT cpu_p <= cpu_gpu'),
+                       ('cpu_e_in_cpu_gpu', 'CONTAINMENT cpu_e <= cpu_gpu'),
+                       ('package_le_dc_input', 'OBSERVED ORDERING package <= dc_input'),
+                       ('cpu_gpu_additivity', 'ADDITIVITY gpu + cpu_p + cpu_e vs cpu_gpu'),
+                       ('package_additivity', 'ADDITIVITY cpu_p + cpu_e + gpu + dla vs package')):
         c = checks.get(key, {})
         if not c:
             continue
@@ -543,7 +550,7 @@ def render_report(output):
             if run_conf is not None:
                 from confidence import confidence_level
                 level = confidence_level(run_conf)
-                print(f"\n  Run Confidence: {run_conf:.2f} {level}")
+                print(f"\n  Run heuristic confidence: {run_conf:.2f} {level}")
             print(f"  {'─'*W}")
 
         # Experiment summary

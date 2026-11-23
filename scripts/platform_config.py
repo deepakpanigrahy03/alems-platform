@@ -61,8 +61,8 @@ PLATFORM_CONFIGS = {
             'ML2': {
                 'name':      'GPU monitor',
                 'interface': 'DCGM field 156',
-                'rate_hz':   1,
-                'note':      'GPU compute complex internal counter via DCGM',
+                'rate_hz':   None,   # rows at 10 Hz; value update rate measured in X1
+                'note':      'GPU energy counter via DCGM; update rate measured separately',
             },
         },
 
@@ -72,7 +72,7 @@ PLATFORM_CONFIGS = {
             'pkg',        # ML1 — full SoC package accumulator
             'cpu_p',      # ML1 — performance core cluster
             'cpu_e',      # ML1 — efficiency core cluster
-            'gpu_spbm',   # ML1 — GPU broad rail (compute + memory + NVLink)
+            'gpu_spbm',   # ML1 — SoC GPU energy counter (domain GPU)
             'gpu_dcgm',   # ML2 — GPU compute only (DCGM field 156)
             'dla',        # ML1 — deep learning accelerator (integrated power rail)
         ],
@@ -110,7 +110,7 @@ PLATFORM_CONFIGS = {
                 'children':     ['gpu_dcgm'],
                 'cross_source': True,
                 'relation':     'gte',
-                'description':  'GPU broad rail >= GPU compute (diff = NVLink-C2C + GPU memory + VRM)',
+                'description':  'SoC GPU counter >= DCGM GPU energy (difference: SoC GPU-to-DCGM gap, cause not established)',
             },
         ],
 
@@ -120,8 +120,8 @@ PLATFORM_CONFIGS = {
                                'SoC unmetered on-chip (fabric, caches, memory controllers; components not confirmed for GB10)'),
             'board_overhead': ('dc_input', ['pkg'],
                                'Off-die power (LPDDR5X, NVMe, USB/DP, Ethernet, fans, VRM losses)'),
-            'nvlink_c2c':     ('gpu_spbm', ['gpu_dcgm'],
-                               'NVLink-C2C fabric + GPU memory interface + GPU VRM overhead'),
+            'soc_gpu_dcgm_gap': ('gpu_spbm', ['gpu_dcgm'],
+                                 'SoC GPU-to-DCGM gap (unattributed; cause not established)'),
         },
 
         # How boundary (pre/post task energy) is computed on this platform
@@ -137,7 +137,7 @@ PLATFORM_CONFIGS = {
         'source_scores': {
             'ML1-INT': 0.9,   # intra-source, same clock domain, no published accuracy spec
             'ML0-ML1': 0.7,   # cross-source: integrated power rail vs accumulator
-            'ML1-ML2': 0.7,   # cross-source: 10Hz SPBM vs 1Hz DCGM
+            'ML1-ML2': 0.7,   # cross-source: SPBM counter vs DCGM (update rate measured in X1)
         },
 
         # Expected residual range for ML1-INT (used in calibration scoring)
