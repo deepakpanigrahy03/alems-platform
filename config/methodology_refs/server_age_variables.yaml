@@ -1,0 +1,11 @@
+method_id: server_age_variables
+provenance: MEASURED
+confidence: 0.9
+parameters:
+  driver_load_source: none
+references:
+  - title: "proc(5): /proc/stat btime and /proc/[pid]/stat starttime"
+    authors: "Linux man-pages project"
+    year: 2024
+    ref_type: manual
+    relevance: "Boot time and process start time used for machine and server age."

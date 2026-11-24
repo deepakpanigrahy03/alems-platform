@@ -1,0 +1,24 @@
+method_id: kernel_traffic_ncu_v1
+provenance: MEASURED
+confidence:
+  completed_within: 0.9
+  completed_other_status: 0.8
+  failed: 0.0
+parameters:
+  sector_bytes: 32
+  read_metric: lts__d_sectors_fill_sysmem.sum
+  write_metric: lts__t_sectors_aperture_sysmem_op_write.sum
+  cache_control_default: all
+  tolerance_default: 0.25
+formula: "read_bytes = 32 * read_sectors; write_bytes = 32 * write_sectors; ratio only when scopes match"
+references:
+  - title: "Nsight Compute Kernel Profiling Guide: metrics structure, sectors, cache control and replay"
+    authors: "NVIDIA"
+    year: 2025
+    ref_type: manual
+    relevance: "L2 sector metrics, 32 byte sectors, cache flush before each replay iteration."
+  - title: "pravaha-mem 1.0.1: kernels module"
+    authors: "D. Panigrahy"
+    year: 2026
+    ref_type: software
+    relevance: "Metric set and CSV parsing used by the pass."

@@ -1,0 +1,18 @@
+[project]
+name = "alems-plugin-pravaha"
+version = "1.1.0"
+description = "A-LEMS traffic reader: live GPU memory traffic in bytes via pravaha-mem"
+requires-python = ">=3.9"
+dependencies = ["alems-sdk>=1.0,<2.0", "pravaha-mem>=1.1,<2"]
+
+[project.entry-points."alems.readers.traffic"]
+pravaha = "alems_plugin_pravaha.reader:PravahaTrafficReader"
+
+[project.entry-points."alems.sequencer.steps"]
+copy_rate = "alems_plugin_pravaha.copy_step:CopyRateStep"
+kernel_traffic = "alems_plugin_pravaha.kernel_pass:KernelTrafficStep"
+kernel_rw = "alems_plugin_pravaha.kernel_step:KernelRWStep"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

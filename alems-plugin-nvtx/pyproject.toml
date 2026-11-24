@@ -1,0 +1,13 @@
+[project]
+name = "alems-plugin-nvtx"
+version = "1.0.0"
+description = "A-LEMS span listener: NVTX ranges for NVIDIA profilers (enable with ALEMS_NVTX=1)"
+requires-python = ">=3.9"
+dependencies = ["alems-sdk>=1.0,<2.0", "nvtx"]
+
+[project.entry-points."alems.spans.listeners"]
+nvtx = "alems_plugin_nvtx.listener:NvtxSpanListener"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

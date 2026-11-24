@@ -1,0 +1,11 @@
+sequence:
+  name: "example two conditions"
+  seed: 17
+  cycles: 2
+  baseline: {kind: idle, duration_s: 60}
+  on_baseline_failure: skip_treatment
+blocks:
+  - condition: gsm8k_vllm
+    treatment: {kind: profile, profile: config/experiment_configs/baseline_study.yaml}
+  - condition: factual_vllm
+    treatment: {kind: profile, profile: config/experiment_configs/baseline_study.yaml}

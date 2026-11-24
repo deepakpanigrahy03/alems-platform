@@ -188,6 +188,41 @@ methods:
     method_anchor: "dcgm-energy-v1"
     section: "DCGM Backend (GN100)"
 
+  nvtx_span_agreement_v1:
+    doc: "developer/nvtx-span-markers.md"
+    method_anchor: "nvtx-span-agreement"
+    section: "Phase Markers for NVIDIA Profilers (NVTX)"
+
+  kernel_traffic_ncu_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "kernel-traffic-ncu-v1"
+    section: "Per Kernel L2 Traffic (Nsight Compute pass)"
+
+  gpu_l2_traffic_pravaha_v1:
+    doc: "gpu-energy.md"
+    method_anchor: "gpu-l2-traffic-pravaha-v1"
+    section: "GPU Memory Traffic (pravaha)"
+
+  kv_occupancy_vllm:
+    doc: "llm-measurement.md"
+    method_anchor: "kv-occupancy-vllm"
+    section: "KV Cache Occupancy: vLLM"
+
+  kv_occupancy_sglang:
+    doc: "llm-measurement.md"
+    method_anchor: "kv-occupancy-sglang"
+    section: "KV Cache Occupancy: SGLang"
+
+  server_age_variables:
+    doc: "system-measurement.md"
+    method_anchor: "server-age-variables"
+    section: "Server Age Variables"
+
+  engine_instance_match_v1:
+    doc: "system-measurement.md"
+    method_anchor: "engine-instance-match"
+    section: "Serving Engine Instance Match"
+
   dcgm_shared_window_coverage_v1:
     doc: "gpu-energy.md"
     method_anchor: "dcgm-shared-window-coverage-v1"

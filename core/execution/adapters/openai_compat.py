@@ -200,6 +200,8 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
             last_token_time_ns=stream_metrics.get("last_token_time_ns"), 
             request_start_ns=stream_metrics.get("request_start_ns"),           
         )
+        # Why ttft is NULL, if it is (stream_failed_fallback, zero_tokens)
+        phase_metrics["ttft_null_reason"] = stream_metrics.get("ttft_null_reason")
 
         return {
             "content": content,
@@ -359,9 +361,18 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
                     usage_prompt_tokens = chunk["usage"].get("prompt_tokens")
  
                 delta = ""
+                generated = False
                 choices = chunk.get("choices", [])
                 if choices:
-                    delta = choices[0].get("delta", {}).get("content") or ""
+                    d = choices[0].get("delta", {}) or {}
+                    delta = d.get("content") or ""
+                    # First generated token of any kind starts ttft: content, a tool
+                    # call, or reasoning text (thinking models with a reasoning parser)
+                    generated = bool(delta or d.get("tool_calls") or d.get("reasoning_content"))
+                if generated and first_token_ns is None:
+                    first_token_ns = time.time_ns()
+                if generated:
+                    last_token_ns = time.time_ns()
  
                 if delta:
                     if first_token_ns is None:
@@ -385,15 +396,19 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
             response.raise_for_status()
             _fallback_end_ns = time.time_ns()
             _fallback_ms = (_fallback_end_ns - _fallback_start_ns) / 1e6
+            # Non streamed reply: no first token time exists, so ttft, tpot and
+            # throughput are NULL with a reason; api latency still carries _fallback_ms.
             self._last_stream_metrics = {
                 "streaming_enabled": 0,
-                "ttft_ms": _fallback_ms,  # no TTFT distinction — full round-trip
-                "tpot_ms": 0.0,
-                "token_throughput": 0.0,
-                "first_token_time_ns": _fallback_start_ns,  # request start as proxy
+                "ttft_ms": None,
+                "tpot_ms": None,
+                "token_throughput": None,
+                "first_token_time_ns": None,
                 "last_token_time_ns": _fallback_end_ns,
                 "request_start_ns": request_start_ns,
+                "ttft_null_reason": "stream_failed_fallback",
             }
+            logger.debug("fallback round trip %.1f ms (not a ttft)", _fallback_ms)
             return response.json()
  
         # Prefer API token count — providers batch tokens per chunk (Groq)
@@ -404,22 +419,19 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
         # C2: a count the provider did not report stays unknown (None, NULL in the store).
         prompt_token_count = usage_prompt_tokens
  
-        total_ms = (
-            (last_token_ns - request_start_ns) / 1e6 if last_token_ns else 0.0
-        )
-        ttft_ms = (
-            (first_token_ns - request_start_ns) / 1e6
-            if first_token_ns else total_ms
-        )
-        decode_ms = total_ms - ttft_ms
- 
-        tpot_ms = (
-            decode_ms / max(token_count - 1, 1) if token_count > 1 else 0.0
-        )
-        throughput = (
-            token_count / (decode_ms / 1000)
-            if token_count > 1 and decode_ms > 0 else 0.0
-        )
+        # Stream end: total time is real even when no token arrived (MIC-1, never 0.0)
+        stream_end_ns = last_token_ns or time.time_ns()
+        total_ms = (stream_end_ns - request_start_ns) / 1e6
+        ttft_ms = tpot_ms = throughput = None
+        null_reason = "zero_tokens"
+        if first_token_ns is not None:
+            # ttft only from a real first token; never derived from total time
+            ttft_ms = (first_token_ns - request_start_ns) / 1e6
+            decode_ms = total_ms - ttft_ms
+            null_reason = None
+            if token_count > 1:
+                tpot_ms = decode_ms / (token_count - 1)
+                throughput = token_count / (decode_ms / 1000) if decode_ms > 0 else None
  
         # Store for call() to read — avoids changing return type
         self._last_stream_metrics = {
@@ -430,6 +442,7 @@ class OpenAICompatAdapter(BaseAdapterMixin, TextGenABC):
             "first_token_time_ns": first_token_ns,
             "last_token_time_ns": last_token_ns,
             "request_start_ns": request_start_ns,
+            "ttft_null_reason": null_reason,
         }
  
         # Reconstruct a minimal OpenAI-compat response dict so _parse_response

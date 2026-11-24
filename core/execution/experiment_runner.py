@@ -52,7 +52,7 @@ from core.attribution.legacy_v1.duration_fix_etl import fix_run, fix_run_with_pr
 from core.execution.run_persistence import RunPersistenceService
 from core.attribution.legacy_v1.ttft_tpot_etl import populate_run as populate_ttft_tpot
 from core.attribution.conservation_residual import compute_conservation_residual
-from core.vocabularies.agent.span_builder import build_spans_from_result
+from core.vocabularies.agent.span_builder import build_spans_from_result, record_run_span, record_goal_tree
 from core.execution.goal_tracker import GoalTracker
 import core.attribution.legacy_v1.goal_execution_etl as goal_execution_etl
 import core.attribution.legacy_v1.energy_attribution_etl as energy_attribution_etl
@@ -72,8 +72,8 @@ def _span_hook(db, wconn, writer):
     Same two calls save_pair and save_single made right after insert_run.
     """
     def _hook(run_id):
+        # goal_attempt.span_id is written when the attempt row is inserted (45.8)
         writer.flush_to_db(db, run_id)
-        _backfill_attempt_span_id(wconn, run_id, writer)
     return _hook
 
 # OutputQualityExtension loaded conditionally via entry point (39.5a).
@@ -1196,7 +1196,10 @@ class ExperimentRunner:
             b = harness.baseline
             metadata = b.metadata or {}
 
-            baseline_dict = {
+            # Row built by the shared function the sequencer idle step also uses
+            from core.utils.baseline_row import baseline_row
+            baseline_dict = baseline_row(b)
+            _unused_previous_dict = {
                 "baseline_id": b.baseline_id,
                 "timestamp": b.timestamp,
                 # canonical keys after v61: PACKAGE, CORE, UNCORE, DRAM
@@ -1255,13 +1258,13 @@ class ExperimentRunner:
         # trace_id groups linear and agentic under one experiment trace.
         from core.vocabularies.agent.span_writer import SpanWriter
         import uuid
-        _trace_id = uuid.uuid4().hex
-        _linear_writer = SpanWriter(trace_id=_trace_id)
-        _linear_span_id = _linear_writer.open_span("run", f"linear:{task_id}")
-        _linear_writer.close_span(_linear_span_id)
-        _agentic_writer = SpanWriter(trace_id=_trace_id)
-        _agentic_span_id = _agentic_writer.open_span("run", f"agentic:{task_id}")
-        _agentic_writer.close_span(_agentic_span_id)
+        # One trace per goal (45.8): the linear and agentic sides are distinct goals.
+        _linear_writer = SpanWriter()
+        _lin_sp = record_goal_tree(_linear_writer, "linear", task_id, linear_result, linear_outcome)
+        _linear_span_id = _lin_sp["run"]
+        _agentic_writer = SpanWriter()
+        _agt_sp = record_goal_tree(_agentic_writer, "agentic", task_id, agentic_result, agentic_outcome)
+        _agentic_span_id = _agt_sp["run"]
         # C-EV stage recorders, one per run (39.5.2c). Rows are written after
         # both runs, also when persistence raises; the exception propagates.
         # Created before span building so the build is part 1 of the spans
@@ -1359,6 +1362,7 @@ class ExperimentRunner:
             task_meta=task_meta,
             workflow_type='linear',
             run_id=linear_id,
+            goal_span_ids=_lin_sp,
             outcome=linear_outcome,
             energy_uj=linear_uj,
             orchestration_uj=linear_orchestration_uj,
@@ -1374,6 +1378,7 @@ class ExperimentRunner:
             task_meta=task_meta,
             workflow_type='agentic',
             run_id=agentic_id,
+            goal_span_ids=_agt_sp,
             outcome=agentic_outcome,
             energy_uj=agentic_uj,
             orchestration_uj=agentic_orchestration_uj,
@@ -1490,6 +1495,7 @@ class ExperimentRunner:
         compute_uj: int,
         gpu_energy_uj: int = None,
         conn=None,
+        goal_span_ids=None,
     ) -> int:
         """
         Create one goal_execution + one goal_attempt for a completed single-attempt run.
@@ -1530,6 +1536,7 @@ class ExperimentRunner:
             workflow_type=workflow_type,
             difficulty_level=level,
             first_run_id=-1,
+            span_id=(goal_span_ids or {}).get("goal"),
         )
         if goal_id is None:
             return None
@@ -1542,6 +1549,7 @@ class ExperimentRunner:
             attempt_number=1,
             is_retry=False,
             retry_of_attempt_id=None,
+            span_id=(goal_span_ids or {}).get("attempt"),
         )
         if attempt_id is None:
             return goal_id
@@ -1636,8 +1644,8 @@ class ExperimentRunner:
 
             from core.vocabularies.agent.span_writer import SpanWriter
             _span_writer = SpanWriter()
-            _span_id = _span_writer.open_span("run", f"{workflow_type}:{task_id}")
-            _span_writer.close_span(_span_id)
+            _sp = record_goal_tree(_span_writer, workflow_type, task_id, result, outcome)
+            _span_id = _sp["run"]
             # C-EV stage recorder (39.5.2c); rows written after the run, also
             # when persistence raises; the exception propagates. Created before
             # span building so the build is part 1 of the spans stage (39.5.2d).
@@ -1689,6 +1697,7 @@ class ExperimentRunner:
                 task_meta=task_meta,
                 workflow_type=workflow_type,
                 run_id=run_id,
+                goal_span_ids=_sp,
                 outcome=outcome,
                 energy_uj=energy_uj,
                 orchestration_uj=orchestration_uj,

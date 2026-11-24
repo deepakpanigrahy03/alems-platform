@@ -1,0 +1,13 @@
+method_id: kv_occupancy_sglang
+provenance: MEASURED
+confidence: 0.85
+parameters:
+  interval_env: ALEMS_SERVING_SNAPSHOT_INTERVAL_S
+  interval_default_s: 0.5
+  metric: sglang:token_usage
+references:
+  - title: "SGLang production metrics"
+    authors: "SGLang project"
+    year: 2026
+    ref_type: manual
+    relevance: "Definition of the KV usage and queue metrics exported on /metrics."

@@ -108,6 +108,11 @@ plugins:
     enabled: false
     mode: constant
     package_uj: 9999999
+  # NVTX phase markers for NVIDIA profilers (alems-plugin-nvtx). Off: enable per profiled
+  # run with ALEMS_NVTX_ENABLED=1; the domain can be changed with ALEMS_NVTX_DOMAIN.
+  nvtx:
+    enabled: false
+    domain: alems
 
 thermal_exposure:
   machine_profile: gpu_soc_a

@@ -56,13 +56,14 @@ def _tolerance(measured_uj: int) -> int:
 
 def _status(measured: int, residual: int, tolerance: int) -> str:
     # type: (int, int, int) -> str
+    # Values are those of attribution_residual.status (CHECK): unmeasured, ok, negative, large.
     if measured == 0:
-        return "not_applicable"
+        return "unmeasured"
     if abs(residual) <= tolerance:
         return "ok"
     if residual < 0:
-        return "over_attributed"
-    return "under_attributed"
+        return "negative"     # attributed more than measured
+    return "large"            # measured energy left unattributed beyond tolerance
 
 
 def compute_conservation_residual(run_id: int, conn: object) -> None:

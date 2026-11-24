@@ -128,6 +128,14 @@ class VLLMAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
 
     ENGINE_TYPE = "vllm"
 
+    # Process facts of a vLLM server, read by core through engine_config;
+    # any key can be overridden in the provider's models.yaml serving_engine block.
+    PROCESS_TRAITS = {
+        "worker_process_pattern": r"VLLM::(EngineCore|Worker)",   # GPU work runs in these children
+        "server_process_pattern": r"vllm serve|VLLM::EngineCore|VLLM::Worker",
+        "single_process": False,
+    }
+
     def __init__(self, config: dict, endpoint=None):
         # The runtime passes the resolved endpoint (C-ORIGIN). Outside the
         # runtime fall back to the profile block plus environment (SDK only).
@@ -203,28 +211,31 @@ class VLLMAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
         if not metrics:
             return CacheState()
 
-        kv_usage = _get(metrics, "vllm:kv_cache_usage_perc") or 0.0
-        num_blocks = self._cfg.get("num_gpu_blocks", 0)
+        # A metric the server did not report stays None (NULL), never 0.0 (MIC-1).
+        # kv_cache_usage_perc is a fraction 0..1 of KV blocks held by running requests.
+        kv_usage = _get(metrics, "vllm:kv_cache_usage_perc")
+        num_blocks = self._cfg.get("num_gpu_blocks")
         block_size = self._cfg.get("block_size", 16)
-        capacity_tokens = num_blocks * block_size
-        occupied_tokens = int(capacity_tokens * kv_usage)
-        queries = _get(metrics, "vllm:prefix_cache_queries_total") or 0.0
-        hits    = _get(metrics, "vllm:prefix_cache_hits_total") or 0.0
-        hit_rate = (hits / queries) if queries > 0 else 0.0
-        evictions = int(_get(metrics, "vllm:num_preemptions_total") or 0.0)
+        capacity_tokens = num_blocks * block_size if num_blocks else None
+        occupied_tokens = (int(capacity_tokens * kv_usage)
+                           if capacity_tokens is not None and kv_usage is not None else None)
+        queries = _get(metrics, "vllm:prefix_cache_queries_total")
+        hits    = _get(metrics, "vllm:prefix_cache_hits_total")
+        hit_rate = (hits / queries) if queries and hits is not None else None
+        evictions = _get(metrics, "vllm:num_preemptions_total")
+        evictions = int(evictions) if evictions is not None else None
 
         logger.debug(
-            "VLLMAdapter.get_cache_state: kv_usage=%.4f capacity=%d "
-            "occupied=%d hit_rate=%.4f (hits=%d/queries=%d) evictions=%d",
-            kv_usage, capacity_tokens, occupied_tokens,
-            hit_rate, int(hits), int(queries), evictions,
+            "VLLMAdapter.get_cache_state: kv_usage=%s capacity=%s occupied=%s "
+            "hit_rate=%s (hits=%s/queries=%s) evictions=%s",
+            kv_usage, capacity_tokens, occupied_tokens, hit_rate, hits, queries, evictions,
         )
         return CacheState(
             cache_type="kv+prefix",
             capacity_tokens=capacity_tokens,
             occupied_tokens=occupied_tokens,
-            occupancy_fraction=round(kv_usage, 6),
-            hit_rate_aggregate=round(hit_rate, 6),
+            occupancy_fraction=round(kv_usage, 6) if kv_usage is not None else None,
+            hit_rate_aggregate=round(hit_rate, 6) if hit_rate is not None else None,
             num_evictions=evictions,
         )
 
@@ -239,8 +250,10 @@ class VLLMAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
         if not metrics:
             return QueueState()
 
-        active    = int(_get(metrics, "vllm:num_requests_running") or 0.0)
-        waiting   = int(_get(metrics, "vllm:num_requests_waiting") or 0.0)
+        # Running and waiting requests; None when not reported (MIC-1)
+        _act, _wait = _get(metrics, "vllm:num_requests_running"), _get(metrics, "vllm:num_requests_waiting")
+        active    = int(_act) if _act is not None else None
+        waiting   = int(_wait) if _wait is not None else None
         completed = int(_sum_prefix(metrics, "vllm:request_success_total"))
         return QueueState(
             active=active,

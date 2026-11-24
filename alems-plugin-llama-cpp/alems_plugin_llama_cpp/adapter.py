@@ -135,14 +135,14 @@ class LlamaCppAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
         if not metrics:
             return CacheState()
 
-        occupancy = _get(metrics, "llamacpp:kv_cache_usage_fraction") or 0.0
+        occupancy = _get(metrics, "llamacpp:kv_cache_usage_fraction")   # None when not reported (MIC-1)
         capacity  = int(_get(metrics, "llamacpp:kv_cache_tokens_total") or 0)
-        occupied  = int(capacity * occupancy)
+        occupied  = int(capacity * occupancy) if capacity is not None and occupancy is not None else None
         return CacheState(
             cache_type="kv",
             capacity_tokens=capacity,
             occupied_tokens=occupied,
-            occupancy_fraction=round(float(occupancy), 6),
+            occupancy_fraction=round(float(occupancy), 6) if occupancy is not None else None,
             hit_rate_aggregate=0.0,
             num_evictions=0,
         )
@@ -158,7 +158,8 @@ class LlamaCppAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
         if not metrics:
             return QueueState()
 
-        active = int(_get(metrics, "llamacpp:requests_processing") or 0.0)
+        _act = _get(metrics, "llamacpp:requests_processing")
+        active = int(_act) if _act is not None else None
         return QueueState(active=active)
 
     def get_engine_info(self) -> EngineInfo:

@@ -397,7 +397,7 @@ print(resolve_store())
         ;;
 
     # ── PYTHON CLI COMMANDS (delegated to core/cli) ───────────────────
-    lock|sandbox|engine|plugins)
+    lock|sandbox|engine|plugins|sequence|profile)
         _python_cli "$CMD" "$@"
         exit $?
         ;;
@@ -464,6 +464,8 @@ print(resolve_store())
         echo "    alems run <profile-name>          — run an experiment profile"
         echo "    alems measure                     — run energy baseline"
         echo "    alems report                      — generate report"
+        echo "    alems sequence <plan.yaml>        — run a step plan (--dry-run, --seed N, --resume ID)"
+        echo "    alems profile kernels -- CMD      — per kernel L2 traffic under Nsight Compute (separate pass, --probe)"
         echo ""
         echo "  Sandbox commands:"
         echo "    alems sandbox create <dir>        — create a new sandbox"

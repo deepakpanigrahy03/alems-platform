@@ -296,6 +296,13 @@ class SQLiteAdapter(DatabaseInterface):
         # don't fail on tables missing those columns.
         _col_additions = [
             ("migration_history",    "source",           "TEXT DEFAULT 'core'"),
+            ("llm_interactions",     "ttft_null_reason", "TEXT"),
+            ("experiments",          "gpu_id",           "INTEGER REFERENCES gpu_config(gpu_id)"),
+            ("spans",                "start_mono_ns",    "INTEGER"),
+            ("spans",                "end_mono_ns",      "INTEGER"),
+            ("spans",                "timing_quality",   "TEXT CHECK (timing_quality IN ('observed', 'derived', 'unknown'))"),
+            ("spans",                "timing_source",    "TEXT"),
+            ("spans",                "parent_source",    "TEXT CHECK (parent_source IN ('observed', 'inferred', 'default'))"),
             ("orchestration_events", "attempt_id",       "INTEGER REFERENCES goal_attempt(attempt_id)"),
             ("orchestration_events", "agent_id",         "INTEGER"),
             ("goal_attempt",         "started_at_ns",    "INTEGER"),
@@ -482,6 +489,28 @@ class SQLiteAdapter(DatabaseInterface):
     # 5. CORE DATA INSERTION
     # ========================================================================
 
+
+    def _current_gpu_id(self) -> Optional[int]:
+        """
+        gpu_config row of this machine's GPU as last recorded (driver, VBIOS).
+
+        gpu_config is unique per (gpu_index, gpu_hash) and a new row appears when
+        driver or VBIOS change, so the newest row for the measured GPU is current.
+        The measured GPU index comes from ALEMS_GPU_INDEX (~/.alemsrc); the
+        default is the first device. NULL (MIC-1) when the table is empty or absent.
+        """
+        import os
+        gpu_index = int(os.environ.get("ALEMS_GPU_INDEX", "0"))   # default: first device
+        try:
+            row = self.conn.execute(
+                "SELECT gpu_id FROM gpu_config WHERE gpu_index = ? "
+                "ORDER BY gpu_id DESC LIMIT 1", (gpu_index,)).fetchone()
+        except sqlite3.Error as exc:
+            import logging  # this module has no module level logger
+            logging.getLogger(__name__).warning("gpu_id lookup failed: %s", exc)
+            return None
+        return row[0] if row else None
+
     def insert_experiment(self, experiment_data: Dict[str, Any]) -> int:
         """
         Insert a new experiment record with all fields including session tracking.
@@ -494,8 +523,8 @@ class SQLiteAdapter(DatabaseInterface):
                 name, description, workflow_type, model_name, provider,
                 model_id, execution_site, transport, remote_energy_available,
                 task_name, country_code, group_id, status, started_at, runs_total,optimization_enabled,
-                hw_id, env_id,experiment_type, experiment_goal, declared_dedicated_machine                 
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                hw_id, env_id,experiment_type, experiment_goal, declared_dedicated_machine, gpu_id                 
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 experiment_data.get("name", "unnamed"),
@@ -518,7 +547,8 @@ class SQLiteAdapter(DatabaseInterface):
                 experiment_data.get("env_id"),
                 experiment_data.get("experiment_type", "normal"),
                 experiment_data.get("experiment_goal"),
-                experiment_data.get("declared_dedicated_machine"),   # 1, 0 or NULL (MIC-1)                
+                experiment_data.get("declared_dedicated_machine"),   # 1, 0 or NULL (MIC-1)
+                experiment_data.get("gpu_id", self._current_gpu_id()),   # driver/VBIOS link (v125)                
             ),
         )
         return cursor.lastrowid
@@ -1150,8 +1180,8 @@ class SQLiteAdapter(DatabaseInterface):
                 first_token_time_ns, last_token_time_ns, request_start_ns, prefill_energy_uj, preprocess_ms, non_local_ms, local_compute_ms, postprocess_ms,
                 cpu_percent_during_wait,
                 bytes_sent_approx, bytes_recv_approx, tcp_retransmits,
-                error_message, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                error_message, status, ttft_null_reason
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 interaction_data.get("run_id"),
@@ -1186,8 +1216,11 @@ class SQLiteAdapter(DatabaseInterface):
                 interaction_data.get("bytes_recv_approx", 0),
                 interaction_data.get("tcp_retransmits"),
                 interaction_data.get("error_message", ""),
-                interaction_data.get("status", "success")
-
+                interaction_data.get("status", "success"),
+                # Failed call with no ttft gets call_failed; success rows carry the adapter reason
+                interaction_data.get("ttft_null_reason") or (
+                    "call_failed" if interaction_data.get("status", "success") != "success"
+                    and interaction_data.get("ttft_ms") is None else None),
             ),
         )
         return cursor.lastrowid

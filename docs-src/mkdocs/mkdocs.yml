@@ -31,6 +31,7 @@ nav:
     - Troubleshooting: getting-started/troubleshooting.md
     - Console output and logging: user-guide/console-output-and-logging.md
     - Sandbox layout and paths: user-guide/sandbox-layout-and-paths.md
+    - Controlled Experiments (Sequencer): user-guide/09-controlled-experiments-sequencer.md
     - Sandbox and Engine: getting-started/sandbox-and-engine.md
 
   - Concepts:
@@ -63,6 +64,9 @@ nav:
     - Extenstion System : developer/extension-system.md
     - Plugin Architecture: developer/plugin-packaging.md
     - Serving Engine Adapters: developer/serving-engine-adapters.md
+    - Sequencer and Step Kinds: developer/sequencer-and-step-kinds.md
+    - NVTX Span Markers: developer/nvtx-span-markers.md
+    - Kernel Traffic Pass (Nsight Compute): developer/kernel-traffic-pass.md
     - Quality Scoring System: developer/quality-scoring-system.md
     - Logging and Debugging: developer/logging-and-debugging.md
 

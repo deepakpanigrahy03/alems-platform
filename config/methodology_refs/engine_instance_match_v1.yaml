@@ -1,0 +1,22 @@
+method_id: engine_instance_match_v1
+provenance: SYSTEM
+confidence:
+  pid_start_time_confirmed: 1.0
+  pid_start_time_inferred: 0.8
+  listener_only_no_record: 0.5
+  no_listener: 0.0
+parameters:
+  start_tolerance_s: 1.0
+  provenance_schema: ai_stack_provenance_v2
+formula: "match iff pid_json = pid_listener and |t_json - t_listener| <= 1 s"
+references:
+  - title: "proc(5): /proc/[pid]/stat starttime field"
+    authors: "Linux man-pages project"
+    year: 2024
+    ref_type: manual
+    relevance: "Process start time that, with the PID, identifies one server instance despite PID reuse."
+  - title: "psutil documentation: net_connections, Process.create_time, Process.children"
+    authors: "G. Rodola"
+    year: 2024
+    ref_type: manual
+    relevance: "Listener PID on the provider port and child worker processes."

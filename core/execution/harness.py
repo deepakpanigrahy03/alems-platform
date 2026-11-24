@@ -294,6 +294,20 @@ class ExperimentHarness:
 
     # Note: System-wide swap metrics are already in scheduler_monitor.py
     # This is handled by M3-6 (partial) - we only need RSS/VMS here
+    def _start_serving_sampler(self) -> None:
+        """Poll local serving engines (KV, queue) for the measurement window; buffer only."""
+        from core.serving.serving_snapshot_sampler import ServingSnapshotSampler
+        self._stop_serving_sampler()   # a second start without stop must not leak a thread
+        self._serving_sampler = ServingSnapshotSampler()
+        self._serving_sampler.start()
+
+    def _stop_serving_sampler(self) -> list:
+        """Stop the sampler; rows are handed to persistence in the run result."""
+        sampler = getattr(self, "_serving_sampler", None)
+        self._serving_sampler = None
+        self._serving_rows = sampler.stop() if sampler else []
+        return self._serving_rows
+
     def run_linear(
         self,
         executor,
@@ -357,6 +371,7 @@ class ExperimentHarness:
         _recording_hook.notify_run_start()   # open recording pauses before the run's start stamp
         run_start_dt = datetime.now()  # Human-readable start time
         run_start_perf = time.perf_counter()  # High-precision for duration
+        self._start_serving_sampler()   # KV and queue polling for the measurement window
         self.energy_engine.start_measurement()
         # F3: t0 anchor — read immediately after start_measurement() before any task work.
         # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
@@ -370,6 +385,7 @@ class ExperimentHarness:
         task_end_perf        = time.perf_counter()
         _total_ticks_t1      = read_total_cpu_ticks()
         _pid_ticks_t1        = read_process_cpu_ticks(os.getpid())
+        self._stop_serving_sampler()   # rows go to the run result as serving_snapshots
         raw_energy = (
             self.energy_engine.stop_measurement()
         )  # RawEnergyMeasurement (Layer 1)
@@ -798,6 +814,8 @@ class ExperimentHarness:
             "legacy_samples": list(self.energy_engine.last_legacy_samples),
             "sampler_stats":  list(getattr(self.energy_engine, "last_sampler_stats", []) or []),
             "dcgm_coverage":  dict(getattr(self.energy_engine, "last_dcgm_coverage", {}) or {}),
+            "serving_snapshots": list(getattr(self, "_serving_rows", []) or []),
+            "traffic": list(getattr(self.energy_engine, "last_traffic", []) or []),
             "rail_result":    self.energy_engine.last_rail_result,
             "nic_samples":    list(getattr(self.energy_engine, "last_nic_samples", [])),
             "cpu_samples": cpu_samples,
@@ -833,6 +851,8 @@ class ExperimentHarness:
             result["v2_samples"]     = list(self.energy_engine.last_v2_samples)
             result["sampler_stats"]  = list(getattr(self.energy_engine, "last_sampler_stats", []) or [])
             result["dcgm_coverage"]  = dict(getattr(self.energy_engine, "last_dcgm_coverage", {}) or {})
+            result["serving_snapshots"] = list(getattr(self, "_serving_rows", []) or [])
+            result["traffic"] = list(getattr(self.energy_engine, "last_traffic", []) or [])
             result["rail_result"]    = self.energy_engine.last_rail_result
             logger.info("energy samples added to result: %d", len(self.energy_engine.last_samples))
         else:
@@ -925,6 +945,7 @@ class ExperimentHarness:
         _recording_hook.notify_run_start()   # open recording pauses before the run's start stamp
         run_start_dt = datetime.now()  # Human-readable start time
         run_start_perf = time.perf_counter()  # High-precision for duration
+        self._start_serving_sampler()   # KV and queue polling for the measurement window
         self.energy_engine.start_measurement()
         # F3: t0 anchor — read immediately after start_measurement() before any task work.
         # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
@@ -975,6 +996,7 @@ class ExperimentHarness:
         task_end_perf        = time.perf_counter()
         _total_ticks_t1      = read_total_cpu_ticks()
         _pid_ticks_t1        = read_process_cpu_ticks(os.getpid())
+        self._stop_serving_sampler()   # rows go to the run result as serving_snapshots
         raw_energy = (
             self.energy_engine.stop_measurement()
         )  # RawEnergyMeasurement (Layer 1)
@@ -1432,6 +1454,8 @@ class ExperimentHarness:
             "legacy_samples": list(self.energy_engine.last_legacy_samples),
             "sampler_stats":  list(getattr(self.energy_engine, "last_sampler_stats", []) or []),
             "dcgm_coverage":  dict(getattr(self.energy_engine, "last_dcgm_coverage", {}) or {}),
+            "serving_snapshots": list(getattr(self, "_serving_rows", []) or []),
+            "traffic": list(getattr(self.energy_engine, "last_traffic", []) or []),
             "rail_result":    self.energy_engine.last_rail_result,
             "nic_samples":    list(getattr(self.energy_engine, "last_nic_samples", [])),
             "cpu_samples": cpu_samples,
@@ -1468,6 +1492,8 @@ class ExperimentHarness:
             result["v2_samples"]     = list(self.energy_engine.last_v2_samples)
             result["sampler_stats"]  = list(getattr(self.energy_engine, "last_sampler_stats", []) or [])
             result["dcgm_coverage"]  = dict(getattr(self.energy_engine, "last_dcgm_coverage", {}) or {})
+            result["serving_snapshots"] = list(getattr(self, "_serving_rows", []) or [])
+            result["traffic"] = list(getattr(self.energy_engine, "last_traffic", []) or [])
             result["legacy_samples"]     = list(self.energy_engine.last_legacy_samples)
             result["rail_result"]    = self.energy_engine.last_rail_result
             logger.info("energy samples added to result: %d", len(self.energy_engine.last_samples))

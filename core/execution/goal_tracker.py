@@ -67,6 +67,7 @@ class GoalTracker:
         workflow_type: str,
         difficulty_level,
         first_run_id: int,
+        span_id: str = None,
     ) -> int:
         """
         INSERT goal_execution with status='running'. Returns goal_id.
@@ -109,15 +110,15 @@ class GoalTracker:
                 exp_id, first_run_id, goal_description, goal_type,
                 workflow_type, difficulty_level, task_id,
                 status, started_at, updated_at,
-                total_attempts, success
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, 1, 0)
+                total_attempts, success, span_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, 1, 0, ?)
         """
         try:
             conn.execute("PRAGMA foreign_keys = OFF")
             cur = conn.execute(sql, (
                 exp_id, 0, task_name, resolved_goal_type,
                 workflow_type, resolved_difficulty, task_id,
-                now, now,
+                now, now, span_id,
             ))
             conn.commit()
             conn.execute("PRAGMA foreign_keys = ON")
@@ -135,6 +136,7 @@ class GoalTracker:
         attempt_number: int,
         retry_of_attempt_id: int = None,
         is_retry: bool = False,
+        span_id: str = None,
     ) -> int:
         """
         INSERT goal_attempt with status='running', started_at=NOW. Returns attempt_id.
@@ -160,14 +162,14 @@ class GoalTracker:
             INSERT INTO goal_attempt (
                 goal_id, run_id, attempt_number, is_winning,
                 outcome, status, started_at, started_at_ns, updated_at,
-                is_retry, retry_of_attempt_id
-            ) VALUES (?, -1, ?, 0, 'failure', 'running', ?, ?, ?, ?, ?)
+                is_retry, retry_of_attempt_id, span_id
+            ) VALUES (?, -1, ?, 0, 'failure', 'running', ?, ?, ?, ?, ?, ?)
         """
         # run_id = -1 placeholder; finish_attempt() updates it with real run_id
         try:
             conn.execute("PRAGMA foreign_keys = OFF")
             cur = conn.execute(sql, (goal_id, attempt_number, now, time.time_ns(), now,
-                                     1 if is_retry else 0, retry_of_attempt_id))
+                                     1 if is_retry else 0, retry_of_attempt_id, span_id))
             conn.commit()
             conn.execute("PRAGMA foreign_keys = ON")
             attempt_id = cur.lastrowid

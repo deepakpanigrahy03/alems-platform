@@ -43,6 +43,7 @@ def _readers_registry():
     from core.readers.bootstrap import (
         energy_registry, cpu_registry, thermal_registry,
         turbostat_registry, msr_registry, scheduler_registry, disk_registry,
+        traffic_registry,
     )
     return {
         "alems.readers.energy":    energy_registry,
@@ -51,6 +52,7 @@ def _readers_registry():
         "alems.readers.turbostat": turbostat_registry,
         "alems.readers.msr":       msr_registry,
         "alems.readers.scheduler": scheduler_registry,
+        "alems.readers.traffic":   traffic_registry,
         "alems.readers.disk":      disk_registry,
     }
 
@@ -136,6 +138,9 @@ _GROUP_TABLE = {
     "alems.readers.msr":           ("measurement", None),
     "alems.readers.scheduler":     ("measurement", None),
     "alems.readers.disk":          ("measurement", None),
+    "alems.readers.traffic":       ("measurement", None),
+    "alems.sequencer.steps":       ("execution", None),
+    "alems.spans.listeners":       ("observability", None),
     # execution family
     "alems.engines.text":          ("execution",   _text_registry),
     "alems.engines.media":         ("execution",   _media_registry),
@@ -164,7 +169,7 @@ _GROUP_TABLE = {
 _READER_GROUPS = {
     "alems.readers.energy", "alems.readers.cpu", "alems.readers.thermal",
     "alems.readers.turbostat", "alems.readers.msr", "alems.readers.scheduler",
-    "alems.readers.disk",
+    "alems.readers.disk", "alems.readers.traffic",
 }
 
 

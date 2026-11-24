@@ -360,3 +360,111 @@ CPU cores to minimise timer jitter.
 - **Provenance**: `MEASURED` (timestamps) / `CALCULATED` (duration)
 - **Method ID**: `system_clock`
 - **Confidence**: `1.0`
+## Serving Engine Instance Match { #engine-instance-match }
+
+---
+**Method ID:** engine_instance_match_v1
+**Schema version:** 125 (experiments.gpu_id); namespace energy_validation e002 (energy_validation_engine_provenance)
+**Platforms verified:** NVIDIA Grace GB10 (GN100, aarch64)
+**Status:** REVIEW
+---
+
+### Overview
+A model name does not identify the server that answered an experiment: two servers can serve one model on two ports, and a restart can change flags or engine version.
+For every experiment whose provider URL points at the local machine, the platform finds the process listening on that port, reads its PID and process start time, and matches both to the provenance record that the serve script wrote at launch.
+The newest record for a model is never used as a substitute.
+The listener can be an API process only; child processes are recorded with an association status.
+Each experiment also stores the GPU configuration row (driver, VBIOS) current at its creation.
+
+### Platform Coverage
+| Platform | Architecture | Source | Canonical Role | Confidence | Status |
+|---|---|---|---|---|---|
+| NVIDIA Grace GB10 | aarch64 | psutil listener scan, serve provenance JSON | serving instance | 1.0 (confirmed) | PENDING |
+| Linux x86_64 | x86_64 | same | serving instance | as above | PENDING |
+| macOS | arm64 | psutil (listener scan may need privileges) | serving instance | 0.0 when no listener | PLANNED |
+
+### Schema
+| Column | Type | Meaning |
+|---|---|---|
+| exp_id | INTEGER | experiment |
+| engine, engine_version | TEXT | from the provenance record; NULL without a record |
+| server_pid, server_start_utc | INTEGER, TEXT | listener PID and process start time (UTC, ms) |
+| port | INTEGER | provider port |
+| model_id | TEXT | model as launched |
+| command_json, command_sha256 | TEXT | launch argv with secrets redacted, and its hash |
+| source_path, source_sha256 | TEXT | matched provenance file and its hash |
+| match_method | TEXT | pid_start_time, listener_only_no_record, no_listener |
+| server_instance_id | TEXT | hash of host, PID and start time |
+| worker_pids_json | TEXT | child processes: pid, start time, redacted command, name |
+| listener_identified, worker_identified | INTEGER | 0 or 1 |
+| worker_association_method | TEXT | process_tree_name_match, process_tree, single_process_engine |
+| worker_association_status | TEXT | confirmed, inferred, unknown |
+| experiments.gpu_id | INTEGER | gpu_config row current at experiment creation |
+
+### Method Provenance
+Provenance SYSTEM (lookup in the process table and the provenance files; the only arithmetic is the 1 s start time comparison).
+Confidence 1.0 for pid_start_time with status confirmed: PID plus start time within 1 s is unique on a host, and a confirmed worker matches the engine's GPU worker process name (vLLM EngineCore, SGLang scheduler) or the engine runs in one process (llama.cpp).
+Confidence 0.8 for status inferred: the server is identified, but no child matched a known worker name, so the GPU process is not proven.
+Confidence 0.5 for listener_only_no_record: the process is known, its engine version and settings are not.
+Confidence 0.0 for no_listener.
+Reaching 1.0 in every case would need a GPU process list per PID, which GB10 does not report reliably.
+
+### Query Reference
+**Which server instance answered each experiment.** Applies to all platforms with local serving.
+```sql
+SELECT exp_id, engine, engine_version, port, server_pid, server_start_utc,
+       match_method, worker_association_status
+FROM energy_validation_engine_provenance ORDER BY exp_id;
+```
+**Experiments whose server restarted mid experiment** (more than one instance).
+```sql
+SELECT exp_id, COUNT(DISTINCT server_instance_id) AS instances
+FROM energy_validation_engine_provenance
+GROUP BY exp_id HAVING instances > 1;
+```
+**Driver and VBIOS per experiment.**
+```sql
+SELECT e.exp_id, g.driver_version, g.vbios_version
+FROM experiments e LEFT JOIN gpu_config g ON g.gpu_id = e.gpu_id
+ORDER BY e.exp_id DESC LIMIT 20;
+```
+
+### Verification
+1. Start a server with a serve script; confirm a provenance JSON with pid and process_start_utc.
+2. Run one short experiment against it.
+3. Run the first query: expect match_method pid_start_time and server_pid equal to the listener PID shown by `ss -ltnp`.
+
+### Known Limitations
+- **Remote servers**: no process table access, no row. Workaround: None, accept no row.
+- **Servers started without the serve scripts**: match_method listener_only_no_record; engine version NULL. Workaround: start servers with the serve scripts.
+- **GPU process proof**: confirmed relies on worker process names, not on per process GPU accounting. Workaround: None on GB10.
+- **Records before schema ai_stack_provenance_v2**: no PID, never matched. Workaround: None.
+- **gpu_id**: newest gpu_config row for GPU index 0; correct while driver or VBIOS changes create a new row. Historical experiments stay NULL.
+## Server Age Variables { #server-age-variables }
+
+**Method ID:** server_age_variables (MEASURED, confidence 0.9).
+For every run the platform stores, in `energy_validation_server_age`, how old the machine and the serving instance were at the run start (`runs.start_time_ns`), so fresh and warm sessions can be separated in analysis.
+
+| Column | Source |
+|---|---|
+| time_since_boot_s | `/proc/stat` btime |
+| time_since_driver_load_s | NULL on NVIDIA Grace GB10 (GN100, aarch64): `/proc/driver/nvidia` carries the procfs mount time; `driver_load_source = 'none'` |
+| time_since_server_start_s | serving instance process start time (Serving Engine Instance Match) |
+| gpu_busy_observed_since_start_s | sum of GPU utilization × interval over A-LEMS GPU samples since the server start; a lower bound, time without measurement is not seen |
+| gpu_temp_c, gpu_sm_clock_mhz, gpu_mem_clock_mhz | first GPU sample of the run; memory clock NULL on GB10 |
+
+Confidence 0.9: boot and process start times are exact; GPU busy time is a lower bound and the thermal and clock values are one sample at the start.
+
+**Query: fresh vs warm runs.**
+```sql
+SELECT a.run_id, a.time_since_server_start_s, a.gpu_busy_observed_since_start_s,
+       a.gpu_temp_c, r.total_energy_uj
+FROM energy_validation_server_age a JOIN runs r ON r.run_id = a.run_id
+ORDER BY a.run_id DESC LIMIT 20;
+```
+
+**Restarting an engine between sessions:** `scripts/serving/restart_engine.sh PROVIDER MODEL` stops only that provider's engine and starts it again through its serve script, which writes a new provenance record. Port, process pattern, serve script and arguments come from the resolved engine configuration. It refuses while an experiment is running.
+
+**Engine configuration layers.** No engine name, port or path is held in platform code. The engine plugin declares its process traits (worker process pattern, server process pattern, single process); the provider's `serving_engine` block in models.yaml names the engine type and serve script and can override any trait; `~/.alemsrc` supplies machine paths (`ALEMS_AI_STACK`, `ALEMS_SERVE_LOG_DIR`), the measured GPU (`ALEMS_GPU_INDEX`), the snapshot interval (`ALEMS_SERVING_SNAPSHOT_INTERVAL_S`) and endpoint overrides (`ALEMS_<TYPE>_ENGINE_URL`). A new engine needs a plugin and a provider block, no core change.
+
+**Known limitations:** driver load time unavailable on GB10; GPU busy time counts measured windows only; servers started without the serve scripts have no start record and NULL server age.

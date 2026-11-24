@@ -403,6 +403,121 @@ def _load_measured_methods() -> List[Dict]:
             "parameters":    {"ready_timeout_s": 5.0, "interior_gap_ms": 300.0},
         },
         {
+            "id":            "nvtx_span_agreement_v1",
+            "name":          "Agreement of NVTX Ranges with Stored Spans",
+            "provenance":    "SYSTEM",
+            "layer":         "application",
+            "confidence":    1.0,
+            "description":   (
+                "Each stored span of a run is matched by span id to the NVTX range the listener emitted; "
+                "durations and start offsets from the run's root span are compared within a tolerance "
+                "(clock independent). Result stored per check with the Nsight Systems report sha256 and version."
+            ),
+            "formula_latex": r"|d_{nvtx} - d_{span}| \le \tau \land |o_{nvtx} - o_{span}| \le \tau",
+            "parameters":    {"tol_env": "ALEMS_NVTX_TOL_MS", "tol_default_ms": 1.0},
+        },
+        {
+            "id":            "kernel_traffic_ncu_v1",
+            "name":          "Per Kernel L2 Traffic (Nsight Compute pass)",
+            "provenance":    "MEASURED",
+            "layer":         "silicon",
+            "confidence":    0.9,
+            "description":   (
+                "Per kernel L2 read and write bytes from a separate Nsight Compute pass: "
+                "lts__d_sectors_fill_sysmem.sum and lts__t_sectors_aperture_sysmem_op_write.sum, "
+                "times 32 bytes per sector. Never timed or used for energy. Agreement with the "
+                "pravaha kernel bytes of a matched run is computed only when both cover the same "
+                "scope and device; otherwise the reason is stored and the ratio is NULL."
+            ),
+            "formula_latex": r"B_{read} = 32\,S_{fill,sysmem},\; B_{write} = 32\,S_{write,sysmem}",
+            "parameters":    {"cache_control_env": "ALEMS_KTRAFFIC_CACHE_CONTROL", "cache_control_default": "all",
+                              "tol_env": "ALEMS_KTRAFFIC_TOL", "tol_default": 0.25},
+        },
+        {
+            "id":            "gpu_l2_traffic_pravaha_v1",
+            "name":          "GPU Memory Traffic from L2 Counters (pravaha)",
+            "provenance":    "MEASURED",
+            "layer":         "silicon",
+            "confidence":    0.9,
+            "description":   (
+                "Bytes moved by the GPU, from five L2 cache counters sampled by CUPTI PM "
+                "sampling in a separate reader process (pravaha-mem): copy engine bytes, "
+                "kernel read miss bytes, kernel write bytes, all read miss bytes, all write "
+                "bytes. Device wide; on GB10 all reads plus all writes estimates "
+                "NVLink-C2C payload. Not a link meter. Raw bytes stored; idle baseline "
+                "subtracted in analysis."
+            ),
+            "formula_latex": r"B_{c2c} \approx B_{read,miss} + B_{write}",
+            "parameters":    {"interval_env": "ALEMS_PRAVAHA_INTERVAL_MS", "interval_default_ms": 10,
+                              "device_env": "ALEMS_PRAVAHA_DEVICE"},
+        },
+        {
+            "id":            "kv_occupancy_vllm",
+            "name":          "vLLM KV Cache Occupancy and Queue",
+            "provenance":    "MEASURED",
+            "layer":         "application",
+            "confidence":    0.9,
+            "description":   (
+                "vLLM /metrics polled during the run at the configured interval "
+                "(ALEMS_SERVING_SNAPSHOT_INTERVAL_S, default 0.5 s): kv_cache_usage_perc "
+                "(fraction of KV blocks held by running requests), num_requests_running, "
+                "num_requests_waiting. KV use and queue are separate snapshot types. "
+                "Missing metrics are NULL."
+            ),
+            "formula_latex": r"f_{kv} = \frac{blocks_{used}}{blocks_{total}}",
+            "parameters":    {"interval_env": "ALEMS_SERVING_SNAPSHOT_INTERVAL_S",
+                              "interval_default_s": 0.5, "metric": "vllm:kv_cache_usage_perc"},
+        },
+        {
+            "id":            "kv_occupancy_sglang",
+            "name":          "SGLang KV Token Pool Usage and Queue",
+            "provenance":    "MEASURED",
+            "layer":         "application",
+            "confidence":    0.85,
+            "description":   (
+                "SGLang /metrics polled during the run at the configured interval "
+                "(ALEMS_SERVING_SNAPSHOT_INTERVAL_S, default 0.5 s): token_usage (fraction "
+                "of the KV token pool in use, radix cache included, so it can stay high "
+                "after requests end) and num_running_reqs. Not equivalent to vLLM "
+                "kv_cache_usage_perc. Missing metrics are NULL."
+            ),
+            "formula_latex": r"f_{tok} = \frac{tokens_{used}}{tokens_{pool}}",
+            "parameters":    {"interval_env": "ALEMS_SERVING_SNAPSHOT_INTERVAL_S",
+                              "interval_default_s": 0.5, "metric": "sglang:token_usage"},
+        },
+        {
+            "id":            "server_age_variables",
+            "name":          "Server Age Variables",
+            "provenance":    "MEASURED",
+            "layer":         "os",
+            "confidence":    0.9,
+            "description":   (
+                "Per run, at the run start: time since boot (/proc/stat btime), time "
+                "since the serving instance started (process start time), GPU busy "
+                "seconds observed in A-LEMS samples since that start (lower bound), GPU "
+                "temperature and clocks from the run's first GPU sample. Driver load "
+                "time is NULL where no trustworthy source exists."
+            ),
+            "formula_latex": r"a_{boot} = t_{run} - t_{btime},\; a_{srv} = t_{run} - t_{srv}",
+            "parameters":    {"driver_load_source": "none"},
+        },
+        {
+            "id":            "engine_instance_match_v1",
+            "name":          "Serving Engine Instance Match",
+            "provenance":    "SYSTEM",
+            "layer":         "application",
+            "confidence":    1.0,
+            "description":   (
+                "Maps each experiment to the serving process listening on the provider "
+                "port by PID and process start time, matched to the serve script "
+                "provenance record. Records child worker processes with association "
+                "status confirmed, inferred or unknown. Missing facts are NULL and "
+                "match_method states why."
+            ),
+            "formula_latex": r"match \iff pid_{json} = pid_{listener} \land |t_{json} - t_{listener}| \le 1\,s",
+            "parameters":    {"start_tolerance_s": 1.0, "provenance_schema": "ai_stack_provenance_v2"},
+        },
+        {
             "id":            "iokit_gpu_energy_v1",
             "name":          "Apple IOKit GPU Energy (powermetrics)",
             "provenance":    "MEASURED",

@@ -334,8 +334,9 @@ class SamplesRepository:
                     (span_id, trace_id, parent_span_id, run_id,
                      vocabulary, vocabulary_version, kind, name,
                      start_ns, end_ns, start_wall, status,
-                     tenant_kind, tenant_ref)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                     tenant_kind, tenant_ref,
+                     start_mono_ns, end_mono_ns, timing_quality, timing_source, parent_source)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (
                     r["span_id"], r["trace_id"], r.get("parent_span_id"), run_id,
@@ -344,6 +345,8 @@ class SamplesRepository:
                     r["start_ns"], r.get("end_ns"), r.get("start_wall"),
                     r.get("status", "closed"),
                     r.get("tenant_kind"), r.get("tenant_ref"),
+                    r.get("start_mono_ns"), r.get("end_mono_ns"), r.get("timing_quality"),
+                    r.get("timing_source"), r.get("parent_source"),
                 ),
             )
             for p in r.get("placements", []):

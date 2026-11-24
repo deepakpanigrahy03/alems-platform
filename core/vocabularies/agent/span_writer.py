@@ -1,15 +1,18 @@
 # core/vocabularies/agent/span_writer.py
-# In-memory span builder used by the runner during a measurement window.
+# In-memory span accumulator; persisted after the run row exists (EEI-4).
 #
-# Design constraints (section 3a):
-# - Inside the measurement window, all operations are list appends only.
-#   No I/O, no DB, no locks beyond the list itself.
-# - Timestamps use time.perf_counter_ns() which is the same source already
-#   used in harness.py for duration computations.
-# - Persistence (flush_to_db) is called AFTER insert_run() assigns run_id,
-#   matching the EEI-4 pattern used for samples.
-# - flush_to_db accepts a DatabaseManager instance, never a raw connection.
-#   All writes go through db.insert_spans() (WCC-1, WCC-3).
+# Two ways to create a span (45.8, review decision A):
+# - open_span / close_span: LIVE capture of an operation happening now. Reads the
+#   wall clock (time.time_ns, the clock of runs and energy samples) and the
+#   monotonic clock (time.monotonic_ns, for elapsed time and wall clock jumps),
+#   and notifies span listeners (for example NVTX). List appends only, safe
+#   inside the measurement window.
+# - record_span: RECONSTRUCTION of an operation from stored or result data. Never
+#   reads a clock, never notifies listeners. Times come from the source; an
+#   unknown end stays NULL with timing_quality 'unknown', never "now".
+# Span status is the execution outcome (open, closed, error); timing_quality
+# (observed, derived, unknown) and timing_source say how the times were obtained.
+# flush_to_db accepts a DatabaseManager, never a raw connection (WCC-1, WCC-3).
 
 import time
 import uuid
@@ -18,229 +21,215 @@ from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
+TIMING_QUALITY = ("observed", "derived", "unknown")
+
 
 def _new_span_id() -> str:
-    """Generate a globally unique span id as a hex UUID4 string."""
+    """Globally unique span id (hex UUID4)."""
     return uuid.uuid4().hex
 
 
 class SpanRecord:
-    """
-    Lightweight in-memory representation of one span.
-
-    Fields map directly to the spans table columns.
-    Created by SpanWriter.open_span(); closed by SpanWriter.close_span().
-    """
+    """One span; fields map to the spans table columns."""
 
     __slots__ = (
         "span_id", "trace_id", "parent_span_id", "run_id",
         "vocabulary", "vocabulary_version", "kind", "name",
-        "start_ns", "end_ns", "start_wall", "status",
+        "start_ns", "end_ns", "start_mono_ns", "end_mono_ns", "start_wall", "status",
+        "timing_quality", "timing_source", "parent_source",
         "tenant_kind", "tenant_ref", "provenance_ref",
         "placements", "attributes", "events",
     )
 
-    def __init__(
-        self,
-        span_id: str,
-        trace_id: str,
-        parent_span_id: Optional[str],
-        kind: str,
-        name: str,
-        start_ns: int,
-        vocabulary: str = "agent",
-        vocabulary_version: str = "1",
-        tenant_kind: Optional[str] = None,
-        tenant_ref: Optional[str] = None,
-    ) -> None:
-        self.span_id            = span_id
-        self.trace_id           = trace_id
-        self.parent_span_id     = parent_span_id
-        self.run_id             = None           # set by flush_to_db after insert_run
-        self.vocabulary         = vocabulary
+    def __init__(self, span_id, trace_id, parent_span_id, kind, name, start_ns,
+                 vocabulary="agent", vocabulary_version="1", tenant_kind=None, tenant_ref=None):
+        # type: (str, str, Optional[str], str, str, int, str, str, Optional[str], Optional[str]) -> None
+        self.span_id = span_id
+        self.trace_id = trace_id
+        self.parent_span_id = parent_span_id
+        self.run_id = None              # set by flush_to_db
+        self.vocabulary = vocabulary
         self.vocabulary_version = vocabulary_version
-        self.kind               = kind
-        self.name               = name
-        self.start_ns           = start_ns
-        self.end_ns             = None           # set by close_span
-        self.start_wall         = None           # set on open if caller provides it
-        self.status             = "open"
-        self.tenant_kind        = tenant_kind
-        self.tenant_ref         = tenant_ref
-        self.provenance_ref     = None
-        self.placements: List[Dict[str, Any]] = []
-        self.attributes: Dict[str, Any] = {}
-        self.events: List[Dict[str, Any]] = []
+        self.kind = kind
+        self.name = name
+        self.start_ns = start_ns        # wall clock epoch ns
+        self.end_ns = None              # wall clock epoch ns, NULL when unknown
+        self.start_mono_ns = None       # monotonic ns, only when observed live
+        self.end_mono_ns = None
+        self.start_wall = None
+        self.status = "open"
+        self.timing_quality = "observed"
+        self.timing_source = None
+        self.parent_source = "observed"
+        self.tenant_kind = tenant_kind
+        self.tenant_ref = tenant_ref
+        self.provenance_ref = None
+        self.placements = []            # type: List[Dict[str, Any]]
+        self.attributes = {}            # type: Dict[str, Any]
+        self.events = []                # type: List[Dict[str, Any]]
 
 
 class SpanWriter:
     """
-    In-memory span accumulator for one run.
+    In-memory span accumulator.
 
-    Usage pattern (mirrors sample buffer pattern in EEI-3):
       writer = SpanWriter(trace_id)
-      run_span_id = writer.open_span(kind='run', name='gsm8k_basic#42')
-      # ... measurement window (list appends only inside) ...
-      writer.close_span(run_span_id)
-      # after insert_run() returns run_id:
-      writer.flush_to_db(db, run_id)   # db is DatabaseManager, never raw conn
+      sid = writer.record_span("run", "agentic:t3", None, start_ns, end_ns, timing_source="runs")
+      ...                                   # or open_span/close_span for live operations
+      writer.flush_to_db(db, run_id)        # after the run row exists
     """
 
-    def __init__(self, trace_id: Optional[str] = None) -> None:
-        # One trace per experiment session; generate if not provided.
-        self.trace_id: str = trace_id or uuid.uuid4().hex
-        self._spans: List[SpanRecord] = []
-        self._open: Dict[str, SpanRecord] = {}   # span_id -> SpanRecord while open
+    def __init__(self, trace_id=None):
+        # type: (Optional[str]) -> None
+        self.trace_id = trace_id or uuid.uuid4().hex   # type: str
+        self._spans = []    # type: List[SpanRecord]
+        self._open = {}     # type: Dict[str, SpanRecord]
+        self._by_id = {}    # type: Dict[str, SpanRecord]
 
-    def open_span(
-        self,
-        kind: str,
-        name: str,
-        parent_span_id: Optional[str] = None,
-        tenant_kind: Optional[str] = None,
-        tenant_ref: Optional[str] = None,
-        vocabulary: str = "agent",
-        vocabulary_version: str = "1",
-    ) -> str:
-        """
-        Open a new span.
-        Returns the span_id for use in close_span and child spans.
-        List-append only; safe inside the measurement window.
-        """
-        span_id = _new_span_id()
-        start_ns = time.perf_counter_ns()
-        record = SpanRecord(
-            span_id=span_id,
-            trace_id=self.trace_id,
-            parent_span_id=parent_span_id,
-            kind=kind,
-            name=name,
-            start_ns=start_ns,
-            vocabulary=vocabulary,
-            vocabulary_version=vocabulary_version,
-            tenant_kind=tenant_kind,
-            tenant_ref=tenant_ref,
-        )
-        self._spans.append(record)
-        self._open[span_id] = record
-        return span_id
+    # ── live capture ────────────────────────────────────────────────────────
+    def open_span(self, kind, name, parent_span_id=None, tenant_kind=None, tenant_ref=None,
+                  vocabulary="agent", vocabulary_version="1", span_id=None):
+        # type: (str, str, Optional[str], Optional[str], Optional[str], str, str, Optional[str]) -> str
+        """Open a span for an operation starting now (live). Notifies listeners."""
+        record = SpanRecord(span_id or _new_span_id(), self.trace_id, parent_span_id, kind, name,
+                            time.time_ns(), vocabulary, vocabulary_version, tenant_kind, tenant_ref)
+        record.start_mono_ns = time.monotonic_ns()
+        record.timing_source = "live"
+        self._add(record)
+        self._open[record.span_id] = record
+        from core.observability import span_listeners
+        span_listeners.on_open(record)
+        return record.span_id
 
-    def close_span(self, span_id: str, status: str = "closed") -> None:
-        """
-        Close an open span.
-        end_ns is recorded; status set to closed or error.
-        List mutation only; safe inside the measurement window.
-        """
+    def close_span(self, span_id, status="closed"):
+        # type: (str, str) -> None
+        """Close a live span now. Notifies listeners."""
         record = self._open.pop(span_id, None)
         if record is None:
-            # Already closed or never opened; log and ignore.
             logger.warning("SpanWriter: close_span called on unknown span_id %s", span_id)
             return
-        record.end_ns = time.perf_counter_ns()
+        record.end_ns = time.time_ns()
+        record.end_mono_ns = time.monotonic_ns()
         record.status = status if status in ("closed", "error") else "closed"
+        from core.observability import span_listeners
+        span_listeners.on_close(record)
 
-    def add_placement(
-        self,
-        span_id: str,
-        node: str,
-        device: str,
-        phase: Optional[str] = None,
-    ) -> None:
+    # ── reconstruction ──────────────────────────────────────────────────────
+    def record_span(self, kind, name, parent_span_id, start_ns, end_ns, timing_source,
+                    timing_quality=None, parent_source="observed", status="closed", span_id=None,
+                    start_mono_ns=None, end_mono_ns=None, attributes=None, vocabulary="agent",
+                    vocabulary_version="1"):
+        # type: (...) -> Optional[str]
         """
-        Add a device placement to an open span.
-        List-append only; safe inside measurement window.
+        Record a span whose times come from a source (never from a clock).
+
+        start_ns is required: an operation without a known start cannot be placed and is
+        not recorded (logged; returns None). An unknown end stays None with
+        timing_quality 'unknown'. Listeners are not notified.
         """
-        record = self._open.get(span_id)
+        if start_ns is None:
+            logger.warning("SpanWriter.record_span: %s %r has no known start; not recorded", kind, name)
+            return None
+        record = SpanRecord(span_id or _new_span_id(), self.trace_id, parent_span_id, kind, name,
+                            int(start_ns), vocabulary, vocabulary_version)
+        record.end_ns = int(end_ns) if end_ns is not None else None
+        record.start_mono_ns, record.end_mono_ns = start_mono_ns, end_mono_ns
+        record.timing_source = timing_source
+        record.timing_quality = timing_quality or ("observed" if end_ns is not None else "unknown")
+        if record.timing_quality not in TIMING_QUALITY:
+            raise ValueError("timing_quality %r not in %s" % (record.timing_quality, TIMING_QUALITY))
+        record.parent_source = parent_source
+        record.status = status if status in ("closed", "error") else "closed"
+        record.attributes.update({k: v for k, v in (attributes or {}).items() if v is not None})
+        self._add(record)
+        return record.span_id
+
+    # ── details ─────────────────────────────────────────────────────────────
+    def add_placement(self, span_id, node, device, phase=None):
+        # type: (str, str, str, Optional[str]) -> None
+        """Device placement over the span's own interval (live: from now until close)."""
+        record = self._by_id.get(span_id)
         if record is None:
-            logger.warning("SpanWriter: add_placement on unknown/closed span %s", span_id)
+            logger.warning("SpanWriter: add_placement on unknown span %s", span_id)
             return
-        start_ns = time.perf_counter_ns()
-        record.placements.append({
-            "node": node, "device": device,
-            "phase": phase, "start_ns": start_ns, "end_ns": None,
-        })
+        live = span_id in self._open
+        record.placements.append({"node": node, "device": device, "phase": phase,
+                                  "start_ns": time.time_ns() if live else record.start_ns,
+                                  "end_ns": None if live else record.end_ns})
 
-    def set_attribute(self, span_id: str, key: str, value: Any) -> None:
-        """
-        Set an attribute on an open span.
-        Attributes are immutable after close (INV-10); enforces open-only writes.
-        """
-        record = self._open.get(span_id)
+    def set_attribute(self, span_id, key, value):
+        # type: (str, str, Any) -> None
+        """Attribute on an open live span, or on a recorded span (not yet flushed)."""
+        record = self._by_id.get(span_id)
         if record is None:
-            logger.warning("SpanWriter: set_attribute on unknown/closed span %s", span_id)
+            logger.warning("SpanWriter: set_attribute on unknown span %s", span_id)
+            return
+        if record.run_id is not None:
+            logger.warning("SpanWriter: set_attribute after flush on %s ignored (INV-10)", span_id)
             return
         record.attributes[key] = value
 
-    def flush_to_db(self, db, run_id: int) -> int:
+    def add_event(self, span_id, event_type, ts_ns, attributes=None):
+        # type: (str, str, Optional[int], Optional[Dict[str, Any]]) -> None
+        """Event on a span at a source time (ts_ns None when unknown)."""
+        record = self._by_id.get(span_id)
+        if record is None:
+            logger.warning("SpanWriter: add_event on unknown span %s", span_id)
+            return
+        record.events.append({"event_type": event_type, "ts_ns": ts_ns, "attributes": attributes or {}})
+
+    def get(self, span_id):
+        # type: (str) -> Optional[SpanRecord]
+        return self._by_id.get(span_id)
+
+    def _add(self, record):
+        # type: (SpanRecord) -> None
+        self._spans.append(record)
+        self._by_id[record.span_id] = record
+
+    # ── persistence ─────────────────────────────────────────────────────────
+    def flush_to_db(self, db, run_id):
+        # type: (Any, int) -> int
         """
-        Persist all accumulated spans through DatabaseManager (WCC-1, WCC-3).
-        Called AFTER insert_run() so run_id is available (EEI-4).
-
-        Args:
-            db:     DatabaseManager instance — same object used by save_pair/save_single.
-                    Never a raw sqlite3 connection.
-            run_id: Assigned by insert_run(); links spans to the runs table.
-
-        Returns:
-            Number of span rows flushed.
+        Persist all spans through DatabaseManager (WCC-1, WCC-3), after the run row
+        exists (EEI-4). A live span still open is stored with status error and an
+        unknown end (no clock is read to fake one).
         """
-
-        # Force-close any spans still open (should not happen in normal flow).
         for span_id, record in list(self._open.items()):
-            logger.warning(
-                "SpanWriter.flush_to_db: span %s (kind=%s) still open at flush; force-closing",
-                span_id, record.kind,
-            )
-            record.end_ns = time.perf_counter_ns()
-            record.status = "error"
+            logger.warning("SpanWriter.flush_to_db: span %s (kind=%s) still open; end unknown",
+                           span_id, record.kind)
+            record.status, record.timing_quality = "error", "unknown"
         self._open.clear()
-
         if not self._spans:
             return 0
-
-        # Serialize spans to plain dicts for DatabaseManager.insert_spans.
-        # No raw conn access here (WCC-1, WCC-3).
         records = []
         for record in self._spans:
             record.run_id = run_id
             records.append({
-                "span_id":            record.span_id,
-                "trace_id":           record.trace_id,
-                "parent_span_id":     record.parent_span_id,
-                "vocabulary":         record.vocabulary,
-                "vocabulary_version": record.vocabulary_version,
-                "kind":               record.kind,
-                "name":               record.name,
-                "start_ns":           record.start_ns,
-                "end_ns":             record.end_ns,
-                "start_wall":         record.start_wall,
-                "status":             record.status,
-                "tenant_kind":        record.tenant_kind,
-                "tenant_ref":         record.tenant_ref,
-                "placements":         record.placements,
-                "attributes":         record.attributes,
-                "events":             getattr(record, "events", []),
+                "span_id": record.span_id, "trace_id": record.trace_id,
+                "parent_span_id": record.parent_span_id, "vocabulary": record.vocabulary,
+                "vocabulary_version": record.vocabulary_version, "kind": record.kind,
+                "name": record.name, "start_ns": record.start_ns, "end_ns": record.end_ns,
+                "start_mono_ns": record.start_mono_ns, "end_mono_ns": record.end_mono_ns,
+                "start_wall": record.start_wall, "status": record.status,
+                "timing_quality": record.timing_quality, "timing_source": record.timing_source,
+                "parent_source": record.parent_source,
+                "tenant_kind": record.tenant_kind, "tenant_ref": record.tenant_ref,
+                "placements": record.placements, "attributes": record.attributes,
+                "events": record.events,
             })
-
-
         try:
             db.insert_spans(run_id, records)
         except Exception as exc:
-            # Span persistence must never abort the run (Rule S, additive only).
+            # Span persistence never aborts the run (Rule S, additive only).
             logger.warning("SpanWriter.flush_to_db: insert_spans failed: %s", exc)
             return 0
-
         return len(records)
 
 
-def _encode_attribute(value: Any):
+def _encode_attribute(value):
     # type: (Any) -> tuple
-    """
-    Encode a Python value for span_attributes storage.
-
-    Returns:
-        (value_type, value_text) tuple.
-    """
+    """(value_type, value_text) for span_attributes storage."""
     import json  # noqa: PLC0415 -- deferred to avoid module-level cost
     if isinstance(value, bool):
         return ("bool", "true" if value else "false")
@@ -250,7 +239,6 @@ def _encode_attribute(value: Any):
         return ("float", str(value))
     if isinstance(value, str):
         return ("string", value)
-    # Fall back to JSON for dicts, lists, etc.
     try:
         return ("json", json.dumps(value))
     except Exception:

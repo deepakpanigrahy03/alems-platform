@@ -300,6 +300,7 @@ class AgenticExecutor:
         # ====================================================================
         orchestration_start = time.time()
         plan_start = time.time()
+        self._live_spans().begin_phase("planning")
         call_counter += 1
         if tool_graph:
             self._current_task_prompt = task  # store for planner resolution
@@ -396,6 +397,7 @@ class AgenticExecutor:
         # Phase 2: Execution – Run each step (tool or LLM)
         # ====================================================================
         exec_start = time.time()
+        self._live_spans().begin_phase("execution")
         step_results, tools_used = [], []
         tokens = {"prompt": 0, "completion": 0, "total": 0}
         total_llm_calls = 0
@@ -509,6 +511,7 @@ class AgenticExecutor:
         # Phase 3: Synthesis – Combine all results (1 call)
         # ====================================================================
         syn_start = time.time()
+        self._live_spans().begin_phase("synthesis")
         call_counter += 1
         synthesis = self._synthesize(
             task, steps, step_results, call_counter=call_counter
@@ -926,6 +929,7 @@ You can use tools like calculator or web search if needed.
             last = self._events[-1]
             last["end_time_ns"] = int(tool_end * 1e9)
             last["duration_ns"] = int((tool_end - tool_start) * 1e9)
+            self._live_spans().end(last.get("span_id"), "closed" if result.success else "error")
             last["metadata"].update({
                 "tool_name":            name,
                 "success":              result.success,
@@ -1269,6 +1273,9 @@ You can use tools like calculator or web search if needed.
  
         # B17: start time taken before the call so a failed call still has one
         call_start_ns = time.time_ns()
+        _live = self._live_spans()
+        _llm_parent = _live.phase
+        _llm_sid = _live.begin("llm_call", "llm:%s" % self.config.get("model_id", "unknown"), _llm_parent)
         try:
             result              = self._adapter.call(prompt, temp)
             content             = result["content"]
@@ -1288,7 +1295,10 @@ You can use tools like calculator or web search if needed.
             self._api_latencies.append(total_time_ms)
             self._effective_kbps_list.append(app_throughput_kbps)
  
+            _live.end(_llm_sid)
             interaction = {
+                "span_id":                  _llm_sid,
+                "parent_span_id":           _llm_parent,
                 "step_index":               call_counter if call_counter is not None else self._call_count,
                 "workflow_type":            "agentic",
                 "prompt":                   prompt,
@@ -1315,7 +1325,8 @@ You can use tools like calculator or web search if needed.
                 "streaming_enabled":   phase_metrics.get("streaming_enabled", 0),
                 "first_token_time_ns": phase_metrics.get("first_token_time_ns"),
                 "last_token_time_ns":  phase_metrics.get("last_token_time_ns"), 
-                "request_start_ns":    phase_metrics.get("request_start_ns"),               
+                "request_start_ns":    phase_metrics.get("request_start_ns"),
+                "ttft_null_reason":    phase_metrics.get("ttft_null_reason"),               
                 "status":                   "success",
             }
  
@@ -1343,7 +1354,10 @@ You can use tools like calculator or web search if needed.
             logger.error("Adapter call failed in agentic: %s", e)
             if not hasattr(self, "pending_interactions"):
                 self.pending_interactions = []
+            _live.end(_llm_sid, "error")
             interaction = {
+                "span_id":              _llm_sid,
+                "parent_span_id":       _llm_parent,
                 "step_index":           call_counter if call_counter is not None else self._call_count,
                 "workflow_type":        "agentic",
                 "prompt":               prompt,
@@ -1393,6 +1407,13 @@ You can use tools like calculator or web search if needed.
             }
 
 
+    def _live_spans(self):
+        """Live span ids of this execution (45.8 D); created on first use."""
+        if getattr(self, "_live", None) is None:
+            from core.observability.live_spans import LiveSpans
+            self._live = LiveSpans()
+        return self._live
+
     def _emit_event(
         self,
         phase: str,
@@ -1433,5 +1454,15 @@ You can use tools like calculator or web search if needed.
             "metadata": metadata or {},
             "attempt_id": resolved_attempt_id,
         }
+        # 45.8 D: live span identity. A phase event (emitted at the phase end) closes the
+        # phase opened at its start; a tool_call event (emitted at the tool start) opens a
+        # live span under the phase running now. The ids travel with the event.
+        live = self._live_spans()
+        if event_type == phase and phase in ("planning", "execution", "synthesis") and live.phase:
+            event["span_id"] = live.end_phase()
+        elif event_type == "tool_call":
+            event["parent_span_id"] = live.phase
+            event["span_id"] = live.begin(
+                "tool_call", "tool:%s" % ((metadata or {}).get("tool") or "unknown"), live.phase)
         self._events.append(event)
         logger.debug("event %s.%s (%.2f ms)", phase, event_type, event["duration_ns"] / 1e6)

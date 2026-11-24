@@ -1,0 +1,25 @@
+# Paper 5 arm P5-A: kernel reads and writes over memory placements at 16 MiB.
+# 5 allocation and prefetch combinations x 2 operations = 10 treatments, plus one held control
+# per combination. One cycle is about 70 minutes (each step 60 s plus pre and post idle and settle).
+# After the session: alems sequence --kernel-pass SESSION_ID   (one Nsight Compute pass per condition)
+sequence:
+  name: p5a_placements_16mib
+  cycles: 1                      # use a multiple of 15 for full counterbalancing
+  seed: 20261124
+  baseline: {kind: idle, duration_s: 60}
+blocks:
+  - {condition: device_read,          treatment: {kind: kernel_rw, placement: device,   op: read,  size_mib: 16, duration_s: 60}}
+  - {condition: device_write,         treatment: {kind: kernel_rw, placement: device,   op: write, size_mib: 16, duration_s: 60}}
+  - {condition: pinned_read,          treatment: {kind: kernel_rw, placement: pinned,   op: read,  size_mib: 16, duration_s: 60}}
+  - {condition: pinned_write,         treatment: {kind: kernel_rw, placement: pinned,   op: write, size_mib: 16, duration_s: 60}}
+  - {condition: pageable_read,        treatment: {kind: kernel_rw, placement: pageable, op: read,  size_mib: 16, duration_s: 60}}
+  - {condition: pageable_write,       treatment: {kind: kernel_rw, placement: pageable, op: write, size_mib: 16, duration_s: 60}}
+  - {condition: managed_none_read,    treatment: {kind: kernel_rw, placement: managed,  op: read,  size_mib: 16, duration_s: 60, prefetch: none}}
+  - {condition: managed_none_write,   treatment: {kind: kernel_rw, placement: managed,  op: write, size_mib: 16, duration_s: 60, prefetch: none}}
+  - {condition: managed_device_read,  treatment: {kind: kernel_rw, placement: managed,  op: read,  size_mib: 16, duration_s: 60, prefetch: device}}
+  - {condition: managed_device_write, treatment: {kind: kernel_rw, placement: managed,  op: write, size_mib: 16, duration_s: 60, prefetch: device}}
+  - {condition: device_hold,          treatment: {kind: kernel_rw, placement: device,   op: read,  size_mib: 16, duration_s: 60, control: true}}
+  - {condition: pinned_hold,          treatment: {kind: kernel_rw, placement: pinned,   op: read,  size_mib: 16, duration_s: 60, control: true}}
+  - {condition: pageable_hold,        treatment: {kind: kernel_rw, placement: pageable, op: read,  size_mib: 16, duration_s: 60, control: true}}
+  - {condition: managed_none_hold,    treatment: {kind: kernel_rw, placement: managed,  op: read,  size_mib: 16, duration_s: 60, prefetch: none,   control: true}}
+  - {condition: managed_device_hold,  treatment: {kind: kernel_rw, placement: managed,  op: read,  size_mib: 16, duration_s: 60, prefetch: device, control: true}}

@@ -1,0 +1,13 @@
+method_id: kv_occupancy_vllm
+provenance: MEASURED
+confidence: 0.9
+parameters:
+  interval_env: ALEMS_SERVING_SNAPSHOT_INTERVAL_S
+  interval_default_s: 0.5
+  metric: vllm:kv_cache_usage_perc
+references:
+  - title: "vLLM production metrics"
+    authors: "vLLM project"
+    year: 2026
+    ref_type: manual
+    relevance: "Definition of the KV usage and queue metrics exported on /metrics."

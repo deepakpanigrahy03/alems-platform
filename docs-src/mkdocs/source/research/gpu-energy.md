@@ -538,3 +538,96 @@ $$E_{gpu,baseline} = P_{gpu,idle} \times t_{run}$$
 ### Known Limitations
 
 A stored idle value from a different thermal state can exceed a short run's own GPU power and give negative dynamic energy; such values are logged, not clamped silently (B29), and the per domain idle rules of the B33 contract replace this method for new runs once implemented.
+
+## GPU Memory Traffic (pravaha) { #gpu-l2-traffic-pravaha-v1 }
+
+---
+**Method ID:** gpu_l2_traffic_pravaha_v1
+**Schema version:** namespace energy_validation e004 (energy_validation_gpu_mem_traffic_runs, energy_validation_gpu_mem_traffic_samples)
+**Platforms verified:** NVIDIA Grace GB10 (GN100, aarch64)
+**Status:** REVIEW
+---
+
+### Overview
+During each run's energy window the platform records how many bytes the GPU moves, from five GPU L2 cache counters sampled every `ALEMS_PRAVAHA_INTERVAL_MS` (default 10 ms) by the pravaha library in a separate reader process: copy engine bytes, kernel read miss bytes, kernel write bytes, all read miss bytes and all write bytes.
+On GB10, all reads plus all writes estimates the payload crossing NVLink-C2C between CPU memory and the GPU.
+Traffic readers are a generic reader family (`alems.readers.traffic`); pravaha is its first plugin, and a machine without a traffic plugin stores a run record with status `unavailable` and its reason.
+
+### Platform Coverage
+| Platform | Architecture | Source | Canonical Role | Confidence | Status |
+|---|---|---|---|---|---|
+| NVIDIA Grace GB10 | aarch64 | CUPTI PM sampling via pravaha | GPU memory traffic | 0.9 | PENDING |
+| Other GPUs | any | none yet | none | none | PLANNED |
+
+### Schema
+`energy_validation_gpu_mem_traffic_runs`: one row per run and reader; status (measured, unavailable, failed), reason, library version, driver, CUDA, interval, device, sample count, idle baseline and reader quality as JSON.
+`energy_validation_gpu_mem_traffic_samples`: one row per sample; t_start_ns, t_end_ns, interval_ns, the five byte columns, phase, measurement scope (`device_wide`), quality flag.
+Raw bytes are stored; background subtraction happens in analysis. Missing values are NULL, never 0. Totals include their source columns: never add the all_* columns to copy_* or kernel_*.
+
+### Method Provenance
+MEASURED, layer silicon, confidence 0.9: counts come from the GPU's own counters, validated on GN100 and DGX Spark (see the CAL letter); the remaining uncertainty is device wide scope (other processes on the GPU are counted) and idle background, which analysis removes with the stored baseline. Reaching 1.0 would need per process counters, which the hardware does not provide.
+
+### Query Reference
+**Bytes moved per run.** NVIDIA Grace GB10.
+```sql
+SELECT run_id, SUM(copy_bytes) AS copy_b, SUM(all_read_miss_bytes) AS read_b,
+       SUM(all_write_bytes) AS write_b,
+       SUM(all_read_miss_bytes) + SUM(all_write_bytes) AS c2c_estimate_b
+FROM energy_validation_gpu_mem_traffic_samples
+GROUP BY run_id ORDER BY run_id DESC LIMIT 20;
+```
+**Runs without traffic data and why.**
+```sql
+SELECT run_id, reader, status, reason FROM energy_validation_gpu_mem_traffic_runs
+WHERE status <> 'measured' ORDER BY run_id DESC LIMIT 20;
+```
+
+### Verification
+1. `pravaha status` reports ready.
+2. Run one short experiment; the runs table shows status `measured` and a sample count near window length divided by the interval.
+3. A known copy during a run gives copy_bytes within the pravaha documented spread.
+
+### Known Limitations
+- **Device wide**: all processes on the GPU are counted. Workaround: dedicated machine (declared per experiment).
+- **Not a link meter**: the C2C value is an estimate from L2 traffic, not a link counter.
+- **Idle background**: present in every sample. Workaround: subtract the stored baseline in analysis.
+- **One reader per GPU**: a second reader is refused; the run records status `failed` with the reason.
+
+## Per Kernel L2 Traffic (Nsight Compute pass) {#kernel-traffic-ncu-v1}
+
+**Method** `kernel_traffic_ncu_v1`, provenance MEASURED.
+
+**What it answers.** Which GPU kernels moved the bytes that the live pravaha reader reports as a total for a run.
+
+**How.** The workload runs a second time under Nsight Compute. For every kernel launch two L2 counters are read:
+
+| Stored column | Counter | Meaning |
+|---|---|---|
+| read_sectors | `lts__d_sectors_fill_sysmem.sum` | sectors filled from memory (L2 misses) |
+| write_sectors | `lts__t_sectors_aperture_sysmem_op_write.sum` | sectors written toward memory |
+| write_requests | `lts__t_requests_aperture_sysmem_op_write.sum` | diagnostic only; one request can touch several sectors |
+| device_fill_sectors | `lts__d_sectors_fill_device.sum` | diagnostic only; 0 expected on GB10 |
+
+$B_{read} = 32\,S_{read}$ and $B_{write} = 32\,S_{write}$. These are per kernel L2 read and write bytes, not the logical copy bytes of the copy benchmark: copy engine transfers never appear here.
+
+**Never timed, never used for energy.** Nsight Compute replays each kernel and, with cache control `all` (default), flushes caches before each replay iteration. Extra misses can raise reads relative to a normal run. The pass is a separate execution outside the measured path.
+
+**Comparison with a matched run.** Pass reads are compared with the run's `kernel_read_miss_bytes`, and pass writes with its `kernel_write_bytes`, separately. A ratio is stored only when both measurements cover the same traffic. Otherwise the reason is stored and the ratio is NULL:
+
+| agreement_status | When |
+|---|---|
+| no_reference | no matched run, or no traffic record for it |
+| insufficient_coverage | the matched record is not measured or has no samples |
+| scope_mismatch | a kernel regex or launch limit selects a subset |
+| device_mismatch | the pass ran on another device than the matched reader |
+| zero_reference | the matched kernel bytes were measured as 0 |
+| within / outside | both ratios inside or outside the band `ALEMS_KTRAFFIC_TOL` (default 0.25) |
+| not_evaluated | the pass failed |
+
+The band is a diagnostic threshold, not an uncertainty. The pravaha reference is device wide and includes setup and background kernels.
+
+**Failures.** A timeout, a nonzero exit, no kernel data, no permission or a missing counter stores status `failed` with the reason, and NULL byte totals. A failed pass never looks like zero traffic.
+
+**Feasibility.** Each pass first runs a probe (a command launching one GPU kernel, set by `ALEMS_KTRAFFIC_PROBE_CMD`; cudaMemset is not a kernel) under the full metric set, and stores pass, fail or unavailable together with the ncu path and version and the driver profiling flag. On Linux, profiling as a normal user needs `options nvidia NVreg_RestrictProfilingToAdminUsers=0` and a reboot.
+
+**Scope.** Supported: targets launched for profiling (commands, benchmark steps). Not supported in this version: an independently running serving engine, because a busy server's launches cannot yet be attributed to the intended request across workers, warm up and batching.

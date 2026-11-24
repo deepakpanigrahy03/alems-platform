@@ -63,7 +63,8 @@ CREATE TABLE IF NOT EXISTS experiments (
     experiment_goal TEXT,                             -- free-text description of what this experiment measures
     experiment_notes TEXT,                            -- free-text operational notes
     hw_id INTEGER REFERENCES hardware_config(hw_id),
-    env_id INTEGER REFERENCES environment_config(env_id),    
+    env_id INTEGER REFERENCES environment_config(env_id),
+    gpu_id INTEGER REFERENCES gpu_config(gpu_id),   -- gpu_config row (driver, VBIOS) current at creation; NULL if none (v125)    
     is_valid INTEGER NOT NULL DEFAULT 1,              -- 0 = development artifact, excluded from paper queries
     invalidation_reason TEXT,                         -- reason for invalidation if is_valid=0
     invalidated_at TIMESTAMP,                         -- when invalidated
@@ -86,7 +87,7 @@ BEGIN
         WHEN NEW.experiment_type IS NULL OR NEW.experiment_type NOT IN (
             'normal','overhead_study','retry_study','failure_injection',
             'quality_sweep','calibration','ablation','pilot','debug',
-            'thermal_session'
+            'thermal_session','benchmark'
         )
         THEN RAISE(ABORT, 'Invalid experiment_type value')
     END;
@@ -99,7 +100,7 @@ BEGIN
         WHEN NEW.experiment_type IS NULL OR NEW.experiment_type NOT IN (
             'normal','overhead_study','retry_study','failure_injection',
             'quality_sweep','calibration','ablation','pilot','debug',
-            'thermal_session'
+            'thermal_session','benchmark'
         )
         THEN RAISE(ABORT, 'Invalid experiment_type value')
     END;
@@ -2087,6 +2088,7 @@ CREATE TABLE IF NOT EXISTS llm_interactions (
     tcp_retransmits INTEGER,
     error_message TEXT,
     status TEXT,
+    ttft_null_reason TEXT,               -- why ttft_ms is NULL: stream_failed_fallback, zero_tokens, call_failed (v126)
     global_run_id TEXT,               -- cross-machine run correlation ID
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -3681,6 +3683,11 @@ CREATE TABLE IF NOT EXISTS spans (
     tenant_kind      TEXT,
     tenant_ref       TEXT,
     provenance_ref   TEXT,
+    start_mono_ns    INTEGER,   -- monotonic ns when observed live (v128)
+    end_mono_ns      INTEGER,
+    timing_quality   TEXT CHECK (timing_quality IN ('observed', 'derived', 'unknown')),
+    timing_source    TEXT,      -- runs, orchestration_events, llm_interactions..., live
+    parent_source    TEXT CHECK (parent_source IN ('observed', 'inferred', 'default')),
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 CREATE INDEX IF NOT EXISTS idx_spans_trace  ON spans(trace_id);

@@ -321,6 +321,11 @@ class RunPersistenceService:
                 if _uid:
                     db.db.execute("UPDATE runs SET global_run_id = ? WHERE run_id = ?",
                                   (_uid, run_id))
+                # Sequencer attempt link: same transaction as the run row. Mandatory
+                # when a step attempt is active (failure rolls this run back);
+                # ordinary runs outside the sequencer are unchanged.
+                from core.sequencer.context import link_run
+                link_run(db, run_id, workflow_type, rep_num)
                 _s["counts"] = {"runs": 1}
             if after_run_row is not None:
                 # Caller hook inside the transaction, right after the run row:
@@ -348,8 +353,35 @@ class RunPersistenceService:
         # Duration fix corrects attributed energy: last part of attribution.
         with _stage(stages, "attribution"):
             self._apply_duration_fix(run_id, result)
+        self._insert_task_events(db, run_id)
         with _stage(stages, "residual"):
             self._compute_residual(run_id, db)
+
+    def _insert_task_events(self, db, run_id: int) -> None:
+        """
+        task_start (t0) and task_end (t1) on the run span, from the run row after the
+        duration fix wrote pre_task_duration_ns and task_duration_ns (45.8). Once per
+        run span; a missing value means no event (never a guessed time).
+        """
+        try:
+            conn = db.db.conn
+            row = conn.execute("SELECT start_time_ns, pre_task_duration_ns, task_duration_ns "
+                               "FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            sid = conn.execute("SELECT span_id FROM spans WHERE run_id = ? AND kind = 'run'",
+                               (run_id,)).fetchone()
+            if not row or not sid or row[0] is None or row[1] is None:
+                return
+            if conn.execute("SELECT 1 FROM span_events WHERE span_id = ? AND event_type = 'task_start'",
+                            (sid[0],)).fetchone():
+                return
+            t0 = row[0] + row[1]
+            events = [("task_start", t0)] + ([("task_end", t0 + row[2])] if row[2] is not None else [])
+            for event_type, ts in events:
+                conn.execute("INSERT INTO span_events (span_id, event_type, ts_ns, attributes) "
+                             "VALUES (?, ?, ?, ?)", (sid[0], event_type, ts, '{"source": "runs"}'))
+            conn.commit()
+        except Exception as exc:   # observability only: never costs the run
+            logger.warning("task events for run %s not stored: %s", run_id, exc)
 
     # ── Private helpers — each does exactly one thing ─────────────────────────
 
@@ -389,8 +421,17 @@ class RunPersistenceService:
         # B9: DCGM coverage record, every path (EPS-1)
         self._insert_dcgm_coverage(db, run_id, result)
 
-        # B9: DCGM coverage record, every path (EPS-1)
-        self._insert_dcgm_coverage(db, run_id, result)
+        # Serving instance (listener PID and start time) behind this experiment, every path (EPS-1)
+        self._insert_engine_provenance(db, exp_id)
+
+        # KV cache and queue state sampled during the run, every path (EPS-1)
+        self._insert_serving_snapshots(db, run_id, result)
+
+        # Machine and serving instance age at run start, every path (EPS-1)
+        self._insert_server_age(db, run_id, exp_id)
+
+        # Memory traffic readers of this run, every path (EPS-1)
+        self._insert_traffic(db, run_id, result)
 
         # Stub row so ETL _backfill_normalization_factors never skips this run
         # All metric columns are NULL — ETL populates them after goal tracking
@@ -456,6 +497,123 @@ class RunPersistenceService:
              cov.get("last_valid_mono_ns"), cov.get("row_count"),
              cov.get("interior_gaps_gt_300ms"), cov.get("max_gap_ms"), share, reason,
              int(bool(cov.get("cap_detected")))),
+        )
+
+    _SNAPSHOT_COLS = (
+        "timestamp_ns", "engine_name", "engine_type", "snapshot_type", "telemetry_scope",
+        "kv_capacity_tokens", "kv_occupied_tokens", "kv_occupancy_fraction",
+        "kv_hit_rate_aggregate", "kv_num_evictions", "queue_active", "queue_waiting",
+        "queue_completed", "queue_rejected", "extra_json")
+
+    _TRAFFIC_RUN_COLS = ("reader", "method_id", "status", "reason", "pravaha_version", "driver",
+                         "cuda", "interval_ms", "device", "sample_count", "baseline_json",
+                         "quality_json")
+    _TRAFFIC_SAMPLE_COLS = ("t_start_ns", "t_end_ns", "interval_ns", "copy_bytes",
+                            "kernel_read_miss_bytes", "kernel_write_bytes",
+                            "all_read_miss_bytes", "all_write_bytes", "phase",
+                            "measurement_scope", "quality_flag")
+
+    def _insert_traffic(self, db, run_id: int, result: dict) -> None:
+        """
+        One energy_validation_gpu_mem_traffic_runs row per traffic reader and its
+        samples. Written only when the extension tables exist. Unavailable or
+        failed readers keep their reason; the run stays valid.
+        """
+        traffic = result.get("traffic") or []
+        if not traffic or not db.db.conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                ("energy_validation_gpu_mem_traffic_runs",)).fetchone():
+            return
+        for res in traffic:
+            self._insert_traffic_one(db, run_id, res)
+
+    def _insert_traffic_one(self, db, run_id: int, res: dict) -> None:
+        """Run record and sample rows of one traffic reader."""
+        cols = ("run_id",) + self._TRAFFIC_RUN_COLS
+        db.db.execute(
+            "INSERT OR REPLACE INTO energy_validation_gpu_mem_traffic_runs (%s) VALUES (%s)"
+            % (", ".join(cols), ", ".join("?" * len(cols))),
+            tuple([run_id] + [res.get(c) for c in self._TRAFFIC_RUN_COLS]))
+        scols = ("run_id", "reader", "pravaha_version") + self._TRAFFIC_SAMPLE_COLS
+        sql = "INSERT INTO energy_validation_gpu_mem_traffic_samples (%s) VALUES (%s)" % (
+            ", ".join(scols), ", ".join("?" * len(scols)))
+        for s in res.get("samples") or []:
+            db.db.execute(sql, tuple([run_id, res.get("reader"), res.get("pravaha_version")]
+                                     + [s.get(c) for c in self._TRAFFIC_SAMPLE_COLS]))
+
+    def _insert_server_age(self, db, run_id: int, exp_id: int) -> None:
+        """
+        One energy_validation_server_age row per run (ages at run start).
+        Written only when the extension table exists; NULL where no source.
+        """
+        table = "energy_validation_server_age"
+        if not db.db.conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+            logger.debug("server age not stored: %s absent (extension inactive)", table)
+            return
+        from core.serving.server_age import compute
+        row = compute(db.db.conn, run_id, exp_id)
+        if row is None:
+            logger.warning("server age not stored: run %s has no start time", run_id)
+            return
+        cols = sorted(row)
+        db.db.execute(
+            "INSERT OR REPLACE INTO energy_validation_server_age (%s) VALUES (%s)"
+            % (", ".join(cols), ", ".join("?" * len(cols))),
+            tuple(row[c] for c in cols),
+        )
+
+    def _insert_serving_snapshots(self, db, run_id: int, result: dict) -> None:
+        """
+        serving_runtime_snapshots rows buffered by the harness sampler, with run_id.
+        Missing fields stay NULL (MIC-1). No rows when no local engine answered.
+        """
+        rows = result.get("serving_snapshots") or []
+        cols = ("run_id",) + self._SNAPSHOT_COLS
+        sql = "INSERT INTO serving_runtime_snapshots (%s) VALUES (%s)" % (
+            ", ".join(cols), ", ".join("?" * len(cols)))
+        for row in rows:
+            db.db.execute(sql, tuple([run_id] + [row.get(c) for c in self._SNAPSHOT_COLS]))
+        if rows:
+            logger.debug("serving snapshots stored: %d rows for run %s", len(rows), run_id)
+
+    def _insert_engine_provenance(self, db, exp_id: int) -> None:
+        """
+        One energy_validation_engine_provenance row per experiment and serving
+        instance (a restart mid experiment adds a row). Local providers only;
+        written only when the extension table exists. Never raises: a failed
+        match is stored with its match_method, an unresolved provider is logged.
+        """
+        table = "energy_validation_engine_provenance"
+        if not db.db.conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
+            logger.debug("engine provenance not stored: %s absent (extension inactive)", table)
+            return
+        from core.serving.engine_config import resolve
+        from core.serving.engine_provenance import match_instance
+        prov = db.db.conn.execute(
+            "SELECT provider FROM experiments WHERE exp_id = ?", (exp_id,)).fetchone()
+        cfg = resolve(prov[0] if prov else None)
+        if not cfg or not cfg.get("endpoint"):
+            return   # remote or cloud provider: no local process to identify
+        try:
+            row = match_instance(cfg["endpoint"])
+        except Exception as exc:   # provenance must never cost a run (EPS-1)
+            logger.warning("engine provenance not recorded for exp %s: %s", exp_id, exc)
+            return
+        if row is None:
+            return
+        # Same instance already recorded for this experiment: one row, not one per run
+        if db.db.conn.execute(
+                "SELECT 1 FROM energy_validation_engine_provenance WHERE exp_id = ? "
+                "AND IFNULL(server_instance_id, '') = ? AND match_method = ?",
+                (exp_id, row["server_instance_id"] or "", row["match_method"])).fetchone():
+            return
+        cols = ["exp_id"] + sorted(row)
+        db.db.execute(
+            "INSERT INTO energy_validation_engine_provenance (%s) VALUES (%s)"
+            % (", ".join(cols), ", ".join("?" * len(cols))),
+            tuple([exp_id] + [row[c] for c in sorted(row)]),
         )
 
     def _score_run(self, db, run_id: int, hw_id) -> None:

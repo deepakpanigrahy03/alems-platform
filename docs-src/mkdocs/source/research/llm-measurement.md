@@ -442,3 +442,47 @@ comparison. Groq's LPU architecture is optimised for low TPOT (high decode
 throughput). NVIDIA GPU inference typically has lower TTFT on large prompts
 due to parallel prefill. The metrics are stored per-interaction in
 `llm_interactions` enabling per-model, per-prompt-length analysis.
+## Local Serving Engine Support { #local-serving-engines }
+
+| Provider | Engine | Port | is_local | energy_side | execution_site | transport | Provenance record |
+|---|---|---|---|---|---|---|---|
+| vllm_local | vLLM | 8000 | true | full | host | loopback_http | yes (serve_llm.sh) |
+| sglang_local | SGLang | 30000 | true | full | host | loopback_http | yes (serve_sglang.sh) |
+| llamacpp_remote | llama.cpp server | 8080 | false | client_only | lan_server | lan_http | yes (serve_llamacpp.sh) |
+| llama_cpp | llama.cpp in process | none | true | full | host | inprocess | not applicable |
+
+A provider whose base URL points at this machine is local: the server load runs on the measured host, so rails and the GPU energy source include it, and the serving instance is identified per experiment (see Serving Engine Instance Match).
+Runs recorded before the local SGLang entry existed carry `sglang_remote` even when the GB10 served them; the experiment registry relabels them, the stored rows are not changed.
+Memory reservation differs by serve script (vLLM 0.50 of GPU memory, SGLang 0.80); compare engines with that setting in view or set it equal.
+## KV Cache Occupancy: vLLM { #kv-occupancy-vllm }
+
+**Method ID:** kv_occupancy_vllm (MEASURED, confidence 0.9).
+During each run the platform polls the engine's `/metrics` at the configured interval (`ALEMS_SERVING_SNAPSHOT_INTERVAL_S` in `~/.alemsrc`, default 0.5 s, recorded per row in `extra_json`) and stores two snapshot types in `serving_runtime_snapshots` with the run id: `kv_cache` (`kv_occupancy_fraction` from `vllm:kv_cache_usage_perc`, the fraction of KV blocks held by running requests) and `queue` (`queue_active` from `vllm:num_requests_running`, `queue_waiting` from `vllm:num_requests_waiting`).
+KV use and queue length are different quantities and are kept apart.
+Confidence 0.9: the metric is exported by the engine itself, but it is sampled at the configured interval, so occupancy peaks shorter than one interval can be missed.
+`kv_capacity_tokens` is filled only when the engine reports its block count; it is never derived from launch settings.
+Missing metrics are NULL.
+
+## KV Cache Occupancy: SGLang { #kv-occupancy-sglang }
+
+**Method ID:** kv_occupancy_sglang (MEASURED, confidence 0.85).
+Same sampling and table as vLLM; `kv_occupancy_fraction` comes from `sglang:token_usage`, the fraction of the KV token pool in use.
+SGLang keeps finished prefixes in its radix cache, so this value can stay high after requests end; it is not equal to vLLM `kv_cache_usage_perc` and the two must not be compared as one quantity.
+Confidence 0.85: engine exported, interval sampling, and cache retention mixes reuse capacity with active use.
+`queue_active` comes from `sglang:num_running_reqs`.
+
+**Query: KV occupancy over each run, per engine.**
+```sql
+SELECT run_id, engine_type, COUNT(*) AS samples,
+       MAX(kv_occupancy_fraction) AS peak_kv, AVG(kv_occupancy_fraction) AS mean_kv
+FROM serving_runtime_snapshots
+WHERE snapshot_type = 'kv_cache'
+GROUP BY run_id, engine_type ORDER BY run_id DESC LIMIT 20;
+```
+**Query: queue pressure per run.**
+```sql
+SELECT run_id, MAX(queue_active) AS max_running, MAX(queue_waiting) AS max_waiting
+FROM serving_runtime_snapshots WHERE snapshot_type = 'queue'
+GROUP BY run_id ORDER BY run_id DESC LIMIT 20;
+```
+**Known limitations:** sub interval peaks are not seen; engines without `/metrics` give no rows; the periodic GET adds a small load on the server.

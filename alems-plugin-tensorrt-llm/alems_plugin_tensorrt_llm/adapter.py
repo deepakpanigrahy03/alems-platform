@@ -135,12 +135,12 @@ class TensorRTLLMAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
         if not metrics:
             return CacheState()
 
-        occupancy = _get(metrics, "trtllm_kv_cache_fraction") or 0.0
+        occupancy = _get(metrics, "trtllm_kv_cache_fraction")   # None when not reported (MIC-1)
         return CacheState(
             cache_type="kv",
             capacity_tokens=0,
             occupied_tokens=0,
-            occupancy_fraction=round(float(occupancy), 6),
+            occupancy_fraction=round(float(occupancy), 6) if occupancy is not None else None,
             hit_rate_aggregate=0.0,
             num_evictions=0,
         )
@@ -156,8 +156,9 @@ class TensorRTLLMAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
         if not metrics:
             return QueueState()
 
-        active    = int(_get(metrics, "trtllm_request_active_total") or 0.0)
-        waiting   = int(_get(metrics, "trtllm_request_waiting_total") or 0.0)
+        _act, _wait = _get(metrics, "trtllm_request_active_total"), _get(metrics, "trtllm_request_waiting_total")
+        active    = int(_act) if _act is not None else None
+        waiting   = int(_wait) if _wait is not None else None
         completed = int(_sum_prefix(metrics, "trtllm_request_success_total"))
         return QueueState(
             active=active,

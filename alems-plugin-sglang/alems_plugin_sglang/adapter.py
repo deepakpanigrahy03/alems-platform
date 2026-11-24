@@ -93,6 +93,15 @@ class SGLangAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
 
     ENGINE_TYPE = "sglang"
 
+    # Process facts of an SGLang server, read by core through engine_config;
+    # any key can be overridden in the provider's models.yaml serving_engine block.
+    # Worker pattern to be confirmed on a live server in the end to end pass.
+    PROCESS_TRAITS = {
+        "worker_process_pattern": r"sglang::scheduler|sglang\.srt",
+        "server_process_pattern": r"sglang\.launch_server",
+        "single_process": False,
+    }
+
     def __init__(self, config: dict, endpoint=None):
         # The runtime passes the resolved endpoint (C-ORIGIN). Outside the
         # runtime fall back to the profile block plus environment (SDK only).
@@ -133,21 +142,23 @@ class SGLangAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
         if not metrics:
             return CacheState()
 
-        hit_rate = _get(metrics, "sglang:cache_hit_rate") or 0.0
-        occupancy = _get(metrics, "sglang:token_usage") or 0.0
-        kv_mem_gb = _get(metrics, "sglang:kv_cache_memory_usage_gb") or 0.0
+        hit_rate = _get(metrics, "sglang:cache_hit_rate")   # None when not reported (MIC-1)
+        # token_usage: fraction of the KV token pool in use, radix cache included;
+        # not the same quantity as vLLM kv_cache_usage_perc. None when absent (MIC-1).
+        occupancy = _get(metrics, "sglang:token_usage")
+        kv_mem_gb = _get(metrics, "sglang:kv_cache_memory_usage_gb")   # None when not reported (MIC-1)
         cached_tokens = int(_get(metrics, "sglang:cached_tokens_total") or 0)
 
         logger.debug(
-            "SGLangAdapter.get_cache_state: hit_rate=%.4f occupancy=%.4f",
+            "SGLangAdapter.get_cache_state: hit_rate=%s occupancy=%s",
             hit_rate, occupancy,
         )
         return CacheState(
             cache_type="radix",
-            capacity_tokens=int(kv_mem_gb * 1024 * 1024 * 1024),
+            capacity_tokens=int(kv_mem_gb * 1024 * 1024 * 1024) if kv_mem_gb is not None else None,
             occupied_tokens=cached_tokens,
-            occupancy_fraction=round(float(occupancy), 6),
-            hit_rate_aggregate=round(float(hit_rate), 6),
+            occupancy_fraction=round(float(occupancy), 6) if occupancy is not None else None,
+            hit_rate_aggregate=round(float(hit_rate), 6) if hit_rate is not None else None,
             num_evictions=0,
         )
 
@@ -162,8 +173,10 @@ class SGLangAdapter(CapabilityDiscoveryMixin, ServingEngineAdapter):
         if not metrics:
             return QueueState()
 
-        active    = int(_get(metrics, "sglang:num_running_reqs") or 0.0)
-        waiting   = int(_get(metrics, "sglang:num_waiting_reqs") or 0.0)
+        _act = _get(metrics, "sglang:num_running_reqs")
+        active    = int(_act) if _act is not None else None
+        _wait = _get(metrics, "sglang:num_waiting_reqs")
+        waiting   = int(_wait) if _wait is not None else None
         completed = int(_sum_prefix(metrics, "sglang:num_requests_total"))
         return QueueState(
             active=active,

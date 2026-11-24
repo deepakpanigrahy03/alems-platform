@@ -117,8 +117,47 @@ class BaseReader(Configurable, ABC):
 
 
 # ============================================================================
-# ENERGY READER INTERFACE
+# TRAFFIC READER INTERFACE
 # ============================================================================
+
+class TrafficReaderABC(BaseReader):
+    """
+    Interface for memory traffic readers (bytes moved by a device, link or
+    copy engine) run for the length of the energy window.
+
+    Plugins register under the entry point group alems.readers.traffic.
+    Core starts every available traffic reader with the energy window and
+    persists what stop() returns; core never names a traffic tool.
+
+    Result dict (stop, unavailable_result, failed_result):
+        reader, method_id, status ('measured' | 'unavailable' | 'failed'),
+        reason, interval_ms, device, sample_count, baseline_json,
+        quality_json, tool version fields, samples (list of dicts with
+        t_start_ns, t_end_ns, interval_ns, byte columns, phase,
+        measurement_scope, quality_flag). Missing values are None (MIC-1).
+    """
+
+    FIDELITY: str = "MEASURED"
+
+    @abstractmethod
+    def start(self) -> None:
+        """Start sampling. May raise; core records status 'failed' with the reason."""
+        ...
+
+    @abstractmethod
+    def stop(self) -> Dict:
+        """Stop sampling and return the result dict with status 'measured'."""
+        ...
+
+    @abstractmethod
+    def unavailable_result(self) -> Dict:
+        """Result dict with status 'unavailable' and the reason from is_available()."""
+        ...
+
+    @abstractmethod
+    def failed_result(self, reason: str) -> Dict:
+        """Result dict with status 'failed' and the given reason."""
+        ...
 
 class EnergyReaderABC(BaseReader):
     # Fidelity declaration — overridden by subclasses (SPEC_39_3 section 6).

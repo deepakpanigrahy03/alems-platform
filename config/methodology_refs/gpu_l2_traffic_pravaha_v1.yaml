@@ -1,0 +1,18 @@
+method_id: gpu_l2_traffic_pravaha_v1
+provenance: MEASURED
+confidence: 0.9
+parameters:
+  interval_env: ALEMS_PRAVAHA_INTERVAL_MS
+  interval_default_ms: 10
+  device_env: ALEMS_PRAVAHA_DEVICE
+references:
+  - title: "GPU memory traffic counters on the NVIDIA GB10 (IEEE Computer Architecture Letters, submitted)"
+    authors: "D. Panigrahy, S. Kota"
+    year: 2026
+    ref_type: paper
+    relevance: "Validation of the L2 counter byte measurement and its limits on GB10."
+  - title: "pravaha-mem 1.0.1: live GPU memory traffic from GPU L2 counters"
+    authors: "D. Panigrahy, S. Kota"
+    year: 2026
+    ref_type: manual
+    relevance: "Library that samples the counters (CUPTI PM sampling) used by this method."

@@ -33,6 +33,9 @@ GROUP_FAMILY: Dict[str, str] = {
     "alems.readers.msr": "measurement",
     "alems.readers.scheduler": "measurement",
     "alems.readers.disk": "measurement",
+    "alems.readers.traffic": "measurement",
+    "alems.sequencer.steps": "execution",
+    "alems.spans.listeners": "observability",
     # execution
     "alems.engines.text": "execution",
     "alems.engines.media": "execution",

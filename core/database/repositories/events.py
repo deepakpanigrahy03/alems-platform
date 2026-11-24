@@ -57,9 +57,9 @@ class EventsRepository:
              tool_name, io_bytes_read, io_bytes_written,
              input_payload_hash, output_payload_hash,
              tool_success, tool_result_rows,
-             tool_cpu_time_ns, tool_memory_delta_kb)
+             tool_cpu_time_ns, tool_memory_delta_kb, span_id)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         # No transaction wrapper - caller manages transactions
         for ev in events:
@@ -89,5 +89,6 @@ class EventsRepository:
                     meta.get("result_rows"),
                     meta.get("cpu_time_ns"),
                     meta.get("memory_delta_kb"),
+                    ev.get("span_id"),   # live span id of this phase or tool call (45.8)
                 ),
             )

@@ -178,6 +178,11 @@ class EnergyEngine:
         self.sensor    = self.thermal_reader         # alias: existing code uses self.sensor
         self.gpu_collector = GPUCollector(rapl_reader=self.rapl)
         self.last_gpu_samples = []
+        # Traffic readers (alems.readers.traffic) run with the energy window;
+        # results are buffered here for the harness, never written by the engine (EEI-1).
+        from core.readers.traffic_collector import TrafficCollector
+        self.traffic_collector = TrafficCollector()
+        self.last_traffic = []
         self.last_v2_samples = []          # NormalizedWriter samples, inserted post run_id
         self.last_legacy_samples = []      # LegacyWriter samples, inserted post run_id
         # EnergyCollector replaces SPBMSampler and _sampling_loop (16B3).
@@ -928,6 +933,8 @@ class EnergyEngine:
         # energy window opens with the GPU counter already live (no start loss).
         # GPUCollector.start() is no-op if no backend available (PAC-4 compliant)
         self.gpu_collector.start()
+        # Traffic readers after the GPU sampler: both live before the window opens
+        self.traffic_collector.start()
         # EnergyCollector: generic loop replacing _sampling_loop + SPBMSampler (16B3)
         try:
             schema = self.energy_reader.get_measurement_schema()
@@ -1236,6 +1243,8 @@ class EnergyEngine:
         self.last_gpu_samples = self.gpu_collector.stop()
         # B9: coverage facts of this run, persisted by run_persistence (EEI-1)
         self.last_dcgm_coverage = dict(getattr(self.gpu_collector, "last_coverage", {}) or {})
+        # Traffic results of this window (one dict per reader), persisted by run_persistence
+        self.last_traffic = self.traffic_collector.stop()
         (self.last_gpu_dynamic_local_uj,
          self.last_gpu_idle_power_w_local) = self._resolve_gpu_dynamic_local_uj(
             self.last_gpu_samples

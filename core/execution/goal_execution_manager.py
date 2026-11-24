@@ -128,13 +128,13 @@ def _execute_goal_impl(
         logger.warning("execute_goal: invalid workflow_type=%r — aborting", workflow_type)
         return None
 
-    from core.storage.inprocess_writer import InProcessWriter as _IPW
-    from core.storage.resolver import resolve_store as _rs
-    _own_writer = writer is None
-    if _own_writer:
-        writer = _IPW(_rs())
-        writer.open()
-    conn        = writer.conn
+    # Writer contract (C3, G77): one writer connection. The runs are written through
+    # db (persist_raw), so goal and attempt rows use that same connection, db.db.conn,
+    # exactly as save_pair and save_single do. A second connection opened here wrote
+    # goal rows beside the run transaction and could lock against it (found in 45.8).
+    # A caller passing its own writer must pass one whose connection is db.db.conn.
+    _own_writer = False
+    conn = writer.conn if writer is not None else db.db.conn
     # A+ (G137): closed attempt windows wait here until the goal ends; the
     # wrapper reads the same list if the goal raises.
     if _state is None:
@@ -771,7 +771,7 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
         (winning_run_id, run_ids, failed_attempt_ids)
     """
     failed = []
-    trace = {"trace_id": None, "root_span_id": None}  # one trace per goal
+    trace = {"trace_id": None, "goal_span_id": None, "goal_written": False}  # one trace per goal (45.8)
     for m in measured:
         if m["run_id"] is not None or m.get("failed"):
             continue
@@ -836,44 +836,88 @@ def _persist_attempts(db, conn, exp_id, hw_id, goal_id, workflow_type, rep_num,
         except Exception as exc:
             logger.error("execute_goal: run=%d tool failure link failed: %s", rid, exc)
         conn.commit()
+    _finalize_goal_span(conn, goal_id, trace)
     _persist_stage_rows(db, measured)
     return winning, run_ids, failed
 
 
 def _write_attempt_spans(db, conn, run_id, m, workflow_type, goal_id, trace):
     """
-    Spans of one attempt run inside the goal's single trace.
+    Spans of one attempt inside the goal's single trace (45.8):
+    goal (root, written with the first saved attempt) -> attempt N -> run -> children.
 
-    The first attempt's run span is the trace root; later attempts' run spans
-    are its children, so a goal trace has one root (G136, goal part).
-    Never raises: spans are observability, not measurement.
+    Times come from their sources: the attempt from its goal_attempt row, the run from
+    its result, children from orchestration events and LLM interactions. The goal span's
+    end is set by _finalize_goal_span when the goal's attempts are saved. The links
+    goal_attempt.span_id and goal_execution.span_id are written in the same transaction
+    as the spans and must each change exactly one row. Never raises: spans are
+    observability, not measurement.
     """
     try:
         import uuid
         from core.vocabularies.agent.span_writer import SpanWriter
-        from core.vocabularies.agent.span_builder import build_spans_from_result
-        from core.execution.experiment_runner import _backfill_span_outcome  # late: cycle
-        if trace["trace_id"] is None:
-            trace["trace_id"] = uuid.uuid4().hex
+        from core.vocabularies.agent.span_builder import build_spans_from_result, record_run_span
+        if trace.get("trace_id") is None:
+            trace.update(trace_id=uuid.uuid4().hex, goal_span_id=uuid.uuid4().hex, goal_written=False)
         writer = SpanWriter(trace["trace_id"])
-        span_id = writer.open_span(
-            "run", f"{workflow_type}:goal:{goal_id}:attempt:{m['attempt_num']}",
-            parent_span_id=trace["root_span_id"])
-        writer.close_span(span_id)
-        if trace["root_span_id"] is None:
-            trace["root_span_id"] = span_id
+        a0, a1 = conn.execute("SELECT started_at_ns, finished_at_ns FROM goal_attempt WHERE attempt_id = ?",
+                              (m["attempt_id"],)).fetchone() or (None, None)
+        new_goal = not trace["goal_written"]
+        if new_goal:
+            g0 = conn.execute("SELECT MIN(started_at_ns) FROM goal_attempt WHERE goal_id = ?",
+                              (goal_id,)).fetchone()[0]
+            writer.record_span("goal", "%s:goal:%s" % (workflow_type, goal_id), None, g0, None,
+                               timing_source="goal_attempt", span_id=trace["goal_span_id"],
+                               attributes={"workflow_type": workflow_type, "goal_id": goal_id})
+        attempt_sid = writer.record_span(
+            "attempt", "attempt:%d" % m["attempt_num"], trace["goal_span_id"], a0, a1,
+            timing_source="goal_attempt",
+            attributes={"attempt_number": m["attempt_num"], "is_retry": m["attempt_num"] > 1,
+                        "outcome": m["outcome"], "attempt_id": m["attempt_id"]})
+        run_sid = record_run_span(writer, "%s:goal:%s:attempt:%d" % (workflow_type, goal_id, m["attempt_num"]),
+                                  m["result"], parent_span_id=attempt_sid or trace["goal_span_id"])
         hw = db.get_hardware_info() if hasattr(db, "get_hardware_info") else {}
-        build_spans_from_result(writer, span_id, m["result"], workflow_type, hw)
+        build_spans_from_result(writer, run_sid, m["result"], workflow_type, hw)
         with db.transaction():
-            writer.flush_to_db(db, run_id)
-        attempt_span = next((r for r in writer._spans if r.kind == "attempt"), None)
-        if attempt_span is not None:
-            conn.execute("UPDATE goal_attempt SET span_id = ? WHERE attempt_id = ?",
-                         (attempt_span.span_id, m["attempt_id"]))
-            conn.commit()
+            if writer.flush_to_db(db, run_id) == 0:
+                raise RuntimeError("no span stored")
+            # Same connection as the span transaction (db.db.conn): a second writer
+            # connection would wait on this transaction's lock.
+            if attempt_sid is not None:
+                _link_one(db.db.conn, "UPDATE goal_attempt SET span_id = ? WHERE attempt_id = ?",
+                          (attempt_sid, m["attempt_id"]))
+            if new_goal:
+                _link_one(db.db.conn, "UPDATE goal_execution SET span_id = ? WHERE goal_id = ?",
+                          (trace["goal_span_id"], goal_id))
+        if new_goal:
+            trace["goal_written"] = True
+        from core.execution.experiment_runner import _backfill_span_outcome  # late: cycle
         _backfill_span_outcome(conn, run_id, m["outcome"])
     except Exception as exc:
         logger.warning("execute_goal: spans for run=%d failed: %s", run_id, exc)
+
+
+def _link_one(conn, sql, args):
+    """Back link that must change exactly one row (45.8, review decision 5)."""
+    n = conn.execute(sql, args).rowcount
+    if n != 1:
+        raise RuntimeError("span back link changed %d rows: %s %s" % (n, sql.split(" WHERE")[0], args))
+
+
+def _finalize_goal_span(conn, goal_id, trace):
+    """End of the goal span = last attempt end (NULL and 'unknown' if any attempt end is missing)."""
+    if not trace.get("goal_written"):
+        return
+    try:
+        end, missing = conn.execute(
+            "SELECT MAX(finished_at_ns), SUM(finished_at_ns IS NULL) FROM goal_attempt WHERE goal_id = ?",
+            (goal_id,)).fetchone()
+        conn.execute("UPDATE spans SET end_ns = ?, timing_quality = ? WHERE span_id = ?",
+                     (None if missing else end, "unknown" if missing or end is None else "observed",
+                      trace["goal_span_id"]))
+        conn.commit()
+    except Exception as exc:
+        logger.warning("execute_goal: goal span end for goal=%s not set: %s", goal_id, exc)
 
 
 def _flush_injection_log(

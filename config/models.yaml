@@ -118,6 +118,42 @@ providers:
         name: Qwen2.5 Coder 32B (vLLM GPU)
       - id: Qwen3-4B-Instruct-2507
         name: Qwen3 4B Instruct 2507 (vLLM GPU, RAF pilot candidate)
+    # Serving engine of this provider. Endpoint comes from base_url (or
+    # ALEMS_VLLM_ENGINE_URL); process traits come from the vLLM plugin.
+    serving_engine:
+      type: vllm
+      serve_script: "$ALEMS_AI_STACK/scripts/serve_llm.sh"
+      serve_args: ["start", "--background", "-p", "{port}", "{model}"]
+      serve_script_backgrounds: true
+    execution_site: host
+    transport: loopback_http
+    remote_energy_available: false
+  # ---------------------------------------------------------------------------
+  # SGLang on this machine (serve script /opt/ai-stack/scripts/serve_sglang.sh,
+  # port 30000). Same energy semantics as vllm_local: server load is on this
+  # host, so rails and DCGM include it. Model id is the path SGLang serves.
+  sglang_local:
+    is_local: true
+    access_method: api_http
+    network_type: loopback
+    captures_network_io: true
+    energy_side: full
+    openai_compat: true
+    base_url: http://127.0.0.1:30000/v1
+    api_key_env: null
+    cost_class: free
+    priority: 2
+    rate_limit_tpm: null
+    defaults:
+      max_tokens: 1024
+    models:
+      - id: mistralai/Mistral-7B-Instruct-v0.3
+        name: Mistral 7B Instruct (SGLang GPU)
+    serving_engine:
+      type: sglang
+      serve_script: "$ALEMS_AI_STACK/scripts/serve_sglang.sh"
+      serve_args: ["{model}", "{port}"]
+      serve_script_backgrounds: false
     execution_site: host
     transport: loopback_http
     remote_energy_available: false

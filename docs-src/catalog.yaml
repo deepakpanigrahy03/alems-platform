@@ -444,3 +444,30 @@ catalog:
     status: current
     last_validated: "2026-11-18"
     nav_entry: "Experiment Recording: research/experiment-recording.md"
+  - topic: "Sequencer: controlled experiments, plans, brackets, cycles, counterbalancing, thermal gate, dry run, run, resume, failure rules, result queries, copy benchmark (copy_rate), kernel benchmark over memory placements (kernel_rw), session kernel pass, paper reporting"
+    file: user-guide/09-controlled-experiments-sequencer.md
+    audience: researcher
+    status: current
+    last_validated: "2026-11-24"
+    nav_entry: "Controlled Experiments (Sequencer): user-guide/09-controlled-experiments-sequencer.md"
+
+  - topic: "Sequencer internals: tables, attempt durability, run to attempt link, store rules, step kind plugins (alems.sequencer.steps, StepKindABC, MEASUREMENT measured or profiling), configuration layers"
+    file: developer/sequencer-and-step-kinds.md
+    audience: developer
+    status: current
+    last_validated: "2026-11-24"
+    nav_entry: "Sequencer and Step Kinds: developer/sequencer-and-step-kinds.md"
+
+  - topic: "NVTX span markers: span listeners (alems.spans.listeners, SpanListenerABC), ALEMS_NVTX, range naming, nsys capture, agreement check with stored span times (check_nvtx_spans.py)"
+    file: developer/nvtx-span-markers.md
+    audience: developer
+    status: current
+    last_validated: "2026-11-24"
+    nav_entry: "NVTX Span Markers: developer/nvtx-span-markers.md"
+
+  - topic: "Kernel traffic pass: alems profile kernels, Nsight Compute setup and profiling permission, per kernel L2 read and write bytes, agreement status with a matched run, settings, queries, writing a profiling step kind"
+    file: developer/kernel-traffic-pass.md
+    audience: developer
+    status: current
+    last_validated: "2026-11-24"
+    nav_entry: "Kernel Traffic Pass (Nsight Compute): developer/kernel-traffic-pass.md"

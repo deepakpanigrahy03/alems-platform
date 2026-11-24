@@ -26,7 +26,7 @@
 <text text-anchor="middle" x="309" y="-349.75" font-family="Helvetica,sans-Serif" font-size="10.00">ConfigLoader</text>
 </g>
 <!-- exec.harness -->
-<g id="node4" class="node">
+<g id="node3" class="node">
 <title>exec.harness</title>
 <polygon fill="lightyellow" stroke="lightyellow" points="345.5,-267.25 242.5,-267.25 242.5,-231.25 345.5,-231.25 345.5,-267.25"/>
 <text text-anchor="middle" x="294" y="-246.75" font-family="Helvetica,sans-Serif" font-size="10.00">ExperimentHarness</text>
@@ -43,12 +43,6 @@
 <title>exec.agentic</title>
 <polygon fill="lightyellow" stroke="lightyellow" points="235.5,-370.25 146.5,-370.25 146.5,-334.25 235.5,-334.25 235.5,-370.25"/>
 <text text-anchor="middle" x="191" y="-349.75" font-family="Helvetica,sans-Serif" font-size="10.00">AgenticExecutor</text>
-</g>
-<!-- exec.linear -->
-<g id="node3" class="node">
-<title>exec.linear</title>
-<polygon fill="lightyellow" stroke="lightyellow" points="110,-370.25 28,-370.25 28,-334.25 110,-334.25 110,-370.25"/>
-<text text-anchor="middle" x="69" y="-349.75" font-family="Helvetica,sans-Serif" font-size="10.00">LinearExecutor</text>
 </g>
 <!-- hw.msr -->
 <g id="node5" class="node">
@@ -89,6 +83,12 @@
 <path fill="none" stroke="black" stroke-dasharray="5,2" d="M317.04,-231.25C366.86,-192.15 379.06,-180.55 391.49,-153.73"/>
 <polygon fill="black" stroke="black" points="394.76,-155 395.59,-144.43 388.35,-152.17 394.76,-155"/>
 <text text-anchor="middle" x="388" y="-195.85" font-family="Helvetica,sans-Serif" font-size="8.00">starts</text>
+</g>
+<!-- exec.linear -->
+<g id="node4" class="node">
+<title>exec.linear</title>
+<polygon fill="lightyellow" stroke="lightyellow" points="110,-370.25 28,-370.25 28,-334.25 110,-334.25 110,-370.25"/>
+<text text-anchor="middle" x="69" y="-349.75" font-family="Helvetica,sans-Serif" font-size="10.00">LinearExecutor</text>
 </g>
 <!-- db.main -->
 <g id="node8" class="node">

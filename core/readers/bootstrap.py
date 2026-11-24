@@ -48,6 +48,7 @@ turbostat_registry = AdapterRegistry(family="turbostat")
 msr_registry       = AdapterRegistry(family="msr")
 scheduler_registry = AdapterRegistry(family="scheduler")
 disk_registry      = AdapterRegistry(family="disk")
+traffic_registry   = AdapterRegistry(family="traffic")   # memory traffic readers (plugins only)
 
 # NIC: not in registry in 35A — NICCollector handles selection internally.
 # Will be added when NICReaderABC is stable across all platforms.
@@ -64,6 +65,7 @@ _FAMILY_GROUPS = (
     ("msr",       "alems.readers.msr",       msr_registry),
     ("scheduler", "alems.readers.scheduler", scheduler_registry),
     ("disk",      "alems.readers.disk",      disk_registry),
+    ("traffic",   "alems.readers.traffic",   traffic_registry),
 )
 
 

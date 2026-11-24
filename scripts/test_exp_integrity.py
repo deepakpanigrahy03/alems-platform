@@ -466,6 +466,242 @@ def check_dcgm_coverage(conn, run_ids: list) -> list:
     return results
 
 
+def _table_exists(conn, table: str) -> bool:
+    """True when a namespace table exists (its extension migration applied)."""
+    return bool(conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                             (table,)).fetchone())
+
+
+def check_engine_provenance(conn, exp_id: int) -> list:
+    """Serving instance per experiment (EIC-4): rows only for local providers;
+    pid_start_time with confirmed workers is the full match."""
+    table = "energy_validation_engine_provenance"
+    if not _table_exists(conn, table):
+        return [warn("engine_provenance: table absent (energy_validation inactive)")]
+    rows = conn.execute(f"SELECT match_method, worker_association_status, engine, engine_version "
+                        f"FROM {table} WHERE exp_id = ?", (exp_id,)).fetchall()
+    if not rows:
+        return [ok("engine_provenance: no row (remote or cloud provider)")]
+    results = []
+    for method, status, engine, version in rows:
+        if method != "pid_start_time":
+            results.append(warn(f"engine_provenance: {method} (server not started by a serve script)"))
+        elif status != "confirmed":
+            results.append(warn(f"engine_provenance: {engine} {version} workers {status}"))
+    if not results:
+        results.append(ok(f"engine_provenance: {len(rows)} instance(s), matched, workers confirmed"))
+    return results
+
+
+def check_server_age(conn, run_ids: list) -> list:
+    """Age at run start per run (EIC-4, MIC-3): one row per run, boot age filled."""
+    table = "energy_validation_server_age"
+    if not run_ids:
+        return []
+    if not _table_exists(conn, table):
+        return [warn("server_age: table absent (energy_validation inactive)")]
+    ph = ",".join("?" * len(run_ids))
+    rows = conn.execute(f"SELECT run_id, time_since_boot_s, time_since_server_start_s "
+                        f"FROM {table} WHERE run_id IN ({ph})", run_ids).fetchall()
+    results = []
+    if len(rows) < len(run_ids):
+        results.append(warn(f"server_age: {len(rows)} rows for {len(run_ids)} runs "
+                            f"(runs before e003 have none)"))
+    if rows and all(r[1] is None for r in rows):
+        results.append(fail("server_age: time_since_boot_s NULL on every run"))
+    if rows and all(r[2] is None for r in rows):
+        results.append(warn("server_age: no server start time (no matched serving instance)"))
+    if not results:
+        results.append(ok(f"server_age: {len(rows)} runs, boot and server age filled"))
+    return results
+
+
+def check_serving_snapshots(conn, run_ids: list) -> list:
+    """KV and queue snapshots during runs (EIC-4, MIC-3): both types present,
+    KV occupancy not zero on every sample (sentinel)."""
+    if not run_ids:
+        return []
+    ph = ",".join("?" * len(run_ids))
+    rows = conn.execute(f"SELECT snapshot_type, COUNT(*), SUM(kv_occupancy_fraction > 0), "
+                        f"SUM(kv_occupancy_fraction IS NULL) FROM serving_runtime_snapshots "
+                        f"WHERE run_id IN ({ph}) GROUP BY snapshot_type", run_ids).fetchall()
+    kinds = {r[0]: r for r in rows}
+    if not kinds:
+        return [warn("serving_snapshots: none (no local serving engine answered)")]
+    results = []
+    if "queue" not in kinds or "kv_cache" not in kinds:
+        results.append(fail(f"serving_snapshots: types present {sorted(kinds)}; need kv_cache and queue"))
+    kv = kinds.get("kv_cache")
+    if kv and kv[1] and not kv[2] and kv[3] < kv[1]:
+        results.append(fail("serving_snapshots: kv_occupancy_fraction zero on every sample (sentinel)"))
+    if not results:
+        results.append(ok("serving_snapshots: " + ", ".join(f"{k} {v[1]}" for k, v in kinds.items())))
+    return results
+
+
+def check_llm_ttft(conn, run_ids: list) -> list:
+    """ttft honesty (v126): no ttft without a streamed first token; a NULL
+    ttft carries its reason."""
+    if not run_ids:
+        return []
+    ph = ",".join("?" * len(run_ids))
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(llm_interactions)")]
+    if "ttft_null_reason" not in cols:
+        return [warn("llm_ttft: ttft_null_reason absent (schema before v126)")]
+    fabricated = conn.execute(f"SELECT COUNT(*) FROM llm_interactions WHERE run_id IN ({ph}) "
+                              f"AND streaming_enabled = 0 AND ttft_ms IS NOT NULL", run_ids).fetchone()[0]
+    unexplained = conn.execute(f"SELECT COUNT(*) FROM llm_interactions WHERE run_id IN ({ph}) "
+                               f"AND ttft_ms IS NULL AND ttft_null_reason IS NULL", run_ids).fetchone()[0]
+    results = []
+    if fabricated:
+        results.append(fail(f"llm_ttft: {fabricated} calls with ttft but no stream (fabricated)"))
+    if unexplained:
+        results.append(warn(f"llm_ttft: {unexplained} NULL ttft without reason (rows before v126 or adapter without reason)"))
+    if not results:
+        results.append(ok("llm_ttft: every ttft measured or NULL with a reason"))
+    return results
+
+
+def check_gpu_mem_traffic(conn, run_ids: list) -> list:
+    """Traffic reader record per run (EIC-4, MIC-3): status with reason; measured
+    runs have samples; byte columns not zero on every sample (sentinel)."""
+    runs_t, samp_t = "energy_validation_gpu_mem_traffic_runs", "energy_validation_gpu_mem_traffic_samples"
+    if not run_ids:
+        return []
+    if not _table_exists(conn, runs_t):
+        return [warn("gpu_mem_traffic: tables absent (energy_validation inactive)")]
+    ph = ",".join("?" * len(run_ids))
+    rows = conn.execute(f"SELECT run_id, reader, status, reason, sample_count FROM {runs_t} "
+                        f"WHERE run_id IN ({ph})", run_ids).fetchall()
+    if not rows:
+        return [warn("gpu_mem_traffic: no reader record (no traffic plugin installed, or runs before e004)")]
+    results = []
+    for run_id, reader, status, reason, n in rows:
+        if status == "measured" and not n:
+            results.append(fail(f"gpu_mem_traffic run={run_id}: measured with 0 samples"))
+        elif status != "measured":
+            results.append(warn(f"gpu_mem_traffic run={run_id} {reader}: {status} ({reason})"))
+    nz = conn.execute(f"SELECT COUNT(*), SUM(all_read_miss_bytes > 0 OR all_write_bytes > 0) "
+                      f"FROM {samp_t} WHERE run_id IN ({ph})", run_ids).fetchone()
+    if nz[0] and not nz[1]:
+        results.append(fail("gpu_mem_traffic: all byte columns zero on every sample (sentinel)"))
+    if not results:
+        results.append(ok(f"gpu_mem_traffic: {len(rows)} runs measured, {nz[0]} samples"))
+    return results
+    """Tables expected empty — verify they haven't been accidentally populated."""
+    results = []
+
+    # hallucination_events and output_quality owned by 8.5-C
+    for table in ("hallucination_events", "output_quality", "output_quality_judges"):
+        count = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        results.append(ok(f"{table}: {count} rows (8.5-C owns this)"))
+
+    return results
+def check_spans(conn, exp_id: int, run_ids: list) -> list:
+    """
+    45.8 span checks for one experiment (spans written by the 45.8 code; rows with
+    timing_quality NULL are older build time spans and are only counted).
+
+      span_times   run span = runs window; phase and tool spans = their orchestration event;
+                   llm spans start at a request_start_ns of the run; each endpoint compared
+                   separately (tolerance ALEMS_SPAN_TOL_MS, default 1 ms)
+      span_nesting every child inside its parent where both are known; one root per trace
+      span_links   goal_execution.span_id = a root goal span; goal_attempt.span_id = an attempt
+                   span with the same attempt_number whose run child has the attempt's run;
+                   orchestration_events.span_id = a span of the same run and kind
+    """
+    import os
+    if not _table_exists(conn, "spans") or not run_ids:
+        return [warn("spans: no spans table or no runs")]
+    tol = int(float(os.environ.get("ALEMS_SPAN_TOL_MS") or 1.0) * 1e6)
+    qm = ",".join("?" * len(run_ids))
+    legacy = conn.execute(f"SELECT COUNT(*) FROM spans WHERE run_id IN ({qm}) AND timing_quality IS NULL",
+                          run_ids).fetchone()[0]
+    spans = {r[0]: r for r in conn.execute(
+        f"SELECT span_id, trace_id, parent_span_id, run_id, kind, start_ns, end_ns, timing_quality "
+        f"FROM spans WHERE run_id IN ({qm}) AND timing_quality IS NOT NULL", run_ids)}
+    if not spans:
+        return [warn(f"spans: no 45.8 spans for these runs ({legacy} older build time spans)")]
+    results = []
+    bad = []
+
+    # span_times
+    for sid, tr, par, rid, kind, s0, s1, q in spans.values():
+        if kind == "run":
+            w = conn.execute("SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ?", (rid,)).fetchone()
+            if w and (abs(s0 - w[0]) > tol or (s1 is not None and w[1] is not None and abs(s1 - w[1]) > tol)):
+                bad.append(f"run span {sid[:8]} vs runs window: start {(s0 - w[0]) / 1e6:.3f} ms, "
+                           f"end {((s1 or 0) - (w[1] or 0)) / 1e6:.3f} ms")
+    for sid, rid, e0, e1 in conn.execute(
+            f"SELECT span_id, run_id, start_time_ns, end_time_ns FROM orchestration_events "
+            f"WHERE run_id IN ({qm}) AND span_id IS NOT NULL", run_ids):
+        sp = spans.get(sid)
+        if sp is None:
+            continue
+        if abs(sp[5] - e0) > tol or (sp[6] is not None and e1 is not None and abs(sp[6] - e1) > tol):
+            bad.append(f"event span {sid[:8]}: start {(sp[5] - e0) / 1e6:.3f} ms, end "
+                       f"{((sp[6] or 0) - (e1 or 0)) / 1e6:.3f} ms from its event")
+    for rid in run_ids:
+        starts = {r[0] for r in conn.execute("SELECT request_start_ns FROM llm_interactions WHERE run_id = ? "
+                                             "AND request_start_ns IS NOT NULL", (rid,))}
+        for sp in (s for s in spans.values() if s[3] == rid and s[4] == "llm_call"):
+            if not any(abs(sp[5] - x) <= tol for x in starts):
+                bad.append(f"llm span {sp[0][:8]} start matches no request of run {rid}")
+    results.append(fail("span_times: " + "; ".join(bad[:5])) if bad else
+                   ok(f"span_times: {len(spans)} spans agree with their sources"))
+
+    # span_nesting
+    bad = []
+    for sid, tr, par, rid, kind, s0, s1, q in spans.values():
+        p = spans.get(par) if par else None
+        if p is None:
+            continue
+        if s0 < p[5] - tol or (s1 is not None and p[6] is not None and s1 > p[6] + tol):
+            bad.append(f"{kind} {sid[:8]} outside its {p[4]}")
+    traces = {}
+    for s in spans.values():
+        traces.setdefault(s[1], []).append(s)
+    for tr, members in traces.items():
+        roots = conn.execute("SELECT COUNT(*) FROM spans WHERE trace_id = ? AND parent_span_id IS NULL",
+                             (tr,)).fetchone()[0]
+        if roots != 1:
+            bad.append(f"trace {tr[:8]} has {roots} roots")
+    results.append(fail("span_nesting: " + "; ".join(bad[:5])) if bad else
+                   ok(f"span_nesting: {len(traces)} traces, one root each, children inside parents"))
+
+    # span_links
+    bad = []
+    for gid, gsid in conn.execute("SELECT goal_id, span_id FROM goal_execution WHERE exp_id = ?", (exp_id,)):
+        g = conn.execute("SELECT kind, parent_span_id FROM spans WHERE span_id = ?", (gsid,)).fetchone() if gsid else None
+        if g is None or g[0] != "goal" or g[1] is not None:
+            bad.append(f"goal {gid}: span_id {gsid} is not a root goal span")
+        for aid, num, arid, asid in conn.execute("SELECT attempt_id, attempt_number, run_id, span_id FROM goal_attempt "
+                                                 "WHERE goal_id = ?", (gid,)):
+            a = conn.execute("SELECT kind, parent_span_id FROM spans WHERE span_id = ?", (asid,)).fetchone() if asid else None
+            if a is None or a[0] != "attempt" or (gsid and a[1] != gsid):
+                bad.append(f"attempt {aid}: span_id {asid} is not an attempt span of goal {gid}")
+                continue
+            n = conn.execute("SELECT value_text FROM span_attributes WHERE span_id = ? AND key = 'attempt_number'",
+                             (asid,)).fetchone()
+            if n is None or int(n[0]) != num:
+                bad.append(f"attempt {aid}: span attempt_number {n[0] if n else None} != {num}")
+            if arid and not conn.execute("SELECT 1 FROM spans WHERE parent_span_id = ? AND kind = 'run' AND run_id = ?",
+                                         (asid, arid)).fetchone():
+                bad.append(f"attempt {aid}: no run span of run {arid} under its attempt span")
+    for eid, rid, etype, esid in conn.execute(
+            f"SELECT event_id, run_id, event_type, span_id FROM orchestration_events WHERE run_id IN ({qm}) "
+            f"AND span_id IS NOT NULL", run_ids):
+        sp = conn.execute("SELECT run_id, kind FROM spans WHERE span_id = ?", (esid,)).fetchone()
+        want = "tool_call" if etype == "tool_call" else "phase"
+        if sp is None or sp[0] != rid or sp[1] != want:
+            bad.append(f"event {eid}: span {esid} is {sp} not a {want} of run {rid}")
+    results.append(fail("span_links: " + "; ".join(bad[:5])) if bad else
+                   ok("span_links: goal, attempt and event links resolve to the right spans"))
+    if legacy:
+        results.append(warn(f"spans: {legacy} older build time spans not checked (45.8 repair)"))
+    return results
+
+
 def check_expected_empty(conn) -> list:
     """Tables expected empty — verify they haven't been accidentally populated."""
     results = []
@@ -476,6 +712,8 @@ def check_expected_empty(conn) -> list:
         results.append(ok(f"{table}: {count} rows (8.5-C owns this)"))
 
     return results
+
+
 def check_etl_queue(conn, goal_ids: list) -> list:
     """Verify etl_queue has entries for all goals and all show processed=1."""
     results = []
@@ -827,6 +1065,12 @@ def main():
     all_results += check_orchestration_events(conn, run_ids, workflow)
     all_results += check_llm_interactions(conn, run_ids)
     all_results += check_dcgm_coverage(conn, run_ids)
+    all_results += check_engine_provenance(conn, exp_id)
+    all_results += check_server_age(conn, run_ids)
+    all_results += check_serving_snapshots(conn, run_ids)
+    all_results += check_llm_ttft(conn, run_ids)
+    all_results += check_gpu_mem_traffic(conn, run_ids)
+    all_results += check_spans(conn, exp_id, run_ids)
     all_results += check_recording(conn, run_ids)
     all_results += check_expected_empty(conn)
     all_results += check_etl_queue(conn, goal_ids)
