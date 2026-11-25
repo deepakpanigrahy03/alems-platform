@@ -1,0 +1,24 @@
+method_id: thermal_signals_v1
+formula: "signals stored raw per tick with read status; cumulative counters: delta = C_i - C_{i-1} only within one counter epoch (C_i >= C_{i-1}); a decrease starts a new epoch; reasons overlap and are never summed"
+parameters:
+  read_on: "thermal tick, after the temperatures"
+  counter_unit: "ns"
+  status_vocabulary: "VALID, OUT_OF_RANGE, READ_FAILED, UNAVAILABLE"
+  interpretation_vocabulary: "validated, empirical, unverified, invalidated"
+confidence: 0.85
+references:
+  - title: "NVML API Reference: clock event reasons, field values (clock event reason counters), margin temperature"
+    authors: "NVIDIA"
+    year: 2025
+    ref_type: "manual"
+    relevance: "Bitmask of active clock-event reasons (several at once) and cumulative per-reason counters in nanoseconds."
+  - title: "Linux kernel documentation: intel_tcc_cooling and intel_powerclamp cooling devices"
+    authors: "Linux kernel documentation"
+    year: 2024
+    ref_type: "manual"
+    relevance: "TCC offset lowers the throttle point; powerclamp reports forced idle injection, -1 when disabled."
+  - title: "Apple Developer Documentation: thermal state (nominal, fair, serious, critical)"
+    authors: "Apple"
+    year: 2024
+    ref_type: "manual"
+    relevance: "macOS thermal pressure is a category, not a temperature or a throttle duration."

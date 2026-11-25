@@ -69,7 +69,7 @@ A recording is cut into labelled time intervals called spans. A span has a kind,
 
 | Platform | Architecture | Source | Canonical Role | Confidence | Status |
 |---|---|---|---|---|---|
-| NVIDIA Grace GB10 | aarch64 | sysfs thermal zones, cooling devices, SPBM power rails, DCGM GPU temperature | between-runs context | 0.95 | VERIFIED |
+| NVIDIA Grace GB10 | aarch64 | sysfs thermal zones (named from firmware labels), converted board temperature channels, cooling devices, SPBM power rails, DCGM GPU temperature, thermal-response signals (NVML, firmware) | between-runs context | 0.95 | VERIFIED |
 | Intel i7-1165G7 | x86_64 | sysfs thermal zones, cooling devices (no power rails) | between-runs context | 0.95 | PENDING |
 | AMD Ryzen | x86_64 | sysfs thermal zones, cooling devices, NVML GPU temperature | between-runs context | 0.95 | PENDING |
 | Apple M1 Pro | arm64 | none yet | - | TBD | PLANNED |
@@ -133,9 +133,30 @@ Drift is the post-window median minus the pre-window median, per sensor and chan
 
 ### Sensor Resolution Observed { #sensor-resolution-observed }
 
-A temperature interface's format is not the sensor's granularity: Linux sysfs reports millidegrees for every zone, yet NVIDIA Grace GB10 ACPI zones change in 0.1 C steps, Intel x86 package and core sensors in 1 C steps, and the GB10 board-power driver's temperatures in 0.01 C steps. The rules that use resolution (stability slope floor, cooling band) therefore take it from observation, not from a typed value. At install, `scripts/detect_thermal.py` reads every sensor for 60 s and records the smallest non-zero step seen at least twice (`measured`); a sensor that changed too little gets `insufficient_transitions` and no step. When the machine profile loads, `te_sensor.nominal_resolution_c` is the observed step when measured, otherwise the interface resolution (`interface_only`); a profile that types a disagreeing value is rejected. Each recording re-checks the decision and guard sensors (`sensor_resolution_<name>`): a finer step than the catalog, or a catalog that changed since the profile loaded, is a warning.
+A temperature interface's format is not the sensor's granularity: Linux sysfs reports millidegrees for every zone, yet NVIDIA Grace GB10 ACPI zones change in 0.1 C steps, Intel x86 package and core sensors in 1 C steps, and the GB10 board-power driver's temperature channels, once converted from tenths of a kelvin, in 0.1 C steps (they are the ACPI zones; see Board Temperature Conversion). The rules that use resolution (stability slope floor, cooling band) therefore take it from observation, not from a typed value. At install, `scripts/detect_thermal.py` reads every sensor for 60 s and records the smallest non-zero step seen at least twice (`measured`); a sensor that changed too little gets `insufficient_transitions` and no step. When the machine profile loads, `te_sensor.nominal_resolution_c` is the observed step when measured, otherwise the interface resolution (`interface_only`); a profile that types a disagreeing value is rejected. Each recording re-checks the decision and guard sensors (`sensor_resolution_<name>`): a finer step than the catalog, or a catalog that changed since the profile loaded, is a warning.
 
 **Declared idle state.** `server.state` declares whether a model server is loaded or stopped while idle (with a server loaded the GPU can stay in its highest power state, near 57 C on NVIDIA Grace GB10). It is checked at the checkpoints against the configured server process names (`idle_state_verification`: fail if the server is absent or its process id changed). Idle references are compared only between recordings with the same declared state.
+
+### Board Temperature Conversion { #board-temperature-conversion }
+
+On NVIDIA Grace GB10 the board-power hwmon driver (`spbm`, from the third-party `spark_hwmon` driver) exposes eight temperature channels named after firmware registers: `tj_max`, `cpu_e_clu0`, `cpu_p_clu0`, `cpu_e_clu1`, `cpu_p_clu1`, `gpu`, `soc` and `dla`. The firmware reports tenths of a kelvin and the driver presents them as degrees Celsius, so the raw channels read about 33 C on a chip at 60 C and move a tenth as much as the chip. A-LEMS converts each reading: C = shown value × 10 − 273.2. A converted value below 1 C is an empty slot (`dla`, the unused deep-learning accelerator) and is stored as missing, never as a temperature.
+
+Evidence: over 1,200 seconds of idle sampling at 1 Hz, each converted channel equalled one ACPI thermal zone on every sample, with a difference of exactly 0.05 C (the firmware's 273.2 offset). This names the zones: zone0 is the package maximum, zones 1 and 3 the efficiency CPU clusters, zones 2 and 4 the performance CPU clusters, zone5 the GPU and zone6 the rest of the SoC. The converted channels are recorded beside the zones as a second read path of the same sensors. The labels name a functional domain; the exact physical position of each sensor inside it is not documented.
+
+### Thermal Response Signals { #thermal-response-signals }
+
+Signals record how the machine reacts to heat and power; they are not temperatures. Each platform reader describes its signals (`describe_signals`): source and field, raw unit, kind (level, category, counter, bitmask or setting), decoder, interpretation (validated, empirical, unverified or invalidated) and whether analysis may use it (`analysis_enabled`). `scripts/detect_thermal.py` stores this signal catalog and its hash (`signals_sha256`) in `config/hw_config.json`, and each recording keeps an immutable copy (`te_signal_catalog`).
+
+Values are read on the thermal sampling tick, after the temperatures, and stored raw: inside runs in `thermal_samples.signals_json` as `{signal id: {value, status}}`, between runs in `te_signal_samples` with one typed value column (integers outside the signed 64-bit range are kept exactly as text). The status says only whether the read worked; the meaning of a value is in the catalog. Missing is null with its status, never 0.
+
+| Platform | Signals |
+| --- | --- |
+| NVIDIA GPU (any working driver) | clock-event reason bitmask (several reasons can be active at once; unknown bits are kept in the raw value), cumulative time per reason in nanoseconds, temperature margin to the slowdown point, driver and NVML versions, GPU UUID |
+| NVIDIA Grace GB10 firmware | `tj_max_c` (package maximum in whole C, empirical), `pl_level` (active power limit, empirical, power context only), `prochot` (invalidated: reads 1 at idle) and the ACPI fan value (unverified); the last two are stored and excluded from analysis |
+| Intel x86 | TCC offset (throttle point lowered by this many C, empirical), `intel_powerclamp` (forced idle percent; −1 means disabled) |
+| macOS | thermal pressure level (needs `sudo -n powermetrics`; without it the status is UNAVAILABLE, a permission limit, not a missing capability) |
+
+Cumulative counters are differenced only within one counter epoch: a decrease (driver reload, reset or wrap) starts a new epoch, so a difference is never negative, and a run that spans a discontinuity reports a partial total. Throttle reasons overlap, so their times are never added together as "time throttled". Driver and NVML versions are read once per measurement.
 
 ## Schema
 

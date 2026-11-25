@@ -528,3 +528,13 @@ methods:
     doc: "experiment-recording.md"
     method_anchor: "sensor-resolution-observed"
     section: "Sensor Resolution Observed"
+
+  spbm_temp_decikelvin_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "board-temperature-conversion"
+    section: "Board Temperature Conversion"
+
+  thermal_signals_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "thermal-response-signals"
+    section: "Thermal Response Signals"
