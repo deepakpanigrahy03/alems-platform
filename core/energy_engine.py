@@ -300,6 +300,8 @@ class EnergyEngine:
         self.thermal_config = config.get("thermal", {})
         # sensor catalog of this machine (scripts/detect_thermal.py); per-run expected set
         self._catalog_sha = (config.get("thermal_sensors") or {}).get("catalog_sha256")
+        self._signals_sha = (config.get("thermal_sensors") or {}).get("signals_sha256")
+        self._nvml_signals = None            # created on first use (NVIDIA only)
         self._catalog_expected = None
         # rate comes from config/sampling.yaml (THERMAL_ZONE), never a silent default
         self._thermal_rate_info = self._thermal_rate_from_policy()
@@ -437,10 +439,12 @@ class EnergyEngine:
             st["max_gap_ns"] = max(st["max_gap_ns"], sample_start_ns - st["last_start_ns"])
         st["last_start_ns"] = sample_start_ns
         st["emitted"] += 1
-        # 9-tuple: the 6 earlier fields, then catalog values, quality, catalog hash
+        # 11-tuple: the 6 earlier fields, catalog values, quality, catalog hash,
+        # then signals and signal catalog hash (signals read after the temperatures)
         self.thermal_queue.put((now, readings, throttle_detected,
                                 sample_start_ns, sample_end_ns,
-                                sample_end_ns - sample_start_ns) + catalog)
+                                sample_end_ns - sample_start_ns) + catalog
+                               + (self._signal_readings(), self._signals_sha))
 
     def _platform_reader(self):
         """The platform thermal reader, initialised once (the harness may have swapped self.sensor)."""
@@ -473,6 +477,22 @@ class EnergyEngine:
         out["cpu_temp"] = pkg
         out["package_celsius"] = pkg
         return out
+
+    def _signal_readings(self):
+        """{signal id: {"value", "status"}} from the platform reader and NVML; None when there are none."""
+        if self._nvml_signals is None:
+            from core.readers.nvml_signals import NvmlSignals
+            self._nvml_signals = NvmlSignals()
+        out = {}
+        for src in (self._platform_reader(), self._nvml_signals):
+            try:
+                got = src.read_signals() or {}
+            except Exception as exc:              # a signal source must never stop sampling
+                logger.debug("signal read failed (%s): %s", type(src).__name__, exc)
+                continue
+            out.update({k: {"value": v.get("value"), "status": v.get("status") or "UNAVAILABLE"}
+                        for k, v in got.items()})
+        return out or None
 
     def _prepare_sensor_catalog(self) -> None:
         """

@@ -99,7 +99,7 @@ def store():
     conn.executescript(STUBS)
     for f in ("e001_create_thermal_exposure.sql", "e002_recording_between_runs.sql",
               "e003_idle_windows_and_checks.sql", "e004_sensor_resolution_provenance.sql",
-              "e005_sensor_samples_and_catalog.sql"):
+              "e005_sensor_samples_and_catalog.sql", "e006_signal_samples.sql"):
         for stmt in _split((MIG / f).read_text()):
             conn.execute(stmt)
     conn.commit()

@@ -241,6 +241,11 @@ class IdleSession:
             self.rec._write_rows("INSERT OR IGNORE INTO te_sensor_catalog (catalog_sha256, "
                                  "schema_version, catalog_json, first_seen_utc) VALUES (?, ?, ?, ?)",
                                  [row])
+        sig = _signal_snapshot_row()
+        if sig is not None:
+            self.rec._write_rows("INSERT OR IGNORE INTO te_signal_catalog (signals_sha256, "
+                                 "schema_version, signals_json, first_seen_utc) VALUES (?, ?, ?, ?)",
+                                 [sig])
 
     def _map_energy(self) -> None:
         """Keep the energy reader only when the main channel is an energy counter."""
@@ -669,6 +674,24 @@ def _catalog_snapshot_row() -> Optional[tuple]:
         return None
     return (section["catalog_sha256"], section.get("schema_version"),
             json.dumps(section.get("catalog") or [], sort_keys=True),
+            datetime.now(timezone.utc).isoformat())
+
+
+def _signal_snapshot_row() -> Optional[tuple]:
+    """(sha, schema version, signals JSON, now) of the machine's signal catalog, or None."""
+    import os
+    from datetime import datetime, timezone
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                        "config", "hw_config.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            section = (json.load(fh) or {}).get("thermal_sensors") or {}
+    except (OSError, ValueError):
+        return None
+    if not section.get("signals_sha256"):
+        return None
+    return (section["signals_sha256"], section.get("signal_schema_version") or 1,
+            json.dumps(section.get("signals") or [], sort_keys=True),
             datetime.now(timezone.utc).isoformat())
 
 

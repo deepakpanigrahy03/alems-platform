@@ -274,6 +274,47 @@ class SensorReader(ThermalReaderABC):
                 out[h["id"]] = None
         return out
 
+    # ── Signals (SDK describe_signals / read_signals) ─────────────────────
+
+    # cooling device type -> (signal id, kind, raw unit, interpretation, enabled, notes)
+    _COOLING_SIGNALS = {
+        "TCC Offset": ("intel:tcc_offset", "setting", "C", "empirical", True,
+                       "intel_tcc_cooling: throttle point lowered by this many C below the "
+                       "factory value; cur_state read as degrees per the kernel driver"),
+        "intel_powerclamp": ("intel:powerclamp", "level", "percent", "validated", True,
+                             "idle injection: forced idle percent; -1 means disabled; not a "
+                             "throttle percentage"),
+    }
+
+    def _signal_files(self):
+        # type: () -> Dict[str, Tuple[str, str]]
+        """signal id -> (cur_state file, cooling device type), for devices present."""
+        import os
+        from core.thermal.thermal_descriptors import cooling_devices_by_type
+        return {self._COOLING_SIGNALS[t][0]: (os.path.join(d, "cur_state"), t)
+                for t, d in cooling_devices_by_type().items() if t in self._COOLING_SIGNALS}
+
+    def describe_signals(self):
+        # type: () -> List[Dict]
+        """Intel thermal-control signals present on this machine ([] on AMD)."""
+        from alems_sdk.thermal_catalog import signal_descriptor
+        out = []
+        for sid, (path, t) in sorted(self._signal_files().items()):
+            _, kind, unit, interp, enabled, notes = self._COOLING_SIGNALS[t]
+            out.append(signal_descriptor(sid, kind, "cooling_device", path, unit, interp, enabled,
+                                         self.get_name(), scope="package", notes=notes))
+        return out
+
+    def read_signals(self):
+        # type: () -> Dict[str, Dict]
+        """{signal id: {"value", "unit", "status"}}; a failed read is None, never 0."""
+        from core.thermal.thermal_descriptors import read_int_status
+        out = {}
+        for sid, (path, t) in self._signal_files().items():
+            value, status = read_int_status(path)
+            out[sid] = {"value": value, "unit": self._COOLING_SIGNALS[t][2], "status": status}
+        return out
+
     def read_sensors(self) -> Dict[str, Optional[float]]:
         """Configured roles under their zone catalog ids (None when a read failed)."""
         from core.thermal.thermal_descriptors import zone_id

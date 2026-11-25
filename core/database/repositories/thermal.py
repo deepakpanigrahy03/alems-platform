@@ -163,6 +163,9 @@ class ThermalRepository:
                     json.dumps(sample["sensors"]) if isinstance(sample.get("sensors"), dict) else None,
                     json.dumps(sample["sensor_quality"]) if isinstance(sample.get("sensor_quality"), dict) else None,
                     sample.get("catalog_sha256"),
+                    # v130: signals; None stays NULL
+                    json.dumps(sample["signals"]) if isinstance(sample.get("signals"), dict) else None,
+                    sample.get("signal_catalog_sha256"),
                 ))
 
             self.db.execute_many(
@@ -173,8 +176,9 @@ class ThermalRepository:
                     sample_time_s,
                     cpu_temp, system_temp, wifi_temp,
                     throttle_event, all_zones_json, sensor_count,
-                    sensors_json, sensor_quality_json, catalog_sha256
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    sensors_json, sensor_quality_json, catalog_sha256,
+                    signals_json, signal_catalog_sha256
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 rows,
             )

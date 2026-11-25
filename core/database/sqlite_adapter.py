@@ -304,6 +304,8 @@ class SQLiteAdapter(DatabaseInterface):
             ("thermal_samples",      "sensors_json",         "TEXT"),   # v129
             ("thermal_samples",      "sensor_quality_json",  "TEXT"),   # v129
             ("thermal_samples",      "catalog_sha256",       "TEXT"),   # v129
+            ("thermal_samples",      "signals_json",          "TEXT"),  # v130
+            ("thermal_samples",      "signal_catalog_sha256", "TEXT"),  # v130
             ("energy_domains",       "reader_keys",       "TEXT"),
             ("energy_domains",       "legacy_column",     "TEXT"),
             ("output_quality",       "task_category",     "TEXT"),

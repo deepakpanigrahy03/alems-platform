@@ -104,6 +104,34 @@ def _catalog_sensors(readers: Dict) -> Optional[Callable[[], List[Dict]]]:
     return _read
 
 
+def _signals_source() -> Optional[Callable[[], List[Dict]]]:
+    """Thermal-response signals (platform reader and NVML) as typed rows, or None."""
+    from alems_sdk.thermal_catalog import typed_value
+    try:
+        from core.readers.factory import ReaderFactory
+        from core.readers.nvml_signals import NvmlSignals
+        cfg = json.loads(_HW_CONFIG.read_text()) if _HW_CONFIG.exists() else {}
+        sources = [s for s in (ReaderFactory.get_thermal_reader(cfg), NvmlSignals())
+                   if s.describe_signals()]
+    except Exception as exc:
+        logger.info("recording: no signals (%s)", exc)
+        return None
+    if not sources:
+        return None
+    sha = (cfg.get("thermal_sensors") or {}).get("signals_sha256")
+
+    def _read() -> List[Dict]:
+        rows = []
+        for src in sources:
+            for sid, v in (src.read_signals() or {}).items():
+                vi, vr, vt = typed_value(v.get("value"))
+                rows.append({"signal_id": sid, "value_int": vi, "value_real": vr, "value_text": vt,
+                             "quality_flag": v.get("status") or "UNAVAILABLE",
+                             "signal_catalog_sha256": sha})
+        return rows
+    return _read
+
+
 # readers that return zeros instead of measurements (LIMITED / INFERRED):
 # never offered to the recorder, so no zero is ever stored as energy (MIC-1)
 _NO_MEASUREMENT_READERS = ("DummyEnergyReader", "EnergyEstimator")
@@ -166,6 +194,9 @@ def build_readers() -> Tuple[Dict[str, Callable[[], List[Dict]]], Callable[[], N
     sensors = _catalog_sensors(readers)
     if sensors is not None:
         readers["SENSORS"] = sensors
+    signals = _signals_source()
+    if signals is not None:
+        readers["SIGNALS"] = signals
 
     def cleanup() -> None:
         """Release GPU handles (DCGM groups, NVML) opened for the recording."""
@@ -229,6 +260,8 @@ def open_recording(pre_window_s: float = 30.0, cooldown_max_s: float = 0.0,
     if "SENSORS" in readers:
         # same requested rate as thermal zones; the achieved rate is checked per recording
         rates["SENSORS"] = float(rates.get("THERMAL_ZONE", 1.0))
+    if "SIGNALS" in readers:
+        rates["SIGNALS"] = float(rates.get("THERMAL_ZONE", 1.0))
     if "ENERGY" in readers:
         rates["ENERGY"] = float((settings.get("idle") or {}).get("energy_hz", 10.0))
     cls = _recorder_class()

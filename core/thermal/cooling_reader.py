@@ -87,7 +87,7 @@ class CoolingReader(CoolingReaderABC):
                 readings.append({
                     "device_id":      did,
                     "timestamp_ns":   now_ns,
-                    "cur_state":      0,
+                    "cur_state":      None,         # missing is never 0 (v131)
                     "quality_flag":   "MISSING",
                     "invalid_reason": "CUR_STATE_FILE_NOT_FOUND",
                 })
@@ -119,7 +119,7 @@ class CoolingReader(CoolingReaderABC):
                 readings.append({
                     "device_id":      did,
                     "timestamp_ns":   now_ns,
-                    "cur_state":      0,
+                    "cur_state":      None,         # unreadable is never 0 (v131)
                     "quality_flag":   "READ_FAILED",
                     "invalid_reason": str(exc)[:200],
                 })

@@ -65,6 +65,10 @@ TABLES: Dict[str, Tuple[str, Tuple[str, ...]]] = {
                  "quality_flag", "invalid_reason")),
     # cumulative energy counters, read only inside idle windows (idle_session)
     # catalog sensors of the platform reader (Apple Silicon dies, x86 coretemp, ...)
+    # thermal-response signals (typed raw values; see the signal catalog)
+    "SIGNALS": ("te_signal_samples",
+                ("session_id", "signal_id", "timestamp_ns", "value_int", "value_real",
+                 "value_text", "status", "signal_catalog_sha256")),
     "SENSORS": ("te_sensor_samples",
                 ("session_id", "catalog_id", "timestamp_ns", "temp_celsius",
                  "quality_flag", "catalog_sha256")),
@@ -77,7 +81,7 @@ TABLES: Dict[str, Tuple[str, Tuple[str, ...]]] = {
 # sensors after a whole-reader failure
 _KEY = {"THERMAL_ZONE": "zone_id", "COOLING": "device_id", "GPU_TEMP": "gpu_index",
         "POWER_RAIL": "rail_id", "AMBIENT": "sensor_name", "ENERGY": "domain_id",
-        "SENSORS": "catalog_id"}
+        "SENSORS": "catalog_id", "SIGNALS": "signal_id"}
 # value column per source: NULL when the read failed (MIC-1, never 0)
 # global_session_ids of recordings open in this process: recovery never aborts them
 _OPEN_IN_PROCESS: set = set()
@@ -93,7 +97,7 @@ SLOT_MATCH_TOLERANCE_NS = 5_000_000
 
 _VALUE = {"THERMAL_ZONE": "temp_celsius", "COOLING": "cur_state",
           "GPU_TEMP": "temperature_c", "POWER_RAIL": "power_mw",
-          "AMBIENT": "temp_celsius", "ENERGY": "energy_uj", "SENSORS": "temp_celsius"}
+          "AMBIENT": "temp_celsius", "ENERGY": "energy_uj", "SENSORS": "temp_celsius", "SIGNALS": "value_int"}
 
 
 class SystemClock:
@@ -396,6 +400,8 @@ class ExperimentRecorder:
         """Map one reader dict to the te table column order."""
         if name == "SENSORS":
             return self._sensor_row(r, ts)
+        if name == "SIGNALS":
+            return self._signal_row(r, ts)
         flag = r.get("quality_flag") or "VALID"
         value = r.get(_VALUE[name])
         if flag == "UNAVAILABLE" and name != "AMBIENT":
@@ -426,6 +432,14 @@ class ExperimentRecorder:
         flag = r.get("quality_flag") or "READ_FAILED"
         value = r.get("temp_celsius") if flag in ("VALID", "OUT_OF_RANGE") else None
         return (self.session_id, r["catalog_id"], ts, value, flag, r.get("catalog_sha256"))
+
+    def _signal_row(self, r: Dict, ts: int) -> tuple:
+        """te_signal_samples row; a whole-reader failure arrives as READ_FAILED with no value."""
+        flag = r.get("quality_flag") or "READ_FAILED"
+        vals = (r.get("value_int"), r.get("value_real"), r.get("value_text"))
+        if flag != "VALID" and all(v is None for v in vals):
+            vals = (None, None, None)
+        return (self.session_id, r["signal_id"], ts) + vals + (flag, r.get("signal_catalog_sha256"))
 
     def _anchor_loop(self) -> None:
         """Write one clock anchor at open and then every anchor_s seconds."""

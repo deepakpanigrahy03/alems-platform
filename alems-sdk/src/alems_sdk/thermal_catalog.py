@@ -141,3 +141,92 @@ def sensor_quality(values: Dict[str, Optional[float]], expected: List[str],
             ok = lo <= v <= hi and abs(v) >= NEAR_ZERO_C
             vals[sid], qual[sid] = v, ("VALID" if ok else "OUT_OF_RANGE")
     return vals, qual
+
+
+# ── Signal catalog: thermal-response signals (not temperatures) ─────────────
+SIGNAL_SCHEMA_VERSION = 1
+SIGNAL_KINDS = ("level", "category", "counter", "bitmask", "setting")
+# what is known about a signal's meaning; a VALID read says only that the read worked
+INTERPRETATION = ("validated", "empirical", "unverified", "invalidated")
+SIGNAL_REQUIRED = ("id", "kind", "source", "source_field", "raw_unit", "interpretation",
+                   "analysis_enabled", "read_by")
+_INT64_MAX = 2 ** 63 - 1
+
+
+def signal_descriptor(id: str, kind: str, source: str, source_field: str, raw_unit: str,
+                      interpretation: str, analysis_enabled: bool, read_by: str,
+                      decoder: Optional[Dict[str, str]] = None, decoder_version: Optional[str] = None,
+                      device: Optional[str] = None, scope: str = "unknown",
+                      notes: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Build one signal descriptor (validated by validate_signal).
+
+    analysis_enabled False keeps the raw values out of default analysis, for
+    signals whose meaning is unverified or contradicted by measurement.
+    """
+    return {"id": id, "kind": kind, "source": source, "source_field": source_field,
+            "raw_unit": raw_unit, "interpretation": interpretation,
+            "analysis_enabled": bool(analysis_enabled) and interpretation in ("validated", "empirical"),
+            "read_by": read_by, "decoder": decoder, "decoder_version": decoder_version,
+            "device": device, "scope": scope, "notes": notes}
+
+
+def validate_signal(d: Dict[str, Any]) -> List[str]:
+    """Problems with one signal descriptor; [] when it is valid."""
+    errs = ["missing %s" % k for k in SIGNAL_REQUIRED if d.get(k) is None]
+    if d.get("kind") not in SIGNAL_KINDS:
+        errs.append("kind must be one of %s" % (SIGNAL_KINDS,))
+    if d.get("interpretation") not in INTERPRETATION:
+        errs.append("interpretation must be one of %s" % (INTERPRETATION,))
+    if d.get("analysis_enabled") and d.get("interpretation") not in ("validated", "empirical"):
+        errs.append("analysis_enabled needs a validated or empirical interpretation")
+    if d.get("scope") not in SCOPES:
+        errs.append("scope must be one of %s" % (SCOPES,))
+    return errs
+
+
+def signals_sha256(descriptors: List[Dict[str, Any]]) -> str:
+    """Identity of a signal catalog: every field except free-text notes."""
+    canon = [{k: v for k, v in d.items() if k != "notes"}
+             for d in sorted(descriptors, key=lambda x: x["id"])]
+    return hashlib.sha256(json.dumps(canon, sort_keys=True).encode()).hexdigest()
+
+
+def typed_value(value: Any):
+    """
+    (int, real, text) with at most one filled, for typed storage.
+
+    Integers outside the signed 64-bit range are kept exactly as text, never
+    rounded to a float; None gives three Nones (missing, never 0).
+    """
+    if value is None:
+        return None, None, None
+    if isinstance(value, bool):
+        return int(value), None, None
+    if isinstance(value, int):
+        return (value, None, None) if -_INT64_MAX - 1 <= value <= _INT64_MAX else (None, None, str(value))
+    if isinstance(value, float):
+        return None, value, None
+    return None, None, str(value)
+
+
+def counter_deltas(samples: List[Any]) -> Dict[str, Any]:
+    """
+    Within-epoch increments of one cumulative counter, from (time, raw value) pairs.
+
+    A missing value (None) is skipped: the counter still covers the gap. A
+    decrease is a discontinuity (reset, wrap or device change): a new epoch
+    starts and no delta is computed across it, so a delta is never negative.
+    """
+    incs, disc, prev = [], 0, None
+    for t, v in samples:
+        if v is None:
+            continue
+        if prev is not None:
+            if v >= prev[1]:
+                incs.append((prev[0], t, v - prev[1]))
+            else:
+                disc += 1
+        prev = (t, v)
+    return {"increments": incs, "total": sum(d for _, _, d in incs),
+            "intervals": len(incs), "discontinuities": disc, "complete": disc == 0}

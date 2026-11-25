@@ -163,3 +163,25 @@ def hwmon_scope(name: str, label: str) -> str:
 def read_hwmon_c(path: str) -> Optional[float]:
     """Current value of one hwmon input in C, or None."""
     return _millideg(_read(path))
+
+
+
+def read_int_status(path: str):
+    """(integer, status) from a sysfs file: VALID, READ_FAILED, or UNAVAILABLE when absent."""
+    if not os.path.exists(path):
+        return None, "UNAVAILABLE"
+    raw = _read(path)
+    try:
+        return int(raw), "VALID"
+    except (TypeError, ValueError):
+        return None, "READ_FAILED"
+
+
+def cooling_devices_by_type() -> Dict[str, str]:
+    """{cooling device type: its directory}; the first device of each type."""
+    out = {}
+    for d in sorted(glob.glob("/sys/class/thermal/cooling_device*")):
+        t = _read(os.path.join(d, "type"))
+        if t and t not in out:
+            out[t] = d
+    return out

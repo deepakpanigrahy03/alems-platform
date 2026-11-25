@@ -364,18 +364,23 @@ class IOKitThermalReader(ThermalReaderABC):
 
     def describe_signals(self):
         # type: () -> List[Dict]
-        """Thermal pressure: categorical, not a temperature."""
-        return [{"id": "powermetrics:thermal_pressure", "quantity": "thermal_pressure",
-                 "unit": "level", "values": list(PRESSURE_LEVEL_RANK),
-                 "requires": "sudo -n powermetrics (NOPASSWD rule set by install)",
-                 "started_by": "initialize()"}]
+        """macOS thermal pressure: a category, not a temperature."""
+        from alems_sdk.thermal_catalog import signal_descriptor
+        return [signal_descriptor(
+            "powermetrics:thermal_pressure", "category", "powermetrics", "Current pressure level",
+            "level", "validated", True, self.get_name(),
+            decoder={str(r): n for n, r in PRESSURE_LEVEL_RANK.items()}, decoder_version="1",
+            scope="package",
+            notes="updated about once per second by powermetrics; needs sudo -n powermetrics "
+                  "(NOPASSWD rule set by install); without it the status is UNAVAILABLE, "
+                  "which is a permission limit, not a missing capability")]
 
     def read_signals(self):
         # type: () -> Dict[str, Dict]
-        """Latest pressure level with its status."""
+        """Latest pressure level; UNAVAILABLE when powermetrics is not running."""
         level = self.get_pressure_level()
-        status = "ok" if level else ("not_started" if not self._pressure_started else "unavailable")
-        return {"powermetrics:thermal_pressure": {"value": level, "unit": "level", "status": status}}
+        return {"powermetrics:thermal_pressure": {"value": level, "unit": "level",
+                                                  "status": "VALID" if level else "UNAVAILABLE"}}
 
     def get_pressure_level(self) -> Optional[str]:
         """Not part of ThermalReaderABC. Categorical, logging/provenance only."""

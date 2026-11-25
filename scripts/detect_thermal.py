@@ -185,6 +185,29 @@ def _nvml_text(fn: str) -> Optional[str]:
         return None
 
 
+def signal_section(cfg: Dict) -> Dict[str, Any]:
+    """Signal catalog: the platform thermal reader's signals and NVIDIA NVML signals."""
+    from alems_sdk.thermal_catalog import SIGNAL_SCHEMA_VERSION, signals_sha256, validate_signal
+    from core.readers.factory import ReaderFactory
+    from core.readers.nvml_signals import NvmlSignals
+    descs = []
+    for name, get in (("thermal reader", lambda: ReaderFactory.get_thermal_reader(cfg)),
+                      ("NVML", NvmlSignals)):
+        try:
+            descs += get().describe_signals() or []
+        except Exception as exc:
+            logger.warning("signals from %s unavailable: %s", name, exc)
+    good = []
+    for d in descs:
+        errs = validate_signal(d)
+        if errs:
+            logger.warning("signal %s rejected: %s", d.get("id"), errs)
+        else:
+            good.append(d)
+    return {"signal_schema_version": SIGNAL_SCHEMA_VERSION, "signals": good,
+            "signals_sha256": signals_sha256(good) if good else None}
+
+
 def build(cfg: Dict, seconds: float, hz: float) -> Dict[str, Any]:
     """Discover, probe and assemble the thermal_sensors section."""
     sources, problems = collect_sources(cfg)
@@ -195,7 +218,7 @@ def build(cfg: Dict, seconds: float, hz: float) -> Dict[str, Any]:
         {"sensors": {}, "sources": {}, "probe": None}
     return {"schema_version": DESCRIPTOR_SCHEMA_VERSION, "status": "ok" if catalog else "no_sensors",
             "reason": None if catalog else _no_sensor_reason(problems),
-            "catalog_sha256": catalog_sha256(catalog), "catalog": catalog,
+            "catalog_sha256": catalog_sha256(catalog), "catalog": catalog, **signal_section(cfg),
             "measurements": result["sensors"], "sources": result["sources"],
             "probe": result["probe"], "provenance": provenance(before, conditions()),
             "source_problems": problems, "invalid_descriptors": invalid}

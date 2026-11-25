@@ -323,6 +323,62 @@ class ARMThermalReader(ThermalReaderABC):
             out[h["id"]] = c if c >= self._SPBM_MIN_C else None
         return out
 
+    # ── Signals (SDK describe_signals / read_signals) ─────────────────────
+
+    def _signal_files(self):
+        # type: () -> Dict[str, str]
+        """signal id -> sysfs file, for the files present on this machine."""
+        import glob
+        import os
+        files = {}
+        inputs = self._board_inputs()
+        if inputs:
+            spbm = os.path.dirname(inputs[0]["path"])
+            for name in ("tj_max_c", "pl_level", "prochot"):
+                if os.path.exists(os.path.join(spbm, name)):
+                    files["spbm:" + name] = os.path.join(spbm, name)
+        for n in glob.glob("/sys/class/hwmon/hwmon*/name"):
+            fan = os.path.join(os.path.dirname(n), "fan1_input")
+            if open(n).read().strip() == "acpi_fan" and os.path.exists(fan):
+                files["acpi_fan:fan1"] = fan
+        return files
+
+    # signal id -> (kind, raw unit, interpretation, analysis enabled, scope, decoder, notes)
+    _SIGNALS = {
+        "spbm:tj_max_c": ("level", "C", "empirical", True, "package", None,
+                          "firmware package maximum in whole C; tracks the hottest ACPI zone"),
+        "spbm:pl_level": ("level", "level", "empirical", True, "package",
+                          {"1": "PL1 binding", "2": "PL2 binding"},
+                          "active power limit; power context, not a heat measurement"),
+        "spbm:prochot": ("level", "raw", "invalidated", False, "package", None,
+                         "reads 1 at idle on GB10; not a throttle indicator"),
+        "acpi_fan:fan1": ("level", "raw", "unverified", False, "board", None,
+                          "ACPI fan value; meaning undocumented (reads 2), not RPM"),
+    }
+
+    def describe_signals(self):
+        # type: () -> List[Dict]
+        """GB10 firmware and fan signals present on this machine."""
+        from alems_sdk.thermal_catalog import signal_descriptor
+        out = []
+        for sid, path in sorted(self._signal_files().items()):
+            kind, unit, interp, enabled, scope, decoder, notes = self._SIGNALS[sid]
+            out.append(signal_descriptor(sid, kind, sid.split(":")[0], path, unit, interp, enabled,
+                                         self.get_name(), decoder=decoder,
+                                         decoder_version="1" if decoder else None,
+                                         scope=scope, notes=notes))
+        return out
+
+    def read_signals(self):
+        # type: () -> Dict[str, Dict]
+        """{signal id: {"value", "unit", "status"}}; a failed read is None, never 0."""
+        from core.thermal.thermal_descriptors import read_int_status
+        out = {}
+        for sid, path in self._signal_files().items():
+            value, status = read_int_status(path)
+            out[sid] = {"value": value, "unit": self._SIGNALS[sid][1], "status": status}
+        return out
+
     def read_temperatures(self):
         # type: () -> Dict
         """
