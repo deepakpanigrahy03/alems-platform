@@ -327,6 +327,8 @@ class SQLiteAdapter(DatabaseInterface):
             ("runs",                 "measurement_log_config_hash", "TEXT"),
             ("runs",                 "observability_overflow",      "INTEGER"),
             ("runs",                 "measurement_heartbeat_s",     "REAL"),
+            ("experiments",          "declared_dedicated_machine",
+             "INTEGER CHECK(declared_dedicated_machine IN (0, 1))"),
         ]
         for table, column, typedef in _col_additions:
             existing = [r[1] for r in
@@ -495,8 +497,8 @@ class SQLiteAdapter(DatabaseInterface):
                 name, description, workflow_type, model_name, provider,
                 model_id, execution_site, transport, remote_energy_available,
                 task_name, country_code, group_id, status, started_at, runs_total,optimization_enabled,
-                hw_id, env_id,experiment_type, experiment_goal                 
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                hw_id, env_id,experiment_type, experiment_goal, declared_dedicated_machine                 
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 experiment_data.get("name", "unnamed"),
@@ -518,7 +520,8 @@ class SQLiteAdapter(DatabaseInterface):
                 experiment_data.get("hw_id"),
                 experiment_data.get("env_id"),
                 experiment_data.get("experiment_type", "normal"),
-                experiment_data.get("experiment_goal"),                
+                experiment_data.get("experiment_goal"),
+                experiment_data.get("declared_dedicated_machine"),   # 1, 0 or NULL (MIC-1)                
             ),
         )
         return cursor.lastrowid

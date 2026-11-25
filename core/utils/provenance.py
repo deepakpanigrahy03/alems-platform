@@ -63,6 +63,7 @@ COLUMN_PROVENANCE: Dict[str, Tuple[Optional[str], str]] = {
     "experiment_type":  ("system_metadata_v1", "SYSTEM"),
     "experiment_goal":  ("system_metadata_v1", "SYSTEM"),
     "experiment_notes": ("system_metadata_v1", "SYSTEM"),
+    "declared_dedicated_machine": ("system_metadata_v1", "SYSTEM"),
     # 39.5.2b window provenance: system state, no measurement method
     "measurement_log_level":       (None, "SYSTEM"),
     "measurement_log_config_hash": (None, "SYSTEM"),

@@ -66,7 +66,8 @@ CREATE TABLE IF NOT EXISTS experiments (
     env_id INTEGER REFERENCES environment_config(env_id),    
     is_valid INTEGER NOT NULL DEFAULT 1,              -- 0 = development artifact, excluded from paper queries
     invalidation_reason TEXT,                         -- reason for invalidation if is_valid=0
-    invalidated_at TIMESTAMP                          -- when invalidated    
+    invalidated_at TIMESTAMP,                         -- when invalidated
+    declared_dedicated_machine INTEGER CHECK(declared_dedicated_machine IN (0, 1))  -- v124: declared by the experimenter (1 dedicated, 0 shared, NULL not declared); never verified isolation    
 );
 """
 

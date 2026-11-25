@@ -41,6 +41,7 @@ from platform_config import get_platform_config
 from dag_validator import validate_dag
 from proc_attr_validator import validate_proc_attr
 from agreement_validator import validate_agreement
+from energy_rule_checks import validate_rules
 from check_validators import (
     validate_boundary,
     validate_activity_decomp,
@@ -276,6 +277,8 @@ def validate_run(conn, run_id):
     checks.update(dag_result['checks'])
     # Cross-source agreement (Nov 4, 2026): catches unit and scaling bugs
     checks.update(validate_agreement(conn, run_id, platform))
+    # expected containment, observed ordering, additivity residuals (kept apart)
+    checks.update(validate_rules(conn, run_id, platform))
 
     # ── Summary counts ────────────────────────────────────────────────────
     statuses = [v.get('status', '') for v in checks.values()]
@@ -384,7 +387,8 @@ def main():
 
     for exp_id in exp_ids:
         exp_row = conn.execute(
-            "SELECT experiment_type, workflow_type, runs_completed, is_valid "
+            "SELECT experiment_type, workflow_type, runs_completed, is_valid, "
+            "declared_dedicated_machine "
             "FROM experiments WHERE exp_id=?", (exp_id,)
         ).fetchone()
         if not exp_row:
@@ -404,6 +408,7 @@ def main():
             "workflow_type":   exp_row[1],
             "runs_completed":  exp_row[2],
             "is_valid":        exp_row[3],
+            "declared_dedicated_machine": exp_row[4],
             "runs":            [],
         }
 

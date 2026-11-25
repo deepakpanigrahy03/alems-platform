@@ -184,6 +184,13 @@ A-LEMS runs turbostat as a subprocess at the same interval as RAPL sampling
 
 ---
 
+## Declared Dedicated Machine
+
+Each experiment records whether the experimenter declared the machine dedicated to it (`experiments.declared_dedicated_machine`: 1 dedicated, 0 shared, NULL not declared).
+It is set by the study configuration key `declared_dedicated_machine: true` or `false`, available since schema version 124.
+The value is a declaration, not a measurement: it does not show that no other workload ran, and the validator prints it as "declared dedicated (not verified)".
+Analyses that need isolation must check overlapping requests and other GPU processes from the stored data.
+
 ## OS Scheduler Measurement
 
 ### Overview

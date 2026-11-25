@@ -89,6 +89,13 @@ for AXIS 3 diagnostic use but never subtracted from attributed.
 
 ---
 
+## Execution Path Coverage
+
+Sample based LLM window energy is computed for linear and agentic runs on all three execution paths: paired comparison runs, single workflow runs, and goal execution runs with retries or injected failures.
+Earlier versions stored 0 J of LLM window energy for linear runs; current runs store a positive value below the run's attributed energy.
+Verified on NVIDIA Grace GB10 (GN100, aarch64): 551 linear goal execution runs, none with zero or missing LLM window energy (mean 15.6 J), and paired and single workflow linear runs between 61 J and 1,367 J.
+Stores written before the fix keep their stored values; recomputation is done on an analysis copy, never in place.
+
 ## Novel Finding
 
 Local models (tinyllama, ollama) with `api_latency_ms = 0` still draw

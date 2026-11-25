@@ -1037,6 +1037,7 @@ class ExperimentRunner:
         optimizer=False,
         experiment_type='normal',     # research intent — DB trigger enforces valid values
         experiment_goal=None,         # human research question free text
+        declared_dedicated_machine=None,  # 1, 0 or None; a declaration, not verified isolation
         workflow_mode='comparison',   # 'linear'|'agentic'|'comparison'        
     ) -> int:
         """Create experiment with session tracking (NEW)"""
@@ -1060,7 +1061,8 @@ class ExperimentRunner:
             "hw_id": hw_id,
             "env_id": env_id,
             'experiment_type': experiment_type,    
-            'experiment_goal': experiment_goal,    
+            'experiment_goal': experiment_goal,
+            'declared_dedicated_machine': declared_dedicated_machine,    
             'workflow_type':   workflow_mode,            
         }
         return db.insert_experiment(experiment_meta)

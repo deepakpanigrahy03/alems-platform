@@ -186,6 +186,7 @@ def run_provider_task(
                 optimizer=args.optimizer,
                 experiment_type=getattr(args, 'experiment_type', 'normal'),
                 experiment_goal=getattr(args, 'experiment_goal', None),
+                declared_dedicated_machine=getattr(args, 'declared_dedicated_machine', None),
                 workflow_mode=getattr(args, 'workflow_mode', 'comparison'),                
             )
 
