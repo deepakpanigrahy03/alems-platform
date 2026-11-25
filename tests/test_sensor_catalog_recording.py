@@ -52,7 +52,7 @@ def test_migrations_build_the_timeline():
     CREATE TABLE te_gpu_temp_samples(session_id INT, gpu_index INT, timestamp_ns INT, temperature_c REAL, quality_flag TEXT);
     CREATE TABLE te_sensor(sensor_id INTEGER PRIMARY KEY AUTOINCREMENT, machine_profile TEXT NOT NULL, profile_sha256 TEXT NOT NULL, sensor_name TEXT NOT NULL, source_table TEXT NOT NULL, zone_type TEXT, zone_index INT, gpu_index INT, canonical_role TEXT NOT NULL, unit TEXT NOT NULL, nominal_resolution_c REAL NOT NULL, valid_min_c REAL NOT NULL, valid_max_c REAL NOT NULL, expected_update_interval_ms REAL, expected_update_interval_source TEXT, is_main INT NOT NULL DEFAULT 0, loaded_at_utc TEXT NOT NULL, interface_resolution_c REAL, observed_step_c REAL, resolution_status TEXT, catalog_sha256 TEXT);
     INSERT INTO te_session VALUES(1);""")
-    c.executescript((ROOT / "migrations/schema/v124_thermal_samples_catalog_readings.sql").read_text())
+    c.executescript((ROOT / "migrations/schema/v129_thermal_samples_catalog_readings.sql").read_text())
     c.executescript((ROOT / "migrations/extensions/thermal_exposure/e005_sensor_samples_and_catalog.sql").read_text())
     c.execute("""INSERT INTO thermal_samples(run_id,timestamp_ns,sensors_json,sensor_quality_json,catalog_sha256)
                  VALUES(5,100,'{"s1": 41.5, "s2": null}','{"s1":"VALID","s2":"READ_FAILED"}','h')""")

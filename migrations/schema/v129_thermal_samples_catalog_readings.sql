@@ -1,4 +1,4 @@
--- v124: per-sensor catalog readings in thermal_samples
+-- v129: per-sensor catalog readings in thermal_samples
 -- Root cause: inside runs only the reader's legacy readings dict was stored
 -- (all_zones_json): platform-specific names, some of them aggregates, and on
 -- Apple Silicon a single maximum instead of 24 die sensors. Per-sensor series

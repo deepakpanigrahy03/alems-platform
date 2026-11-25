@@ -159,7 +159,7 @@ class ThermalRepository:
                     sample.get("throttle_event", 0),
                     json.dumps(all_zones_dict) if all_zones_dict else None,
                     len(all_zones_dict),
-                    # v124: catalog readings; None stays NULL (no catalog for that sample)
+                    # v129: catalog readings; None stays NULL (no catalog for that sample)
                     json.dumps(sample["sensors"]) if isinstance(sample.get("sensors"), dict) else None,
                     json.dumps(sample["sensor_quality"]) if isinstance(sample.get("sensor_quality"), dict) else None,
                     sample.get("catalog_sha256"),

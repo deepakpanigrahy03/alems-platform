@@ -301,9 +301,9 @@ class SQLiteAdapter(DatabaseInterface):
             ("goal_attempt",         "started_at_ns",    "INTEGER"),
             ("goal_attempt",         "finished_at_ns",   "INTEGER"),
             ("runs",                 "rapl_at_t0_uj",    "INTEGER"),
-            ("thermal_samples",      "sensors_json",         "TEXT"),   # v124
-            ("thermal_samples",      "sensor_quality_json",  "TEXT"),   # v124
-            ("thermal_samples",      "catalog_sha256",       "TEXT"),   # v124
+            ("thermal_samples",      "sensors_json",         "TEXT"),   # v129
+            ("thermal_samples",      "sensor_quality_json",  "TEXT"),   # v129
+            ("thermal_samples",      "catalog_sha256",       "TEXT"),   # v129
             ("energy_domains",       "reader_keys",       "TEXT"),
             ("energy_domains",       "legacy_column",     "TEXT"),
             ("output_quality",       "task_category",     "TEXT"),
