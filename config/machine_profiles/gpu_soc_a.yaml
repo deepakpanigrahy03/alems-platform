@@ -21,7 +21,7 @@
 # -----------------------------------------------------------------------------
 
 profile_id: gpu_soc_a
-profile_version: 1
+profile_version: 3
 
 main_channel: gpu
 main_sensor: gpu_temp
@@ -128,15 +128,17 @@ channels:
     meaning: Deep Learning Accelerator
 
 sensors:
-  # 7 ACPI zones. canonical_role is read from thermal_zones, not typed here.
-  - {name: soc_zone_0, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 0, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
-  - {name: soc_zone_1, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 1, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
-  - {name: soc_zone_2, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 2, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
-  - {name: soc_zone_3, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 3, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
-  - {name: soc_zone_4, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 4, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
-  - {name: soc_zone_5, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 5, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
-  - {name: soc_zone_6, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 6, nominal_resolution_c: 0.001, valid_min_c: -10.0, valid_max_c: 125.0}
+  # 7 ACPI zones. canonical_role is read from thermal_zones; resolution, trip
+  # points and identity are discovered by scripts/detect_thermal.py (hw_config.json,
+  # thermal_sensors), not typed here.
+  - {name: soc_zone_0, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 0, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_1, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 1, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_2, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 2, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_3, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 3, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_4, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 4, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_5, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 5, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: soc_zone_6, source_table: thermal_samples_v2, zone_type: acpitz, zone_index: 6, valid_min_c: -10.0, valid_max_c: 125.0}
   # GPU temperature: whole degrees in gpu_samples.temperature_c (1 C resolution)
-  - {name: gpu_temp, source_table: gpu_samples, gpu_index: 0, canonical_role: GPU, nominal_resolution_c: 1.0, valid_min_c: -10.0, valid_max_c: 125.0}
+  - {name: gpu_temp, source_table: gpu_samples, gpu_index: 0, canonical_role: GPU, valid_min_c: -10.0, valid_max_c: 125.0}
   # Room temperature is not listed: no probe is fitted, so it has no usable
   # reader; sessions record ambient as unavailable instead.

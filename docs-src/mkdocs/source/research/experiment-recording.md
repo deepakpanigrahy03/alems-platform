@@ -1,9 +1,9 @@
 ---
 **Method ID:** experiment_recording_v1
-**Schema version:** core 123; extension thermal_exposure e002
+**Schema version:** core 123; extension thermal_exposure e003
 **Platforms verified:** NVIDIA Grace GB10 (aarch64)
 **Status:** REVIEW
-**Last updated:** 2026-11-18
+**Last updated:** 2026-11-20
 ---
 
 # Continuous Experiment Recording
@@ -22,7 +22,8 @@ The recorder is fully paused during a run (no reads, no writes), so every sample
 and no existing view, query or report sees anything new.
 
 Opt in with `--record-continuous` on `run_experiment.py`, or with a `recording:` section in an
-experiment config (`enabled`, `pre_window_s`, `cooldown_max_s`).
+experiment config (`enabled`, `pre_window_s`, `cooldown_max_s`, and optionally `cooldown`,
+`idle`, `checks` and `server`; see Idle Reference and Recording Checks).
 
 ## Experiment Recording Time Line { #experiment-recording-time-line }
 
@@ -68,7 +69,7 @@ A recording is cut into labelled time intervals called spans. A span has a kind,
 
 | Platform | Architecture | Source | Canonical Role | Confidence | Status |
 |---|---|---|---|---|---|
-| NVIDIA Grace GB10 | aarch64 | sysfs thermal zones, cooling devices, SPBM power rails, DCGM GPU temperature | between-runs context | 0.95 | VERIFIED |
+| NVIDIA Grace GB10 | aarch64 | sysfs thermal zones (named from firmware labels), converted board temperature channels, cooling devices, SPBM power rails, DCGM GPU temperature, thermal-response signals (NVML, firmware) | between-runs context | 0.95 | VERIFIED |
 | Intel i7-1165G7 | x86_64 | sysfs thermal zones, cooling devices (no power rails) | between-runs context | 0.95 | PENDING |
 | AMD Ryzen | x86_64 | sysfs thermal zones, cooling devices, NVML GPU temperature | between-runs context | 0.95 | PENDING |
 | Apple M1 Pro | arm64 | none yet | - | TBD | PLANNED |
@@ -79,6 +80,83 @@ other; the absolute alignment to the wall clock is measured by the anchors (0.00
 confidence of the readers that produce them (for example 1 C resolution for GPU temperature).
 To reach 1.0 the readers would need hardware timestamps for each value; sysfs and DCGM do not
 provide them.
+
+## Idle Reference and Recording Checks
+
+Each recording can measure its own idle reference and record the checks that decide whether it can be used for a clean comparison. Three questions are kept apart, because passing one never proves another: is the reference state stable and reproducible, did the machine return to it after the workload, and was there known interference.
+
+Settings come from the experiment config's `recording:` section (all values provisional until calibration; the values used are stored with each recording in `te_session.checks_config_sha256` and in each check row):
+
+```yaml
+recording:
+  enabled: true
+  cooldown_max_s: 600
+  cooldown: {tolerance_c: 2.0, mad_k: 3.0, hold_s: 60}
+  idle:
+    measure: true            # false (default): no idle wait; store idle baseline referenced
+    pre_s: 600               # extended in extend_step_s steps up to pre_max_s until stable
+    pre_max_s: 1800
+    post_s: 600
+    decision_sensor: soc_zone_0
+    guard_sensors: [gpu_temp]
+  checks: {min_coverage: 0.98, slope_limit_c_per_min: 0.1, drift_tolerance_c: 0.5}
+  server: {state: server_loaded, process_names: []}
+```
+
+Example: `config/experiment_configs/examples/example_record_idle_measured.yaml`.
+
+With `idle.measure: false` nothing waits beyond `pre_window_s`; the recording stores `idle_reference = store_baseline` and the id of the store idle baseline (`idle_baselines`, read only, never changed). The exposure analysis does not use such recordings unless explicitly told to. The wait for a measured idle window happens once per recording, shared by all its runs.
+
+Sensor and channel names come from the machine profile tables `te_sensor` and `te_channel`, so the same rules serve every platform. A sensor, channel, process list or room probe that does not exist gives `unknown`, never `pass` and never 0.
+
+### Idle Window Median { #idle-window-median }
+
+For every sensor and power channel, the median and the median absolute deviation (MAD, the typical distance of samples from the median) of VALID samples inside the `idle_window` span (purpose `pre`, and `post` when written) are stored in `te_idle_window`. The median is used because short background bursts pull a mean upward. GPU temperature keeps its whole-degree resolution; its median moves in 1 C steps.
+
+### Idle Power From Energy Counters { #idle-power-from-energy-counters }
+
+On machines whose main power channel is a cumulative energy counter (for example RAPL on x86), the recorder reads the counters only inside idle windows, never in gaps, cool-down or runs, into `te_energy_samples`. Power per interval is the energy difference divided by the time difference. A negative difference is a counter wraparound: corrected when the counter range is known, otherwise the interval is dropped. Machines with power rails (NVIDIA Grace GB10) use the rails and never read the counters.
+
+### Pre Idle Window Acceptance { #pre-idle-window-acceptance }
+
+With `idle.measure: true` the first run waits until the pre idle window is accepted, or until `pre_max_s`. Acceptance needs, for the decision sensor, the guard sensors and the main channel: VALID coverage of at least `min_coverage` over the window and over the final interval (`final_s`), no gap longer than two sample intervals in the final interval, and at least 90 % of the expected samples. Over the final interval the upper 95 % bound of the absolute temperature slope (least squares) must be below `slope_limit_c_per_min`, and the main channel's MAD divided by its median must be below `power_rel_mad_limit`. The slope bound is never smaller than the sensor resolution divided by the interval, so a whole-degree sensor cannot prove stability with a flat trace. The power test is `unknown` when the median power is near zero. If the window is still not accepted at `pre_max_s`, the recording continues with `idle_equilibrium = 0`.
+
+### Cooling Complete { #cooling-complete }
+
+After the last run (when `cooldown_max_s` > 0) the residual of each decision and guard sensor is its temperature minus its pre-window median. Cooling is complete when every residual stays inside its band, in absolute value (an undershoot does not pass), for `hold_s` without a sampling gap longer than two intervals, within `cooldown_max_s`. The band is the largest of the engineering tolerance, `mad_k` times the pre-window MAD, and the sensor resolution. A gap or a residual outside the band restarts the hold. A timeout is never counted as cooled. The previous recording's cooling outcome is kept separately: a new recording that starts within `cooldown_max_s` of a recording that did not cool down is marked `carryover_contaminated`, and a stable pre window does not clear that mark.
+
+### Idle Drift { #idle-drift }
+
+Drift is the post-window median minus the pre-window median, per sensor and channel. Above the drift tolerance (degrees for temperature, a share of the pre median for power) the recording is a drift session (`drift_session = 1`), kept and analysed separately. The idle value is never interpolated. Without a post window drift is `unknown`.
+
+**Other GPU users.** Between runs the recorder reads the GPU process list every few seconds (read only; no process is ever signalled). An external process with GPU utilisation above zero at a checkpoint fails `gpu_external_activity`; one holding a GPU context only warns `gpu_external_process`. Inside runs nothing is observable, so `gpu_interference_inside_runs` is always `unknown`. A clean result means no external activity at checkpoints, never that the runs were isolated.
+
+### Sensor Resolution Observed { #sensor-resolution-observed }
+
+A temperature interface's format is not the sensor's granularity: Linux sysfs reports millidegrees for every zone, yet NVIDIA Grace GB10 ACPI zones change in 0.1 C steps, Intel x86 package and core sensors in 1 C steps, and the GB10 board-power driver's temperature channels, once converted from tenths of a kelvin, in 0.1 C steps (they are the ACPI zones; see Board Temperature Conversion). The rules that use resolution (stability slope floor, cooling band) therefore take it from observation, not from a typed value. At install, `scripts/detect_thermal.py` reads every sensor for 60 s and records the smallest non-zero step seen at least twice (`measured`); a sensor that changed too little gets `insufficient_transitions` and no step. When the machine profile loads, `te_sensor.nominal_resolution_c` is the observed step when measured, otherwise the interface resolution (`interface_only`); a profile that types a disagreeing value is rejected. Each recording re-checks the decision and guard sensors (`sensor_resolution_<name>`): a finer step than the catalog, or a catalog that changed since the profile loaded, is a warning.
+
+**Declared idle state.** `server.state` declares whether a model server is loaded or stopped while idle (with a server loaded the GPU can stay in its highest power state, near 57 C on NVIDIA Grace GB10). It is checked at the checkpoints against the configured server process names (`idle_state_verification`: fail if the server is absent or its process id changed). Idle references are compared only between recordings with the same declared state.
+
+### Board Temperature Conversion { #board-temperature-conversion }
+
+On NVIDIA Grace GB10 the board-power hwmon driver (`spbm`, from the third-party `spark_hwmon` driver) exposes eight temperature channels named after firmware registers: `tj_max`, `cpu_e_clu0`, `cpu_p_clu0`, `cpu_e_clu1`, `cpu_p_clu1`, `gpu`, `soc` and `dla`. The firmware reports tenths of a kelvin and the driver presents them as degrees Celsius, so the raw channels read about 33 C on a chip at 60 C and move a tenth as much as the chip. A-LEMS converts each reading: C = shown value × 10 − 273.2. A converted value below 1 C is an empty slot (`dla`, the unused deep-learning accelerator) and is stored as missing, never as a temperature.
+
+Evidence: over 1,200 seconds of idle sampling at 1 Hz, each converted channel equalled one ACPI thermal zone on every sample, with a difference of exactly 0.05 C (the firmware's 273.2 offset). This names the zones: zone0 is the package maximum, zones 1 and 3 the efficiency CPU clusters, zones 2 and 4 the performance CPU clusters, zone5 the GPU and zone6 the rest of the SoC. The converted channels are recorded beside the zones as a second read path of the same sensors. The labels name a functional domain; the exact physical position of each sensor inside it is not documented.
+
+### Thermal Response Signals { #thermal-response-signals }
+
+Signals record how the machine reacts to heat and power; they are not temperatures. Each platform reader describes its signals (`describe_signals`): source and field, raw unit, kind (level, category, counter, bitmask or setting), decoder, interpretation (validated, empirical, unverified or invalidated) and whether analysis may use it (`analysis_enabled`). `scripts/detect_thermal.py` stores this signal catalog and its hash (`signals_sha256`) in `config/hw_config.json`, and each recording keeps an immutable copy (`te_signal_catalog`).
+
+Values are read on the thermal sampling tick, after the temperatures, and stored raw: inside runs in `thermal_samples.signals_json` as `{signal id: {value, status}}`, between runs in `te_signal_samples` with one typed value column (integers outside the signed 64-bit range are kept exactly as text). The status says only whether the read worked; the meaning of a value is in the catalog. Missing is null with its status, never 0.
+
+| Platform | Signals |
+| --- | --- |
+| NVIDIA GPU (any working driver) | clock-event reason bitmask (several reasons can be active at once; unknown bits are kept in the raw value), cumulative time per reason in nanoseconds, temperature margin to the slowdown point, driver and NVML versions, GPU UUID |
+| NVIDIA Grace GB10 firmware | `tj_max_c` (package maximum in whole C, empirical), `pl_level` (active power limit, empirical, power context only), `prochot` (invalidated: reads 1 at idle) and the ACPI fan value (unverified); the last two are stored and excluded from analysis |
+| Intel x86 | TCC offset (throttle point lowered by this many C, empirical), `intel_powerclamp` (forced idle percent; −1 means disabled) |
+| macOS | thermal pressure level (needs `sudo -n powermetrics`; without it the status is UNAVAILABLE, a permission limit, not a missing capability) |
+
+Cumulative counters are differenced only within one counter epoch: a decrease (driver reload, reset or wrap) starts a new epoch, so a difference is never negative, and a run that spans a discontinuity reports a partial total. Throttle reasons overlap, so their times are never added together as "time throttled". Driver and NVML versions are read once per measurement.
 
 ## Schema
 
@@ -98,6 +176,23 @@ provide them.
 | `te_v_recording_thermal` | view: run samples plus between-runs samples of one recording, `owner` = `run` or `between` |
 
 Values that could not be read are NULL with a quality flag, never 0.
+
+### Idle reference and checks
+
+| Table / column | Meaning |
+|---|---|
+| `te_idle_window` | per recording, phase (`pre`, `post`) and sensor or channel: median, MAD, unit, sample count, window, method id |
+| `te_energy_samples` | raw cumulative energy counter values, read only inside idle windows (machines without power rails) |
+| `te_session.idle_reference` | `matched` (measured in this recording) or `store_baseline` |
+| `te_session.idle_baseline_id` | the `idle_baselines` row referenced when `store_baseline` |
+| `te_session.idle_equilibrium` | 1 = pre idle window accepted, 0 = not accepted at the maximum length |
+| `te_session.declared_idle_state`, `idle_state_verification` | server loaded or stopped while idle, and the evidence result |
+| `te_session.carryover_contaminated`, `prev_session_id` | the previous recording on this node did not cool down |
+| `te_session.decision_sensor` | sensor used by the cooling and drift rules |
+| `te_session.cooling_complete`, `drift_session`, `ambient_status` | cooling outcome, drift session flag, room probe availability |
+| `te_session.checks_config_sha256` | hash of the idle, cooling, check and server settings |
+| `te_session_check.result` | `pass`, `warn`, `fail` or `unknown` (a check that could not be made) |
+| `te_sensor.interface_resolution_c`, `observed_step_c`, `resolution_status`, `catalog_sha256` | origin of `nominal_resolution_c`: interface format, step seen by the install probe (NULL if too few changes), `measured` / `interface_only` / `typed_unverified`, and the sensor catalog used |
 
 ### Recording spans
 
@@ -124,6 +219,14 @@ The 30 s, 2 C, 60 s and 5 ms values are engineering starting values, to be confi
 calibration on each platform.
 
 **`recording_spans_v1`** (MEASURED, confidence 0.95, layer silicon). Span boundaries are the recorder's own pause and resume instants on the recording time line, so they carry the time line's uncertainty. Confidence 0.95, not 1.0: the boundaries share the time line's mapping error (measured about 0.001 ms on NVIDIA Grace GB10, limit 5 ms) and a wall-clock step during a recording shifts run times relative to span times; slot linking can fail (reported, never guessed). It would reach 1.0 if runs were stamped from the same time line as the recorder. For sample selection the effect is below one thermal sample interval (50 ms at 20 Hz).
+
+**`idle_window_median_v1`** (CALCULATED, confidence 0.9). Confidence 0.9, not 1.0: the window length is provisional until the thermal time constants are measured, so a window may still contain the end of a slow settling; GPU temperature is quantised to 1 C. It would reach 1.0 with a window proven longer than three slowest time constants and acceptance passed.
+
+**`idle_power_from_counter_v1`** (CALCULATED, confidence 0.9). Not 1.0: a wraparound with an unknown counter range drops that interval, and counter update granularity adds noise at 10 Hz. Reaches 1.0 with the counter range known and reads aligned to counter updates.
+
+**`idle_pre_acceptance_v1`**, **`cooling_complete_v1`** (CALCULATED, confidence 0.8). Not 1.0: every threshold is a provisional engineering value and the decision sensor is not yet chosen from calibration evidence. Reaches 1.0 only when the thresholds and the decision sensor are frozen from calibration data and shown repeatable across sessions.
+
+**`idle_drift_v1`** (CALCULATED, confidence 0.85). Not 1.0: the drift tolerance is provisional and the post window exists only after a completed cool-down. The difference itself is exact.
 
 ## Query Reference
 
@@ -213,6 +316,67 @@ WHERE t.session_id = (SELECT MAX(session_id) FROM te_session)
 GROUP BY s.span_id ORDER BY s.start_ns;
 ```
 
+### Idle reference and checks
+
+**Idle evidence of the latest recording** — answers: was the idle reference measured, accepted, and was cooling reached? Applies to: all platforms with continuous recording. Expected: one row; `idle_reference` `matched` or `store_baseline`, flags 0, 1 or NULL.
+```sql
+SELECT session_id, idle_reference, idle_baseline_id, idle_equilibrium, cooling_complete,
+       drift_session, carryover_contaminated, decision_sensor, declared_idle_state,
+       idle_state_verification
+FROM te_session ORDER BY session_id DESC LIMIT 1;
+```
+
+**Idle medians of the latest recording** — answers: idle temperature per sensor and idle power per channel. Expected: one row per sensor or channel and phase; temperatures in C (for example about 45 C for a SoC zone at idle), power in mW.
+```sql
+SELECT phase, COALESCE(sensor_name, channel_name) AS name, unit,
+       ROUND(median_value, 3) AS median, ROUND(mad_value, 3) AS mad, sample_count, method_id
+FROM te_idle_window
+WHERE session_id = (SELECT MAX(session_id) FROM te_session)
+ORDER BY name, phase;
+```
+
+**Idle drift per sensor and channel** — answers: did the idle level change during the recording? Expected: one row per series with both windows; small differences (tenths of a degree) at a stable idle.
+```sql
+SELECT COALESCE(pre.sensor_name, pre.channel_name) AS name, pre.unit,
+       ROUND(pre.median_value, 3) AS pre_median, ROUND(post.median_value, 3) AS post_median,
+       ROUND(post.median_value - pre.median_value, 3) AS drift
+FROM te_idle_window pre
+JOIN te_idle_window post
+  ON post.session_id = pre.session_id AND post.phase = 'post'
+ AND COALESCE(post.sensor_name, post.channel_name) = COALESCE(pre.sensor_name, pre.channel_name)
+WHERE pre.phase = 'pre' AND pre.session_id = (SELECT MAX(session_id) FROM te_session)
+ORDER BY name;
+```
+
+**Recording checks other than rate and gap** — answers: why is a recording (not) clean? Expected: about 15 rows; `unknown` where a tool or sensor is unavailable.
+```sql
+SELECT check_name, result, value, threshold, note
+FROM te_session_check
+WHERE session_id = (SELECT MAX(session_id) FROM te_session)
+  AND check_name NOT LIKE 'rate_%' AND check_name NOT LIKE 'gap_%'
+ORDER BY check_name;
+```
+
+**Recordings usable for a clean comparison** — answers: which recordings have a matched, accepted reference, completed cooling, no drift, no carry-over and no failed check? Expected: zero or more rows.
+```sql
+SELECT s.session_id, s.exp_id, s.declared_idle_state, s.decision_sensor
+FROM te_session s
+WHERE s.status = 'closed'
+  AND s.idle_reference = 'matched' AND s.idle_equilibrium = 1
+  AND s.cooling_complete = 1 AND s.drift_session = 0
+  AND COALESCE(s.carryover_contaminated, 0) = 0
+  AND NOT EXISTS (SELECT 1 FROM te_session_check c
+                  WHERE c.session_id = s.session_id AND c.result = 'fail')
+ORDER BY s.session_id;
+```
+
+**Sensor resolution and its origin** — answers: what resolution do the rules use for each sensor, and where does it come from? Applies to: every platform with a loaded machine profile. Expected: on NVIDIA Grace GB10, ACPI zones 0.1 (interface 0.001, `measured`) and GPU temperature 1.0.
+```sql
+SELECT sensor_name, nominal_resolution_c, interface_resolution_c, observed_step_c,
+       resolution_status, substr(catalog_sha256, 1, 12) AS catalog
+FROM te_sensor ORDER BY sensor_name;
+```
+
 ## Verification
 
 1. `python scripts/tools/thermal_record.py --seconds 60` records one minute with no load and
@@ -231,6 +395,11 @@ sqlite3 "$DB" "SELECT check_name, result, value, note FROM te_session_check
 ```
 Expected: `spans_partition` pass; `spans_run_match` pass when every run was saved.
 
+For the idle reference and checks:
+1. `python -m pytest -q tests/test_idle_checks.py tests/test_idle_session.py` (no hardware needed).
+2. Run the example `config/experiment_configs/examples/example_record_idle_measured.yaml` (about 30 minutes, mostly idle).
+3. Run the idle queries above: `te_idle_window` has `pre` and `post` rows, `idle_reference = matched`, and every check is `pass` or an explained `unknown`.
+
 ## Known Limitations
 
 - **Short gaps at run boundaries**: the recorder stops at a run's start boundary and resumes after the
@@ -240,8 +409,9 @@ Expected: `spans_partition` pass; `spans_run_match` pass when every run was save
   never as wrong data. Workaround: none needed; the gap is reported.
 - **Overlapping experiments on one machine** each store their own copy of the same machine
   readings, and the values reflect both workloads. Workaround: run one experiment per machine.
-- **No energy counters between runs**: only power rails (for the idle reference), temperatures
-  and cooling are recorded. Workaround: none; energy is attributed to runs only.
+- **Energy counters only inside idle windows**: between runs only power rails, temperatures and
+  cooling are recorded; cumulative energy counters are read only inside idle windows, for the idle
+  power reference on machines without rails. Workaround: none; energy is attributed to runs only.
 - **GPU temperature is whole degrees** (DCGM/NVML). Workaround: none — accept the resolution.
 - **Two clock bases in one time line**: run samples keep the platform's wall-clock timestamps;
   between-runs samples use the recording's monotonic time line. They agree to within the
@@ -259,3 +429,17 @@ Expected: `spans_partition` pass; `spans_run_match` pass when every run was save
   Workaround: None until a configured node name is passed; it is never a hostname.
 - **Recordings made before spans existed** have no spans; the integrity checker reports a warning.
   Workaround: use `te_session` boundary columns for those recordings.
+- **Interference inside runs is not observable**: the recorder is paused during runs, so other GPU users are seen only at checkpoints between runs (every 5 s and after each run).
+  Workaround: None — `gpu_interference_inside_runs` is always `unknown`; treat clean checkpoints as no evidence of activity, not as proof of isolation.
+- **Provisional thresholds and decision sensor**: idle length, acceptance limits, cooling band and drift tolerance are engineering starting values, and the decision sensor is configured, not yet chosen from calibration evidence.
+  Workaround: the values used are stored with each recording, so results can be re-judged when the values are frozen.
+- **No GPU power between runs**: GPU temperature is recorded between runs, GPU power is not; a machine profile whose main channel is GPU power has no matched idle power.
+  Workaround: None — idle power for that channel is stored as unavailable.
+- **Store idle baseline is not a matched reference**: with `idle.measure: false` the recording references `idle_baselines` (a mean over the store, no temperature, server state unknown).
+  Workaround: set `idle.measure: true` for thermal and clean-comparison work.
+- **No energy counter on Apple Silicon between runs**: idle power is `unknown` there.
+  Workaround: None until a counter reader exists.
+- **Observed step is not accuracy**: the install probe shows the practical granularity of the acquisition path during one idle minute; a sensor that barely changed gets no step, and a finer step may appear under load.
+  Workaround: the recording check warns when a recording shows a finer step; rerun `scripts/detect_thermal.py` and reload the profile.
+- **Only Linux thermal zones and GPU temperature are recorded per sensor**: Mac die sensors, Linux hwmon inputs (Intel coretemp cores, AMD k10temp, the GB10 board-power driver's 0.01 C sensors) are in the sensor catalog but not recorded.
+  Workaround: None yet; they are listed with `read_by: discovery_utility`.

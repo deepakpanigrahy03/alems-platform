@@ -168,6 +168,11 @@ class EnergyEngine:
  
         # Thermal reader — temperature sensors (SensorReader on Linux)
         self.thermal_reader = ReaderFactory.get_thermal_reader(config, self._platform_caps)
+        # the platform reader is kept: the harness later swaps self.sensor and
+        # self.thermal_reader for the zone reader (ThermalReaderV2), which knows only
+        # thermal zones (no AMD k10temp, no GB10 board channels)
+        self._platform_thermal = self.thermal_reader
+        self._platform_ready = False
  
         # ------------------------------------------------------------------
         # Keep existing readers that are not yet factorised (Chunks 2-7)
@@ -293,6 +298,11 @@ class EnergyEngine:
         self.thermal_sampling_active = False
         self.thermal_sampling_thread = None
         self.thermal_config = config.get("thermal", {})
+        # sensor catalog of this machine (scripts/detect_thermal.py); per-run expected set
+        self._catalog_sha = (config.get("thermal_sensors") or {}).get("catalog_sha256")
+        self._signals_sha = (config.get("thermal_sensors") or {}).get("signals_sha256")
+        self._nvml_signals = None            # created on first use (NVIDIA only)
+        self._catalog_expected = None
         # rate comes from config/sampling.yaml (THERMAL_ZONE), never a silent default
         self._thermal_rate_info = self._thermal_rate_from_policy()
         self.thermal_rate_hz = self._thermal_rate_info["effective_hz"]
@@ -338,6 +348,7 @@ class EnergyEngine:
         self._thermal_stats = {"ticks": 0, "emitted": 0, "empty": 0, "errors": 0,
                                "max_gap_ns": 0, "first_start_ns": None,
                                "last_start_ns": None}
+        self._prepare_sensor_catalog()
         self.thermal_sampling_active = True
         self.thermal_sampling_thread = threading.Thread(
             target=self._thermal_sampling_loop
@@ -416,8 +427,10 @@ class EnergyEngine:
             st["errors"] += 1
             logger.warning("thermal read failed (tick %d): %s", st["ticks"], exc)
             return
+        readings = self._fill_cpu_package(readings)
         if not readings:
             st["empty"] += 1                  # still queued, as before
+        catalog = self._catalog_readings()    # same tick: inside the sample's start/end
         throttle_detected = self._thermal_throttled(readings)
         sample_end_ns = time.time_ns()
         if st["last_start_ns"] is None:
@@ -426,9 +439,92 @@ class EnergyEngine:
             st["max_gap_ns"] = max(st["max_gap_ns"], sample_start_ns - st["last_start_ns"])
         st["last_start_ns"] = sample_start_ns
         st["emitted"] += 1
+        # 11-tuple: the 6 earlier fields, catalog values, quality, catalog hash,
+        # then signals and signal catalog hash (signals read after the temperatures)
         self.thermal_queue.put((now, readings, throttle_detected,
                                 sample_start_ns, sample_end_ns,
-                                sample_end_ns - sample_start_ns))
+                                sample_end_ns - sample_start_ns) + catalog
+                               + (self._signal_readings(), self._signals_sha))
+
+    def _platform_reader(self):
+        """The platform thermal reader, initialised once (the harness may have swapped self.sensor)."""
+        reader = self._platform_thermal
+        if reader is not self.sensor and not self._platform_ready:
+            init = getattr(reader, "initialize", None)
+            if callable(init):
+                init()
+        self._platform_ready = True
+        return reader
+
+    def _fill_cpu_package(self, readings):
+        """
+        cpu_temp from the platform reader when the zone reader has none.
+
+        On AMD the CPU sensor is hwmon k10temp, not a thermal zone, so the zone
+        reader returns cpu_temp None for every sample. The platform reader's CPU
+        package value is used instead; nothing is invented when it has none.
+        """
+        if (readings or {}).get("cpu_temp") is not None or self._platform_thermal is self.sensor:
+            return readings
+        try:
+            pkg = (self._platform_reader().read_all_thermal() or {}).get("cpu_package")
+        except Exception as exc:
+            logger.debug("platform CPU temperature read failed: %s", exc)
+            return readings
+        if pkg is None:
+            return readings
+        out = dict(readings or {})
+        out["cpu_temp"] = pkg
+        out["package_celsius"] = pkg
+        return out
+
+    def _signal_readings(self):
+        """{signal id: {"value", "status"}} from the platform reader and NVML; None when there are none."""
+        if self._nvml_signals is None:
+            from core.readers.nvml_signals import NvmlSignals
+            self._nvml_signals = NvmlSignals()
+        out = {}
+        for src in (self._platform_reader(), self._nvml_signals):
+            try:
+                got = src.read_signals() or {}
+            except Exception as exc:              # a signal source must never stop sampling
+                logger.debug("signal read failed (%s): %s", type(src).__name__, exc)
+                continue
+            out.update({k: {"value": v.get("value"), "status": v.get("status") or "UNAVAILABLE"}
+                        for k, v in got.items()})
+        return out or None
+
+    def _prepare_sensor_catalog(self) -> None:
+        """
+        Expected catalog sensors of this measurement: what the current thermal
+        reader describes as read by itself. None (no catalog columns) when the
+        reader cannot describe its sensors; the legacy readings are unaffected.
+        """
+        from alems_sdk.thermal_catalog import expected_ids
+        try:
+            # the factory reader (ARMThermalReader on GB10, IOKit on macOS) knows every
+            # catalog sensor; self.sensor serves only the legacy readings
+            self._catalog_reader = self._platform_reader()
+            descs = self._catalog_reader.describe_sensors()
+            self._catalog_expected = expected_ids(descs, self._catalog_reader.get_name()) or None
+            logger.info("sensor catalog for this run: %s, %d expected",
+                        type(self._catalog_reader).__name__, len(self._catalog_expected or []))
+        except Exception as exc:                 # describing must never stop sampling
+            logger.warning("sensor catalog unavailable for this run: %s", exc)
+            self._catalog_expected = None
+
+    def _catalog_readings(self) -> tuple:
+        """(values, quality, catalog hash) for the expected sensors; Nones without a catalog."""
+        if not self._catalog_expected:
+            return (None, None, None)
+        from alems_sdk.thermal_catalog import sensor_quality
+        try:
+            values = self._catalog_reader.read_sensors() or {}
+        except Exception as exc:
+            logger.debug("catalog read failed: %s", exc)
+            values = {}
+        vals, qual = sensor_quality(values, self._catalog_expected)
+        return (vals, qual, self._catalog_sha)
 
     def _thermal_throttled(self, readings) -> bool:
         """

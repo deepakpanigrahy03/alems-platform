@@ -124,6 +124,42 @@ def _gpu_reader_available() -> bool:
     return shutil.which("nvidia-smi") is not None
 
 
+# Discovered sensor facts written by scripts/detect_thermal.py (machine file, not in git)
+_HW_CONFIG = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__)))), "config", "hw_config.json")
+
+
+def load_sensor_facts(path: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Resolution facts per catalog id from hw_config.json (key thermal_sensors).
+
+    Returns {"sha": catalog_sha256 or None, "facts": {id: {...}}}; empty facts
+    when no catalog exists yet (the loader then never invents a resolution).
+    """
+    import json
+    try:
+        with open(path or _HW_CONFIG, encoding="utf-8") as fh:
+            section = (json.load(fh) or {}).get("thermal_sensors") or {}
+    except (OSError, ValueError) as exc:
+        logger.info("thermal_exposure: no sensor catalog (%s)", exc)
+        return {"sha": None, "facts": {}}
+    meas = section.get("measurements") or {}
+    facts = {d["id"]: {"interface_resolution_c": d.get("interface_resolution_c"),
+                       "observed_step_c": (meas.get(d["id"]) or {}).get("observed_value_step_c"),
+                       "observed_status": (meas.get(d["id"]) or {}).get("resolution_status")}
+             for d in section.get("catalog") or [] if d.get("kind") == "sensor"}
+    return {"sha": section.get("catalog_sha256"), "facts": facts}
+
+
+def sensor_catalog_id(s: Dict) -> Optional[str]:
+    """Catalog id of a profile sensor (same ids detect_thermal.py writes)."""
+    if s.get("source_table") == "thermal_samples_v2":
+        return "thermal_zone:%s:%s" % (s.get("zone_index"), s.get("zone_type"))
+    if s.get("source_table") == "gpu_samples":
+        return "nvml:gpu%s:temperature" % (s.get("gpu_index") or 0)
+    return None
+
+
 def read_catalog(execute: Callable, machine_id: str) -> Dict[str, Any]:
     """
     Collect the discovered hardware facts the profile is checked against.
@@ -148,7 +184,7 @@ def read_catalog(execute: Callable, machine_id: str) -> Dict[str, Any]:
             "WHERE machine_id = ? AND active = 1", (machine_id,)):
         zones[(ztype, zidx)] = role
     return {"rails": rails, "domains": domains, "zones": zones,
-            "gpu": _gpu_reader_available()}
+            "gpu": _gpu_reader_available(), "sensor_facts": load_sensor_facts()}
 
 
 # ------------------------------------------------------------------ validation
@@ -231,8 +267,8 @@ def _check_sensor(s: Dict, errors: List[str]) -> None:
     if s.get("unit", "C") != "C":
         errors.append("%s: invalid unit '%s' (need C)" % (name, s.get("unit")))
     res = s.get("nominal_resolution_c")
-    if not isinstance(res, (int, float)) or res <= 0:
-        errors.append("%s: nominal_resolution_c must be > 0" % name)
+    if res is not None and (not isinstance(res, (int, float)) or res <= 0):
+        errors.append("%s: nominal_resolution_c, if typed, must be > 0" % name)
     lo, hi = s.get("valid_min_c"), s.get("valid_max_c")
     if not isinstance(lo, (int, float)) or not isinstance(hi, (int, float)) or lo >= hi:
         errors.append("%s: need valid_min_c < valid_max_c" % name)
@@ -277,15 +313,48 @@ def _channel_row(c, pid, sha, cat, names, profile, now, errors) -> tuple:
             int(c.get("name") == profile.get("main_channel")), now)
 
 
+# discovered and typed resolutions closer than this are the same value
+_RES_TOLERANCE_C = 1e-9
+
+
+def _resolution(s: Dict, cat: Dict, errors: List[str]) -> Tuple:
+    """
+    (nominal, interface, observed, status, catalog sha) for one sensor.
+
+    Discovered facts win; a typed value that disagrees is rejected; without
+    a catalog a typed value is kept as typed_unverified, never as discovered;
+    with neither, the profile is rejected (no resolution is invented).
+    """
+    name, typed = s.get("name"), s.get("nominal_resolution_c")
+    sf = cat.get("sensor_facts") or {}
+    fact = (sf.get("facts") or {}).get(sensor_catalog_id(s) or "")
+    if fact is None:
+        if typed is None and s.get("source_table") != "te_ambient_samples":
+            errors.append("%s: no discovered resolution (catalog id %s); run "
+                          "scripts/detect_thermal.py" % (name, sensor_catalog_id(s)))
+        return typed, None, None, "typed_unverified" if typed is not None else None, sf.get("sha")
+    observed = fact["observed_step_c"] if fact["observed_status"] == "measured" else None
+    nominal = observed if observed is not None else fact["interface_resolution_c"]
+    if nominal is None:
+        errors.append("%s: catalog has no resolution for %s" % (name, sensor_catalog_id(s)))
+    elif typed is not None and abs(typed - nominal) > _RES_TOLERANCE_C:
+        errors.append("%s: typed nominal_resolution_c %s disagrees with discovered %s; "
+                      "remove it from the profile" % (name, typed, nominal))
+    status = "measured" if observed is not None else "interface_only"
+    return nominal, fact["interface_resolution_c"], observed, status, sf.get("sha")
+
+
 def _sensor_row(s, pid, sha, cat, profile, now, errors) -> tuple:
-    """One te_sensor row; canonical role taken from the catalog for zones."""
+    """One te_sensor row; role and resolution come from the discovered catalog."""
     _check_sensor(s, errors)
     role = _sensor_role(s, cat, errors)
+    nominal, interface, observed, status, cat_sha = _resolution(s, cat, errors)
     return (pid, sha, s.get("name"), s.get("source_table"), s.get("zone_type"),
             s.get("zone_index"), s.get("gpu_index"), role, "C",
-            s.get("nominal_resolution_c"), s.get("valid_min_c"), s.get("valid_max_c"),
+            nominal, s.get("valid_min_c"), s.get("valid_max_c"),
             s.get("expected_update_interval_ms"), s.get("expected_update_interval_source"),
-            int(s.get("name") == profile.get("main_sensor")), now)
+            int(s.get("name") == profile.get("main_sensor")), now,
+            interface, observed, status, cat_sha)
 
 
 # ------------------------------------------------------------------ write
@@ -297,7 +366,8 @@ _INSERT_SENSOR = (
     "INSERT INTO te_sensor (machine_profile, profile_sha256, sensor_name, source_table,"
     " zone_type, zone_index, gpu_index, canonical_role, unit, nominal_resolution_c,"
     " valid_min_c, valid_max_c, expected_update_interval_ms, expected_update_interval_source,"
-    " is_main, loaded_at_utc) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+    " is_main, loaded_at_utc, interface_resolution_c, observed_step_c, resolution_status,"
+    " catalog_sha256) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
 
 
 def write_rows(execute: Callable, profile_id: str, crow: List[tuple], srow: List[tuple]) -> None:

@@ -1,0 +1,23 @@
+method_id: idle_pre_acceptance_v1
+formula: "pass if, per decision sensor, guard sensors and main channel: coverage >= c over the window and the final interval, no gap > 2 intervals in the final interval, n >= 0.9 x expected; and over the final interval: upper 95% bound of |slope| (least squares, floored at resolution / interval) < s, main channel MAD / median < m (unknown near zero power)"
+parameters:
+  pre_s: 600
+  pre_max_s: 1800
+  extend_step_s: 120
+  final_s: 120
+  min_coverage: 0.98
+  slope_limit_c_per_min: 0.1
+  power_rel_mad_limit: 0.05
+  status: provisional until calibration
+confidence: 0.8
+references:
+  - title: "Applied Linear Regression Models"
+    authors: "Kutner, M. H.; Nachtsheim, C. J.; Neter, J."
+    year: 2004
+    ref_type: "paper"
+    relevance: "Least-squares slope and its standard error for the stability bound."
+  - title: "Measurement-science review of idle acceptance (platform design record)"
+    authors: "A-LEMS project"
+    year: 2026
+    ref_type: "internal"
+    relevance: "Final-interval coverage, maximum gap, slope bound instead of point slope."

@@ -125,7 +125,7 @@ class SensorReader(ThermalReaderABC):
 
         # Open file handles for configured sensors
         for role, sensor_type in self.sensors_to_monitor.items():
-            sensor_infos = self.discovered_zones.get(sensor_type, [])
+            sensor_infos = self.discovered_zones.get(sensor_type, []) or self._hwmon_by_name(sensor_type)
             if sensor_infos:
                 path = sensor_infos[0]["path"]
                 try:
@@ -142,6 +142,20 @@ class SensorReader(ThermalReaderABC):
         logger.info(
             f"SensorReader initialized with {len(self.thermal_fds)} thermal sensors"
         )
+
+    @staticmethod
+    def _hwmon_by_name(name):
+        # type: (str) -> List[Dict]
+        """
+        A hwmon temperature input found by driver name at start (k10temp, coretemp).
+
+        hwmon numbers can change between boots, so the stored path is not used;
+        the package input (Tctl, "Package id") is preferred when there are several.
+        """
+        from core.thermal.thermal_descriptors import hwmon_inputs
+        hits = [h for h in hwmon_inputs() if h["name"] == name]
+        pref = [h for h in hits if h["label"].lower().startswith(("tctl", "package"))]
+        return [{"path": h["path"]} for h in (pref or hits)][:1]
 
     def close(self):
         """Close all open thermal file handles."""
@@ -205,6 +219,112 @@ class SensorReader(ThermalReaderABC):
         logger.debug("thermal readings: %s", readings)
 
         return readings
+
+    # ── Sensor catalog (SDK describe_sensors / read_sensors) ──────────────
+
+    def _role_zones(self) -> Dict[str, Dict]:
+        """role -> {"index", "type", "dir"} for configured roles that map to a zone."""
+        import os
+        zones = self.discovered_zones or self._discover_thermal_zones()
+        out = {}
+        for role, stype in self.sensors_to_monitor.items():
+            infos = zones.get(stype) or []
+            if infos:
+                zdir = os.path.dirname(infos[0]["path"])
+                out[role] = {"index": int(os.path.basename(zdir)[len("thermal_zone"):]),
+                             "type": stype, "dir": zdir}
+        return out
+
+    def describe_sensors(self) -> List[Dict]:
+        """The zones this reader records, one descriptor each (role in notes)."""
+        from core.thermal.thermal_descriptors import zone_descriptors
+        roles = self._role_zones()
+        descs = zone_descriptors(self.get_name(), list(roles.values()))
+        for d, role in zip(descs, roles):
+            d["notes"] = "SensorReader role %s" % role
+        return descs + self._cpu_hwmon_descriptors()
+
+    # CPU temperature drivers read through hwmon (AMD k10temp/zenpower, Intel coretemp)
+    _CPU_HWMON = ("k10temp", "zenpower", "coretemp")
+
+    def _cpu_hwmon_inputs(self):
+        # type: () -> List[Dict]
+        """CPU hwmon temperature inputs, found by driver name; cached, [] when there are none."""
+        if getattr(self, "_cpu_hwmon_cache", None) is None:
+            from core.thermal.thermal_descriptors import hwmon_inputs
+            self._cpu_hwmon_cache = [h for h in hwmon_inputs() if h["name"] in self._CPU_HWMON]
+        return self._cpu_hwmon_cache
+
+    def _cpu_hwmon_descriptors(self):
+        # type: () -> List[Dict]
+        """Catalog descriptors of the CPU hwmon inputs, recorded by this reader."""
+        from core.thermal.thermal_descriptors import hwmon_descriptors
+        ids = {h["id"] for h in self._cpu_hwmon_inputs()}
+        return [d for d in hwmon_descriptors(self.get_name()) if d["id"] in ids]
+
+    def _cpu_hwmon_values(self):
+        # type: () -> Dict[str, Optional[float]]
+        """CPU hwmon temperatures in C; a failed read is None, never 0."""
+        out = {}
+        for h in self._cpu_hwmon_inputs():
+            try:
+                with open(h["path"]) as fh:
+                    out[h["id"]] = int(fh.read().strip()) / 1000.0
+            except (OSError, ValueError):
+                out[h["id"]] = None
+        return out
+
+    # ── Signals (SDK describe_signals / read_signals) ─────────────────────
+
+    # cooling device type -> (signal id, kind, raw unit, interpretation, enabled, notes)
+    _COOLING_SIGNALS = {
+        "TCC Offset": ("intel:tcc_offset", "setting", "C", "empirical", True,
+                       "intel_tcc_cooling: throttle point lowered by this many C below the "
+                       "factory value; cur_state read as degrees per the kernel driver"),
+        "intel_powerclamp": ("intel:powerclamp", "level", "percent", "validated", True,
+                             "idle injection: forced idle percent; -1 means disabled; not a "
+                             "throttle percentage"),
+    }
+
+    def _signal_files(self):
+        # type: () -> Dict[str, Tuple[str, str]]
+        """signal id -> (cur_state file, cooling device type), for devices present."""
+        import os
+        from core.thermal.thermal_descriptors import cooling_devices_by_type
+        return {self._COOLING_SIGNALS[t][0]: (os.path.join(d, "cur_state"), t)
+                for t, d in cooling_devices_by_type().items() if t in self._COOLING_SIGNALS}
+
+    def describe_signals(self):
+        # type: () -> List[Dict]
+        """Intel thermal-control signals present on this machine ([] on AMD)."""
+        from alems_sdk.thermal_catalog import signal_descriptor
+        out = []
+        for sid, (path, t) in sorted(self._signal_files().items()):
+            _, kind, unit, interp, enabled, notes = self._COOLING_SIGNALS[t]
+            out.append(signal_descriptor(sid, kind, "cooling_device", path, unit, interp, enabled,
+                                         self.get_name(), scope="package", notes=notes))
+        return out
+
+    def read_signals(self):
+        # type: () -> Dict[str, Dict]
+        """{signal id: {"value", "unit", "status"}}; a failed read is None, never 0."""
+        from core.thermal.thermal_descriptors import read_int_status
+        out = {}
+        for sid, (path, t) in self._signal_files().items():
+            value, status = read_int_status(path)
+            out[sid] = {"value": value, "unit": self._COOLING_SIGNALS[t][2], "status": status}
+        return out
+
+    def read_sensors(self) -> Dict[str, Optional[float]]:
+        """Configured roles under their zone catalog ids (None when a read failed)."""
+        from core.thermal.thermal_descriptors import zone_id
+        if not self._initialized:
+            self.initialize()
+        values = self.read_all_thermal()
+        out = {zone_id(z["index"], z["type"]): values.get(role)
+               for role, z in self._role_zones().items()}
+        out.update(self._cpu_hwmon_values())
+        return out
 
     def _validate_paths(self) -> Dict[str, str]:
         """

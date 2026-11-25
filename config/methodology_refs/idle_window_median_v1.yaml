@@ -1,0 +1,18 @@
+method_id: idle_window_median_v1
+formula: "per sensor and power channel: median and median absolute deviation (MAD) of VALID samples inside an idle window span (pre or post)"
+parameters:
+  phases: [pre, post]
+  quality: VALID only
+  window_edges: recorder open, first run start, post window start, close
+confidence: 0.9
+references:
+  - title: "Robust Statistics: The Approach Based on Influence Functions"
+    authors: "Hampel, F. R.; Ronchetti, E. M.; Rousseeuw, P. J.; Stahel, W. A."
+    year: 1986
+    ref_type: "paper"
+    relevance: "Median and MAD as robust location and spread, insensitive to short background bursts."
+  - title: "Thermal Exposure Measurement Architecture (platform design)"
+    authors: "A-LEMS project"
+    year: 2026
+    ref_type: "internal"
+    relevance: "Matched idle reference per recording, measured before and after the workload."
