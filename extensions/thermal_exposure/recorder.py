@@ -208,6 +208,7 @@ class ExperimentRecorder:
         self._stats = {k: _SourceStats(hz) for k, hz in self.rates.items()}
         self._last_keys: Dict[str, List[Any]] = {k: [] for k in self.rates}
         self._anchors: List[Tuple[int, int]] = []       # (drift_ns, stepped)
+        self._pending_anchors: List[tuple] = []         # anchor rows refused by the store, written next time
         self._runs = 0
         self._workload_start: Optional[int] = None
         self._workload_end: Optional[int] = None
@@ -504,14 +505,15 @@ class ExperimentRecorder:
         offset, method = self.offset_fn()
         with self._lock:
             self._anchors.append((drift, step_ns if stepped else 0))
+        rows = self._pending_anchors + [(self.session_id, self.node_name, wall, mono, offset, method, stepped)]
         try:
             self._write_rows("INSERT INTO te_clock_anchor (session_id, node_name, wall_ns, "
                              "mono_ns, sync_offset_ns, sync_method, offset_to_control_ns, "
-                             "stepped) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)",
-                             [(self.session_id, self.node_name, wall, mono, offset, method,
-                               stepped)])
-        except Exception as exc:          # store busy: the anchor is kept in memory checks
-            logger.warning("clock anchor write failed: %s", exc)
+                             "stepped) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)", rows)
+            self._pending_anchors = []
+        except Exception as exc:          # store busy: rows kept and written with the next anchor
+            self._pending_anchors = rows
+            logger.warning("clock anchor write failed, %d kept for the next anchor: %s", len(rows), exc)
         return drift
 
     # ── writing ──────────────────────────────────────────────────────────────
