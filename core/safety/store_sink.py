@@ -2,10 +2,11 @@
 core/safety/store_sink.py: writes safety guard records to the store.
 
 The guard never waits for the store: episode, event and sample records are
-queued in memory and written by a separate thread through the store writer
-(InProcessWriter, one batch per flush). Writes happen only while no run is
-measuring, so the guard adds no store I/O inside a measurement window; close()
-writes everything left. A failed batch is kept and retried at the next flush.
+queued in memory and written through the store writer (InProcessWriter, one
+batch per flush) on the main thread, just before and just after each
+admission (core.safety.hook) and at close. That is always between runs, so
+the guard adds no store I/O inside a measurement window, and the writer is
+never used from a second thread (a shared SQLite connection refuses that). A failed batch is kept and retried at the next flush.
 Event and sample inserts are idempotent (INSERT OR IGNORE on their keys), so a
 retried batch never duplicates rows. The host log line is written by the guard
 before an event reaches this queue.
@@ -68,24 +69,12 @@ class StoreSink(object):
         self._lock = threading.Lock()
         self._flush_lock = threading.Lock()
         self._guard = None         # type: Optional[Any]
-        self._stop = threading.Event()
-        self._thread = None        # type: Optional[threading.Thread]
         self.failed_batches = 0
 
     def attach(self, guard):
         # type: (Any) -> None
-        """Start flushing every interval_s while the guard reports no active run."""
+        """Remember the guard; flushing is driven by the caller on the main thread."""
         self._guard = guard
-        self._thread = threading.Thread(target=self._loop, name="safety-guard-store", daemon=True)
-        self._thread.start()
-
-    def _loop(self):
-        # type: () -> None
-        """Flush every interval_s, but only while no run is measuring (no store I/O inside a window)."""
-        period = float(self._guard.cfg["interval_s"])
-        while not self._stop.wait(period):
-            if not self._guard.active_count():
-                self.flush()
 
     # guard interface (never blocks)
     def store_episode(self, ep):
@@ -163,10 +152,7 @@ class StoreSink(object):
 
     def close(self):
         # type: () -> None
-        """Stop the thread and write what is left."""
-        self._stop.set()
-        if self._thread is not None and self._thread is not threading.current_thread():
-            self._thread.join(timeout=5)
+        """Write what is left."""
         if not self.flush():
             logger.error("safety guard: %d records not stored at close (host log has the events)",
                          self.pending())

@@ -16,12 +16,24 @@ shuffled with seed + repeat, so a stored seed reproduces the order.
 No planned pause follows the last goal (the recording's cooling tail covers it).
 tau_s always carries tau_status and tau_source; a provisional value is never
 presented as measured.
+
+With a continuous recording open, every plan records which profile ran (id,
+SHA-256, plan name, parameters) and labels the recording's time line:
+goal_slot per goal (linear_first: one slot for the linear goal and the agent
+goal that followed it), pause per planned wait, calibration_step per load hold.
+Labels never move run boundaries; run_slot and gap spans stay the recorder's.
 """
 
+import hashlib
+import json
+import logging
 import random
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from alems_sdk.session_plan import SessionPlanABC, done, goal, load_step, wait
+
+logger = logging.getLogger(__name__)
 
 TAU_STATUS = ("PROVISIONAL", "PILOT_ONLY", "MEASURED")
 _GOALS = {
@@ -53,6 +65,71 @@ def goal_order(goals, workflows, repeats, seed):
     return order
 
 
+def profile_identity(config_path):
+    # type: (Optional[str]) -> Tuple[str, Optional[str]]
+    """Profile id (file name without extension) and SHA-256 of the file bytes; unknown without a file."""
+    if not config_path:
+        return "unknown", None
+    path = Path(config_path)
+    try:
+        return path.stem, hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        logger.warning("session plan: profile %s unreadable for its hash: %s", config_path, exc)
+        return path.stem, None
+
+
+class _Labels(object):
+    """Writes a plan's identity and spans into the open recording; does nothing without one."""
+
+    def __init__(self, recorder):
+        # type: (Any) -> None
+        """recorder: the open recording (needs add_plan_span, record_plan, session_ns) or None."""
+        self.rec = recorder if hasattr(recorder, "add_plan_span") else None
+        self.seen = 0
+
+    def identity(self, name, params, config_path):
+        # type: (str, Dict[str, Any], Optional[str]) -> None
+        """te_session: profile id and hash, plan name and parameters (tau with its status included)."""
+        if self.rec is not None:
+            pid, sha = profile_identity(config_path)
+            self.rec.record_plan(pid, sha, name, params)
+
+    def new(self, history):
+        # type: (List[Any]) -> List[Any]
+        """Outcomes not labelled yet."""
+        items, self.seen = history[self.seen:], len(history)
+        return items
+
+    def span(self, kind, name, start_wall, end_wall, attrs):
+        # type: (str, str, Optional[int], Optional[int], Dict[str, Any]) -> None
+        """One span on the recording's time line (wall ns converted); skipped when a time is missing."""
+        if self.rec is None or start_wall is None or end_wall is None:
+            return
+        self.rec.add_plan_span(kind, name, self.rec.session_ns(start_wall), self.rec.session_ns(end_wall), attrs)
+
+    def standard(self, outcome, rule):
+        # type: (Any, str) -> None
+        """goal_slot for a goal, pause for a wait (calibration plans label their own load steps)."""
+        s = outcome.step
+        if s.kind == "wait":
+            self.span("pause", "pause:%s" % rule, outcome.step_start_utc_ns, outcome.end_utc_ns,
+                      {"planned_s": outcome.planned_s, "actual_s": outcome.actual_s, "rule": rule})
+        elif s.kind == "goal":
+            self.span("goal_slot", "goal_slot:%s" % s.meta.get("slot"), outcome.first_run_start_ns,
+                      outcome.last_run_end_ns, _slot_attrs([outcome], s.workflow, None))
+
+
+def _slot_attrs(outcomes, workflow, agent_attempt):
+    # type: (List[Any], str, Optional[str]) -> Dict[str, Any]
+    """goal_slot attributes: goal ids (comma separated), workflow, run ids in attempt order, final success."""
+    attrs = {"goal_id": ",".join(str(g) for o in outcomes for g in o.goal_ids) or "none",
+             "workflow": workflow, "attempt_run_ids": [r for o in outcomes for r in o.run_ids],
+             "success": bool(outcomes[-1].success)}
+    if agent_attempt is not None:
+        attrs["agent_attempt"] = agent_attempt
+    return attrs
+
+
 class _OrderedGoals(SessionPlanABC):
     """Shared base: a fixed goal order with an optional planned pause between goals."""
 
@@ -77,6 +154,8 @@ class _OrderedGoals(SessionPlanABC):
             raise ValueError("goals %s are not in the experiment's tasks" % missing)
         self.order = goal_order(params["goals"], self._workflows(params), params["repeats"], params["seed"])
         self.pause_s = self._pause(params)
+        self.labels = _Labels(context.get("recorder"))
+        self.labels.identity(self.NAME, params, context.get("config_path"))
 
     def _workflows(self, params):
         # type: (Dict[str, Any]) -> List[str]
@@ -91,6 +170,8 @@ class _OrderedGoals(SessionPlanABC):
     def next_step(self, history):
         # type: (List[Any]) -> Any
         """Goal, then its pause (if any), until the order is used up; no pause after the last goal."""
+        for o in self.labels.new(history):
+            self.labels.standard(o, self.NAME)
         goals_done = sum(1 for o in history if o.step.kind == "goal")
         last_was_goal = bool(history) and history[-1].step.kind == "goal"
         if self.pause_s is not None and last_was_goal and goals_done < len(self.order):
@@ -199,10 +280,13 @@ class LinearFirst(SessionPlanABC):
         if missing:
             raise ValueError("goals %s are not in the experiment's tasks" % missing)
         self.slots = [t for t, _ in goal_order(params["goals"], ["linear"], params["repeats"], params["seed"])]
+        self.labels = _Labels(context.get("recorder"))
+        self.labels.identity(self.NAME, params, context.get("config_path"))
 
     def next_step(self, history):
         # type: (List[Any]) -> Any
         """The agent follows a failed linear goal of the same slot; otherwise the next slot starts."""
+        self._label_slots(history)
         if history and history[-1].step.workflow == "linear" and history[-1].success is not True:
             slot = history[-1].step.meta["slot"]
             return goal(history[-1].step.task_id, "agentic", meta={"slot": slot, "agent_attempt": "run"})
@@ -212,6 +296,34 @@ class LinearFirst(SessionPlanABC):
         return goal(self.slots[slots_done], "linear", meta={"slot": slots_done + 1})
 
 
+    def _label_slots(self, history):
+        # type: (List[Any]) -> None
+        """One goal_slot per slot: linear alone (agent not run) or linear plus the agent that followed it."""
+        for i in range(self.labels.seen, len(history)):
+            pair = _slot_of(history, i)
+            if pair:
+                self._slot(*pair)
+        self.labels.seen = len(history)
+
+    def _slot(self, outcomes, agent_attempt):
+        # type: (List[Any], str) -> None
+        """The slot spans from the first run of its linear goal to the last run of its final goal."""
+        self.labels.span("goal_slot", "goal_slot:%s" % outcomes[0].step.meta.get("slot"),
+                         outcomes[0].first_run_start_ns, outcomes[-1].last_run_end_ns,
+                         _slot_attrs(outcomes, "linear_first", agent_attempt))
+
+
+def _slot_of(history, i):
+    # type: (List[Any], int) -> Optional[Tuple[List[Any], str]]
+    """The slot that outcome i closes: a solved linear goal alone, or the agent with the linear goal before it."""
+    o = history[i]
+    if o.step.workflow == "linear" and o.success is True:
+        return [o], "not_run"
+    if o.step.workflow == "agentic":
+        return [history[i - 1], o], "run"
+    return None
+
+
 class CalibrationSteps(SessionPlanABC):
     """Hold load_task for hold_s, rest for rest_s; repeat. A step should be one long task (steady load)."""
 
@@ -219,6 +331,8 @@ class CalibrationSteps(SessionPlanABC):
     PARAMS = {
         "load_task": {"type": "text", "required": True},
         "workflow": {"choices": ["linear", "agentic"], "required": True},
+        "channel": {"type": "text", "required": True},      # power channel the load is meant to excite
+        "level": {"type": "number", "required": True},      # nominal load level, as named in the profile
         "hold_s": {"type": "number", "required": True},
         "rest_s": {"type": "number", "required": True},
         "repeats": {"type": "number", "required": True},
@@ -241,13 +355,27 @@ class CalibrationSteps(SessionPlanABC):
         if params["load_task"] not in context["tasks"]:
             raise ValueError("load_task %r is not in the experiment's tasks" % params["load_task"])
         self.p = params
+        self.labels = _Labels(context.get("recorder"))
+        self.labels.identity(self.NAME, params, context.get("config_path"))
 
     def next_step(self, history):
         # type: (List[Any]) -> Any
         """load_step, rest, load_step, ... ; no rest after the last step."""
+        for o in self.labels.new(history):
+            self._label(o)
         steps = sum(1 for o in history if o.step.kind == "load_step")
         if history and history[-1].step.kind == "load_step" and steps < int(self.p["repeats"]):
             return wait(self.p["rest_s"], "calibration rest", meta={"rule": self.NAME})
         if steps >= int(self.p["repeats"]):
             return done()
         return load_step(self.p["load_task"], self.p["workflow"], self.p["hold_s"], meta={"step": steps + 1})
+
+    def _label(self, o):
+        # type: (Any) -> None
+        """calibration_step per hold (settling is decided by the calibration analysis, not here); pause per rest."""
+        if o.step.kind == "wait":
+            self.labels.standard(o, self.NAME)
+            return
+        self.labels.span("calibration_step", "calibration_step:%s" % o.step.meta.get("step"), o.first_run_start_ns,
+                         o.last_run_end_ns, {"channel": self.p["channel"], "level": float(self.p["level"]),
+                                             "hold_s": float(self.p["hold_s"]), "hold_achieved": bool(o.hold_achieved)})

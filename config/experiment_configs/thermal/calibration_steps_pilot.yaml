@@ -34,6 +34,8 @@ session_plan:
   params:
     load_task: tg_single_calc
     workflow: linear
+    channel: gpu
+    level: 1.0
     hold_s: 20
     rest_s: 60
     repeats: 2

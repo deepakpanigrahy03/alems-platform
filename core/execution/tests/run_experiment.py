@@ -616,7 +616,8 @@ def run_all_experiments(args):
             run_session_plan(args.session_plan, [t["id"] for t in selected_tasks], providers,
                              production_deps(harness, runner, config, args, _goal_tracker,
                                              _retry_coordinator),
-                             recorder=_recording_hook.get_active())
+                             recorder=_recording_hook.get_active(),
+                             config_path=getattr(args, "config", None))
         except SessionPlanError as exc:
             logger.error("session plan refused: %s", exc)
         return all_results, config, args

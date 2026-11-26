@@ -247,18 +247,34 @@ def test_sink_writes_episode_events_samples_in_order_and_retries_idempotently():
     assert conn.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
-def test_sink_flushes_only_between_runs():
+def test_sink_writes_only_when_flushed_and_starts_no_thread():
     conn = _store()
     sink = StoreSink(lambda: MemWriter(conn))
     clock = Clock()
+    before = threading.active_count()
     g = ThermalGuard(dict(CFG, interval_s=0.05), [Src(33.0)], lambda r: True, sink, entry_path="test",
                      mono_ns=clock.mono_ns, utc_ns=clock.utc_ns, sleep=clock.sleep)
-    g.open()
-    g.workload_started()
     sink.attach(g)
-    threading.Event().wait(0.3)
+    g.open()
+    assert threading.active_count() == before                     # no writer thread
     assert conn.execute("SELECT COUNT(*) FROM safety_guard_episodes").fetchone()[0] == 0
-    g.workload_ended()
-    threading.Event().wait(0.3)
+    sink.flush()
     assert conn.execute("SELECT COUNT(*) FROM safety_guard_episodes").fetchone()[0] == 1
     sink.close()
+
+
+def test_before_run_flushes_on_the_calling_thread():
+    conn = _store()
+    sink = StoreSink(lambda: MemWriter(conn))
+    clock = Clock()
+
+    def factory(cfg, entry):
+        g = ThermalGuard(dict(cfg, start_stable_s=0.0, min_rest_s=0.0), [Src(33.0)], lambda r: True, sink,
+                         entry_path=entry, mono_ns=clock.mono_ns, utc_ns=clock.utc_ns, sleep=clock.sleep)
+        sink.attach(g)
+        g.start_watchdog = lambda: None                            # no background ticks in this test
+        return g
+    hook.set_factory(factory)
+    hook.before_run("linear")
+    types = [r[0] for r in conn.execute("SELECT event_type FROM safety_guard_events ORDER BY seq")]
+    assert "gate_open" in types

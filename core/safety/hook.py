@@ -162,11 +162,22 @@ def before_run(kind, links=None):
         return
     if guard.active_count():
         guard.workload_ended()            # previous run ended without its end notice (error path)
+    _flush_store(guard)                   # between runs, on this (the main) thread
     try:
         guard.admit(links=dict(links or {}, kind=kind))
     except GuardRefused as exc:
         _halt_with(exc)
         raise
+    finally:
+        _flush_store(guard)               # records of the wait, before the run starts
+
+
+def _flush_store(guard):
+    # type: (Any) -> None
+    """Write queued guard records now; a failure keeps them queued (never raised into a run)."""
+    sink = getattr(guard, "_store", None)
+    if sink is not None and hasattr(sink, "flush"):
+        sink.flush()
 
 
 def workload_started():

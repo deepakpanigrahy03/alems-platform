@@ -77,6 +77,7 @@ class Outcome:
     run_ids: List[int] = field(default_factory=list)
     step_start_utc_ns: Optional[int] = None    # when the step was requested (before any guard wait)
     first_run_start_ns: Optional[int] = None   # start of the first measured run of the step
+    last_run_end_ns: Optional[int] = None      # end of the last measured run of the step
     end_utc_ns: Optional[int] = None
     planned_s: Optional[float] = None          # wait: requested length; load_step: hold_s
     actual_s: Optional[float] = None           # wait: slept length; load_step: elapsed
@@ -123,9 +124,10 @@ class SessionPlanABC(ABC):
     def start(self, params, context):
         # type: (Dict[str, Any], Dict[str, Any]) -> None
         """
-        Called once before the first step. context holds tasks (ids), providers and
-        recorder (the open continuous recording, or None); the plan may refuse by raising
-        ValueError (for example a computed pause below zero).
+        Called once before the first step. context holds tasks (ids), providers,
+        recorder (the open continuous recording, or None) and config_path (the experiment
+        config file, or None); the plan may refuse by raising ValueError (for example a
+        computed pause below zero).
         """
 
     @abstractmethod

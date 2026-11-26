@@ -95,7 +95,8 @@ THERMAL_SESSION = SpanVocabulary(
             "channel": A("string", True),
             "level":   A("float", True),
             "hold_s":  A("float", True),
-            "settled": A("bool", True),
+            "hold_achieved": A("bool", True),
+            "settled": A("bool", False),     # set by the calibration analysis, not by the plan
         }),
     },
 )

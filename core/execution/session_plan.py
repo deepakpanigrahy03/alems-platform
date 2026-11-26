@@ -66,8 +66,8 @@ def check_step(step, tasks, providers):
         raise SessionPlanError("wait needs seconds >= 0 (a negative pause is never clamped)")
 
 
-def run_session_plan(session_plan, tasks, providers, deps, plan_cls=None, recorder=None):
-    # type: (Dict[str, Any], List[str], List[str], Dict[str, Callable], Any, Any) -> List[Outcome]
+def run_session_plan(session_plan, tasks, providers, deps, plan_cls=None, recorder=None, config_path=None):
+    # type: (Dict[str, Any], List[str], List[str], Dict[str, Callable], Any, Any, Optional[str]) -> List[Outcome]
     """
     Run one plan-driven session and return every outcome.
 
@@ -77,6 +77,7 @@ def run_session_plan(session_plan, tasks, providers, deps, plan_cls=None, record
         deps: execution functions (production_deps() in real runs, fakes in tests).
         plan_cls: plan class (tests); None loads it from the entry point group.
         recorder: the open continuous recording, passed to the plan for its spans.
+        config_path: the experiment config file, so the plan can record which profile ran.
     """
     name = (session_plan or {}).get("plugin")
     params = dict((session_plan or {}).get("params") or {})
@@ -86,7 +87,8 @@ def run_session_plan(session_plan, tasks, providers, deps, plan_cls=None, record
         raise SessionPlanError("; ".join(errors))
     plan = cls()
     try:
-        plan.start(params, {"tasks": list(tasks), "providers": list(providers), "recorder": recorder})
+        plan.start(params, {"tasks": list(tasks), "providers": list(providers), "recorder": recorder,
+                            "config_path": config_path})
     except ValueError as exc:            # e.g. a computed pause below zero: refused before any step
         raise SessionPlanError("plan %s refused the session: %s" % (name or cls.NAME, exc))
     history = []  # type: List[Outcome]
@@ -172,6 +174,8 @@ def _execute_into(out, step, provider, deps):
     out.run_ids.extend(res["run_ids"])
     if out.first_run_start_ns is None:
         out.first_run_start_ns = res["first_run_start_ns"]
+    if res.get("last_run_end_ns") is not None:
+        out.last_run_end_ns = res["last_run_end_ns"]
     solved = bool(res["success"])
     out.success = solved if out.success is None else (out.success and solved)
     if not solved and out.status == "completed":
@@ -296,13 +300,15 @@ def _goal_result(conn, goal_id):
     """Read-only lookup; an unknown goal (execute_goal returned None) is a failure with no ids."""
     if goal_id is None:
         return {"success": False, "attempt_ids": [], "run_ids": [], "first_run_start_ns": None,
-                "failure_reason": "execute_goal returned no goal"}
+                "last_run_end_ns": None, "failure_reason": "execute_goal returned no goal"}
     row = conn.execute("SELECT success, status FROM goal_execution WHERE goal_id = ?", (goal_id,)).fetchone()
-    att = conn.execute("SELECT a.attempt_id, a.run_id, r.start_time_ns FROM goal_attempt a "
+    att = conn.execute("SELECT a.attempt_id, a.run_id, r.start_time_ns, r.end_time_ns FROM goal_attempt a "
                        "LEFT JOIN runs r ON r.run_id = a.run_id WHERE a.goal_id = ? ORDER BY a.attempt_id",
                        (goal_id,)).fetchall()
-    starts = [s for _, _, s in att if s is not None]
-    return {"success": bool(row and row[0]), "attempt_ids": [a for a, _, _ in att],
-            "run_ids": [r for _, r, _ in att if r is not None],
+    starts = [s for _, _, s, _ in att if s is not None]
+    ends = [e for _, _, _, e in att if e is not None]
+    return {"success": bool(row and row[0]), "attempt_ids": [a for a, _, _, _ in att],
+            "run_ids": [r for _, r, _, _ in att if r is not None],
             "first_run_start_ns": min(starts) if starts else None,
+            "last_run_end_ns": max(ends) if ends else None,
             "failure_reason": None if (row and row[0]) else "goal status %s" % (row[1] if row else "missing")}

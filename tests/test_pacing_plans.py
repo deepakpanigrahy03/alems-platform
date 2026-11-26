@@ -27,16 +27,35 @@ class Fake(object):
 
     def result(self, goal_id):
         ok = self.solved.pop(0) if self.solved else True
-        return {"success": ok, "attempt_ids": [goal_id], "run_ids": [goal_id], "first_run_start_ns": 0,
+        return {"success": ok, "attempt_ids": [goal_id], "run_ids": [goal_id],
+                "first_run_start_ns": int((self.t - self.goal_s) * 1e9), "last_run_end_ns": int(self.t * 1e9),
                 "failure_reason": None if ok else "wrong"}
 
     def wait(self, seconds, label):
         self.t += seconds
 
 
-def run(cls, params, tasks=("a", "b"), fake=None):
+class Recorder(object):
+    """Fake recording: collects plan spans and the plan identity; session time = wall time + 1000 ns."""
+
+    def __init__(self):
+        self.spans, self.plans = [], []
+
+    def session_ns(self, wall_ns):
+        return wall_ns + 1000
+
+    def add_plan_span(self, kind, name, start_ns, end_ns, attrs):
+        self.spans.append((kind, name, start_ns, end_ns, attrs))
+        return True
+
+    def record_plan(self, profile_id, sha, plugin, params):
+        self.plans.append((profile_id, sha, plugin, dict(params)))
+
+
+def run(cls, params, tasks=("a", "b"), fake=None, recorder=None, config_path=None):
     fake = fake or Fake()
-    out = run_session_plan({"plugin": cls.NAME, "params": params}, list(tasks), ["p"], fake.deps(), plan_cls=cls)
+    out = run_session_plan({"plugin": cls.NAME, "params": params}, list(tasks), ["p"], fake.deps(), plan_cls=cls,
+                           recorder=recorder, config_path=config_path)
     return out, fake
 
 
@@ -86,7 +105,8 @@ def test_linear_first_runs_agent_only_after_a_linear_failure():
 
 
 def test_calibration_holds_and_rests():
-    p = {"load_task": "a", "workflow": "linear", "hold_s": 25, "rest_s": 60, "repeats": 2}
+    p = {"load_task": "a", "workflow": "linear", "channel": "gpu", "level": 1.0, "hold_s": 25, "rest_s": 60,
+         "repeats": 2}
     out, fake = run(CalibrationSteps, p, fake=Fake(goal_s=30.0))
     assert [o.step.kind for o in out] == ["load_step", "wait", "load_step"]
     assert all(o.hold_achieved for o in out if o.step.kind == "load_step") and len(fake.calls) == 2
@@ -95,3 +115,37 @@ def test_calibration_holds_and_rests():
 def test_unknown_task_refused_before_any_step():
     with pytest.raises(SessionPlanError, match="not in the experiment's tasks"):
         run(BackToBack, dict(GOALS, goals=["a", "zzz"]))
+
+
+def test_fixed_pause_labels_the_recording_and_records_the_profile(tmp_path):
+    prof = tmp_path / "fixed_pause_pilot.yaml"
+    prof.write_text("session_plan: {}\n")
+    rec = Recorder()
+    p = dict(GOALS, repeats=1, gap_factor=0.5, tau_s=30, tau_status="PILOT_ONLY", tau_source="pilot value")
+    run(FixedPause, p, recorder=rec, config_path=str(prof))
+    assert rec.plans[0][0] == "fixed_pause_pilot" and len(rec.plans[0][1]) == 64
+    assert rec.plans[0][2] == "fixed_pause" and rec.plans[0][3]["tau_status"] == "PILOT_ONLY"
+    kinds = [s[0] for s in rec.spans]
+    assert kinds.count("goal_slot") == 4 and kinds.count("pause") == 3
+    pause = next(s for s in rec.spans if s[0] == "pause")
+    assert pause[4] == {"planned_s": 15.0, "actual_s": 15.0, "rule": "fixed_pause"}
+    slot = next(s for s in rec.spans if s[0] == "goal_slot")
+    assert slot[3] - slot[2] == 10 * 10 ** 9 and slot[4]["success"] is True
+
+
+def test_linear_first_slot_spans_cover_linear_and_agent():
+    rec = Recorder()
+    run(LinearFirst, {"goals": ["a", "b"], "repeats": 1, "seed": 3}, recorder=rec, fake=Fake(solved=[False, True, True]))
+    slots = [s for s in rec.spans if s[0] == "goal_slot"]
+    assert [s[4]["agent_attempt"] for s in slots] == ["run", "not_run"]
+    assert slots[0][4]["attempt_run_ids"] == [1, 2] and slots[0][3] - slots[0][2] == 20 * 10 ** 9
+
+
+def test_calibration_step_spans_and_no_recording_is_fine():
+    rec = Recorder()
+    p = {"load_task": "a", "workflow": "linear", "channel": "gpu", "level": 1.0, "hold_s": 25, "rest_s": 60,
+         "repeats": 2}
+    run(CalibrationSteps, p, recorder=rec, fake=Fake(goal_s=30.0))
+    steps = [s for s in rec.spans if s[0] == "calibration_step"]
+    assert len(steps) == 2 and steps[0][4] == {"channel": "gpu", "level": 1.0, "hold_s": 25.0, "hold_achieved": True}
+    run(CalibrationSteps, p, recorder=None, fake=Fake(goal_s=30.0))   # no recording: plan still runs
