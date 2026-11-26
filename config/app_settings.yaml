@@ -115,7 +115,7 @@ plugins:
     domain: alems
 
 thermal_exposure:
-  machine_profile: gpu_soc_a
+  machine_profile: auto          # profile from platform class (config/machine_profiles/index.yaml)
 
 # Phase attribution v3 (chunk 45): signed residual between run attribution and
 # phase estimates. Integrity warns above this share of attributed energy.

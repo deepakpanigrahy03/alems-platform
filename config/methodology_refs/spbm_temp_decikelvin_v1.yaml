@@ -1,0 +1,19 @@
+method_id: spbm_temp_decikelvin_v1
+formula: "C = shown * 10 - 273.2, where shown is the spbm hwmon temperature read as millidegrees / 1000; a converted value below 1 C is an empty slot and is stored as missing (never 0)"
+parameters:
+  k_offset: 273.2
+  empty_below_c: 1.0
+  evidence_samples: 1200
+  evidence_max_abs_difference_c: 0.05
+confidence: 0.95
+references:
+  - title: "Linux kernel hwmon sysfs interface (temp*_input in millidegrees Celsius)"
+    authors: "Linux kernel documentation"
+    year: 2024
+    ref_type: "manual"
+    relevance: "The interface promises millidegrees Celsius; the spbm driver fills it with firmware tenths of a kelvin."
+  - title: "spark_hwmon: SPBM hwmon driver for NVIDIA DGX Spark / GB10 (source and README)"
+    authors: "antheas (GitHub)"
+    year: 2025
+    ref_type: "software"
+    relevance: "Maps the firmware temperature registers to the eight labels; its unit conversion is what this method corrects."

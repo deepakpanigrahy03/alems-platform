@@ -601,8 +601,9 @@ class SamplesRepository:
                 cpu_temp, system_temp, wifi_temp,
                 throttle_event,
                 all_zones_json,
-                sensor_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                sensor_count,
+                sensors_json, sensor_quality_json, catalog_sha256
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         for s in samples:
@@ -627,5 +628,13 @@ class SamplesRepository:
                     s.get("throttle_event", 0),
                     all_zones,
                     s.get("sensor_count"),
+                    _json_or_none(s.get("sensors")),
+                    _json_or_none(s.get("sensor_quality")),
+                    s.get("catalog_sha256"),
                 ),
             )
+
+
+def _json_or_none(value):
+    """Dict to JSON text; None stays NULL (no catalog for that sample)."""
+    return json.dumps(value) if isinstance(value, dict) else None

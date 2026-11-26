@@ -435,13 +435,58 @@ class CPUReaderABC(BaseReader):
 # THERMAL READER INTERFACE
 # ============================================================================
 
-class ThermalReaderABC(BaseReader):
+class _ThermalCatalogMixin:
+    """
+    Optional sensor-catalog methods shared by both thermal contracts.
+
+    Defaults keep every existing reader and plugin working unchanged: a
+    reader that does not describe itself reports each read_all_thermal()
+    key as a 'derived' value with an unknown formula, because an old reader
+    may return aggregates (an average or a maximum). It is never presented
+    as an individual sensor. Readers that know their sensors override
+    describe_sensors() and read_sensors(); see alems_sdk.thermal_catalog.
+    Temperatures only: non-temperature signals (for example thermal
+    pressure) use describe_signals() / read_signals().
+    """
+
+    def describe_sensors(self) -> List[Dict]:
+        """Catalog descriptors of the temperatures this reader reports."""
+        from alems_sdk.thermal_catalog import legacy_descriptors
+        try:
+            keys = list((self.read_all_thermal() or {}).keys())
+        except Exception:                       # describing must never break a reader
+            keys = []
+        return legacy_descriptors(self.get_name(), keys)
+
+    def read_sensors(self) -> Dict[str, Optional[float]]:
+        """{descriptor id: temperature in C, or None}; ids match describe_sensors()."""
+        name = self.get_name()
+        return {"%s:%s" % (name, k): v for k, v in (self.read_all_thermal() or {}).items()}
+
+    def read_discovery_sensors(self) -> Dict[str, Optional[float]]:
+        """Like read_sensors(), plus sensors described as read_by 'discovery_utility'."""
+        return self.read_sensors()
+
+    def describe_signals(self) -> List[Dict]:
+        """Non-temperature signals this reader can provide (default: none)."""
+        return []
+
+    def read_signals(self) -> Dict[str, Dict]:
+        """{signal id: {"value", "unit", "status"}} (default: none)."""
+        return {}
+
+
+class ThermalReaderABC(_ThermalCatalogMixin, BaseReader):
     """
     Interface for temperature sensor readers.
 
     Concrete implementations:
-        SensorReader       — Linux, reads /sys/class/thermal/thermal_zoneN/temp
-        DummyThermalReader — stub returning empty dict for unsupported platforms
+        SensorReader           — x86 Linux, configured thermal zones
+        ARMThermalReader       — aarch64 Linux, every thermal zone
+        IOKitThermalReader     — macOS, die sensors (helper) and battery
+        SyntheticThermalReader — pipeline tests
+        DummyThermalReader     — stub returning empty dict for unsupported platforms
+    Optional sensor catalog methods: see _ThermalCatalogMixin.
     """
 
     @abstractmethod
@@ -455,7 +500,7 @@ class ThermalReaderABC(BaseReader):
                 Returns empty dict if no sensors available.
         """
         ...
-class ThermalReaderV2ABC(BaseReader):
+class ThermalReaderV2ABC(_ThermalCatalogMixin, BaseReader):
     """
     Interface for normalized per-zone thermal readers (Thermal V2).
  

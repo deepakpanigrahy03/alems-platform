@@ -119,3 +119,18 @@ Attribute machine-level readings between overlapping experiments (for example by
 
 ## IMP-SPANS-01: Validate agent spans at write time
 Route `SpanWriter` through the vocabulary descriptor so unknown kinds, wrong parents and bad attributes are refused for every vocabulary, not only recording spans.
+
+## IMP-MIGRATE-01: Show extension migrations in --plan
+Make `cmd_plan` list pending extension migrations as `cmd_migrate` applies them, so the plan step shows every change before `--run`.
+
+## IMP-RECORD-03: GPU process checkpoint at run start without delay
+Take the last process-list checkpoint just before a run without delaying the run start (for example a snapshot already in flight when the pause arrives), so the checkpoint before a run is not up to the check interval old.
+
+## IMP-RECORD-04: GPU power between runs
+Record GPU power between runs (and inside idle windows) so machines whose main channel is GPU power get a matched idle power.
+
+## IMP-SENSORS-01: Thermal safety guard from discovered limits
+The catalog records per-sensor limits: on GB10 NVML reports GPU slowdown 86 C, shutdown 90 C, max operating 99 C (shutdown below max operating, stored as reported). The load guard required before the session runner should stop at a margin below the discovered slowdown limit instead of a typed number.
+
+## IMP-SENSORS-02: Record catalog-only sensors
+Add a per-sensor recording path for hwmon inputs and Mac helper sensors so that profiles on x86, AMD and Mac can name them.

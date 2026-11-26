@@ -1,0 +1,22 @@
+method_id: cooling_complete_v1
+formula: "complete when |T_s(t) - median_pre(T_s)| <= theta_s for every decision and guard sensor, continuously for hold_s, within max_s; theta_s = max(theta_eng, k x MAD_pre, resolution_s); a sampling gap > 2 intervals restarts the hold; a timeout is never complete"
+parameters:
+  tolerance_c: 2.0
+  mad_k: 3.0
+  hold_s: 60
+  max_s: 600
+  decision_sensor: configured (default profile main sensor)
+  guard_sensors: configured (default profile main sensor)
+  status: provisional until calibration
+confidence: 0.8
+references:
+  - title: "Heat Transfer (lumped-capacitance transient response)"
+    authors: "Incropera, F. P.; DeWitt, D. P."
+    year: 2007
+    ref_type: "paper"
+    relevance: "First-order cooling toward a reference temperature; return to a band around it."
+  - title: "Measurement-science review of the cooling rule (platform design record)"
+    authors: "A-LEMS project"
+    year: 2026
+    ref_type: "internal"
+    relevance: "Absolute residual, hybrid threshold, guard sensor, gap resets the hold."

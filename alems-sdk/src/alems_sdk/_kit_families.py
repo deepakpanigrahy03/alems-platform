@@ -41,6 +41,21 @@ class MeasurementKit(ConformanceKit):
             # in 39.5.4 with an expected diff on the methodology registry.
             self.warn("METHOD_PROVENANCE %r disagrees with FIDELITY %r (G53)"
                       % (provenance, value))
+        if meta.get("extension_point") == "alems.readers.thermal":
+            self._check_thermal_catalog(cls)
+
+    def _check_thermal_catalog(self, cls: object) -> None:
+        """
+        A thermal reader that describes its own sensors must also read them:
+        otherwise read_sensors() returns legacy ids that match no descriptor.
+        Descriptor content is validated at run time (scripts/detect_thermal.py),
+        because building a reader here could need hardware.
+        """
+        from alems_sdk.readers import _ThermalCatalogMixin as base
+        own = lambda name: getattr(cls, name, None) is not getattr(base, name)
+        if own("describe_sensors") and not own("read_sensors"):
+            self.fail("thermal reader overrides describe_sensors() but not read_sensors(); "
+                      "its readings would not match its descriptors")
 
 
 class ExecutionKit(ConformanceKit):

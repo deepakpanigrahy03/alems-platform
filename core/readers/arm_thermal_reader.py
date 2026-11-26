@@ -240,6 +240,145 @@ class ARMThermalReader(ThermalReaderABC):
         )
         return result
 
+    # ── Sensor catalog (SDK describe_sensors / read_sensors) ──────────────
+
+    def _key_ids(self):
+        # type: () -> Dict[str, str]
+        """Reader key -> catalog id; zone type and index come from sysfs, not the key."""
+        import os
+        from core.thermal.thermal_descriptors import zone_id
+        out = {}
+        for key, path in self._zones.items():
+            zdir = os.path.dirname(path)
+            with open(os.path.join(zdir, "type")) as fh:
+                out[key] = zone_id(int(os.path.basename(zdir)[len("thermal_zone"):]), fh.read().strip())
+        return out
+
+    def describe_sensors(self):
+        # type: () -> List[Dict]
+        """Each zone as a sensor; cpu_temp and package_celsius as derived means."""
+        import os
+        from alems_sdk.thermal_catalog import descriptor
+        from core.thermal.thermal_descriptors import list_zones, zone_descriptors
+        dirs = {os.path.dirname(p) for p in self._zones.values()}
+        zones = [z for z in list_zones() if z["dir"].rstrip("/") in {d.rstrip("/") for d in dirs}]
+        ids = self._key_ids()
+        cpu = [ids[k] for k in self._cpu_zone_keys if k in ids]
+        derived = [descriptor("%s:%s" % (self.get_name(), k), "derived", "derived", "celsius_float",
+                              "%s:%s" % (self.get_name(), k), "strong", self.get_name(),
+                              derived_from=cpu, formula="mean of VALID inputs", scope="zone")
+                   for k in ("cpu_temp", "package_celsius")]
+        return zone_descriptors(self.get_name(), zones) + derived + self._board_descriptors()
+
+    def read_sensors(self):
+        # type: () -> Dict[str, Optional[float]]
+        """Zone temperatures under their catalog ids, plus the derived means."""
+        values, ids = self.read_all_thermal(), self._key_ids()
+        out = {ids[k]: v for k, v in values.items() if k in ids}
+        out.update({"%s:%s" % (self.get_name(), k): values.get(k) for k in ("cpu_temp", "package_celsius")})
+        out.update(self._board_values())
+        return out
+
+    def _board_inputs(self):
+        # type: () -> List[Dict]
+        """Named board sensors (spbm hwmon: CPU clusters, GPU, SoC); cached, [] elsewhere."""
+        if getattr(self, "_board", None) is None:
+            from core.thermal.thermal_descriptors import hwmon_inputs
+            self._board = [h for h in hwmon_inputs() if h["name"] == "spbm"]
+        return self._board
+
+    def _board_descriptors(self):
+        # type: () -> List[Dict]
+        """Catalog descriptors of the board sensors, recorded by this reader (converted values)."""
+        from core.thermal.thermal_descriptors import hwmon_descriptors
+        ids = {h["id"] for h in self._board_inputs()}
+        out = []
+        for d in hwmon_descriptors(self.get_name()):
+            if d["id"] in ids:
+                d.update(reported_format="decikelvin_shown_as_millidegree",
+                         interface_resolution_c=0.1,
+                         formula="C = hwmon_C * 10 - 273.2 (spbm_temp_decikelvin_v1)",
+                         notes="firmware reports 0.1 K; the spark_hwmon driver presents it as C; "
+                               "converted here; same sensor as the matching ACPI zone; a value "
+                               "below 1 C is an empty slot and is stored as missing")
+                out.append(d)
+        return out
+
+    # firmware tenths of a kelvin, shown by the driver as if Celsius (method spbm_temp_decikelvin_v1)
+    _SPBM_K_OFFSET = 273.2
+    _SPBM_MIN_C = 1.0          # below this on a powered chip: empty slot, not a reading
+
+    def _board_values(self):
+        # type: () -> Dict[str, Optional[float]]
+        """Board sensor temperatures in C, converted; a failed read or empty slot is None, never 0."""
+        out = {}
+        for h in self._board_inputs():
+            try:
+                with open(h["path"]) as fh:
+                    shown_c = int(fh.read().strip()) / 1000.0
+            except (OSError, ValueError):
+                out[h["id"]] = None
+                continue
+            c = round(shown_c * 10.0 - self._SPBM_K_OFFSET, 2)
+            out[h["id"]] = c if c >= self._SPBM_MIN_C else None
+        return out
+
+    # ── Signals (SDK describe_signals / read_signals) ─────────────────────
+
+    def _signal_files(self):
+        # type: () -> Dict[str, str]
+        """signal id -> sysfs file, for the files present on this machine."""
+        import glob
+        import os
+        files = {}
+        inputs = self._board_inputs()
+        if inputs:
+            spbm = os.path.dirname(inputs[0]["path"])
+            for name in ("tj_max_c", "pl_level", "prochot"):
+                if os.path.exists(os.path.join(spbm, name)):
+                    files["spbm:" + name] = os.path.join(spbm, name)
+        for n in glob.glob("/sys/class/hwmon/hwmon*/name"):
+            fan = os.path.join(os.path.dirname(n), "fan1_input")
+            if open(n).read().strip() == "acpi_fan" and os.path.exists(fan):
+                files["acpi_fan:fan1"] = fan
+        return files
+
+    # signal id -> (kind, raw unit, interpretation, analysis enabled, scope, decoder, notes)
+    _SIGNALS = {
+        "spbm:tj_max_c": ("level", "C", "empirical", True, "package", None,
+                          "firmware package maximum in whole C; tracks the hottest ACPI zone"),
+        "spbm:pl_level": ("level", "level", "empirical", True, "package",
+                          {"1": "PL1 binding", "2": "PL2 binding"},
+                          "active power limit; power context, not a heat measurement"),
+        "spbm:prochot": ("level", "raw", "invalidated", False, "package", None,
+                         "reads 1 at idle on GB10; not a throttle indicator"),
+        "acpi_fan:fan1": ("level", "raw", "unverified", False, "board", None,
+                          "ACPI fan value; meaning undocumented (reads 2), not RPM"),
+    }
+
+    def describe_signals(self):
+        # type: () -> List[Dict]
+        """GB10 firmware and fan signals present on this machine."""
+        from alems_sdk.thermal_catalog import signal_descriptor
+        out = []
+        for sid, path in sorted(self._signal_files().items()):
+            kind, unit, interp, enabled, scope, decoder, notes = self._SIGNALS[sid]
+            out.append(signal_descriptor(sid, kind, sid.split(":")[0], path, unit, interp, enabled,
+                                         self.get_name(), decoder=decoder,
+                                         decoder_version="1" if decoder else None,
+                                         scope=scope, notes=notes))
+        return out
+
+    def read_signals(self):
+        # type: () -> Dict[str, Dict]
+        """{signal id: {"value", "unit", "status"}}; a failed read is None, never 0."""
+        from core.thermal.thermal_descriptors import read_int_status
+        out = {}
+        for sid, path in self._signal_files().items():
+            value, status = read_int_status(path)
+            out[sid] = {"value": value, "unit": self._SIGNALS[sid][1], "status": status}
+        return out
+
     def read_temperatures(self):
         # type: () -> Dict
         """

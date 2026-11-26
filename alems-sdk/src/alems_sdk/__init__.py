@@ -3,6 +3,7 @@ alems_sdk — A-LEMS SDK public surface.
 
 Stable facade for plugin authors. Depends on nothing in core.
 """
+from alems_sdk.version import SDK_VERSION  # noqa: F401  (alems dev status reads it)
 from alems_sdk.conformance import KitResult, ConformanceReport, run_conformance
 from alems_sdk._kit_base import ConformanceKit
 from alems_sdk._kit_measurement import MeasurementKit, MEASUREMENT_GROUPS

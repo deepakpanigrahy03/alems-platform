@@ -22,6 +22,13 @@ from extensions.thermal_exposure.value_change_probe import observe_value_changes
 
 ROOT = Path(__file__).resolve().parents[1]
 E001 = ROOT / "migrations" / "extensions" / "thermal_exposure" / "e001_create_thermal_exposure.sql"
+E004 = ROOT / "migrations" / "extensions" / "thermal_exposure" / "e004_sensor_resolution_provenance.sql"
+# discovered facts as scripts/detect_thermal.py writes them on GB10
+FACTS = {"sha": "cat-sha", "facts": dict(
+    {"thermal_zone:%d:acpitz" % i: {"interface_resolution_c": 0.001, "observed_step_c": 0.1,
+                                    "observed_status": "measured"} for i in range(7)},
+    **{"nvml:gpu0:temperature": {"interface_resolution_c": 1.0, "observed_step_c": None,
+                                 "observed_status": "insufficient_transitions"}})}
 PROFILE = ROOT / "config" / "machine_profiles" / "gpu_soc_a.yaml"
 RAILS = ["dc_input", "sys_total", "soc_pkg", "cpu_gpu", "cpu_p", "cpu_e", "vcore", "gpu", "prereg", "dla"]
 
@@ -31,7 +38,7 @@ def _catalog(gpu=True):
     return {"rails": {n: i + 1 for i, n in enumerate(RAILS)},
             "domains": {"GPU": (7, "uj", 1)},
             "zones": {("acpitz", i): "SOC" for i in range(7)},
-            "gpu": gpu}
+            "gpu": gpu, "sensor_facts": FACTS}
 
 
 @pytest.fixture
@@ -44,6 +51,8 @@ def profile():
 def readable_zones(monkeypatch):
     """Zone temp files count as readable unless a test says otherwise."""
     monkeypatch.setattr(pl.os, "access", lambda path, mode: True)
+    monkeypatch.setattr(pl, "load_sensor_facts", lambda path=None: FACTS)
+    monkeypatch.setattr(pl, "load_sensor_facts", lambda path=None: FACTS)
 
 
 def _reject(profile, cat=None, match=""):
@@ -131,6 +140,7 @@ def _store():
                                     zone_index INTEGER, canonical_role TEXT, active INTEGER);
     """)
     con.executescript(E001.read_text())
+    con.executescript(E004.read_text())
     con.executemany("INSERT INTO power_rails VALUES (?, ?)", [(i + 1, n) for i, n in enumerate(RAILS)])
     con.executemany("INSERT INTO thermal_zones VALUES (NULL, 'm', 'acpitz', ?, 'SOC', 1)", [(i,) for i in range(7)])
     return con
@@ -189,3 +199,49 @@ def test_probe_counts_changes_and_keeps_repeats():
     assert z["n_reads"] >= 6                            # repeats counted, not dropped
     assert z["observed_value_change_interval_s"] is not None
     assert z["evidence_only"] is True
+
+
+# ---------------------------------------------------------------- discovered resolution
+def _sensor_rows(profile, cat):
+    """te_sensor rows by sensor name."""
+    _c, srow = pl.build_rows(profile, "sha", cat)
+    return {r[2]: r for r in srow}
+
+
+def test_resolution_comes_from_catalog_with_its_origin(profile):
+    rows = _sensor_rows(profile, _catalog())
+    zone, gpu = rows["soc_zone_0"], rows["gpu_temp"]
+    assert (zone[9], zone[16], zone[17], zone[18], zone[19]) == (0.1, 0.001, 0.1, "measured", "cat-sha")
+    assert (gpu[9], gpu[17], gpu[18]) == (1.0, None, "interface_only")    # no step invented
+
+
+def test_typed_resolution_that_disagrees_is_rejected(profile):
+    p = copy.deepcopy(profile)
+    p["sensors"][0]["nominal_resolution_c"] = 0.001
+    _reject(p, match="disagrees with discovered")
+
+
+def test_no_catalog_and_no_typed_value_is_rejected(profile):
+    cat = dict(_catalog(), sensor_facts={"sha": None, "facts": {}})
+    _reject(profile, cat=cat, match="run scripts/detect_thermal.py")
+
+
+def test_typed_value_without_catalog_is_marked_unverified(profile):
+    p = copy.deepcopy(profile)
+    for s in p["sensors"]:
+        s["nominal_resolution_c"] = 0.1 if s["source_table"] == "thermal_samples_v2" else 1.0
+    rows = _sensor_rows(p, dict(_catalog(), sensor_facts={"sha": None, "facts": {}}))
+    assert {r[18] for r in rows.values()} == {"typed_unverified"}
+
+
+def test_auto_profile_follows_platform_class(tmp_path, monkeypatch):
+    from extensions.thermal_exposure import extension as ext
+    (tmp_path / "config" / "machine_profiles").mkdir(parents=True)
+    (tmp_path / "config" / "hw_config.json").write_text('{"platform_class": "nvidia_grace"}')
+    (tmp_path / "config" / "machine_profiles" / "index.yaml").write_text(
+        "profiles:\n  nvidia_grace: gpu_soc_a\n")
+    monkeypatch.setattr(ext, "_REPO_ROOT", tmp_path)
+    monkeypatch.setattr(ext, "_PROFILE_DIR", tmp_path / "config" / "machine_profiles")
+    assert ext._auto_profile() == "gpu_soc_a"
+    (tmp_path / "config" / "hw_config.json").write_text('{"platform_class": "apple_silicon"}')
+    assert ext._auto_profile() is None                      # never another platform's profile

@@ -144,6 +144,27 @@ class ThermalReaderV2(ThermalReaderV2ABC):
 
         return readings
 
+    # ── Sensor catalog (SDK describe_sensors / read_sensors) ──────────────────
+
+    def _zone_ids(self) -> Dict[int, str]:
+        """zone_id -> catalog id (thermal_zone:<index>:<type>)."""
+        from core.thermal.thermal_descriptors import zone_id
+        return {zid: zone_id(int(z.get("zone_index", zid)), z.get("zone_type", "unknown"))
+                for zid, z in self._zones.items()}
+
+    def describe_sensors(self) -> List[Dict]:
+        """One descriptor per registered zone, with every trip point."""
+        from core.thermal.thermal_descriptors import zone_descriptors
+        zones = [{"index": int(z.get("zone_index", zid)), "type": z.get("zone_type", "unknown"),
+                  "dir": z["live_path"]} for zid, z in self._zones.items()]
+        return zone_descriptors(self.get_name(), zones)
+
+    def read_sensors(self) -> Dict[str, Optional[float]]:
+        """Each zone's temperature; None unless the reading is VALID (never 0)."""
+        ids = self._zone_ids()
+        return {ids[r["zone_id"]]: (r["temp_celsius"] if r["quality_flag"] == "VALID" else None)
+                for r in self.read_all_zones()}
+
     # ── Legacy interface compatibility ────────────────────────────────────────
     # These methods exist so ThermalReaderV2 can also serve as a drop-in
     # for the old self.sensor in energy_engine.py during transition.

@@ -1,0 +1,14 @@
+method_id: idle_drift_v1
+formula: "drift = median_post - median_pre per sensor and channel; drift session if |drift| > tolerance (temperature in C, power as a share of the pre median); unknown without a post window"
+parameters:
+  drift_tolerance_c: 0.5
+  drift_tolerance_rel: 0.05
+  interpolation: none
+  status: provisional until calibration
+confidence: 0.85
+references:
+  - title: "Thermal Exposure Measurement Architecture (platform design)"
+    authors: "A-LEMS project"
+    year: 2026
+    ref_type: "internal"
+    relevance: "Idle drift and cooling complete are separate rules; drift sessions are kept and analysed separately."

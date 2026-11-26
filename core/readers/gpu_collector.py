@@ -255,6 +255,69 @@ class NVMLBackend:
         # type: () -> bool
         return self._handle is not None
  
+    # NVML threshold kinds, tried one by one; each is recorded as available or
+    # unsupported (drivers differ, nothing is assumed)
+    _TEMP_THRESHOLDS = (
+        ("NVML_TEMPERATURE_THRESHOLD_SLOWDOWN", "slowdown"),
+        ("NVML_TEMPERATURE_THRESHOLD_SHUTDOWN", "shutdown"),
+        ("NVML_TEMPERATURE_THRESHOLD_GPU_MAX", "max_operating"),
+        ("NVML_TEMPERATURE_THRESHOLD_MEM_MAX", "memory_max"),
+        ("NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN", "acoustic_min"),
+        ("NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX", "acoustic_max"),
+        ("NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR", "acoustic_setting"),
+        ("NVML_TEMPERATURE_THRESHOLD_GPS_CURR", "gps_setting"),
+    )
+
+    def _thresholds(self, handle):
+        # type: (Any) -> List[Dict]
+        """Every threshold kind this pynvml knows; temp_c None where unsupported."""
+        from alems_sdk.thermal_catalog import limit
+        out = []
+        for const, kind in self._TEMP_THRESHOLDS:
+            code = getattr(self._pynvml, const, None)
+            if code is None:
+                continue
+            try:
+                value = float(self._pynvml.nvmlDeviceGetTemperatureThreshold(handle, code))
+                out.append(limit(kind, kind, value, "nvml"))
+            except Exception:
+                out.append(limit(kind, kind, None, "nvml:unsupported"))
+        return out
+
+    @staticmethod
+    def _text(value):
+        # type: (Any) -> str
+        """NVML returns bytes on older bindings and str on newer ones."""
+        return value.decode() if isinstance(value, bytes) else str(value)
+
+    def describe_temperature_sensors(self):
+        # type: () -> List[Dict]
+        """One descriptor per GPU: whole-degree interface, thresholds as limits."""
+        from alems_sdk.thermal_catalog import descriptor
+        out = []
+        for i in range(self._gpu_count if self._handle is not None else 0):
+            h = self._pynvml.nvmlDeviceGetHandleByIndex(i)
+            name, uuid = self._text(self._pynvml.nvmlDeviceGetName(h)), self._text(self._pynvml.nvmlDeviceGetUUID(h))
+            out.append(descriptor("nvml:gpu%d:temperature" % i, "sensor", "nvml", "integer_c",
+                                  "gpu:%s" % uuid, "strong", "GPUCollector",
+                                  interface_resolution_c=1.0, limits=self._thresholds(h),
+                                  source_ref="nvmlDeviceGetTemperature(NVML_TEMPERATURE_GPU)",
+                                  device=name, label="gpu%d" % i, scope="gpu"))
+        return out
+
+    def read_temperature_sensors(self):
+        # type: () -> Dict[str, Optional[float]]
+        """GPU temperatures by catalog id; None when a read fails."""
+        out = {}
+        for i in range(self._gpu_count if self._handle is not None else 0):
+            try:
+                h = self._pynvml.nvmlDeviceGetHandleByIndex(i)
+                out["nvml:gpu%d:temperature" % i] = float(self._pynvml.nvmlDeviceGetTemperature(
+                    h, self._pynvml.NVML_TEMPERATURE_GPU))
+            except Exception:
+                out["nvml:gpu%d:temperature" % i] = None
+        return out
+
     def read_energy_uj(self, gpu_index=0):
         # type: (int) -> Optional[int]
         """

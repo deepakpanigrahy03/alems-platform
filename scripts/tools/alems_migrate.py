@@ -1157,7 +1157,15 @@ def cmd_plan(conn, hostname: str) -> None:
     if not pending_setup:
         print("  (none)")
 
-    total = len(pending_schema) + len(pending_seed) + len(pending_setup)
+    # extension migrations: the same discovery --run uses, so the plan shows every change
+    pending_ext = _get_pending_extension_migrations(conn)
+    print("\nPending extension migrations:")
+    for ext_name, filepath, _version in pending_ext:
+        print(f"  {ext_name}/{filepath.name}")
+    if not pending_ext:
+        print("  (none)")
+
+    total = len(pending_schema) + len(pending_seed) + len(pending_setup) + len(pending_ext)
     print(f"\nTotal: {total} migrations to apply.")
     if total:
         print("Run 'alems dev migrate --run' to execute.")

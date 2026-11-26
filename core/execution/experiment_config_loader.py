@@ -79,6 +79,10 @@ def apply_config(args) -> None:
             "pre_window_s", getattr(args, "record_pre_window_s", 30.0)))
         args.record_cooldown_max_s = float(recording.get(
             "cooldown_max_s", getattr(args, "record_cooldown_max_s", 0.0)))
+    if recording:
+        # idle, cooldown, checks and server sections go to the recorder unread
+        args.record_settings = {k: recording[k] for k in ("idle", "cooldown", "checks", "server")
+                                if k in recording}
 
     # Quality gate (39.5a): controls LLM judge and OutputQualityExtension.persist().
     # Cheap local scorers (exact_match, numeric, structural, semantic) run always

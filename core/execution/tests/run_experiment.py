@@ -576,7 +576,8 @@ def run_all_experiments(args):
         # opt-in: continuous recording around the whole experiment, closed at exit
         from core.recording.session import open_recording
         open_recording(pre_window_s=args.record_pre_window_s,
-                       cooldown_max_s=args.record_cooldown_max_s)
+                       cooldown_max_s=args.record_cooldown_max_s,
+                       settings=getattr(args, "record_settings", None))
 
     # B3: build serving engine adapter and cache collector from YAML config.
     # serving_engine section optional — RemoteAPIAdapter used if absent (INV-7).

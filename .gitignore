@@ -129,3 +129,5 @@ audit/UBUNTU2505/
 
 # local e2e configs (chunk 45)
 sandbox_traces/
+# Mac die-temperature helper, built per machine by install.sh from vendor/sensors.m
+core/readers/darwin/vendor/sensors

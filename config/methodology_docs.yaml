@@ -538,11 +538,52 @@ methods:
     section: "Outlier Detection Methodology"
 
 
-experiment_recording_v1:
-  doc: "experiment-recording.md"
-  method_anchor: "experiment-recording-time-line"
-  section: "Experiment Recording Time Line"
-recording_spans_v1:
-  doc: "experiment-recording.md"
-  method_anchor: "recording-spans"
-  section: "Recording Spans"
+  experiment_recording_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "experiment-recording-time-line"
+    section: "Experiment Recording Time Line"
+
+  recording_spans_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "recording-spans"
+    section: "Recording Spans"
+
+  idle_window_median_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "idle-window-median"
+    section: "Idle Window Median"
+
+  idle_power_from_counter_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "idle-power-from-energy-counters"
+    section: "Idle Power From Energy Counters"
+
+  idle_pre_acceptance_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "pre-idle-window-acceptance"
+    section: "Pre Idle Window Acceptance"
+
+  cooling_complete_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "cooling-complete"
+    section: "Cooling Complete"
+
+  idle_drift_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "idle-drift"
+    section: "Idle Drift"
+
+  sensor_resolution_observed_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "sensor-resolution-observed"
+    section: "Sensor Resolution Observed"
+
+  spbm_temp_decikelvin_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "board-temperature-conversion"
+    section: "Board Temperature Conversion"
+
+  thermal_signals_v1:
+    doc: "experiment-recording.md"
+    method_anchor: "thermal-response-signals"
+    section: "Thermal Response Signals"

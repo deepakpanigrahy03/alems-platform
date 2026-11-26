@@ -74,6 +74,95 @@ def _gpu() -> Optional[Any]:
     return col if col.backend.is_available() else None
 
 
+def _catalog_sensors(readers: Dict) -> Optional[Callable[[], List[Dict]]]:
+    """
+    The platform thermal reader's catalog sensors as rows, or None.
+
+    Linux zones are already recorded by THERMAL_ZONE (te_thermal_samples), so
+    they are left out here and stored once; on Apple Silicon and for sensors
+    such as x86 coretemp this is the only between-runs path.
+    """
+    from alems_sdk.thermal_catalog import expected_ids, sensor_quality
+    try:
+        from core.readers.factory import ReaderFactory     # built exactly as _energy() does
+        cfg = json.loads(_HW_CONFIG.read_text()) if _HW_CONFIG.exists() else {}
+        reader = ReaderFactory.get_thermal_reader(cfg)
+        expected = expected_ids(reader.describe_sensors(), reader.get_name())
+    except Exception as exc:
+        logger.info("recording: no catalog sensors (%s)", exc)
+        return None
+    if "THERMAL_ZONE" in readers:
+        expected = [i for i in expected if not i.startswith("thermal_zone:")]
+    if not expected:
+        return None
+    sha = (cfg.get("thermal_sensors") or {}).get("catalog_sha256")
+
+    def _read() -> List[Dict]:
+        vals, qual = sensor_quality(reader.read_sensors() or {}, expected)
+        return [{"catalog_id": i, "temp_celsius": vals[i], "quality_flag": qual[i],
+                 "catalog_sha256": sha} for i in expected]
+    return _read
+
+
+def _signals_source() -> Optional[Callable[[], List[Dict]]]:
+    """Thermal-response signals (platform reader and NVML) as typed rows, or None."""
+    from alems_sdk.thermal_catalog import typed_value
+    try:
+        from core.readers.factory import ReaderFactory
+        from core.readers.nvml_signals import NvmlSignals
+        cfg = json.loads(_HW_CONFIG.read_text()) if _HW_CONFIG.exists() else {}
+        sources = [s for s in (ReaderFactory.get_thermal_reader(cfg), NvmlSignals())
+                   if s.describe_signals()]
+    except Exception as exc:
+        logger.info("recording: no signals (%s)", exc)
+        return None
+    if not sources:
+        return None
+    sha = (cfg.get("thermal_sensors") or {}).get("signals_sha256")
+
+    def _read() -> List[Dict]:
+        rows = []
+        for src in sources:
+            for sid, v in (src.read_signals() or {}).items():
+                vi, vr, vt = typed_value(v.get("value"))
+                rows.append({"signal_id": sid, "value_int": vi, "value_real": vr, "value_text": vt,
+                             "quality_flag": v.get("status") or "UNAVAILABLE",
+                             "signal_catalog_sha256": sha})
+        return rows
+    return _read
+
+
+# readers that return zeros instead of measurements (LIMITED / INFERRED):
+# never offered to the recorder, so no zero is ever stored as energy (MIC-1)
+_NO_MEASUREMENT_READERS = ("DummyEnergyReader", "EnergyEstimator")
+
+
+def _energy() -> Optional[Callable[[], List[Dict]]]:
+    """
+    Platform energy counters as {key, energy_uj} rows, or None.
+
+    Built by the reader factory exactly as for runs. The recording extension
+    reads it only inside idle windows, and only when the machine profile's
+    main channel is an energy counter.
+    """
+    try:
+        from core.readers.factory import ReaderFactory
+        cfg = json.loads(_HW_CONFIG.read_text()) if _HW_CONFIG.exists() else {}
+        reader = ReaderFactory.get_energy_reader(cfg)
+    except Exception as exc:
+        logger.info("recording: no energy reader (%s)", exc)
+        return None
+    if type(reader).__name__ in _NO_MEASUREMENT_READERS or not reader.is_available():
+        return None
+
+    def _read() -> List[Dict]:
+        raw = reader.read_energy_uj() or {}
+        return [{"key": k, "energy_uj": v,
+                 "quality_flag": "VALID" if v is not None else "MISSING"}
+                for k, v in raw.items()]
+    return _read
+
+
 def build_readers() -> Tuple[Dict[str, Callable[[], List[Dict]]], Callable[[], None]]:
     """
     Reader callables per source, plus a cleanup function.
@@ -98,6 +187,16 @@ def build_readers() -> Tuple[Dict[str, Callable[[], List[Dict]]], Callable[[], N
                      "quality_flag": "VALID" if t is not None else "MISSING",
                      "invalid_reason": None if t is not None else "NO_TEMPERATURE_SIGNAL"}]
         readers["GPU_TEMP"] = _gpu_temp
+
+    energy = _energy()
+    if energy is not None:
+        readers["ENERGY"] = energy
+    sensors = _catalog_sensors(readers)
+    if sensors is not None:
+        readers["SENSORS"] = sensors
+    signals = _signals_source()
+    if signals is not None:
+        readers["SIGNALS"] = signals
 
     def cleanup() -> None:
         """Release GPU handles (DCGM groups, NVML) opened for the recording."""
@@ -143,20 +242,33 @@ def _recorder_class() -> Any:
 
 def open_recording(pre_window_s: float = 30.0, cooldown_max_s: float = 0.0,
                    machine_profile: str = "unknown", extra_readers: Optional[Dict] = None,
-                   recorder_kwargs: Optional[Dict] = None) -> Any:
+                   recorder_kwargs: Optional[Dict] = None,
+                   settings: Optional[Dict] = None) -> Any:
     """
     Open a recording, register it with the run hook and close it at exit.
 
     Returns the recorder (call close() to end it earlier).
     """
+    settings = dict(settings or {})
     readers, cleanup = build_readers()
     readers.update(extra_readers or {})
-    cooldown = {"max_s": cooldown_max_s, "tolerance_c": 2.0, "hold_s": 60.0} \
-        if cooldown_max_s > 0 else None
+    # rules and thresholds live in the extension; core only passes settings on
+    cooldown = dict(settings.get("cooldown") or {})
+    if cooldown_max_s > 0:
+        cooldown["max_s"] = cooldown_max_s
+    rates = rates_from_policy()
+    if "SENSORS" in readers:
+        # same requested rate as thermal zones; the achieved rate is checked per recording
+        rates["SENSORS"] = float(rates.get("THERMAL_ZONE", 1.0))
+    if "SIGNALS" in readers:
+        rates["SIGNALS"] = float(rates.get("THERMAL_ZONE", 1.0))
+    if "ENERGY" in readers:
+        rates["ENERGY"] = float((settings.get("idle") or {}).get("energy_hz", 10.0))
     cls = _recorder_class()
     rec = cls(readers=readers, writer_factory=_writer_factory(),
-              rates_hz=rates_from_policy(), machine_profile=machine_profile,
-              pre_window_s=pre_window_s, cooldown=cooldown, **(recorder_kwargs or {}))
+              rates_hz=rates, machine_profile=machine_profile,
+              pre_window_s=pre_window_s, cooldown=cooldown or None, settings=settings,
+              **(recorder_kwargs or {}))
     rec.open()
     hook.set_active(rec)
 

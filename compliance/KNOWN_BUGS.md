@@ -127,3 +127,21 @@ Same result on main (54bb47d) and on the thermal sampling branch, same task: tes
 
 ## Agent spans cannot be aligned with samples or recording spans
 `SpanWriter.open_span/close_span/add_placement` stamp `time.perf_counter_ns()`, a per-process counter with an arbitrary origin, while samples use wall-clock `timestamp_ns`. Agent span times cannot be compared with samples, with other processes or with recording spans. Also: `span_builder._build` writes `socket.gethostname()` as the placement node (hostname rule) and always writes a single `attempt:1`, whatever the retries. Found 2026-11-18; owner: span builder. Not changed.
+
+## Migrate --plan does not list extension migrations
+`alems dev migrate --plan` printed "Total: 0 migrations to apply" while `thermal_exposure/e003` was pending; `--run` then applied it ("1 extension"). `cmd_plan` does not call `_get_pending_extension_migrations()`, so the plan step cannot show extension changes. Found 2026-11-20; owner: migrate tool. Not changed (IMP-MIGRATE-01).
+
+## SoC zone resolution in the GB10 machine profile was 100 times too fine (fixed)
+`gpu_soc_a.yaml` declared `nominal_resolution_c: 0.001` for the 7 ACPI zones. The sensors report millidegrees in steps of 100: the smallest step between stored values is 0.1 C in all 7 zones and raw sysfs reads end in 00. Effect: the idle stability rule's resolution floor was 100 times too lenient (a flat 0.1 C-step trace could pass as stable). Fixed to 0.1 C, profile reloaded. Found 2026-11-20 in an idle recording.
+
+## Readers return 0.0 for a missing package temperature
+`ARMThermalReader.read_temperatures()` and `IOKitThermalReader.read_temperatures()` return `package_celsius: 0.0` (and gpu/pch 0.0) when no value exists; `ThermalReaderV2.read_all_zones()` stores `temp_celsius: 0.0` on MISSING / READ_FAILED rows. Violates MIC-1 (missing is NULL). The new catalog methods return None; the existing run-path methods are unchanged pending approval. Found 2026-11-20.
+
+## SDK version reported twice
+alems-sdk package metadata is the SDK version (now 1.1.0); `alems_sdk.version.SDK_VERSION` still says 0.9.0 and is not exported from the package, so `alems dev status` shows "constant None". Not changed: plugin sdk_range checks may read the constant. Found 2026-11-20.
+
+## Method doc entries outside the methods map (fixed)
+The continuous-recording and recording-span entries, and the idle and sensor-resolution entries added after them, were appended to config/methodology_docs.yaml at the top level instead of under `methods:`. validate_methodology_refs.py walks only `methods:`, so their doc anchors were never validated (count stayed at 95). Re-indented under `methods:`; validator now covers all 103 entries. Found 2026-11-20.
+
+## Mac thermal reader availability depended on the battery only (fixed)
+`IOKitThermalReader.is_available()` returned the battery check, so a Mac without a battery (Mac mini) reported the reader unavailable although its die-sensor helper worked. No run code reads this flag (runs use `available_sensors`, filled when the helper exists); sensor discovery did, and listed no Mac sensors. Now: battery or helper. Separately, the helper had never been built on the test Mac mini, so its runs recorded no temperature; install step 4d now builds it. Found 2026-11-20.

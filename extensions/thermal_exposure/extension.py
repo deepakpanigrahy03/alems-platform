@@ -126,4 +126,28 @@ def _configured_profile() -> Optional[str]:
         logger.warning("thermal_exposure: cannot read %s (%s)", _SETTINGS_FILE, exc)
         return None
     section = settings.get(_SETTINGS_KEY) or {}
-    return section.get("machine_profile") if isinstance(section, dict) else None
+    name = section.get("machine_profile") if isinstance(section, dict) else None
+    return _auto_profile() if name == "auto" else name
+
+
+def _auto_profile() -> Optional[str]:
+    """
+    Profile for this machine's platform class (config/machine_profiles/index.yaml).
+
+    platform_class comes from config/hw_config.json; a platform without an
+    entry gets no profile (logged), never another platform's profile.
+    """
+    import json
+    try:
+        with open(_REPO_ROOT / "config" / "hw_config.json", encoding="utf-8") as fh:
+            pclass = (json.load(fh) or {}).get("platform_class")
+        with open(_PROFILE_DIR / "index.yaml", encoding="utf-8") as fh:
+            index = (yaml.safe_load(fh) or {}).get("profiles") or {}
+    except (OSError, ValueError, yaml.YAMLError) as exc:
+        logger.warning("thermal_exposure: cannot resolve machine_profile auto (%s)", exc)
+        return None
+    name = index.get(pclass)
+    if not name:
+        logger.info("thermal_exposure: no machine profile for platform class %s "
+                    "(sensor catalog still discovered; registers left empty)", pclass)
+    return name

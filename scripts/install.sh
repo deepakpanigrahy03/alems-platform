@@ -319,6 +319,20 @@ python3 scripts/verify_hardware.py || {
     exit 1
 }
 
+# ── Step 4d: Thermal sensor discovery and measurement ────────────────
+# Describes every temperature sensor through the platform's readers and
+# measures each one for about 60 s at idle (no sudo). Writes the
+# thermal_sensors key of hw_config.json. A failure never stops the install.
+echo "[4d/12] Thermal sensors (about 60 s, read-only)..."
+if [ "$(uname -s)" = "Darwin" ] && [ ! -x core/readers/darwin/vendor/sensors ] && command -v clang >/dev/null; then
+    clang -Wall -O2 -framework IOKit -framework Foundation \
+        -o core/readers/darwin/vendor/sensors core/readers/darwin/vendor/sensors.m \
+        && echo "  Mac die-temperature helper built" \
+        || echo "  WARNING: Mac die-temperature helper not built (die temperatures unavailable)"
+fi
+"${PROJECT_ROOT}/venv/bin/python" scripts/detect_thermal.py \
+    || echo "  WARNING: thermal sensor discovery failed; rerun: python scripts/detect_thermal.py"
+
 # ── Step 5: Data directory setup ─────────────────────────────────────
 # Ab Initio: .alems-env in project root is single source of truth.
 # If it exists, use it. If not, ask two questions and create it.
