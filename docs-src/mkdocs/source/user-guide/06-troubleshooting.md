@@ -123,15 +123,9 @@ no such table: experiments
 **Solution:**
 
 ```bash
-# Run migrations
-python scripts/tools/migration_helper.py --migrate
-
-# Or create tables manually
-python -c "
-from core.database.manager import DatabaseManager
-db = DatabaseManager()
-db.create_tables()
-"
+# Show pending migrations, then apply them
+alems dev migrate
+alems dev migrate --run
 ```
 
 ---

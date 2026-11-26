@@ -595,15 +595,12 @@ Any new measurement column must have a check in test_exp_integrity.py
 that flags all-zero values as WARNING after 10+ consecutive runs.
 All-zero in a REAL measurement column = likely measurement failure.
 
-### Rule SC-7: Schema Changes Must Update schema_version Table
-Every migration that changes DDL MUST insert into schema_version:
-```sql
-INSERT INTO schema_version (version, applied_at, description)
-VALUES (<next_version>, datetime('now'), 'Description of change');
-```
-Data-only migrations (INSERT/UPDATE) do NOT get a schema_version entry.
-After any DDL migration, re-run `scripts/detect_environment.py` to 
-regenerate `env_hash` with new schema_version in `environment.json`.
+### Rule SC-7: Versions Are Recorded Only in migration_history
+`alems migrate` records every applied migration in `migration_history` (version, type, source, checksum, status).
+That table is the only record of the schema version.
+Migrations never insert into `schema_version`; it is a legacy table, kept (SC-5) and read by nothing.
+The core schema version is `core.versioning._schema_versions()["core_schema_version"]`.
+After any DDL migration, re-run `scripts/detect_environment.py` to regenerate `env_hash` in `environment.json`.
 
 ## Rule: test_harness.py and run_experiment.py must stay in sync
 Any change to core execution flow in `core/execution/tests/test_harness.py`

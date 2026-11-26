@@ -184,33 +184,44 @@ def generate_env_hash(hash_input: dict) -> str:
     hash_str = json.dumps(hash_input, sort_keys=True)
     return hashlib.sha256(hash_str.encode()).hexdigest()[:16]
 
-def get_schema_version() -> int:
-    """Get current schema version from DB via config."""
+# Core schema version as recorded by `alems migrate` (migration_history, source core,
+# versions below 9000). schema_version is a legacy table and is not read.
+_CORE_VERSION_SQL = (
+    "SELECT MAX(version) FROM migration_history "
+    "WHERE status = 'applied' AND type = 'schema' AND source = 'core' AND version < 9000"
+)
+
+
+def _postgres_schema_version(pg):
+    """Core schema version from migration_history on a PostgreSQL store."""
+    import psycopg2
+    conn = psycopg2.connect(
+        host=pg["host"], port=pg["port"],
+        database=pg["database"], user=pg["user"],
+        password=pg["password"]
+    )
+    try:
+        cur = conn.cursor()
+        cur.execute(_CORE_VERSION_SQL)
+        return cur.fetchone()[0]
+    finally:
+        conn.close()
+
+
+def get_schema_version():
+    """Return the core schema version from migration_history, or None if it cannot be read."""
     try:
         cfg = ConfigLoader().get_db_config()
-        engine = cfg.get("engine", "sqlite")
-        if engine == "sqlite":
-            import sqlite3
-            db_path = cfg.get("sqlite", {}).get("path")
-            if not db_path:
-                raise ValueError("sqlite path not found in app_settings.yaml")
-            conn = sqlite3.connect(db_path)
-        else:
-            import psycopg2
-            pg = cfg.get("postgresql", {})
-            conn = psycopg2.connect(
-                host=pg["host"], port=pg["port"],
-                database=pg["database"], user=pg["user"],
-                password=pg["password"]
-            )
-        ver = conn.execute(
-            "SELECT MAX(rowid) FROM schema_version"
-        ).fetchone()[0] or 0
-        conn.close()
-        return ver
+        if cfg.get("engine", "sqlite") != "sqlite":
+            return _postgres_schema_version(cfg.get("postgresql", {}))
+        db_path = cfg.get("sqlite", {}).get("path")
+        if not db_path:
+            raise ValueError("sqlite path not found in app_settings.yaml")
+        from core.versioning import _schema_versions
+        return _schema_versions(db_path).get("core_schema_version")
     except Exception as e:
-        print(f"warning: could not read schema_version: {e}")
-        return 0
+        print(f"warning: could not read schema version from migration_history: {e}")
+        return None
 
 def save_with_merge(path: Path, new_data: dict) -> None:
     """
