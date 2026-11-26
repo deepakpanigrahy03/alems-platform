@@ -81,77 +81,124 @@ def merge(windows):
 
 def overlap(a, union):
     # type: (Interval, List[Interval]) -> int
-    """Overlap in ns of interval a with a union of intervals."""
+    """Overlap in ns of interval a with a union of intervals (small unions only)."""
     return sum(max(0, min(a[1], e) - max(a[0], s)) for s, e in union)
 
 
 def bounds(incs, union):
     # type: (List[Tuple[Interval, float]], List[Interval]) -> Dict
-    """Lower, proportional and upper energy of a phase union from increments."""
+    """
+    Lower, proportional and upper energy of a phase union from increments.
+    Increments are visited in order of support start and the union is sorted and
+    disjoint, so a window that ends before one support starts ends before every
+    later support starts: the pointer only moves forward and cost is close to
+    linear in increments plus windows.
+    """
     lo = pr = up = 0.0
     n_in = n_str = 0
-    for sup, e in incs:
-        ov = overlap(sup, union)
+    j = 0
+    for sup, e in sorted(incs, key=lambda x: x[0][0]):
+        while j < len(union) and union[j][1] <= sup[0]:
+            j += 1  # windows ending before this support starts can never overlap later supports
+        ov, k = 0, j
+        while k < len(union) and union[k][0] < sup[1]:
+            ov += max(0, min(sup[1], union[k][1]) - max(sup[0], union[k][0]))
+            k += 1
         if ov <= 0:
             continue
         length = sup[1] - sup[0]
         inside = ov >= length
-        lo += e if inside else 0.0
-        up += e
-        pr += e * ov / float(length)
+        lo, up, pr = lo + (e if inside else 0.0), up + e, pr + e * ov / float(length)
         n_in, n_str = n_in + int(inside), n_str + int(not inside)
     return {"lower": lo, "prop": pr, "upper": up, "n_inside": n_in, "n_straddling": n_str}
 
 
+def increments_bulk(conn, lo, hi, domain_id, widen_ns):
+    # type: (sqlite3.Connection, int, int, int, int) -> Dict[int, List[Tuple[Interval, float]]]
+    """(support, joules) per run for a run id range and one SPBM domain; one query per chunk."""
+    out = {}  # type: Dict[int, List[Tuple[Interval, float]]]
+    for rid, t, iv, e in conn.execute(
+            "SELECT s.run_id, s.timestamp_ns, s.interval_ns, d.energy_uj FROM energy_samples_v2 s "
+            "JOIN energy_sample_domains d ON d.sample_id = s.sample_id "
+            "WHERE s.run_id BETWEEN ? AND ? AND d.domain_id = ? AND d.energy_uj IS NOT NULL "
+            "AND s.interval_ns > 0", (lo, hi, domain_id)):
+        out.setdefault(rid, []).append(((t - iv - widen_ns, t), e / 1e6))
+    return out
+
+
+def dcgm_bulk(conn, lo, hi, widen_ns):
+    # type: (sqlite3.Connection, int, int, int) -> Dict[int, List[Tuple[Interval, float]]]
+    """(support, joules) per run from DCGM gpu_samples (own start and end) for a run id range."""
+    out = {}  # type: Dict[int, List[Tuple[Interval, float]]]
+    for rid, a, b, u in conn.execute(
+            "SELECT run_id, sample_start_ns, sample_end_ns, energy_uj FROM gpu_samples "
+            "WHERE run_id BETWEEN ? AND ? AND energy_uj IS NOT NULL AND sample_end_ns > sample_start_ns",
+            (lo, hi)):
+        out.setdefault(rid, []).append(((a - widen_ns, b), u / 1e6))
+    return out
+
+
 def increments(conn, run_id, domain_id, widen_ns):
     # type: (sqlite3.Connection, int, int, int) -> List[Tuple[Interval, float]]
-    """(support, joules) per counter sample of one run and domain; unknown energy skipped."""
-    rows = conn.execute(
-        "SELECT s.timestamp_ns, s.interval_ns, d.energy_uj FROM energy_samples_v2 s "
-        "JOIN energy_sample_domains d ON d.sample_id = s.sample_id "
-        "WHERE s.run_id = ? AND d.domain_id = ? AND d.energy_uj IS NOT NULL "
-        "AND s.interval_ns IS NOT NULL ORDER BY s.timestamp_ns", (run_id, domain_id)).fetchall()
-    return [((t - iv - widen_ns, t), e / 1e6) for t, iv, e in rows if iv and iv > 0]
+    """Single run convenience wrapper (tests, small stores)."""
+    return increments_bulk(conn, run_id, run_id, domain_id, widen_ns).get(run_id, [])
 
 
 def dcgm_increments(conn, run_id, widen_ns):
     # type: (sqlite3.Connection, int, int) -> List[Tuple[Interval, float]]
-    """(support, joules) from DCGM gpu_samples (own start and end times); unknown energy skipped."""
-    rows = conn.execute(
-        "SELECT sample_start_ns, sample_end_ns, energy_uj FROM gpu_samples "
-        "WHERE run_id = ? AND energy_uj IS NOT NULL AND sample_end_ns > sample_start_ns "
-        "ORDER BY sample_end_ns", (run_id,)).fetchall()
-    return [((s - widen_ns, e), u / 1e6) for s, e, u in rows]
+    """Single run convenience wrapper for DCGM."""
+    return dcgm_bulk(conn, run_id, run_id, widen_ns).get(run_id, [])
+
+
+def phase_windows_bulk(conn, lo, hi, groups):
+    # type: (sqlite3.Connection, int, int, List[str]) -> Dict[int, Dict[str, List[Interval]]]
+    """
+    Windows per run and group for a run id range. Groups: "phases" (planning,
+    execution, waiting, synthesis) and "tool_call" (event_type tool_call, timed
+    directly around each tool dispatch). Old stores use only tool_call: their
+    phase boundary timing predates the phase boundary fixes.
+    """
+    out = {}  # type: Dict[int, Dict[str, List[Interval]]]
+    for rid, ph, ev, s, e in conn.execute(
+            "SELECT run_id, phase, event_type, start_time_ns, end_time_ns FROM orchestration_events "
+            "WHERE run_id BETWEEN ? AND ? AND phase IS NOT NULL AND end_time_ns > start_time_ns",
+            (lo, hi)):
+        w = out.setdefault(rid, {})
+        if "phases" in groups:
+            w.setdefault(ph, []).append((int(s), int(e)))
+        if ev == "tool_call" and "tool_call" in groups:
+            w.setdefault("tool_call", []).append((int(s), int(e)))
+    return out
 
 
 def phase_windows(conn, run_id):
     # type: (sqlite3.Connection, int) -> Dict[str, List[Interval]]
-    """Windows per phase from orchestration events of one run."""
-    out = {}  # type: Dict[str, List[Interval]]
-    for ph, ev, s, e in conn.execute(
-            "SELECT phase, event_type, start_time_ns, end_time_ns FROM orchestration_events "
-            "WHERE run_id = ? AND phase IS NOT NULL AND end_time_ns > start_time_ns", (run_id,)):
-        out.setdefault(ph, []).append((int(s), int(e)))
-        if ev == "tool_call":
-            # tool calls also as their own group: short windows where ownership matters most
-            out.setdefault("tool_call", []).append((int(s), int(e)))
-    return out
+    """Single run convenience wrapper with both groups."""
+    return phase_windows_bulk(conn, run_id, run_id, ["phases", "tool_call"]).get(run_id, {})
 
 
-def run_rows(conn, run, cfg):
-    # type: (sqlite3.Connection, Tuple[int, str], Dict) -> List[Dict]
-    """Rows for every phase and domain of one run."""
-    run_id, wf = run
+def chunk_rows(conn, runs, cfg, groups):
+    # type: (sqlite3.Connection, List[Tuple[int, str]], Dict, List[str]) -> List[Dict]
+    """Rows for a chunk of runs: one bulk query per meter, then bounds per run."""
+    lo, hi = runs[0][0], runs[-1][0]
     widen = int(cfg["support_widen_ms"] * 1e6)
-    phases = phase_windows(conn, run_id)
+    wins = phase_windows_bulk(conn, lo, hi, groups)
     rows = []
     for dname, did in cfg["domains"].items():
-        incs = (dcgm_increments(conn, run_id, widen) if str(did) == "dcgm"
-                else increments(conn, run_id, int(did), widen))
-        span = (min(i[0][0] for i in incs), max(i[0][1] for i in incs)) if incs else None
-        rows.extend(phase_row(run_id, wf, ph, dname, merge(w), incs, span, cfg)
-                    for ph, w in sorted(phases.items()))
+        incs_by_run = (dcgm_bulk(conn, lo, hi, widen) if str(did) == "dcgm"
+                       else increments_bulk(conn, lo, hi, int(did), widen))
+        for run_id, wf in runs:
+            rows.extend(meter_rows(run_id, wf, dname, wins.get(run_id, {}),
+                                   incs_by_run.get(run_id, []), cfg))
     return rows
+
+
+def meter_rows(run_id, wf, dname, phases, incs, cfg):
+    # type: (int, str, str, Dict[str, List[Interval]], list, Dict) -> List[Dict]
+    """Rows of one run and meter for every window group."""
+    span = (min(i[0][0] for i in incs), max(i[0][1] for i in incs)) if incs else None
+    return [phase_row(run_id, wf, ph, dname, merge(w), incs, span, cfg)
+            for ph, w in sorted(phases.items())]
 
 
 def phase_row(run_id, wf, phase, dname, union, incs, span, cfg):
@@ -231,12 +278,19 @@ def main(argv=None):
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--runs", help="run id range, e.g. 24-35")
     ap.add_argument("--config", default=str(ROOT / "config" / "app_settings.yaml"))
+    ap.add_argument("--tool-calls-only", action="store_true",
+                    help="old stores: tool call windows only (phase boundary timing predates the fixes)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     cfg = load_config(Path(args.config))
     conn = open_ro(args.db)
     runs = select_runs(conn, parse_runs(args.runs))
-    rows = [r for run in runs for r in run_rows(conn, run, cfg)]
+    groups = ["tool_call"] if args.tool_calls_only else ["phases", "tool_call"]
+    size = int(cfg.get("chunk_runs", 200))
+    rows = []  # type: List[Dict]
+    for i in range(0, len(runs), size):
+        rows.extend(chunk_rows(conn, runs[i:i + size], cfg, groups))
+        logger.info("runs %d of %d", min(i + size, len(runs)), len(runs))
     out = Path(args.out_dir) / ("ownership_" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
     out.mkdir(parents=True, exist_ok=False)
     write_csv(out / "ownership_bounds_runs.csv", RUN_FIELDS, rows)

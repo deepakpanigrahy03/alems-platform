@@ -72,3 +72,30 @@ def test_dcgm_and_tool_call_windows():
     assert ob.dcgm_increments(conn, 3, 50) == [((50, 200), 5.0)]
     w = ob.phase_windows(conn, 3)
     assert w["tool_call"] == [(10, 20)] and len(w["execution"]) == 2
+    only = ob.phase_windows_bulk(conn, 3, 3, ["tool_call"])[3]
+    assert list(only) == ["tool_call"]
+
+
+def _naive(incs, union):
+    lo = pr = up = 0.0
+    for sup, e in incs:
+        ov = ob.overlap(sup, union)
+        if ov <= 0:
+            continue
+        ln = sup[1] - sup[0]
+        lo += e if ov >= ln else 0.0
+        up += e
+        pr += e * ov / float(ln)
+    return lo, pr, up
+
+
+def test_fast_bounds_match_naive():
+    import random
+    r = random.Random(7)
+    for _ in range(200):
+        ends = sorted(r.sample(range(1000, 100000), 40))
+        incs = [((t - r.randint(50, 300), t), r.random() * 5) for t in ends]
+        wins = ob.merge([(a, a + r.randint(1, 400)) for a in r.sample(range(0, 100000), 15)])
+        b = ob.bounds(incs, wins)
+        n = _naive(incs, wins)
+        assert abs(b["lower"] - n[0]) < 1e-9 and abs(b["prop"] - n[1]) < 1e-9 and abs(b["upper"] - n[2]) < 1e-9
