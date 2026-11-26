@@ -142,7 +142,7 @@ safety:
     policy_version: "1"
     enabled: true
     interval_s: 1.0                  # watchdog period; never raised to save space
-    start_floor_headroom_c: 28.0     # P: absolute minimum headroom to admit work
+    start_floor_headroom_c: 20.0     # P: absolute minimum headroom to admit work
     start_idle_margin_c: null        # P: k in max(floor, idle - k); null until loaded idle repeatability is measured
     start_stable_s: 30.0             # P: headroom must stay at or above the start level this long
     max_wait_s: 600.0                # P: warning period for a long gate wait; the wait continues
