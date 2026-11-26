@@ -133,3 +133,38 @@ energy_consistency:
 # Run the integrity validator after every run_experiment call (chunk 45).
 validation:
   auto_integrity_after_run: true
+
+# X1 update rate script (scripts/x1_update_rates.py). CSV only, attended runs.
+x1_update_rates:
+  step_s: 60                 # sampling time per step
+  repeats: 3
+  order: [IDLE, LOAD]        # per repeat: I L I L I L
+  settle_s: 60               # rest between steps (GPU cools before the next LOAD)
+  hwmon_poll_ms: 5           # SPBM read period, well below the 100 ms counter update
+  gap_threshold_ms: 300      # arrival interval above this counts as a gap
+  hwmon_unresolved_factor: 1.5  # change p50 within this x poll: cadence not resolvable
+  server_process_patterns: ["vllm serve", "llama-server", "sglang"]
+  dcgm:
+    field_id: 156
+    update_ms: 10            # watch period requested from the DCGM host engine
+    poll_ms: 50              # how often the script collects recorded values
+    max_keep_age_s: 30
+    resolution_note_ms: 100  # DCGM arrival p50 at or above this: cadence not resolvable below it
+    bindings_paths:
+      - /usr/share/datacenter-gpu-manager-4/bindings/python3
+      - /usr/local/dcgm/bindings/python3
+  load:
+    python: /opt/ai-stack/envs/vllm-env/bin/python3   # torch with CUDA lives here
+    matrix_n: 2048
+    dtype: bfloat16
+    duty: 0.15
+    period_ms: 100
+    warmup_s: 5
+    seed: 45
+  thermal:
+    max_start_temp_c: 70     # a LOAD step is refused above this
+    abort_temp_c: 80         # any step is aborted at or above this
+    check_interval_s: 1.0
+  check:
+    pkg_change_p50_ms_low: 80
+    pkg_change_p50_ms_high: 120
