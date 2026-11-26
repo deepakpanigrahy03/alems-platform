@@ -820,6 +820,11 @@ def main():
         display_master_summary(all_results)  # final view: the comparison table
     get_console().line(get_console().style("all experiments complete", "green"))
     # 39.5.2a: per run logs are written only here, after every measurement window.
+    # the recording closes here (cooling tail included), so the integrity check sees it closed
+    from core.recording import hook as _recording_hook
+    _rec = _recording_hook.get_active()
+    if _rec is not None and hasattr(_rec, "close_and_cleanup"):
+        _rec.close_and_cleanup()
     from core.safety import hook as _safety_hook
     _safety_hook.close(_safety_hook.halted() or "completed")   # a halt is the end reason, not completed
     from core.observability import flush_run_log
