@@ -1,0 +1,15 @@
+# Fixed matmul load as a sequencer step (attended only; no model server running).
+# Load size as validated in the X1 run: 2048 bf16, duty 0.15, 100 ms period (peak 71 C).
+sequence:
+  name: "matmul load example"
+  seed: 45
+  cycles: 1
+  baseline: {kind: idle, duration_s: 60}
+  on_baseline_failure: skip_treatment
+blocks:
+  - condition: MATMUL
+    treatment: {kind: matmul_load, duration_s: 60,
+                python: "/opt/ai-stack/envs/vllm-env/bin/python3",
+                script: "scripts/tools/matmul_load.py",
+                n: 2048, dtype: bfloat16, duty: 0.15, period_ms: 100, seed: 45,
+                max_start_temp_c: 70, abort_temp_c: 80, check_interval_s: 1, attended: true}

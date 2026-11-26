@@ -444,7 +444,7 @@ catalog:
     status: current
     last_validated: "2026-11-18"
     nav_entry: "Experiment Recording: research/experiment-recording.md"
-  - topic: "Sequencer: controlled experiments, plans, brackets, cycles, counterbalancing, thermal gate, dry run, run, resume, failure rules, result queries, copy benchmark (copy_rate), kernel benchmark over memory placements (kernel_rw), session kernel pass, paper reporting"
+  - topic: "Sequencer: controlled experiments, plans, brackets, cycles, counterbalancing, thermal gate, dry run, run, resume, failure rules, result queries, copy benchmark (copy_rate), kernel benchmark over memory placements (kernel_rw), session kernel pass, workload conditions (request_profile: BASE, PREFILL, DECODE request profiles; matmul_load: fixed compute load), paper reporting"
     file: user-guide/09-controlled-experiments-sequencer.md
     audience: researcher
     status: current
