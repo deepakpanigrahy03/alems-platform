@@ -7,8 +7,9 @@ its runs carry, which analyses it is usable for, and audit flags (early DCGM
 row cap, DCGM coverage of the run window, runs without energy samples).
 
 Cells are three state: yes, no, unknown. "unknown" means the store cannot tell
-(a table without run_id, or phase_boundary_min_schema not set); it is never
-reported as yes or no. Shares are empty cells when there are no runs.
+(a table without run_id); it is never reported as yes or no. Phase boundaries
+are trusted only in the stores listed in phase_trusted_stores (the schema
+version cannot tell: the chunk 45 dev store reports a lower version than prod). Shares are empty cells when there are no runs.
 
 Read only. Output CSV only:
   capabilities_experiments.csv  one row per store and experiment
@@ -39,7 +40,7 @@ def load_config(path):
     """config/experiment_capabilities.yaml; every section is required."""
     with open(path) as fh:
         cfg = yaml.safe_load(fh) or {}
-    for key in ("stores", "min_run_share", "audit", "capabilities", "usable_for"):
+    for key in ("stores", "min_run_share", "phase_trusted_stores", "audit", "capabilities", "usable_for"):
         if key not in cfg:
             raise SystemExit("%s missing in %s" % (key, path))
     for exp, caps in cfg["usable_for"].items():
@@ -89,9 +90,8 @@ def probe(conn, spec, ctx):
     if kind == "domain":
         need = set(spec["domain_ids"])
         return {r: YES for r, doms in ctx["domains"].items() if need <= doms}
-    if kind == "schema_min":
-        state = UNKNOWN if ctx["min_schema"] is None or ctx["schema"] is None else (
-            YES if ctx["schema"] >= ctx["min_schema"] else NO)
+    if kind == "store_list":
+        state = YES if ctx["store"] in ctx["trusted"] else NO
         return {r: state for r in runs}
     if kind == "run_column":
         if spec["column"] not in ctx["run_cols"]:
@@ -179,7 +179,8 @@ def store_rows(name, path, cfg):
     audit = cfg["audit"]
     runs = load_runs(conn, audit)
     ctx = {"runs": runs, "domains": domain_sets(conn), "schema": schema_version(conn),
-           "min_schema": cfg.get("phase_boundary_min_schema"), "run_cols": columns(conn, "runs") or set()}
+           "store": name, "trusted": cfg["phase_trusted_stores"] or [],
+           "run_cols": columns(conn, "runs") or set()}
     caps = {c: probe(conn, spec, ctx) for c, spec in cfg["capabilities"].items()}
     dcgm = dcgm_audit(conn, runs, audit)
     exps = load_experiments(conn)

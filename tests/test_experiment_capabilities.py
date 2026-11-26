@@ -41,19 +41,19 @@ def make_store(path, schema=121):
     c.close()
 
 
-def cfg_for(path, min_schema=None):
+def cfg_for(path, trusted=False):
     cfg = yaml.safe_load(open(ROOT / "config" / "experiment_capabilities.yaml"))
     cfg["stores"] = {"test": str(path)}
-    cfg["phase_boundary_min_schema"] = min_schema
+    cfg["phase_trusted_stores"] = ["test"] if trusted else []
     cfg["min_run_share"] = 0.95
     cfg["audit"]["dcgm_cap_rows"] = 2
     return cfg
 
 
-def rows(tmp_path, min_schema=None, schema=121):
-    db = tmp_path / ("s%s.db" % min_schema)
+def rows(tmp_path, trusted=False, schema=121):
+    db = tmp_path / ("s%s.db" % trusted)
     make_store(db, schema)
-    exp, store, run = ec.store_rows("test", str(db), cfg_for(db, min_schema))
+    exp, store, run = ec.store_rows("test", str(db), cfg_for(db, trusted))
     return {r["exp_id"]: r for r in exp}, store, {r["run_id"]: r for r in run}
 
 
@@ -76,14 +76,13 @@ def test_missing_table_is_no(tmp_path):
     assert exp[1]["sequencer_link"] == "no"
 
 
-def test_phase_trust_unknown_until_configured(tmp_path):
-    exp, _, _ = rows(tmp_path, min_schema=None)
-    assert exp[1]["phase_boundaries_trusted"] == "unknown"
-    assert exp[1]["usable_for_ownership_bounds_phases"] == "unknown"
-    exp, _, _ = rows(tmp_path, min_schema=122)
+def test_phase_trust_by_named_store(tmp_path):
+    exp, _, _ = rows(tmp_path, trusted=False)
     assert exp[1]["phase_boundaries_trusted"] == "no"
-    exp, _, _ = rows(tmp_path, min_schema=121)
+    assert exp[1]["usable_for_ownership_bounds_phases"] == "no"
+    exp, _, _ = rows(tmp_path, trusted=True)
     assert exp[1]["phase_boundaries_trusted"] == "yes"
+    assert exp[1]["usable_for_ownership_bounds_phases"] == "yes"
 
 
 def test_usable_for_and_blocking(tmp_path):

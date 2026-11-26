@@ -14,9 +14,10 @@ stores:
   thermal_check: /mnt/alems-data/gn100-2b96/users/dpani/sandboxes/alems-thermal-check-20261125-1643/experiments.db
 
 min_run_share: 0.95
-# First schema version that carries the chunk 45 phase boundary fixes. null means
-# unknown: phase_boundaries_trusted is then unknown everywhere until this is set.
-phase_boundary_min_schema: null
+# Stores whose runs were made by code with the chunk 45 phase boundary fixes.
+# The schema version cannot tell (the dev store reports 118, old prod 119).
+# Add each new campaign store here; old stores stay out (tool call windows only).
+phase_trusted_stores: [dev_chunk45]
 
 audit:
   dcgm_cap_rows: 2000        # early sampler cap (B9): a run with exactly this many DCGM rows is flagged
@@ -33,7 +34,7 @@ capabilities:
   tool_events: {probe: table_rows, table: orchestration_events, where: "event_type = 'tool_call'"}
   tool_outcome: {probe: table_rows, table: orchestration_events, where: "event_type = 'tool_call' AND tool_success IS NOT NULL"}
   phase_events: {probe: table_rows, table: orchestration_events, where: "phase IN ('planning', 'execution', 'synthesis')"}
-  phase_boundaries_trusted: {probe: schema_min}
+  phase_boundaries_trusted: {probe: store_list}
   tokens: {probe: run_column, column: completion_tokens}
   ttft: {probe: run_column, column: ttft_ms}
   thermal: {probe: run_column, column: max_temp_c}
