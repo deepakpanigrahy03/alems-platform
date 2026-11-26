@@ -37,6 +37,8 @@ from extensions.thermal_exposure import gpu_users as gu
 from extensions.thermal_exposure import idle_checks as ic
 
 logger = logging.getLogger(__name__)
+progress = logging.getLogger("alems.progress")     # lines shown on screen during a run
+COOL_NOTE_EVERY_S = 60.0
 
 # extra provisional defaults (same rule as idle_checks.DEFAULTS)
 EXTRA_DEFAULTS: Dict[str, float] = {
@@ -404,12 +406,19 @@ class IdleSession:
         with self.rec._lock:
             self._hold = ic.CoolingHold(bands, self.cfg["cool_hold_s"])
             self._hold_bands, self._phase = bands, "cool"
-        status = "timed_out"
+        progress.info("recording  cooling down: up to %.0f s, until temperatures are back near the idle "
+                      "reference (the recording closes after this)", max_s)
+        status, next_note = "timed_out", t0 + COOL_NOTE_EVERY_S
         while time.monotonic() - t0 < max_s:
             time.sleep(0.2)
             if self._hold.complete(self.rec._ts()):
                 status = "completed"
                 break
+            if time.monotonic() >= next_note:
+                progress.info("recording  cooling %.0f s of up to %.0f s", time.monotonic() - t0, max_s)
+                next_note += COOL_NOTE_EVERY_S
+        progress.info("recording  cooling %s after %.0f s",
+                      "complete" if status == "completed" else "limit reached", time.monotonic() - t0)
         with self.rec._lock:
             self._phase = None
         logger.info("cool-down %s after %.0f s (hold restarts %d)", status,
@@ -454,6 +463,7 @@ class IdleSession:
         with self.rec._lock:
             self._phase = "post"
             self.post_start = self.rec._ts()
+        progress.info("recording  post idle window %.0f s", float(self.cfg["post_s"]))
         self.rec._stop.wait(self.cfg["post_s"])
         with self.rec._lock:
             self._phase = None
