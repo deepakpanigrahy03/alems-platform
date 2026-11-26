@@ -32,13 +32,30 @@ def _stored_uj(conn, run_id, name):
     return (row[0], row[1]) if row else (None, 0)
 
 
-def _rail_uj(conn, run_id, rail_name):
-    """Rectangular integral of a rail (same rule as the sampler): uJ, n."""
+def _stored_span(conn, run_id):
+    """[first sample start, last sample end] of the stored v2 series, or (None, None)."""
+    row = conn.execute(
+        "SELECT MIN(timestamp_ns - interval_ns), MAX(timestamp_ns), MIN(interval_ns) "
+        "FROM energy_samples_v2 WHERE run_id = ?", (run_id,)).fetchone()
+    if not row or row[0] is None:
+        return None, None
+    # A rail reading at t covers the interval ending at t: shift half an interval
+    # so each stored interval pairs with the rail sample nearest its end.
+    half = (row[2] or 0) // 2
+    return row[0] + half, row[1] + half
+
+
+def _rail_uj(conn, run_id, rail_name, lo=None, hi=None):
+    """Rectangular integral of a rail (same rule as the sampler): uJ, n.
+    lo/hi clip to the stored series span so both sides cover one window."""
+    lo = lo if lo is not None else 0
+    hi = hi if hi is not None else 2 ** 63 - 1
     rows = conn.execute(
         "SELECT s.timestamp_ns, s.power_mw FROM power_rail_samples s "
         "JOIN power_rails r ON r.rail_id = s.rail_id "
         "WHERE s.run_id = ? AND r.rail_name = ? AND s.power_mw IS NOT NULL "
-        "ORDER BY s.timestamp_ns", (run_id, rail_name)).fetchall()
+        "AND s.timestamp_ns >= ? AND s.timestamp_ns < ? "
+        "ORDER BY s.timestamp_ns", (run_id, rail_name, lo, hi)).fetchall()
     n = len(rows)
     if n < 2:
         return None, n
@@ -50,9 +67,11 @@ def _rail_uj(conn, run_id, rail_name):
 
 def _agree_rail(conn, run_id):
     details, worst, unit_err = {}, 0.0, False
+    lo, hi = _stored_span(conn, run_id)
     for name in RAIL_DOMAINS:
         stored, n_st = _stored_uj(conn, run_id, name)
-        rail, n_r = _rail_uj(conn, run_id, name.lower())
+        rail, _ = _rail_uj(conn, run_id, name.lower(), lo, hi)
+        _, n_r = _rail_uj(conn, run_id, name.lower())   # run length gate: unclipped count
         if stored is None or rail is None or rail <= 0 or n_r < MIN_SAMPLES:
             continue
         ratio = stored / rail
@@ -78,7 +97,8 @@ def _agree_rail(conn, run_id):
 
 def _agree_pkg(conn, run_id):
     pkg, _ = _stored_uj(conn, run_id, 'PACKAGE')
-    soc, n = _rail_uj(conn, run_id, 'soc_pkg')
+    soc, _ = _rail_uj(conn, run_id, 'soc_pkg', *_stored_span(conn, run_id))
+    _, n = _rail_uj(conn, run_id, 'soc_pkg')            # run length gate: unclipped count
     if not pkg or not soc or n < MIN_SAMPLES:
         return {'status': 'N/A', 'reason': 'missing data or run too short'}
     ratio = soc / pkg

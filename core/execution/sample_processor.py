@@ -245,6 +245,37 @@ def process_cpu_samples(raw_energy, canonical_metrics, store_extra=True) -> list
     return cpu_samples
 
 
+def samples_in_window(samples, window):
+    """
+    Samples overlapping the task window [t0, t1) (wall ns), for run level aggregates.
+
+    A sample is kept when its interval (sample_start_ns, sample_end_ns) overlaps the
+    window, or, for a point sample, when its timestamp_ns lies inside it. Samples
+    with no time field are kept (they cannot be placed). No window: all samples.
+    """
+    if not window or not samples:
+        return samples or []
+    t0, t1 = window
+    kept = []
+    for s in samples:
+        start, end = s.get("sample_start_ns"), s.get("sample_end_ns")
+        if start is not None and end is not None:
+            if min(end, t1) > max(start, t0) or (start == end and t0 <= start < t1):
+                kept.append(s)
+            continue
+        ts = s.get("timestamp_ns")
+        if ts is None or t0 <= ts < t1:
+            kept.append(s)
+    return kept
+
+
+def task_window(ml):
+    """(t0, t1) wall ns from ml_features, or None for runs without marks."""
+    ml = ml or {}
+    t0, t1 = ml.get("task_start_ns"), ml.get("task_end_ns")
+    return (t0, t1) if t0 is not None and t1 is not None else None
+
+
 def calculate_thermal_metrics(cpu_samples, thermal_samples=None) -> tuple:
     """
     Calculate thermal metrics from thermal_samples (primary) or cpu_samples fallback.
@@ -277,10 +308,11 @@ def calculate_thermal_metrics(cpu_samples, thermal_samples=None) -> tuple:
         min_temp_c      = min(temps)
         thermal_delta_c = max_temp_c - start_temp_c
     else:
-        start_temp_c    = 0
-        max_temp_c      = 0
-        min_temp_c      = 0
-        thermal_delta_c = 0
+        # MIC-1: no temperature observed -> None, never 0.
+        start_temp_c    = None
+        max_temp_c      = None
+        min_temp_c      = None
+        thermal_delta_c = None
 
     return start_temp_c, max_temp_c, min_temp_c, thermal_delta_c
 

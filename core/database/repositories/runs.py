@@ -233,16 +233,22 @@ class RunsRepository:
         ml = run_data.get("ml_features", {})
         sus = run_data.get("sustainability", {})
 
-        pkg_raw_uj = ml.get("pkg_energy_uj", 0)
-        core_raw_uj = ml.get("core_energy_uj", 0)
-        uncore_raw_uj = ml.get("uncore_energy_uj", 0)
-        dram_raw_uj = ml.get("dram_energy_uj", 0)
-        baseline_energy_uj = ml.get("idle_energy_uj", 0)
+        # Unmeasured rail or baseline stays NULL (MIC-1); the SPBM reader returns None for them.
+        pkg_raw_uj = ml.get("pkg_energy_uj")
+        core_raw_uj = ml.get("core_energy_uj")
+        uncore_raw_uj = ml.get("uncore_energy_uj")
+        dram_raw_uj = ml.get("dram_energy_uj")
+        baseline_energy_uj = ml.get("idle_energy_uj")
+        # Dynamic energy exists only when both terms were measured.
+        if pkg_raw_uj is None or baseline_energy_uj is None:
+            dynamic_uj = None
+        else:
+            dynamic_uj = max(pkg_raw_uj - baseline_energy_uj, 0)
 
         import logging as _logging  # repository has no module logger
         _logging.getLogger(__name__).debug(
             "pkg_raw_uj %s, baseline_energy_uj %s, dynamic %s",
-            pkg_raw_uj, baseline_energy_uj, max(pkg_raw_uj - baseline_energy_uj, 0),
+            pkg_raw_uj, baseline_energy_uj, dynamic_uj,
         )
 
         # Extract and compute fields
@@ -409,7 +415,7 @@ class RunsRepository:
             end_time_ns,
             duration_ns,
             pkg_raw_uj,
-            max(pkg_raw_uj - baseline_energy_uj, 0),
+            dynamic_uj,
             baseline_energy_uj,
             fields.get("avg_power_watts", 0),
             pkg_raw_uj,

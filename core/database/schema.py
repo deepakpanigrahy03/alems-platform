@@ -1612,6 +1612,8 @@ CREATE TABLE IF NOT EXISTS interrupt_samples (
     user_ticks_end       INTEGER,   -- /proc/stat user ticks at interval end
     system_ticks_start   INTEGER,   -- /proc/stat system ticks at interval start
     system_ticks_end     INTEGER,   -- /proc/stat system ticks at interval end
+    nice_ticks_start     INTEGER,   -- /proc/stat nice ticks at interval start (v132)
+    nice_ticks_end       INTEGER,   -- /proc/stat nice ticks at interval end (v132)
     total_ticks_start    INTEGER,   -- /proc/stat sum(all fields) at interval
     total_ticks_end      INTEGER,   -- /proc/stat sum(all fields) at interval end
     proc_ticks_start     INTEGER,   -- /proc/[pid]/stat utime+stime at interval start
@@ -2175,6 +2177,7 @@ CREATE TABLE IF NOT EXISTS energy_attribution (
     -- idle_policy: named convention for idle energy allocation (D10.3).
     isolation_level               TEXT DEFAULT 'exclusive',
     idle_policy                   TEXT DEFAULT 'legacy_baseline_subtraction',
+    attribution_residual_uj       INTEGER,  -- v132: run attributed minus phases and inter_phase, signed
     FOREIGN KEY (run_id) REFERENCES runs(run_id)
 );
 CREATE INDEX IF NOT EXISTS idx_energy_attribution_run

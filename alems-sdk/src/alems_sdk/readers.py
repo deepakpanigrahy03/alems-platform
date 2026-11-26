@@ -90,6 +90,29 @@ class BaseReader(Configurable, ABC):
     # work via the factory.py fallback dispatch path (INV-7).
     # ------------------------------------------------------------------
  
+    # ------------------------------------------------------------------
+    # Window contract (alems_sdk.window). Declaring these lets the engine
+    # compute pre, task and post values for this reader with no reader
+    # specific code. Defaults = not declared: the reader keeps its legacy path.
+    # ------------------------------------------------------------------
+
+    #: "snapshot" (readable at any instant) or "series" (timestamped samples).
+    WINDOW_KIND: "Optional[str]" = None
+
+    #: Metric name -> representation: "cumulative", "interval_count",
+    #: "interval_average" or "point". One reader may mix representations.
+    METRICS: "Dict[str, str]" = {}
+
+    #: Counter rollover value per cumulative metric, if the hardware wraps.
+    ROLLOVER: "Dict[str, float]" = {}
+
+    def snapshot(self) -> "Optional[Dict[str, Optional[float]]]":
+        """
+        Snapshot readers: current value of every declared metric, None where
+        unmeasured. Must not raise. Default None = not a snapshot reader.
+        """
+        return None
+
     #: Dispatch ordering among eligible readers. Lower = higher priority.
     #: Only meaningful among readers whose can_handle() returns True.
     #: Default 999 = lowest priority / last-resort tier.

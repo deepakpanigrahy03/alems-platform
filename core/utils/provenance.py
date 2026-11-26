@@ -404,25 +404,25 @@ COLUMN_PROVENANCE: Dict[str, Tuple[Optional[str], str]] = {
     # Separates task execution time from A-LEMS instrumentation overhead.
     # See: docs-src/mkdocs/source/research/14-measurement-boundary-methodology.md
     # Paper claim: "A-LEMS measures execution energy, not instrumentation energy"
-    "task_duration_ns":           ("measurement_boundary_v1",  "MEASURED"),
-    "framework_overhead_ns":      ("measurement_boundary_v1",  "MEASURED"),
-    "total_run_duration_ns":      ("measurement_boundary_v1",  "MEASURED"),
+    "task_duration_ns":           ("measurement_boundary_v2",  "MEASURED"),
+    "framework_overhead_ns":      ("measurement_boundary_v2",  "MEASURED"),
+    "total_run_duration_ns":      ("measurement_boundary_v2",  "MEASURED"),
     "duration_includes_overhead": (None,                        "SYSTEM"),
     "energy_sample_coverage_pct": ("measurement_coverage_v1",  "CALCULATED"),
-    "avg_task_power_watts":       ("measurement_boundary_v1",  "CALCULATED"),
+    "avg_task_power_watts":       ("measurement_boundary_v2",  "CALCULATED"),
     # Pre-task instrumentation window (diagnostic, not in attribution model)
     # NULL on non-RAPL platforms (macOS, ARM VM) — PAC compliant
-    "pre_task_energy_uj":         ("measurement_boundary_v1",  "MEASURED"),
-    "pre_task_duration_ns":       ("measurement_boundary_v1",  "MEASURED"),
+    "pre_task_energy_uj":         ("measurement_boundary_v2",  "MEASURED"),
+    "pre_task_duration_ns":       ("measurement_boundary_v2",  "MEASURED"),
     # Post-task instrumentation window — stop_measurement() + cleanup cost
     # Regime-separated: uses idle_baselines.package_power_watts, not task baseline
     # NULL on non-RAPL platforms (macOS, ARM VM) — PAC compliant
-    "post_task_energy_uj":          ("measurement_boundary_v1",  "MEASURED"),
-    "post_task_duration_ns":        ("measurement_boundary_v1",  "MEASURED"),
+    "post_task_energy_uj":          ("measurement_boundary_v2",  "MEASURED"),
+    "post_task_duration_ns":        ("measurement_boundary_v2",  "MEASURED"),
     # RAPL package counter anchors bounding all three windows
     # rapl_after_task_uj captured AFTER stop_measurement() — prevents overshoot
-    "rapl_before_pretask_uj":       ("measurement_boundary_v1",  "MEASURED"),
-    "rapl_after_task_uj":           ("measurement_boundary_v1",  "MEASURED"),
+    "rapl_before_pretask_uj":       ("measurement_boundary_v2",  "MEASURED"),
+    "rapl_after_task_uj":           ("measurement_boundary_v2",  "MEASURED"),
     # Total framework energy = pre + post — proves measurement transparency
     "framework_overhead_energy_uj": ("measurement_boundary_v1",  "CALCULATED"),
     # run_quality columns — scored by quality_scorer_v1 post-run
@@ -577,6 +577,7 @@ METHOD_CONFIDENCE: Dict[str, float] = {
     "normalization_factors_v1":      0.90,   # structural factors high confidence 
     # v9: Measurement Boundary
     "measurement_boundary_v1":       1.0,    # perf_counter — monotonic, all platforms
+    "measurement_boundary_v2":       1.0,    # four boundary reads (before, t0, t1, after), perf_counter stamps, all platforms
     "measurement_coverage_v1":       1.0,    # derived from sample timestamps 
     "llm_wait_attribution_v1":  0.85,
     "network_wait_energy_v1":   0.95,   # RAPL slice primary, time-fraction fallback

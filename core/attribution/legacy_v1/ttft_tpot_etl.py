@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-from scripts.tools.path_loader import get_alems_db_path
+from core.storage.resolver import caller_store as get_alems_db_path
 DB_PATH = get_alems_db_path()
 
 logger = logging.getLogger(__name__)

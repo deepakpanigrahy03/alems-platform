@@ -91,7 +91,7 @@ def check_local(config):
         sys.exit("llama-cpp-python not installed. Run: pip install llama-cpp-python")
     progress.info("preflight  llama-cpp-python ok")
     
-    from scripts.tools.path_loader import get_models_dir
+    from core.storage.resolver import models_dir as get_models_dir
     raw = config.get("model_path", "")
     model = raw.replace("{models_dir}", get_models_dir())
     if model and not Path(model).exists():

@@ -1,0 +1,12 @@
+method_id: measurement_boundary_v2
+references:
+  - title: "A-LEMS Measurement Boundary Methodology, v2 (four boundary reads)"
+    authors: "Internal"
+    year: 2026
+    ref_type: "internal"
+    relevance: "Defines pre, task and post energy from C(before), C(t0), C(t1), C(after); durations from the same stamps"
+  - title: "Intel 64 and IA-32 Architectures Software Developer's Manual, Volume 3B, Power and Thermal Management (RAPL)"
+    authors: "Intel Corporation"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Cumulative energy counters read at window boundaries"

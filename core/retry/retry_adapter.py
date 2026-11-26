@@ -318,7 +318,7 @@ def get_retry_adapter(args, db_path: Optional[Path] = None) -> RetryPolicyAdapte
             return FlatRetryAdapter()
 
         if db_path is None:
-            from scripts.tools.path_loader import get_alems_db_path
+            from core.storage.resolver import caller_store as get_alems_db_path
             db_path = Path(get_alems_db_path())
 
         logger.info(

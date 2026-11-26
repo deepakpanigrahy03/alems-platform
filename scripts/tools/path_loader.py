@@ -141,14 +141,8 @@ def get_models_dir():
     Returns:
         Path string for the models directory on this machine.
     """
-    _source_alemsrc()
-    models_dir = os.environ.get("ALEMS_MODELS_DIR")
-    if models_dir:
-        return models_dir
-    base = os.environ.get("ALEMS_DATA_ROOT")
-    if base:
-        return os.path.join(base, "models")
-    return str(Path.home() / "mydrive" / "models")
+    from core.storage.resolver import models_dir
+    return models_dir()
 
 def get_baseline_cache_path():
     # type: () -> str

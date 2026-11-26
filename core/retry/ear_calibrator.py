@@ -36,7 +36,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.tools.path_loader import get_alems_db_path
+from core.storage.resolver import caller_store as get_alems_db_path
 
 DEFAULT_DB = Path(get_alems_db_path())
 

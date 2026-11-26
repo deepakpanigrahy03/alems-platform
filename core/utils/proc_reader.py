@@ -8,7 +8,10 @@ Formula:
 """
 import os
 import platform
+import logging
 import time
+
+logger = logging.getLogger(__name__)
 def read_total_cpu_ticks() -> int:
     """
     Read aggregate CPU ticks from /proc/stat (Linux) or wall-clock (Darwin).
@@ -66,6 +69,29 @@ def read_process_cpu_ticks(pid: int) -> int:
         except Exception:
             return 0
     return 0
+class CPUTicksSnapshot:
+    """
+    Window contract snapshot reader for CPU ticks (system active ticks and the
+    workload process ticks), read by the engine at every boundary mark.
+    """
+
+    WINDOW_KIND = "snapshot"
+    METRICS = {"total_ticks": "cumulative", "process_ticks": "cumulative"}
+
+    def __init__(self, pid):
+        # type: (int) -> None
+        self.pid = pid
+
+    def snapshot(self):
+        """Both tick counters now; None when /proc cannot be read (never raises)."""
+        try:
+            return {"total_ticks": read_total_cpu_ticks(),
+                    "process_ticks": read_process_cpu_ticks(self.pid) if self.pid else None}
+        except Exception as exc:
+            logger.warning("cpu ticks snapshot failed: %s", exc)
+            return None
+
+
 def compute_cpu_fraction(workload_delta: int, total_delta: int) -> float:
     """
     Compute the fraction of CPU time consumed by the workload process.

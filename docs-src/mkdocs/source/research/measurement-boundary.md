@@ -2,7 +2,7 @@
 
 **Document:** `research/14-measurement-boundary-methodology.md`
 **Version:** v3 (post regime-separated energy + total_run_duration fix)
-**Method IDs:** `measurement_boundary_v1`, `measurement_coverage_v1`,
+**Method IDs:** `measurement_boundary_v1`, `measurement_boundary_v2`, `measurement_coverage_v1`,
                 `pre_task_energy_v1`, `post_task_energy_v1`
 
 ---
@@ -289,6 +289,57 @@ DB-write cost. This is a publishable finding:
 > Recommended minimum: `task_duration_ns > 3,000,000,000`.
 
 ---
+
+## Measurement Boundary v2 { #measurement-boundary-v2 }
+
+### Definition
+
+Each run is split into three windows by four reads of the same cumulative energy counter: before pre-task work, immediately before the workload starts (t0), immediately after it returns or raises (t1), and after the collectors stop.
+Nothing runs between t0 and t1 except the workload.
+
+### Formulas
+
+$$E_{pre} = C(t_0) - C(t_{before}),\quad E_{task} = C(t_1) - C(t_0),\quad E_{post} = C(t_{after}) - C(t_1)$$
+
+$$E_{pre} + E_{task} + E_{post} = C(t_{after}) - C(t_{before})$$
+
+Durations use the stamps of the same four reads: $t_{task} = t_1 - t_0$, $t_{pre} = t_0 - t_{before}$, $t_{post} = t_{after} - t_1$.
+The task's idle baseline is $P_{idle} \cdot t_{task}$.
+
+### Why it replaces v1
+
+In v1 the task energy was bounded by the measurement engine's own reads.
+Those reads sit outside collector startup and shutdown, so the task energy included collector activity, and the post window counted shutdown a second time.
+The v1 durations used stamps other than the energy reads, so energy divided by duration mixed two different intervals.
+
+### Platform coverage
+
+| Reader | Counter | Behaviour |
+|---|---|---|
+| Intel RAPL (x86_64) | cumulative, updates about every 1 ms | four reads as defined |
+| NVIDIA Grace GB10 (GN100, aarch64) | cumulative, updates about every 100 ms | four reads as defined |
+| Apple IOKit (macOS) | power samples only | power integrated between the same boundaries |
+
+### Limitations
+
+A counter that updates every Δ makes each boundary uncertain by up to one update, about Δ times the mean power.
+A task shorter than a few updates can read zero or one full step.
+Interpolation within an update interval assumes roughly uniform power and is not applied by this method.
+
+### Confidence
+
+1.0: every value is a direct counter difference or a perf counter interval; nothing is estimated.
+
+### SQL
+
+```sql
+SELECT r.run_id,
+       r.pre_task_energy_uj + r.pkg_energy_uj + r.post_task_energy_uj
+         - (r.rapl_after_task_uj - r.rapl_before_pretask_uj) AS conservation_residual_uj
+FROM runs r
+JOIN measurement_methodology m ON m.run_id = r.run_id
+WHERE m.metric_id = 'task_duration_ns' AND m.method_id = 'measurement_boundary_v2';
+```
 
 ## Historical Data Correction
 

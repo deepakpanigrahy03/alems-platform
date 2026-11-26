@@ -1144,6 +1144,63 @@ def _load_derived_methods() -> List[Dict]:
             "doc":     "09-derived-metrics-methodology.md",
             "section": "Phase Energy Attribution v2",
         },
+        {
+            "id":           "phase_attribution_sample_v3",
+            "name":         "Phase Attribution v3 (Common Basis, Direct Samples)",
+            "provenance":   "MEASURED",
+            "layer":        "orchestration",
+            "confidence":   0.95,
+            "description":  (
+                "Phase energy on the same basis as runs.attributed_energy_uj (chunk 45 v3). "
+                "share_i = d(proc ticks) / d(user+nice+system ticks) over the phase window "
+                "(per sample deltas from interrupt_samples); dynamic_i = raw_i - P_baseline x "
+                "covered sample time, P_baseline from the run baseline over its energy window. "
+                "E_phase_i = share_i x dynamic_i. inter_phase = the same estimate over the real "
+                "gaps inside [t0, t1]. energy_attribution.attribution_residual_uj = run attributed "
+                "minus phases and inter_phase, signed, never clamped. Replaces v2, whose share used "
+                "all ticks including idle and raw package energy."
+            ),
+            "formula_latex": (
+                r"E_{phase,i} = \sum_{s \in W_i} (pkg\_end_s - pkg\_start_s) \times f_{cpu,i}"
+                r",\quad E_{inter} = E_{attr} - \sum_i E_{phase,i}"
+            ),
+            "parameters": {
+                "energy_sample_rate_hz":  100,
+                "cpu_sample_rate_hz":     10,
+                "window_match":           "sample_start_ns >= phase.start AND sample_end_ns <= phase.end",
+                "fallback":               "run_level_cpu_fraction when phase ticks unavailable",
+                "residual_policy":        "inter_phase_energy_uj — honest residual, not forced to 0",
+            },
+            "fn":      "phase_attribution_etl.compute_phase_attribution",
+            "doc":     "09-derived-metrics-methodology.md",
+            "section": "Phase Energy Attribution v3",
+        },
+        {
+            "id":           "phase_attribution_run_share_v3",
+            "name":         "Phase Attribution v3 Run Share Fallback",
+            "provenance":   "INFERRED",
+            "layer":        "orchestration",
+            "confidence":   0.6,
+            "description":  (
+                "Fallback of phase_attribution_sample_v3 when a window has no process tick data: "
+                "share_i = runs.cpu_fraction (same user+nice+system basis, measured at run level). "
+                "Phase level value is INFERRED. NULL when the run share is unknown."
+            ),
+            "formula_latex": (
+                r"E_{phase,i} = \sum_{s \in W_i} (pkg\_end_s - pkg\_start_s) \times f_{cpu,i}"
+                r",\quad E_{inter} = E_{attr} - \sum_i E_{phase,i}"
+            ),
+            "parameters": {
+                "energy_sample_rate_hz":  100,
+                "cpu_sample_rate_hz":     10,
+                "window_match":           "sample_start_ns >= phase.start AND sample_end_ns <= phase.end",
+                "fallback":               "run_level_cpu_fraction when phase ticks unavailable",
+                "residual_policy":        "inter_phase_energy_uj — honest residual, not forced to 0",
+            },
+            "fn":      "phase_attribution_etl.compute_phase_attribution",
+            "doc":     "09-derived-metrics-methodology.md",
+            "section": "Phase Energy Attribution v3 Run Share Fallback",
+        },
 
         # ── Chunk 6: Energy Attribution ───────────────────────────────────────────
         {
@@ -1323,6 +1380,53 @@ def _load_derived_methods() -> List[Dict]:
             "section":       "Task Duration Model and Framework Overhead Energy",
         },
     
+        # ── Measurement Boundary v2: four boundary reads ─────────────────────────
+        {
+            "id":            "measurement_boundary_v2",
+            "name":          "Workload Window and Four Boundary Energy Split",
+            "provenance":    "MEASURED",
+            "layer":         "os",
+            "confidence":    1.0,
+            "description":   (
+                "Splits each run into pre, task and post windows from four reads of the "
+                "same cumulative energy counter: C(before), C(t0), C(t1), C(after). "
+                "t0 is marked immediately before the workload starts and t1 immediately "
+                "after it returns or raises; nothing else runs between them, so "
+                "collector startup and shutdown are never task energy. "
+                "Task energy = C(t1) - C(t0) per domain; pre = C(t0) - C(before); "
+                "post = C(after) - C(t1). The three are raw counter differences and sum "
+                "exactly to C(after) - C(before). Durations use the stamps of the same "
+                "four reads (time.perf_counter). The idle baseline of the task uses the "
+                "task duration t1 - t0. "
+                "Replaces measurement_boundary_v1, whose task energy was bounded by the "
+                "measurement engine's own reads (which include collector startup and "
+                "shutdown) and whose durations used stamps other than the energy reads. "
+                "Readers that expose power only (no counter) integrate power samples "
+                "between the same boundaries."
+            ),
+            "formula_latex": (
+                r"E_{pre} = C(t_0) - C(t_{before}), \quad"
+                r"E_{task} = C(t_1) - C(t_0), \quad"
+                r"E_{post} = C(t_{after}) - C(t_1) \\"
+                r"E_{pre} + E_{task} + E_{post} = C(t_{after}) - C(t_{before}) \\"
+                r"t_{pre} = t_0 - t_{before}, \quad t_{task} = t_1 - t_0, \quad"
+                r"t_{post} = t_{after} - t_1 \\"
+                r"E_{baseline} = P_{idle} \cdot t_{task}"
+            ),
+            "parameters":    {
+                "t_before": "engine mark_before(): counter read and perf stamp before pre-task work",
+                "t0":       "engine mark_task_start(): immediately before the workload starts",
+                "t1":       "engine mark_task_end(): immediately after the workload returns or raises",
+                "t_after":  "engine mark_after(): after the collectors stop",
+                "C":        "cumulative energy counter of the platform's energy reader, per domain",
+                "timer":    "time.perf_counter() for durations; wall clock ns also kept for t0 and t1",
+                "resolution": "one counter update interval per boundary (e.g. about 100 ms on NVIDIA Grace GB10, about 1 ms on Intel RAPL)",
+                "historical_runs": "unchanged; their rows reference measurement_boundary_v1",
+            },
+            "doc":           "measurement-boundary.md",
+            "section":       "Measurement Boundary v2",
+        },
+
         # ── v9: Measurement Coverage ──────────────────────────────────────────────
         {
             "id":            "measurement_coverage_v1",

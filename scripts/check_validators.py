@@ -225,7 +225,11 @@ def validate_phase_partition(run_row, conn, run_id, sample_interval_ms):
             'phase_coverage_pct': cov,
         }
 
-    phase_sum = plan + exe + syn + iph
+    # v3: the signed attribution residual is part of the bookkeeping (NULL for v2)
+    _res = conn.execute("SELECT attribution_residual_uj FROM energy_attribution "
+                        "WHERE run_id = ?", (run_id,)).fetchone()
+    resid = (_res[0] if _res and _res[0] is not None else 0)
+    phase_sum = plan + exe + syn + iph + resid
     delta_uj  = abs(phase_sum - attr)
 
     # Fetch phase durations from orchestration_events
@@ -321,7 +325,7 @@ def validate_goal_aggregation(conn, run_id, run_row, dag_nodes):
     """
     attr_uj = run_row.get('attributed_energy_uj') or 0
 
-    # Fetch goal and attempts for this run
+    # Fetch the goal through the attempt that ran in this run (any attempt, not only the winner)
     goal_row = None
     attempts = []
     try:
@@ -330,13 +334,14 @@ def validate_goal_aggregation(conn, run_id, run_row, dag_nodes):
                    ge.successful_energy_uj, ge.overhead_energy_uj,
                    ge.orchestration_fraction, ge.overhead_fraction
             FROM goal_execution ge
-            WHERE COALESCE(ge.winning_run_id, ge.first_run_id) = ?
+            WHERE ge.goal_id = (SELECT ga.goal_id FROM goal_attempt ga
+                                WHERE ga.run_id = ? LIMIT 1)
         """, (run_id,)).fetchone()
 
         if goal_row:
             attempt_rows = conn.execute("""
                 SELECT ga.attempt_id, ga.energy_uj,
-                       ga.attempt_number
+                       ga.attempt_number, ga.run_id
                 FROM goal_attempt ga
                 WHERE ga.goal_id = ?
                 ORDER BY ga.attempt_number
@@ -354,14 +359,19 @@ def validate_goal_aggregation(conn, run_id, run_row, dag_nodes):
 
     attempt_energies = [a.get('energy_uj') or 0 for a in attempts]
     attempt_sum_uj   = sum(attempt_energies)
-    delta_uj         = abs(attempt_sum_uj - attr_uj)
     n_attempts       = len(attempts)
+    # Attempts measured in this run: one (own run) or several (shared_legacy, old era).
+    in_run = [a.get('energy_uj') or 0 for a in attempts if a.get('run_id') == run_id]
+    run_side_uj      = sum(in_run)
+    delta_uj         = abs(run_side_uj - attr_uj)
 
     result = {
         'status':           'OK' if delta_uj <= 1000 else 'FAIL',
         'e_goal_j':         round(attr_uj / 1e6, 4),
         'n_attempts':       n_attempts,
         'e_sum_attempts_j': round(attempt_sum_uj / 1e6, 4),
+        'e_run_attempts_j': round(run_side_uj / 1e6, 4),
+        'n_run_attempts':   len(in_run),
         'delta_uj':         round(delta_uj, 0),
         'e_per_attempt_j':  [round(e / 1e6, 4) for e in attempt_energies],
         'orchestration_fraction': goal_row[5],

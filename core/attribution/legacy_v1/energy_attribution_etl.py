@@ -61,7 +61,7 @@ get_llm_energy_from_samples = _llm_mod.get_llm_energy_from_samples
 logger = logging.getLogger(__name__)
 
 # Default DB path — overridable for testing
-from scripts.tools.path_loader import get_alems_db_path
+from core.storage.resolver import caller_store as get_alems_db_path
 DEFAULT_DB = Path(get_alems_db_path())
 
 # Thermal throttle threshold in Celsius
@@ -537,6 +537,11 @@ def _get_thermal_penalty(
     return penalty_uj, throttled_ms
 
 
+def _int_or_none(value):
+    """Return int(value), or None when the value was not measured."""
+    return None if value is None else int(value)
+
+
 def _get_cache_dram_energy(
     cursor: sqlite3.Cursor,
     run_id: int,
@@ -746,12 +751,17 @@ def _compute_attribution(run: dict, cursor: sqlite3.Cursor, conn: sqlite3.Connec
         energy_per_solved = solved_row[0] / solved_row[1]
 
     # ── L0: Hardware — direct from runs RAPL columns ─────────────────────────
-    pkg    = int(run.get("pkg_energy_uj")   or 0)
-    core   = int(run.get("core_energy_uj")  or 0)
-    dram   = int(run.get("dram_energy_uj")  or 0)
-    uncore = int(run.get("uncore_energy_uj") or 0)
+    # Stored values keep NULL for an unmeasured rail (MIC-1).
+    pkg_stored    = _int_or_none(run.get("pkg_energy_uj"))
+    core_stored   = _int_or_none(run.get("core_energy_uj"))
+    dram_stored   = _int_or_none(run.get("dram_energy_uj"))
+    uncore_stored = _int_or_none(run.get("uncore_energy_uj"))
+    # Arithmetic below treats an unmeasured rail as contributing 0.
+    pkg    = pkg_stored or 0
+    core   = core_stored or 0
+    dram   = dram_stored or 0
+    uncore = uncore_stored or 0
 
-# REPLACE WITH:
     # ── Time fractions for energy split ──────────────────────────────────────
     # Use task_duration_ns (corrected, Chunk 6 fix) as denominator
     duration_ms = (run.get("task_duration_ns") or run.get("duration_ns") or 1) / 1e6
@@ -856,10 +866,11 @@ def _compute_attribution(run: dict, cursor: sqlite3.Cursor, conn: sqlite3.Connec
     steps             = int(run.get("steps") or 0)
 
     energy_per_token_uj = (
-        pkg / completion_tokens if completion_tokens > 0 else None
+        pkg_stored / completion_tokens
+        if pkg_stored is not None and completion_tokens > 0 else None
     )
     energy_per_step_uj = (
-        pkg / steps if steps > 0 else None
+        pkg_stored / steps if pkg_stored is not None and steps > 0 else None
     )
 
     # ── Residual: unattributed energy ────────────────────────────────────────
@@ -874,11 +885,14 @@ def _compute_attribution(run: dict, cursor: sqlite3.Cursor, conn: sqlite3.Connec
         + thermal_penalty_uj
     )
     unattributed_uj = max(0, pkg - total_attributed)
+    # v3 (chunk 45): signed residual between run attribution and phase estimates
+    from core.attribution.legacy_v1.phase_attribution_etl import phase_residual
+    attribution_residual_uj = phase_residual(conn, run["run_id"])
 
     # Attribution coverage: % of pkg energy we can explain
     coverage_pct = (
         round((pkg - unattributed_uj) / pkg * 100, 2)
-        if pkg > 0 else 0.0
+        if pkg > 0 else None
     )
 
     return {
@@ -886,10 +900,10 @@ def _compute_attribution(run: dict, cursor: sqlite3.Cursor, conn: sqlite3.Connec
         "attribution_method":              attribution_method_v2,
         "inter_phase_energy_uj":           inter_phase_uj,
         # L0
-        "pkg_energy_uj":                   pkg,
-        "core_energy_uj":                  core,
-        "dram_energy_uj":                  dram,
-        "uncore_energy_uj":                uncore,
+        "pkg_energy_uj":                   pkg_stored,
+        "core_energy_uj":                  core_stored,
+        "dram_energy_uj":                  dram_stored,
+        "uncore_energy_uj":                uncore_stored,
         # L1
         "background_energy_uj":            background_uj,
         "interrupt_energy_uj":             interrupt_uj,
@@ -925,6 +939,7 @@ def _compute_attribution(run: dict, cursor: sqlite3.Cursor, conn: sqlite3.Connec
         "thermal_penalty_time_ms":         thermal_ms,
         # Residual + quality
         "unattributed_energy_uj":          unattributed_uj,
+        "attribution_residual_uj":         attribution_residual_uj,
         "attribution_coverage_pct":        coverage_pct,
         "attribution_model_version":       ATTRIBUTION_MODEL_VERSION,
         "updated_at":                      datetime.now().isoformat(),
@@ -1051,7 +1066,8 @@ def compute_energy_attribution(run_id: int, db_path: Path = DEFAULT_DB, conn=Non
                 energy_per_accepted_answer_uj, energy_per_solved_task_uj,
                 thermal_penalty_energy_uj, thermal_penalty_time_ms,
                 unattributed_energy_uj, attribution_coverage_pct,
-                attribution_method, attribution_model_version, updated_at
+                attribution_method, attribution_model_version, updated_at,
+                attribution_residual_uj
             ) VALUES (
                 :run_id,
                 :pkg_energy_uj, :core_energy_uj, :dram_energy_uj, :uncore_energy_uj,
@@ -1066,7 +1082,8 @@ def compute_energy_attribution(run_id: int, db_path: Path = DEFAULT_DB, conn=Non
                 :energy_per_accepted_answer_uj, :energy_per_solved_task_uj,
                 :thermal_penalty_energy_uj, :thermal_penalty_time_ms,
                 :unattributed_energy_uj, :attribution_coverage_pct,
-                :attribution_method, :attribution_model_version, :updated_at
+                :attribution_method, :attribution_model_version, :updated_at,
+                :attribution_residual_uj
             )
         """, data)
         conn.commit()

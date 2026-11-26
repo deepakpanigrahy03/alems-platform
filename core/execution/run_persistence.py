@@ -195,11 +195,13 @@ def finalize_run_stats(db, run_id, result):
 
     Falls back to the sample count coverage query when no coverage is known.
     """
+    from core.execution.sample_processor import samples_in_window, task_window
+    window = task_window(result.get("ml_features"))   # None for runs without marks
     agg = aggregate_run_stats(
         run_id,
-        result.get("cpu_samples", []),
-        result.get("interrupt_samples", []),
-        result.get("thermal_samples", []),
+        samples_in_window(result.get("cpu_samples", []), window),
+        samples_in_window(result.get("interrupt_samples", []), window),
+        samples_in_window(result.get("thermal_samples", []), window),
     )
     derive_run_fields(agg, result.get("ml_features"))
     db.update_run_stats(run_id, agg)
@@ -349,7 +351,7 @@ class RunPersistenceService:
             self._insert_after_commit(db, run_id, result)
 
         # ETL runs outside transaction — each ETL function is idempotent
-        self._run_post_etl(run_id, stages)
+        self._run_post_etl(db, run_id, stages)
         # Duration fix corrects attributed energy: last part of attribution.
         with _stage(stages, "attribution"):
             self._apply_duration_fix(run_id, result)
@@ -481,8 +483,12 @@ class RunPersistenceService:
             logger.debug("dcgm coverage not stored: %s absent (extension inactive)", table)
             return
         from core.readers.gpu_collector import coverage_for_run
-        win = db.db.conn.execute(
-            "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+        # Window contract: coverage of the task window [t0, t1]; legacy runs fall back to the run window
+        ml = result.get("ml_features") or {}
+        win = (ml.get("task_start_ns"), ml.get("task_end_ns"))
+        if win[0] is None or win[1] is None:
+            win = db.db.conn.execute(
+                "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ?", (run_id,)).fetchone()
         share, reason = coverage_for_run(cov, *(win or (None, None)))
         db.db.execute(
             """INSERT OR REPLACE INTO energy_validation_dcgm_coverage
@@ -875,20 +881,22 @@ class RunPersistenceService:
                 interaction["run_id"] = run_id  # stamp run_id before insert
                 db.insert_llm_interaction(interaction)
 
-    def _run_post_etl(self, run_id: int, stages=None) -> None:
+    def _run_post_etl(self, db, run_id: int, stages=None) -> None:
         """
         Run full ETL chain for one run. Same order as save_pair().
         All ETL functions are idempotent — safe to rerun on same run_id.
         Sync only — no async, no threads (confirmed: experiment_runner has zero async).
         """
         with _stage(stages, "etl_phase"):
-            compute_phase_attribution(run_id)       # step 1: event_energy_uj on orchestration_events
+            # writer contract (C3, G77): the ETL uses the one writer connection,
+            # a second connection missed the first attempt's events (F3)
+            compute_phase_attribution(run_id, conn=db.db.conn)  # step 1: event_energy_uj on orchestration_events
         with _stage(stages, "etl_hardware"):
-            aggregate_hardware_metrics(run_id)      # step 2: run aggregate columns
+            aggregate_hardware_metrics(run_id, conn=db.db.conn)      # step 2: run aggregate columns
         with _stage(stages, "attribution"):
             populate_tool_failure_wasted_energy(run_id)  # step 3: copy event_energy_uj → tfe.wasted_energy_uj
-            compute_energy_attribution(run_id)      # step 4: reads tfe for failed_tool_energy_uj
-            populate_ttft_tpot(run_id)              # step 5: token timing metrics
+            compute_energy_attribution(run_id, conn=db.db.conn)      # step 4: reads tfe for failed_tool_energy_uj
+            populate_ttft_tpot(run_id, conn=db.db.conn)              # step 5: token timing metrics
 
 
     def _apply_duration_fix(self, run_id: int, result: dict) -> None:
@@ -908,6 +916,7 @@ class RunPersistenceService:
                 ml.get("post_task_duration_sec", 0.0),
                 ml.get("cpu_frac_pre", 0.0),
                 ml.get("cpu_frac_post", 0.0),
+                rapl_at_t1=ml.get("rapl_at_t1"),
             )
         else:
             fix_run(run_id)
@@ -942,10 +951,11 @@ class RunPersistenceService:
                 timestamp, energy_dict = sample
                 converted.append({
                     "timestamp_ns":     int(timestamp * 1_000_000_000),
-                    "pkg_energy_uj":    energy_dict.get("package-0", 0),
-                    "core_energy_uj":   energy_dict.get("core", 0),
-                    "uncore_energy_uj": energy_dict.get("uncore", 0),
-                    "dram_energy_uj":   0,
+                    # Missing rail is NULL, never 0 (MIC-1); 0 only inside arithmetic.
+                    "pkg_energy_uj":    energy_dict.get("package-0"),
+                    "core_energy_uj":   energy_dict.get("core"),
+                    "uncore_energy_uj": energy_dict.get("uncore"),
+                    "dram_energy_uj":   energy_dict.get("dram"),
                 })
         return converted
 

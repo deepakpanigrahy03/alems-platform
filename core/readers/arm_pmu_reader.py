@@ -135,7 +135,11 @@ class ARMPMUReader(CPUReaderABC):
         # Join all ARM event names into one -e argument — one perf invocation
         # is more efficient than multiple separate perf stat calls
         events = ','.join(ARM_PMU_EVENTS.values())
-        cmd = ['perf', 'stat', '-e', events, '-x', ',']
+        # Interval output (window contract): counts clipped to the workload window at stop.
+        interval_ms = int((getattr(self, "config", None) or {}).get("perf_interval_ms", 100))
+        cmd = ['perf', 'stat', '-e', events, '-x', ',', '-I', str(interval_ms)]
+        self._window = None
+        self._perf_start_wall_ns = time.time_ns()
 
         # ARM Neoverse V2: PID-attach (-p) returns <not counted> even with
         # perf_event_paranoid=-1. This is a known Grace kernel PMU limitation.
@@ -175,7 +179,8 @@ class ARMPMUReader(CPUReaderABC):
             # SIGTERM leaves the child process running — communicate() times out.
             self._perf_proc.send_signal(signal.SIGINT)
             stdout, stderr = self._perf_proc.communicate(timeout=10)
-            self._results = self._parse_perf_output(stderr)
+            self._results = self._interval_results(stderr)
+            self._window = None
             logger.debug("ARMPMUReader: results=%s", self._results)
         except Exception as e:
             logger.warning("ARMPMUReader: stop failed: %s", e)
@@ -196,6 +201,40 @@ class ARMPMUReader(CPUReaderABC):
             major_page_faults=0,
             minor_page_faults=0,
         )
+
+    def set_window(self, start_ns, end_ns):
+        """Workload window (wall ns); interval counts are clipped to it at stop."""
+        self._window = (start_ns, end_ns)
+
+    def _interval_results(self, stderr_text):
+        """
+        A-LEMS metric totals from `perf stat -x , -I` output (time, value, unit, event, ...),
+        clipped to the workload window when set (alems_sdk.window), else summed.
+        """
+        from alems_sdk.window import SeriesSample, interval_count
+        base = getattr(self, "_perf_start_wall_ns", None)
+        series, last = {}, {}
+        for line in stderr_text.splitlines():
+            parts = [p.strip() for p in line.strip().split(',')]
+            if base is None or len(parts) < 4 or parts[1].startswith('<'):
+                continue
+            try:
+                end_ns = base + int(float(parts[0]) * 1e9)
+                value = int(float(parts[1]))
+            except ValueError:
+                continue
+            name = next((a for a, e in ARM_PMU_EVENTS.items() if e in parts[3] or parts[3] in e), None)
+            if name:
+                series.setdefault(name, []).append(SeriesSample(last.get(name, base), end_ns, {"v": value}))
+                last[name] = end_ns
+        window = getattr(self, "_window", None)
+        results = {}
+        for name, samples in series.items():
+            v = (interval_count(samples, "v", *window).value if window
+                 else sum(s.values["v"] for s in samples))
+            if v is not None:
+                results[name] = int(v)
+        return results
 
     def _parse_perf_output(self, stderr_text):
         # type: (str) -> Dict

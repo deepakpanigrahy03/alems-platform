@@ -47,7 +47,8 @@ def coverage_for_run(cov, start_ns, end_ns):
     """
     Share of the run window [start_ns, end_ns] covered by valid GPU samples.
 
-    Coverage is the overlap of [first_valid, last_valid] with the run window,
+    Coverage is the overlap of [first_valid, last_valid] with the task window [t0, t1]
+    (the run window for legacy runs without marks),
     divided by the window length. Interior gaps are reported separately.
 
     Returns:

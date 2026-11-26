@@ -655,6 +655,51 @@ def display_master_summary(all_results):
     con.line("=" * 85)
 
 
+def _max_exp_id():
+    """Highest experiment id in the store before this call's runs (None if unknown)."""
+    try:
+        import sqlite3 as _sq
+        c = _sq.connect("file:%s?mode=ro" % get_alems_db_path(), uri=True)
+        try:
+            return c.execute("SELECT COALESCE(MAX(exp_id), 0) FROM experiments").fetchone()[0]
+        finally:
+            c.close()
+    except Exception:
+        return None
+
+
+def _auto_integrity(exp_floor):
+    """Integrity of every experiment created by this call (chunk 45). Reports only."""
+    try:
+        import shutil as _sh
+        import subprocess as _sp
+        import sqlite3 as _sq
+        import yaml as _y
+        cfg = Path(__file__).resolve().parents[3] / "config" / "app_settings.yaml"
+        if not ((_y.safe_load(cfg.read_text()) or {}).get("validation") or {}).get("auto_integrity_after_run"):
+            return
+        if exp_floor is None:
+            logger.warning("auto integrity skipped (store not available)")
+            return
+        c = _sq.connect("file:%s?mode=ro" % get_alems_db_path(), uri=True)
+        try:
+            ids = [r[0] for r in c.execute("SELECT exp_id FROM experiments WHERE exp_id > ? ORDER BY exp_id",
+                                           (exp_floor,))]
+        finally:
+            c.close()
+        for eid in ids:
+            script = Path(__file__).resolve().parents[3] / "scripts" / "test_exp_integrity.py"
+            out = _sp.run([sys.executable, str(script), "--exp-id", str(eid),
+                           "--db", str(get_alems_db_path())],
+                          capture_output=True, text=True, timeout=600).stdout
+            keep = [l for l in out.splitlines() if "RESULT" in l or "\u274c" in l or "❌" in l]
+            get_console().line("integrity exp %s" % eid)
+            for l in keep:
+                get_console().line(l)
+    except Exception as exc:  # reporting only: never costs the run
+        logger.warning("auto integrity not run: %s", exc)
+
+
 def main():
     """Main entry point - minimal logic."""
     args = parse_arguments()
@@ -679,7 +724,7 @@ def main():
         from itertools import combinations
         from scripts.etl.policy_comparison_etl import compare_policies
         import sqlite3
-        from scripts.tools.path_loader import get_alems_db_path
+        from core.storage.resolver import caller_store as get_alems_db_path
         all_group_ids = []
         for policy_entry in retry_policies_list:
             import copy
@@ -714,6 +759,7 @@ def main():
                 conn.close()
         return 0
 
+    _exp_floor = _max_exp_id()   # chunk 45: auto integrity after the runs
     all_results, config, args = run_all_experiments(args)
 
     if all_results:
@@ -736,6 +782,7 @@ def main():
     # 39.5.2a: per run logs are written only here, after every measurement window.
     from core.observability import flush_run_log
     flush_run_log()
+    _auto_integrity(_exp_floor)
     return 0
 
 

@@ -1297,154 +1297,165 @@ class ExperimentRunner:
                 stages=_agt_st,
             )
             _agt_st.attach_run_id(agentic_id)
-        finally:
-            persist_after_run(_lin_st, db, final=False)
-            persist_after_run(_agt_st, db, final=False)
+        except BaseException:
+            # close both stage graphs (final), then propagate (INV-EV1)
+            persist_after_run(_lin_st, db)
+            persist_after_run(_agt_st, db)
+            raise
+        persist_after_run(_lin_st, db, final=False)
+        persist_after_run(_agt_st, db, final=False)
 
-        with db.transaction():
+        try:
+            with db.transaction():
  
-            # --- Extension post-run dispatch (35D) ---
-            # Selective mode: call active extensions after core commits.
-            # Legacy mode: _extension_manager.run_post_run() is a no-op;
-            # all existing direct writes above continue to execute unchanged.
-            if not _extension_manager.is_legacy_mode():
-                _dispatch_post_run(db, agentic_id, agentic_result, "agentic")
-                _dispatch_post_run(db, linear_id, linear_result, "linear")
+                # --- Extension post-run dispatch (35D) ---
+                # Selective mode: call active extensions after core commits.
+                # Legacy mode: _extension_manager.run_post_run() is a no-op;
+                # all existing direct writes above continue to execute unchanged.
+                if not _extension_manager.is_legacy_mode():
+                    _dispatch_post_run(db, agentic_id, agentic_result, "agentic")
+                    _dispatch_post_run(db, linear_id, linear_result, "linear")
 
 
-            # Tax summary for this pair
-            # Use attributed_energy_uj (L2: cpu_fraction x dynamic) — paper unit.
-            # layer3_derived["workload"] = dynamic_energy_uj — includes background.
-            # E4: one rule for all three paths (run_persistence); NULL, never a substitute.
-            from core.execution.run_persistence import (
-                attributed_energy_or_none, orchestration_energy_or_none)
-            linear_uj  = attributed_energy_or_none(linear_result)
-            agentic_uj = attributed_energy_or_none(agentic_result)
+                # Tax summary for this pair
+                # Use attributed_energy_uj (L2: cpu_fraction x dynamic) — paper unit.
+                # layer3_derived["workload"] = dynamic_energy_uj — includes background.
+                # E4: one rule for all three paths (run_persistence); NULL, never a substitute.
+                from core.execution.run_persistence import (
+                    attributed_energy_or_none, orchestration_energy_or_none)
+                linear_uj  = attributed_energy_or_none(linear_result)
+                agentic_uj = attributed_energy_or_none(agentic_result)
 
-            logger.debug(
-                "orchestration_tax_uj linear %s agentic %s",
-                linear_result["ml_features"].get("orchestration_tax_uj"),
-                agentic_result["ml_features"].get("orchestration_tax_uj"),
-            )
+                logger.debug(
+                    "orchestration_tax_uj linear %s agentic %s",
+                    linear_result["ml_features"].get("orchestration_tax_uj"),
+                    agentic_result["ml_features"].get("orchestration_tax_uj"),
+                )
 
-            linear_orchestration_uj  = orchestration_energy_or_none(linear_result)
-            agentic_orchestration_uj = orchestration_energy_or_none(agentic_result)
-            # GPU PP1 energy per workflow side — None on non-Tiger-Lake
-            linear_gpu_uj  = linear_result["ml_features"].get("gpu_dynamic_energy_uj")
-            agentic_gpu_uj = agentic_result["ml_features"].get("gpu_dynamic_energy_uj")            
-            logger.debug("linear energy_uj: %s", linear_result["layer3_derived"]["energy_uj"])
-            logger.debug("agentic energy_uj: %s", agentic_result["layer3_derived"]["energy_uj"])
+                linear_orchestration_uj  = orchestration_energy_or_none(linear_result)
+                agentic_orchestration_uj = orchestration_energy_or_none(agentic_result)
+                # GPU PP1 energy per workflow side — None on non-Tiger-Lake
+                linear_gpu_uj  = linear_result["ml_features"].get("gpu_dynamic_energy_uj")
+                agentic_gpu_uj = agentic_result["ml_features"].get("gpu_dynamic_energy_uj")            
+                logger.debug("linear energy_uj: %s", linear_result["layer3_derived"]["energy_uj"])
+                logger.debug("agentic energy_uj: %s", agentic_result["layer3_derived"]["energy_uj"])
 
-            db.create_tax_summary_for_pair(
-                linear_id,
-                agentic_id,
-                linear_uj,
-                agentic_uj,
-                linear_orchestration_uj,
-                agentic_orchestration_uj,
-            )
+                db.create_tax_summary_for_pair(
+                    linear_id,
+                    agentic_id,
+                    linear_uj,
+                    agentic_uj,
+                    linear_orchestration_uj,
+                    agentic_orchestration_uj,
+                )
 
-        progress.info("persisted  pair %s  linear run %s  agentic run %s", rep_num, linear_id, agentic_id)
+            progress.info("persisted  pair %s  linear run %s  agentic run %s", rep_num, linear_id, agentic_id)
 
 
      
-        # ── Goal tracking wiring (8.5-A) ─────────────────────────────────────
-        # One goal_execution + goal_attempt row per workflow side.
-        # ETL populates energy rollup columns synchronously after both goals recorded.
-        # Backfill outcome on goal and attempt spans now that goal tracking is done.
-        _backfill_span_outcome(_wconn, linear_id, linear_outcome)
-        _backfill_span_outcome(_wconn, agentic_id, agentic_outcome)
-        linear_goal_id = self._record_goal_pair(
-            db=db,
-            exp_id=exp_id,
-            task_id=task_id,
-            task_name=task_name,
-            task_meta=task_meta,
-            workflow_type='linear',
-            run_id=linear_id,
-            goal_span_ids=_lin_sp,
-            outcome=linear_outcome,
-            energy_uj=linear_uj,
-            orchestration_uj=linear_orchestration_uj,
-            compute_uj=None,
-            gpu_energy_uj=linear_gpu_uj,
-            conn=_wconn,
-        )
-        agentic_goal_id = self._record_goal_pair(
-            db=db,
-            exp_id=exp_id,
-            task_id=task_id,
-            task_name=task_name,
-            task_meta=task_meta,
-            workflow_type='agentic',
-            run_id=agentic_id,
-            goal_span_ids=_agt_sp,
-            outcome=agentic_outcome,
-            energy_uj=agentic_uj,
-            orchestration_uj=agentic_orchestration_uj,
-            compute_uj=None,
-            gpu_energy_uj=agentic_gpu_uj,
-            conn=_wconn,
-        )
-        # Bug 7 fix: backfill attempt_id on orchestration_events for comparison path.
-        # Also backfill started_at_ns/finished_at_ns from run timestamps — _record_goal_pair
-        # creates attempt post-run so started_at_ns would reflect insert time, not run start.
-        if agentic_goal_id is not None:
-            _agentic_attempt = _wconn.execute(
-                "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
-                (agentic_id,)
-            ).fetchone()
-            if _agentic_attempt:
-                _agentic_run_ts = _wconn.execute(
-                    "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+            # ── Goal tracking wiring (8.5-A) ─────────────────────────────────────
+            # One goal_execution + goal_attempt row per workflow side.
+            # ETL populates energy rollup columns synchronously after both goals recorded.
+            # Backfill outcome on goal and attempt spans now that goal tracking is done.
+            _backfill_span_outcome(_wconn, linear_id, linear_outcome)
+            _backfill_span_outcome(_wconn, agentic_id, agentic_outcome)
+            linear_goal_id = self._record_goal_pair(
+                db=db,
+                exp_id=exp_id,
+                task_id=task_id,
+                task_name=task_name,
+                task_meta=task_meta,
+                workflow_type='linear',
+                run_id=linear_id,
+                goal_span_ids=_lin_sp,
+                outcome=linear_outcome,
+                energy_uj=linear_uj,
+                orchestration_uj=linear_orchestration_uj,
+                compute_uj=None,
+                gpu_energy_uj=linear_gpu_uj,
+                conn=_wconn,
+            )
+            agentic_goal_id = self._record_goal_pair(
+                db=db,
+                exp_id=exp_id,
+                task_id=task_id,
+                task_name=task_name,
+                task_meta=task_meta,
+                workflow_type='agentic',
+                run_id=agentic_id,
+                goal_span_ids=_agt_sp,
+                outcome=agentic_outcome,
+                energy_uj=agentic_uj,
+                orchestration_uj=agentic_orchestration_uj,
+                compute_uj=None,
+                gpu_energy_uj=agentic_gpu_uj,
+                conn=_wconn,
+            )
+            # Bug 7 fix: backfill attempt_id on orchestration_events for comparison path.
+            # Also backfill started_at_ns/finished_at_ns from run timestamps — _record_goal_pair
+            # creates attempt post-run so started_at_ns would reflect insert time, not run start.
+            if agentic_goal_id is not None:
+                _agentic_attempt = _wconn.execute(
+                    "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
                     (agentic_id,)
                 ).fetchone()
-                _wconn.execute(
-                    "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
-                    (_agentic_attempt[0], agentic_id)
-                )
-                if _agentic_run_ts:
+                if _agentic_attempt:
+                    _agentic_run_ts = _wconn.execute(
+                        "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+                        (agentic_id,)
+                    ).fetchone()
                     _wconn.execute(
-                        "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
-                        (_agentic_run_ts[0], _agentic_run_ts[1], _agentic_attempt[0])
+                        "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
+                        (_agentic_attempt[0], agentic_id)
                     )
-                _wconn.commit()
-        # G142: the linear attempt needs the same backfill as agentic above; it
-        # was created post run, so its times were bookkeeping times, not the
-        # measured window (found by INV-A2).
-        if linear_goal_id is not None:
-            _linear_attempt = _wconn.execute(
-                "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
-                (linear_id,)
-            ).fetchone()
-            if _linear_attempt:
-                _linear_run_ts = _wconn.execute(
-                    "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+                    if _agentic_run_ts:
+                        _wconn.execute(
+                            "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
+                            (_agentic_run_ts[0], _agentic_run_ts[1], _agentic_attempt[0])
+                        )
+                    _wconn.commit()
+            # G142: the linear attempt needs the same backfill as agentic above; it
+            # was created post run, so its times were bookkeeping times, not the
+            # measured window (found by INV-A2).
+            if linear_goal_id is not None:
+                _linear_attempt = _wconn.execute(
+                    "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
                     (linear_id,)
                 ).fetchone()
-                _wconn.execute(
-                    "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
-                    (_linear_attempt[0], linear_id)
-                )
-                if _linear_run_ts:
+                if _linear_attempt:
+                    _linear_run_ts = _wconn.execute(
+                        "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+                        (linear_id,)
+                    ).fetchone()
                     _wconn.execute(
-                        "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
-                        (_linear_run_ts[0], _linear_run_ts[1], _linear_attempt[0])
+                        "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
+                        (_linear_attempt[0], linear_id)
                     )
-                _wconn.commit()
-        # ETL runs sync — after both goals recorded so normalization_factors
-        # sees the full picture for this experiment repetition.
-        if linear_goal_id is not None:
-            goal_execution_etl.process_one(linear_goal_id, _wconn)
-            _goal_tracker.queue_etl(
-                _wconn, 'goal_execution', linear_goal_id, 'goal_execution_etl',
-            )
-        if agentic_goal_id is not None:
-            goal_execution_etl.process_one(agentic_goal_id, _wconn)
-            _goal_tracker.queue_etl(
-                _wconn, 'goal_execution', agentic_goal_id, 'goal_execution_etl',
-            )
+                    if _linear_run_ts:
+                        _wconn.execute(
+                            "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
+                            (_linear_run_ts[0], _linear_run_ts[1], _linear_attempt[0])
+                        )
+                    _wconn.commit()
+            # ETL runs sync — after both goals recorded so normalization_factors
+            # sees the full picture for this experiment repetition.
+            if linear_goal_id is not None:
+                goal_execution_etl.process_one(linear_goal_id, _wconn)
+                _goal_tracker.queue_etl(
+                    _wconn, 'goal_execution', linear_goal_id, 'goal_execution_etl',
+                )
+            if agentic_goal_id is not None:
+                goal_execution_etl.process_one(agentic_goal_id, _wconn)
+                _goal_tracker.queue_etl(
+                    _wconn, 'goal_execution', agentic_goal_id, 'goal_execution_etl',
+                )
  
+
+        except BaseException:
+            # close both stage graphs (final), then propagate (INV-EV1)
+            persist_after_run(_lin_st, db)
+            persist_after_run(_agt_st, db)
+            raise
 
         # --- Quality scoring (8.5C) ---
         # Called AFTER goal_execution ETL so attempt_ids are committed.
@@ -1663,75 +1674,84 @@ class ExperimentRunner:
                     stages=_st,
                 )
                 _st.attach_run_id(run_id)
-            finally:
-                persist_after_run(_st, db, final=False)
+            except BaseException:
+                # close the stage graph (final), then propagate (INV-EV1)
+                persist_after_run(_st, db)
+                raise
+            persist_after_run(_st, db, final=False)
 
-            # SPEC 35J: energy_uj computation moved OUT of this block —
-            # it must run unconditionally (save_pair()'s attributed energy rule
-            # is never gated on thermal_samples presence either). Keeping
-            # it inside here caused a real UnboundLocalError crash on
-            # --workflow-mode agentic, the first time this path was ever
-            # exercised, when thermal_samples was absent from result.
-            # E4: same rule as save_pair and execute_goal.
-            from core.execution.run_persistence import (
-                attributed_energy_or_none, orchestration_energy_or_none)
-            energy_uj = attributed_energy_or_none(result)
-            orchestration_uj = orchestration_energy_or_none(result)
-
-
-            # (energy_uj/orchestration_uj now computed above, unconditionally,
-            # before this thermal_samples check — see SPEC 35J note above)
-            # GPU PP1 energy for this run — None on non-Tiger-Lake
-            _gpu_uj = result.get("ml_features", {}).get("gpu_dynamic_energy_uj")
-
-            logger.info("save_single: run_id=%d workflow=%s rep=%d", run_id, workflow_type, rep_num)
+            try:
+                # SPEC 35J: energy_uj computation moved OUT of this block —
+                # it must run unconditionally (save_pair()'s attributed energy rule
+                # is never gated on thermal_samples presence either). Keeping
+                # it inside here caused a real UnboundLocalError crash on
+                # --workflow-mode agentic, the first time this path was ever
+                # exercised, when thermal_samples was absent from result.
+                # E4: same rule as save_pair and execute_goal.
+                from core.execution.run_persistence import (
+                    attributed_energy_or_none, orchestration_energy_or_none)
+                energy_uj = attributed_energy_or_none(result)
+                orchestration_uj = orchestration_energy_or_none(result)
 
 
-            # Goal tracking — single side only
-            _backfill_span_outcome(_wconn, run_id, outcome)
-            goal_id = self._record_goal_pair(
-                db=db,
-                exp_id=exp_id,
-                task_id=task_id,
-                task_name=task_name,
-                task_meta=task_meta,
-                workflow_type=workflow_type,
-                run_id=run_id,
-                goal_span_ids=_sp,
-                outcome=outcome,
-                energy_uj=energy_uj,
-                orchestration_uj=orchestration_uj,
-                compute_uj=None,
-                gpu_energy_uj=_gpu_uj,
-                conn=_wconn,
-            )
+                # (energy_uj/orchestration_uj now computed above, unconditionally,
+                # before this thermal_samples check — see SPEC 35J note above)
+                # GPU PP1 energy for this run — None on non-Tiger-Lake
+                _gpu_uj = result.get("ml_features", {}).get("gpu_dynamic_energy_uj")
 
-            if goal_id is not None:
-                goal_execution_etl.process_one(goal_id, _wconn)
-                _goal_tracker.queue_etl(
-                    _wconn, "goal_execution", goal_id, "goal_execution_etl",
+                logger.info("save_single: run_id=%d workflow=%s rep=%d", run_id, workflow_type, rep_num)
+
+
+                # Goal tracking — single side only
+                _backfill_span_outcome(_wconn, run_id, outcome)
+                goal_id = self._record_goal_pair(
+                    db=db,
+                    exp_id=exp_id,
+                    task_id=task_id,
+                    task_name=task_name,
+                    task_meta=task_meta,
+                    workflow_type=workflow_type,
+                    run_id=run_id,
+                    goal_span_ids=_sp,
+                    outcome=outcome,
+                    energy_uj=energy_uj,
+                    orchestration_uj=orchestration_uj,
+                    compute_uj=None,
+                    gpu_energy_uj=_gpu_uj,
+                    conn=_wconn,
                 )
-                # Bug 7 fix: backfill attempt_id and ns timestamps for save_single path.
-                if workflow_type == "agentic":
-                    _attempt = _wconn.execute(
-                        "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
-                        (run_id,)
-                    ).fetchone()
-                    if _attempt:
-                        _run_ts = _wconn.execute(
-                            "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+
+                if goal_id is not None:
+                    goal_execution_etl.process_one(goal_id, _wconn)
+                    _goal_tracker.queue_etl(
+                        _wconn, "goal_execution", goal_id, "goal_execution_etl",
+                    )
+                    # Bug 7 fix: backfill attempt_id and ns timestamps for save_single path.
+                    if workflow_type == "agentic":
+                        _attempt = _wconn.execute(
+                            "SELECT attempt_id FROM goal_attempt WHERE run_id = ? LIMIT 1",
                             (run_id,)
                         ).fetchone()
-                        _wconn.execute(
-                            "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
-                            (_attempt[0], run_id)
-                        )
-                        if _run_ts:
+                        if _attempt:
+                            _run_ts = _wconn.execute(
+                                "SELECT start_time_ns, end_time_ns FROM runs WHERE run_id = ? LIMIT 1",
+                                (run_id,)
+                            ).fetchone()
                             _wconn.execute(
-                                "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
-                                (_run_ts[0], _run_ts[1], _attempt[0])
+                                "UPDATE orchestration_events SET attempt_id = ? WHERE run_id = ? AND attempt_id IS NULL",
+                                (_attempt[0], run_id)
                             )
-                        _wconn.commit()
+                            if _run_ts:
+                                _wconn.execute(
+                                    "UPDATE goal_attempt SET started_at_ns = ?, finished_at_ns = ? WHERE attempt_id = ?",
+                                    (_run_ts[0], _run_ts[1], _attempt[0])
+                                )
+                            _wconn.commit()
+
+            except BaseException:
+                # close the stage graph (final), then propagate (INV-EV1)
+                persist_after_run(_st, db)
+                raise
 
             # --- Quality scoring (8.5C) ---
             _qe = getattr(self.args, "quality_enabled", False) if hasattr(self, "args") else False

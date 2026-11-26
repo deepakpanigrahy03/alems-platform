@@ -250,6 +250,25 @@ class KPerfPMUReader(CPUReaderABC):
         """Compatibility shim for energy_engine.py has_perf gate."""
         return self.is_available()
     
+    # Window contract: helper counters are cumulative.
+    WINDOW_KIND = "snapshot"
+    METRICS = {"instructions": "cumulative", "cycles": "cumulative",
+               "l1d_miss_ld": "cumulative", "l1d_tlb_access": "cumulative"}
+
+    def snapshot(self):
+        """Helper counters now; None when the helper fails (never raises)."""
+        try:
+            return self._read_helper()
+        except Exception as exc:
+            logger.warning("kperf snapshot failed: %s", exc)
+            return None
+
+    def window_counters(self, window_values):
+        """PerformanceCounters from task deltas of the t0 and t1 marks; None if unavailable."""
+        delta = {m: w["task"].value for m, w in (window_values or {}).items()
+                 if "task" in w and w["task"].value is not None}
+        return self._counters_from_delta(delta) if delta else None
+
     def start_process_measurement(self, pid=None):
         # type: (object) -> None
         """
@@ -312,6 +331,12 @@ class KPerfPMUReader(CPUReaderABC):
                 )
                 delta[key] = stop_val
 
+        return self._counters_from_delta(delta)
+
+    def _counters_from_delta(self, delta):
+        # type: (dict) -> PerformanceCounters
+        """Map helper counter deltas to PerformanceCounters (same fields as Linux perf)."""
+        counters = PerformanceCounters()
         self._last_delta = delta
 
         # Map helper JSON fields to PerformanceCounters fields

@@ -544,8 +544,9 @@ class SamplesRepository:
                 user_ticks_start,   user_ticks_end,
                 system_ticks_start, system_ticks_end,
                 total_ticks_start,  total_ticks_end,
-                proc_ticks_start,   proc_ticks_end
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                proc_ticks_start,   proc_ticks_end,
+                nice_ticks_start,   nice_ticks_end
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
         for s in samples:
@@ -564,9 +565,11 @@ class SamplesRepository:
                     s.get("system_ticks_start"),
                     s.get("system_ticks_end"),
                     s.get("total_ticks_start"),
-                    s.get("total_ticks_start"),
+                    s.get("total_ticks_end"),        # was total_ticks_start (bug, chunk 45)
                     s.get("proc_ticks_start"),
                     s.get("proc_ticks_end"),
+                    s.get("nice_ticks_start"),
+                    s.get("nice_ticks_end"),
                 ),
             )
 

@@ -62,6 +62,45 @@ _MEDIA_ADAPTERS = {
 }
 
 
+def _local_addresses():
+    """Every address of this machine: loopback, hostname, and all interfaces."""
+    import socket
+    addrs = {"127.0.0.1", "::1"}
+    try:
+        addrs.update(i[4][0] for i in socket.getaddrinfo(socket.gethostname(), None))
+    except OSError:
+        pass
+    try:
+        import psutil
+        for nics in psutil.net_if_addrs().values():
+            addrs.update(a.address.split("%")[0] for a in nics
+                         if a.family in (socket.AF_INET, socket.AF_INET6))
+    except Exception:
+        pass
+    return addrs
+
+
+def _refuse_local_remote(provider, base_url):
+    """A *_remote provider must not point at this machine (handover 45, section 5)."""
+    import ipaddress
+    import socket
+    from urllib.parse import urlparse
+    host = urlparse(base_url).hostname
+    if not host:
+        raise ValueError(f"ModelFactory: provider '{provider}' has no host in base_url {base_url!r}")
+    try:
+        resolved = {i[4][0] for i in socket.getaddrinfo(host, None)}
+    except OSError as exc:
+        raise ValueError(f"ModelFactory: provider '{provider}' host {host!r} does not resolve: {exc}")
+    local = _local_addresses()
+    hit = sorted(a for a in resolved if a in local or ipaddress.ip_address(a.split("%")[0]).is_loopback)
+    if hit:
+        raise ValueError(
+            f"ModelFactory: provider '{provider}' is remote by name but {base_url} resolves to this "
+            f"machine ({', '.join(hit)}). Its runs would measure the local server under a remote "
+            f"label. Use the matching local provider here, or run from another machine.")
+
+
 class ModelFactory:
     """
     Central factory — resolves provider name to adapter instance.
@@ -106,6 +145,8 @@ class ModelFactory:
         meta = provider_block["provider_meta"].copy()
         if "base_url" in meta:
             meta["base_url"] = os.path.expandvars(meta["base_url"])
+        if provider.endswith("_remote") and meta.get("base_url"):
+            _refuse_local_remote(provider, meta["base_url"])
         access_method = meta.get("access_method", "api_http")
         provider_id   = meta.get("provider_id", provider)
 

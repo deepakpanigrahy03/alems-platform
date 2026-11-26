@@ -13,7 +13,7 @@ import sqlite3
 import threading
 import argparse
 
-from scripts.tools.path_loader import get_alems_db_path
+from core.storage.resolver import caller_store as get_alems_db_path
 DB_PATH = get_alems_db_path()
 
 

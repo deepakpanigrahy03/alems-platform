@@ -164,6 +164,8 @@ invariants:
                        || ' attr=' || attributed_energy_uj END
       FROM runs
       WHERE run_id > :since
+        AND run_id NOT IN (SELECT run_id FROM orchestration_events
+                           WHERE attribution_method IN ('sample_direct_v3','run_share_v3'))  -- v3: see INV-C2b
         AND (planning_energy_uj IS NOT NULL OR execution_energy_uj IS NOT NULL
              OR synthesis_energy_uj IS NOT NULL OR inter_phase_energy_uj IS NOT NULL)
         AND (attributed_energy_uj IS NULL
@@ -171,6 +173,28 @@ invariants:
                 + COALESCE(synthesis_energy_uj,0) + COALESCE(inter_phase_energy_uj,0)
                 > attributed_energy_uj + :tol)
 
+  - id: INV-C2b
+    statement: "Phase attribution v3 bookkeeping: planning + execution + synthesis + inter_phase + attribution_residual = attributed, exactly (1 mJ). The residual is signed and never clamped."
+    scope: run
+    severity: fail
+    introduced_in: 45
+    kind: sql
+    note: "claude/DESIGN_45_phase_attribution.md. Local phase estimates do not sum to the run estimate; the difference is stored, not hidden. Residual size is reported by the integrity check (warning above attribution.phase_residual_warn_fraction)."
+    sql: |
+      SELECT 'run:' || r.run_id,
+             CASE WHEN ea.attribution_residual_uj IS NULL
+                  THEN 'v3 phases present but residual is NULL'
+                  ELSE 'off by ' || (r.attributed_energy_uj - r.planning_energy_uj - r.execution_energy_uj
+                        - r.synthesis_energy_uj - r.inter_phase_energy_uj - ea.attribution_residual_uj) END
+      FROM runs r JOIN energy_attribution ea ON ea.run_id = r.run_id
+      WHERE r.run_id > :since
+        AND r.run_id IN (SELECT run_id FROM orchestration_events WHERE attribution_method IN ('sample_direct_v3','run_share_v3'))
+        AND r.attributed_energy_uj IS NOT NULL AND r.planning_energy_uj IS NOT NULL
+        AND r.execution_energy_uj IS NOT NULL AND r.synthesis_energy_uj IS NOT NULL
+        AND r.inter_phase_energy_uj IS NOT NULL
+        AND (ea.attribution_residual_uj IS NULL
+             OR ABS(r.attributed_energy_uj - r.planning_energy_uj - r.execution_energy_uj
+                    - r.synthesis_energy_uj - r.inter_phase_energy_uj - ea.attribution_residual_uj) > 1000)
   - id: INV-E3
     statement: "A successful goal has non NULL, positive energy"
     scope: goal

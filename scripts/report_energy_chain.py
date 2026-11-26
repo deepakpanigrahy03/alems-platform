@@ -488,8 +488,11 @@ def render_checks(run):
             _line('DATA MISSING:', c.get('reason', ''))
         else:
             n = c.get('n_attempts', 0)
-            _line('E_goal:', _j(c.get('e_goal_j')))
-            _line(f'SUM({n} attempts):', _j(c.get('e_sum_attempts_j')))
+            # The check compares the run with the attempts measured in this run;
+            # the goal sum over all attempts is shown for context only.
+            _line('E_run (attributed):', _j(c.get('e_goal_j')))
+            _line(f"SUM({c.get('n_run_attempts', 0)} attempts in run):", _j(c.get('e_run_attempts_j')))
+            _line(f'SUM({n} attempts in goal):', _j(c.get('e_sum_attempts_j')))
             _line('delta:', f"{c.get('delta_uj', 0):.0f}µJ")
             if c.get('e_per_attempt_j') and n > 1:
                 _line('per attempt:', str([f"{e:.4f}J" for e in c['e_per_attempt_j']]))

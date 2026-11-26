@@ -193,6 +193,29 @@ class SchedulerMonitor(SchedulerMonitorABC):
         logger.debug("load averages: %s", result)
         return result
 
+    # Window contract (alems_sdk.window): counters are cumulative, loads are point values.
+    WINDOW_KIND = "snapshot"
+    METRICS = {
+        "voluntary_switches": "cumulative",
+        "involuntary_switches": "cumulative",
+        "user_time": "cumulative",
+        "system_time": "cumulative",
+        "load1": "point",
+        "load5": "point",
+        "load15": "point",
+        "runnable": "point",
+        "total_tasks": "point",
+    }
+
+    def snapshot(self):
+        """Every declared metric now; None when the scheduler cannot be read (never raises)."""
+        try:
+            data = self.read_all()
+        except Exception as exc:
+            logger.warning("scheduler snapshot failed: %s", exc)
+            return None
+        return {metric: data.get(metric) for metric in self.METRICS}
+
     def read_all(self) -> Dict[str, Any]:
         """
         Convenience method to read all scheduler metrics at once.
@@ -316,7 +339,7 @@ class SchedulerMonitor(SchedulerMonitorABC):
         self._last_sample_time_ns = start_mono
         self._pid = pid
         self._last_ticks = self._read_cpu_ticks()
-        self._last_proc_ticks = self._read_proc_ticks(pid) if pid else 0
+        self._last_proc_ticks = self._read_proc_ticks(pid) if pid else None
 
         logger.debug(
             f"Interrupt sampling started - epoch: {start_epoch}, mono: {start_mono}"
@@ -355,6 +378,7 @@ class SchedulerMonitor(SchedulerMonitorABC):
                         return {
                             "user":   int(fields[1]),
                             "system": int(fields[3]),
+                            "nice":   int(fields[2]),
                             "idle":   int(fields[4]),
                             "total":  sum(int(x) for x in fields[1:]),
                         }
@@ -364,15 +388,15 @@ class SchedulerMonitor(SchedulerMonitorABC):
         return {"user": 0, "system": 0, "idle": 0, "total": 0}
 
     def _read_proc_ticks(self, pid: int) -> int:
-        """Read utime+stime from /proc/[pid]/stat. Returns 0 on failure."""
+        """Read utime+stime from /proc/[pid]/stat. Returns None when unknown (MIC-1)."""
         if not pid:
-            return 0
+            return None
         try:
             with open(f"/proc/{pid}/stat") as f:
                 parts = f.read().split()
             return int(parts[13]) + int(parts[14])  # utime + stime
         except Exception:
-            return 0
+            return None
         
     def reset_interrupt_samples(self):
         """Clear interrupt samples buffer for new run."""
@@ -444,7 +468,7 @@ class SchedulerMonitor(SchedulerMonitorABC):
             # --------------------------------------------------------
             time_delta_s   = (sample_start_ns - self._last_sample_time_ns) / 1e9
 
-            current_proc_ticks = self._read_proc_ticks(self._pid) if self._pid else 0
+            current_proc_ticks = self._read_proc_ticks(self._pid) if self._pid else None
             if time_delta_s > 0:
                 interrupts_raw = current_interrupts - self._last_interrupt_counts
                 rate           = interrupts_raw / time_delta_s
@@ -473,6 +497,8 @@ class SchedulerMonitor(SchedulerMonitorABC):
                     "user_ticks_end":     user_end,
                     "system_ticks_start": system_start,
                     "system_ticks_end":   system_end,
+                    "nice_ticks_start":   self._last_ticks.get("nice"),
+                    "nice_ticks_end":     current_ticks.get("nice"),
                     "total_ticks_start":  self._last_ticks.get("total", 0),
                     "total_ticks_end":    current_ticks.get("total", 0),
                     "proc_ticks_start":   self._last_proc_ticks,

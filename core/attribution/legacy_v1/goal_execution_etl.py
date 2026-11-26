@@ -24,7 +24,7 @@ import sys
 logger = logging.getLogger(__name__)
 
 # Default DB path — override with --db-path flag
-from scripts.tools.path_loader import get_alems_db_path
+from core.storage.resolver import caller_store as get_alems_db_path
 from typing import Optional
 DEFAULT_DB_PATH = get_alems_db_path()
 

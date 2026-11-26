@@ -411,6 +411,28 @@ class MSRReader(MSRReaderABC):
 
         return counters
 
+    # Window contract: C-state residency counters are cumulative; the thermal
+    # state (throttle log and current bits per domain) is a point observation.
+    WINDOW_KIND = "snapshot"
+    METRICS = {"c2": "cumulative", "c3": "cumulative", "c6": "cumulative",
+               "c7": "cumulative", "thermal_state": "point"}
+
+    def snapshot(self):
+        """
+        C-state counters and thermal state now, without pinning the calling
+        thread (a boundary mark must not move the harness thread). A counter
+        that could not be read is None, not 0. Never raises.
+        """
+        try:
+            cstates = self.snapshot_cstate_counters(pin=False)
+            ok = cstates.get("read_status", {})
+            values = {k: (v if ok.get(k) else None) for k, v in cstates.get("counters", {}).items()}
+            values["thermal_state"] = self.snapshot_thermal_state(pin=False)
+            return values
+        except Exception as exc:
+            logger.warning("msr snapshot failed: %s", exc)
+            return None
+
     def snapshot_cstate_counters(
         self, cpu: int = 0, pin: bool = True
     ) -> Dict[str, Any]:

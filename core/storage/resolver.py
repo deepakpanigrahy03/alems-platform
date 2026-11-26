@@ -42,6 +42,37 @@ logger = logging.getLogger(__name__)
 # Store resolution
 # ---------------------------------------------------------------------------
 
+def caller_store() -> str:
+    """
+    Store path for a caller with no explicit path (the former
+    scripts.tools.path_loader.get_alems_db_path, now in core per CH39-3).
+
+    The sandbox walk starts from ALEMS_CALLER_DIR, so it defaults to the
+    working directory, exactly as the scripts helper did.
+    """
+    os.environ.setdefault("ALEMS_CALLER_DIR", os.getcwd())
+    return resolve_store()
+
+
+def models_dir() -> str:
+    """
+    Models directory for this machine (the former
+    scripts.tools.path_loader.get_models_dir, now in core per CH39-3).
+
+    Layers: ALEMS_MODELS_DIR, then ALEMS_DATA_ROOT/models, then the existing
+    home directory fallback.
+    """
+    from core.storage.alemsrc import load_alemsrc
+    load_alemsrc()
+    configured = os.environ.get("ALEMS_MODELS_DIR")
+    if configured:
+        return configured
+    base = os.environ.get("ALEMS_DATA_ROOT")
+    if base:
+        return os.path.join(base, "models")
+    return str(Path.home() / "mydrive" / "models")
+
+
 def resolve_store(explicit: Optional[str] = None) -> str:
     """
     Return the absolute path to the active project store.

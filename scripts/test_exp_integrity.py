@@ -715,7 +715,12 @@ def check_expected_empty(conn) -> list:
 
 
 def check_etl_queue(conn, goal_ids: list) -> list:
-    """Verify etl_queue has entries for all goals and all show processed=1."""
+    """etl_queue is deprecated (chunk 45, F6): no writer, no reader. Historical rows kept."""
+    return [ok("etl_queue: deprecated, not written since chunk 45 (historical rows kept)")]
+
+
+def _check_etl_queue_legacy(conn, goal_ids: list) -> list:
+    """Previous check, kept for reading old stores by hand."""
     results = []
     if not goal_ids:
         results.append(warn("etl_queue: no goals to check"))
@@ -735,14 +740,68 @@ def check_etl_queue(conn, goal_ids: list) -> list:
     return results
 
 
-def check_retry_policy(conn) -> list:
-    """Verify retry_policy has exactly 4 rows: no_retry, default, aggressive, conservative."""
+RUN_WINDOW_TOL_UJ = 1000            # counter resolution is 1 mJ
+RUN_WINDOW_W_RANGE = (1.0, 400.0)   # plausible package power on any fleet machine, watts
+
+
+def check_run_window(conn, run_ids: list) -> list:
+    """Task window [t0, t1] checks (window contract), for measurement_boundary_v2 runs:
+    pre + task + post equals the counter span, and each segment has plausible power."""
     results = []
-    count = conn.execute("SELECT COUNT(*) FROM retry_policy").fetchone()[0]
-    if count == 4:
-        results.append(ok("retry_policy: 4 rows present"))
+    if not run_ids:
+        return results
+    ph = ",".join("?" * len(run_ids))
+    v2 = {r for (r,) in conn.execute(
+        f"SELECT DISTINCT run_id FROM measurement_methodology WHERE run_id IN ({ph}) "
+        f"AND metric_id = 'task_duration_ns' AND method_id = 'measurement_boundary_v2'",
+        run_ids)}
+    legacy = len(set(run_ids) - v2)
+    if legacy:
+        results.append(warn(f"run_window: {legacy} runs predate measurement_boundary_v2 (not checked)"))
+    rows = conn.execute(
+        f"SELECT run_id, pre_task_energy_uj, pkg_energy_uj, post_task_energy_uj, "
+        f"rapl_before_pretask_uj, rapl_after_task_uj, pre_task_duration_ns, "
+        f"task_duration_ns, post_task_duration_ns FROM runs WHERE run_id IN ({ph})",
+        run_ids).fetchall()
+    n_ok = 0
+    for rid, pre, task, post, before, after, d_pre, d_task, d_post in rows:
+        if rid not in v2:
+            continue
+        if None in (pre, task, post, before, after):
+            results.append(warn(f"run_window run={rid}: a boundary term is NULL"))
+            continue
+        gap = pre + task + post - (after - before)
+        if abs(gap) > RUN_WINDOW_TOL_UJ:
+            results.append(fail(f"run_window run={rid}: pre+task+post off by {gap} uJ"))
+            continue
+        bad = False
+        for name, e, d in (("pre", pre, d_pre), ("task", task, d_task), ("post", post, d_post)):
+            if not d:
+                continue
+            w = e / d * 1e3
+            if not RUN_WINDOW_W_RANGE[0] <= w <= RUN_WINDOW_W_RANGE[1]:
+                results.append(fail(f"run_window run={rid}: {name} power {w:.1f} W implausible"))
+                bad = True
+        n_ok += 0 if bad else 1
+    if v2 and n_ok == len(v2):
+        results.append(ok(f"run_window: {n_ok} runs conserve within 1 mJ, powers plausible"))
+    return results
+
+
+# Policy names seeded by migrations/seed/s003_retry_policy.sql (source of truth).
+# Extra rows (user defined policies) are allowed; a missing seeded name fails.
+SEEDED_RETRY_POLICIES = ("no_retry", "default", "aggressive")
+
+
+def check_retry_policy(conn) -> list:
+    """Verify every policy seeded by s003 is present, matched by name."""
+    results = []
+    names = {r[0] for r in conn.execute("SELECT policy_name FROM retry_policy")}
+    missing = sorted(set(SEEDED_RETRY_POLICIES) - names)
+    if missing:
+        results.append(fail(f"retry_policy: seeded policies missing: {missing}"))
     else:
-        results.append(fail(f"retry_policy: expected 4 rows, got {count}"))
+        results.append(ok(f"retry_policy: {len(SEEDED_RETRY_POLICIES)} seeded policies present"))
     return results
 
 
@@ -778,28 +837,50 @@ def check_task_retry_override(conn) -> list:
         results.append(ok(f"task_retry_override: {count} overrides, all valid"))
     return results
 
-def check_energy_conservation(conn, exp_id: int, run_ids: list, goal_ids: list) -> list:
-    results = []
-    rows = conn.execute("""
-        SELECT ge.goal_id, r.attributed_energy_uj,
-            SUM(ga.energy_uj) AS attempt_sum,
+def _conservation_own_runs(conn, exp_id: int) -> list:
+    """Attempts that own their run: attempt energy must equal the run's attributed energy."""
+    return conn.execute("""
+        SELECT ga.goal_id, ga.attempt_id, ga.run_id,
+            ABS(ga.energy_uj - r.attributed_energy_uj) AS delta
+        FROM goal_attempt ga
+        JOIN goal_execution ge ON ge.goal_id = ga.goal_id
+        JOIN runs r ON r.run_id = ga.run_id
+        WHERE ge.exp_id = ? AND ga.energy_uj IS NOT NULL
+          AND r.attributed_energy_uj IS NOT NULL
+          AND (SELECT COUNT(*) FROM goal_attempt x WHERE x.run_id = ga.run_id) = 1
+    """, (exp_id,)).fetchall()
+
+
+def _conservation_shared_runs(conn, exp_id: int) -> list:
+    """Old era goals whose winning run is shared by several attempts: run energy = attempt sum."""
+    return conn.execute("""
+        SELECT ge.goal_id,
             ABS(r.attributed_energy_uj - SUM(ga.energy_uj)) AS delta
         FROM goal_execution ge
         JOIN runs r ON r.run_id = ge.winning_run_id
         JOIN goal_attempt ga ON ga.goal_id = ge.goal_id
-        WHERE ge.exp_id = ? AND ge.winning_run_id IS NOT NULL
-          AND ga.energy_uj IS NOT NULL
+        WHERE ge.exp_id = ? AND ga.energy_uj IS NOT NULL
+          AND (SELECT COUNT(*) FROM goal_attempt x WHERE x.run_id = ge.winning_run_id) > 1
         GROUP BY ge.goal_id
     """, (exp_id,)).fetchall()
-    if not rows:
-        results.append(warn("energy_conservation: no successful goals to verify"))
-    else:
-        violations = [r for r in rows if r["delta"] > 1000]
-        if violations:
-            for v in violations:
-                results.append(fail(f"energy_conservation VIOLATION goal={v['goal_id']} delta={v['delta']}µJ"))
-        else:
-            results.append(ok(f"energy_conservation: {len(rows)} goals verified max_delta={max(r['delta'] for r in rows)}µJ"))
+
+
+def check_energy_conservation(conn, exp_id: int, run_ids: list, goal_ids: list) -> list:
+    results = []
+    own = _conservation_own_runs(conn, exp_id)
+    shared = _conservation_shared_runs(conn, exp_id)
+    if not own and not shared:
+        results.append(warn("energy_conservation: no attempts with measured energy to verify"))
+    bad_own = [r for r in own if r["delta"] > 1000]
+    for v in bad_own:
+        results.append(fail(f"energy_conservation VIOLATION goal={v['goal_id']} attempt={v['attempt_id']} run={v['run_id']} delta={v['delta']}µJ"))
+    if own and not bad_own:
+        results.append(ok(f"energy_conservation: {len(own)} attempts equal their own run, max_delta={max(r['delta'] for r in own)}µJ"))
+    bad_shared = [r for r in shared if r["delta"] > 1000]
+    for v in bad_shared:
+        results.append(fail(f"energy_conservation VIOLATION (shared_legacy) goal={v['goal_id']} delta={v['delta']}µJ"))
+    if shared and not bad_shared:
+        results.append(ok(f"energy_conservation: {len(shared)} shared_legacy goals equal attempt sum"))
     rows2 = conn.execute("""
         SELECT ge.goal_id, ge.total_energy_uj, SUM(ga.energy_uj) AS attempt_sum
         FROM goal_execution ge
@@ -833,17 +914,16 @@ def check_energy_conservation(conn, exp_id: int, run_ids: list, goal_ids: list) 
     elif d1_rows:
         results.append(ok(f"D1 conservation: {len(d1_rows)} runs verified max_delta={max(r['d1_delta'] for r in d1_rows)}µJ"))
  
-    # D4: E_pkg = E_core + E_uncore + E_dram
+    # D4: E_pkg = E_core + E_uncore + E_dram, only where all four terms were measured.
+    # Unmeasured domains are NULL, so the identity is not applicable to those runs.
     d4_rows = conn.execute("""
         SELECT ea.run_id,
-            ABS(ea.pkg_energy_uj
-                - COALESCE(ea.core_energy_uj, 0)
-                - COALESCE(ea.uncore_energy_uj, 0)
-                - COALESCE(ea.dram_energy_uj, 0)) AS d4_delta
+            ABS(ea.pkg_energy_uj - ea.core_energy_uj
+                - ea.uncore_energy_uj - ea.dram_energy_uj) AS d4_delta
         FROM energy_attribution ea
         WHERE ea.run_id IN ({placeholders})
-          AND ea.pkg_energy_uj > 0
-          AND ea.core_energy_uj > 0
+          AND ea.pkg_energy_uj IS NOT NULL AND ea.core_energy_uj IS NOT NULL
+          AND ea.uncore_energy_uj IS NOT NULL AND ea.dram_energy_uj IS NOT NULL
     """.format(placeholders=",".join("?" * len(run_ids))), run_ids).fetchall()
     d4_violations = [r for r in d4_rows if r["d4_delta"] > (0.01 * 1e6)]
     if d4_violations:
@@ -851,6 +931,8 @@ def check_energy_conservation(conn, exp_id: int, run_ids: list, goal_ids: list) 
             results.append(warn(f"D4 delta run={v['run_id']} delta={v['d4_delta']}µJ"))
     elif d4_rows:
         results.append(ok(f"D4 conservation: {len(d4_rows)} runs verified"))
+    else:
+        results.append(ok("D4 conservation: not applicable on this platform (a domain is unmeasured)"))
  
     # D3b: E_dynamic = E_attributed + E_background
     d3b_rows = conn.execute("""
@@ -877,7 +959,9 @@ def check_energy_conservation(conn, exp_id: int, run_ids: list, goal_ids: list) 
                 - COALESCE(ea.planning_energy_uj, 0)
                 - COALESCE(ea.execution_energy_uj, 0)
                 - COALESCE(ea.synthesis_energy_uj, 0)
-                - COALESCE(ea.inter_phase_energy_uj, 0)) AS d2_delta
+                - COALESCE(ea.inter_phase_energy_uj, 0)
+                - COALESCE(ea.attribution_residual_uj, 0)) AS d2_delta,   -- v3 residual (NULL for v2)
+            ea.attribution_residual_uj AS resid, r.attributed_energy_uj AS attr
         FROM energy_attribution ea
         JOIN runs r ON r.run_id = ea.run_id
         WHERE ea.run_id IN ({placeholders})
@@ -885,6 +969,12 @@ def check_energy_conservation(conn, exp_id: int, run_ids: list, goal_ids: list) 
           AND ea.planning_energy_uj > 0
     """.format(placeholders=",".join("?" * len(run_ids))), run_ids).fetchall()
     d2_violations = [r for r in d2_rows if r["d2_delta"] > 1000]
+    # v3: residual size is reported, never a fail (claude/DESIGN_45_phase_attribution.md)
+    _tol = _phase_residual_warn_fraction()
+    for r in d2_rows:
+        if r["resid"] is not None and r["attr"] and abs(r["resid"]) / r["attr"] > _tol:
+            results.append(warn(f"D2 residual run={r['run_id']}: {r['resid'] / 1e6:+.3f} J "
+                                f"({abs(r['resid']) / r['attr']:.1%} of attributed > {_tol:.0%})"))
     if d2_violations:
         for v in d2_violations:
             results.append(fail(f"D2 VIOLATION run={v['run_id']} delta={v['d2_delta']}µJ"))
@@ -892,6 +982,156 @@ def check_energy_conservation(conn, exp_id: int, run_ids: list, goal_ids: list) 
         results.append(ok(f"D2 conservation: {len(d2_rows)} runs verified"))
     else:
         results.append(warn("D2 conservation: no agentic runs with phase data to verify"))
+    return results
+
+
+def _phase_residual_warn_fraction() -> float:
+    """attribution.phase_residual_warn_fraction from config/app_settings.yaml."""
+    import yaml
+    from pathlib import Path
+    cfg = Path(__file__).resolve().parents[1] / "config" / "app_settings.yaml"
+    return float(((yaml.safe_load(cfg.read_text()) or {}).get("attribution") or {})
+                 ["phase_residual_warn_fraction"])
+
+
+def _energy_consistency_bounds():
+    """energy_consistency.ratio_low / ratio_high from config/app_settings.yaml."""
+    import yaml
+    from pathlib import Path
+    cfg = Path(__file__).resolve().parents[1] / "config" / "app_settings.yaml"
+    ec = (yaml.safe_load(cfg.read_text()) or {}).get("energy_consistency") or {}
+    return float(ec["ratio_low"]), float(ec["ratio_high"])
+
+
+def check_counter_samples(conn, run_ids: list) -> list:
+    """Run counter energy vs package samples over [t0, t1], coverage corrected
+    (claude/FINDING_45_prod_energy_consistency.md). Disagreement means one of the
+    two energy sources is wrong; the paper must not use such a run."""
+    results = []
+    if not run_ids:
+        return results
+    lo, hi = _energy_consistency_bounds()
+    dom = conn.execute("SELECT domain_id FROM energy_domains WHERE name = 'PACKAGE' LIMIT 1").fetchone()
+    n_ok, unassessable = 0, []
+    for rid in run_ids:
+        r = conn.execute("SELECT pkg_energy_uj, start_time_ns, pre_task_duration_ns, task_duration_ns "
+                         "FROM runs WHERE run_id = ?", (rid,)).fetchone()
+        if not r or None in tuple(r):
+            unassessable.append(rid)
+            continue
+        counter, t0 = r[0], r[1] + r[2]
+        t1 = t0 + r[3]
+        row = None
+        if dom:
+            row = conn.execute(
+                "SELECT SUM(esd.energy_uj), SUM(esv.interval_ns) FROM energy_sample_domains esd "
+                "JOIN energy_samples_v2 esv ON esv.sample_id = esd.sample_id "
+                "WHERE esd.run_id = ? AND esd.domain_id = ? AND esv.timestamp_ns - esv.interval_ns >= ? "
+                "AND esv.timestamp_ns <= ?", (rid, dom[0], t0, t1)).fetchone()
+        if not row or not row[0]:
+            row = conn.execute(
+                "SELECT SUM(pkg_end_uj - pkg_start_uj), SUM(sample_end_ns - sample_start_ns) FROM energy_samples "
+                "WHERE run_id = ? AND sample_start_ns >= ? AND sample_end_ns <= ? "
+                "AND pkg_end_uj IS NOT NULL AND pkg_start_uj IS NOT NULL", (rid, t0, t1)).fetchone()
+        samp, cov = (row[0], row[1]) if row else (None, None)
+        if not samp or not cov or t1 <= t0:
+            unassessable.append(rid)
+            continue
+        score = (counter / samp) * min(1.0, cov / (t1 - t0))
+        if not lo <= score <= hi:
+            results.append(fail(f"counter_samples run={rid}: counter {counter / 1e6:.1f} J vs samples "
+                                f"{samp / 1e6:.1f} J over {cov / 1e9:.2f} of {(t1 - t0) / 1e9:.2f} s "
+                                f"(score {score:.2f} outside [{lo}, {hi}])"))
+        else:
+            n_ok += 1
+    if unassessable:
+        results.append(warn(f"counter_samples: {len(unassessable)} runs unassessable (no window or samples)"))
+    if n_ok and not any(x for x in results if "counter_samples run=" in str(x)):
+        results.append(ok(f"counter_samples: {n_ok} runs, counter and samples agree"))
+    return results
+
+
+def _energy_consistency(key):
+    """One energy_consistency setting from config/app_settings.yaml."""
+    import yaml
+    from pathlib import Path
+    cfg = Path(__file__).resolve().parents[1] / "config" / "app_settings.yaml"
+    return float(((yaml.safe_load(cfg.read_text()) or {}).get("energy_consistency") or {})[key])
+
+
+def check_tick_health(conn, run_ids: list) -> list:
+    """Process and machine tick counters behind every CPU share (chunk 45 F3):
+    process ticks recorded and moving, total_ticks_end stored, nice present on v129 rows."""
+    results = []
+    if not run_ids:
+        return results
+    min_s = _energy_consistency("tick_min_task_s")
+    has_nice = any(r[1] == "nice_ticks_start" for r in conn.execute("PRAGMA table_info(interrupt_samples)"))
+    nice_sql = "SUM(nice_ticks_start IS NOT NULL)" if has_nice else "0"
+    bad = 0
+    for rid in run_ids:
+        row = conn.execute(f"""
+            SELECT COUNT(*) n, COUNT(proc_ticks_start) n_proc,
+                   SUM(proc_ticks_end - proc_ticks_start) d_proc,
+                   SUM(total_ticks_end <> total_ticks_start) n_total_moves, {nice_sql} n_nice,
+                   (SELECT task_duration_ns FROM runs WHERE run_id = ?) task_ns
+            FROM interrupt_samples WHERE run_id = ?""", (rid, rid)).fetchone()
+        n, n_proc, d_proc, n_tot, n_nice, task_ns = row
+        if not n:
+            continue
+        if n_proc == 0:
+            results.append(fail(f"tick_health run={rid}: process ticks never recorded (workload PID unknown)"))
+            bad += 1
+        elif d_proc == 0 and task_ns and task_ns / 1e9 >= min_s:
+            results.append(warn(f"tick_health run={rid}: process ticks did not move over {task_ns / 1e9:.1f} s"))
+            bad += 1
+        if n_nice and n_tot == 0:
+            results.append(fail(f"tick_health run={rid}: total_ticks_end equals start in every sample (stored wrong)"))
+            bad += 1
+    if not bad:
+        results.append(ok(f"tick_health: {len(run_ids)} runs, process ticks recorded and moving"))
+    return results
+
+
+def check_phase_fallback(conn, run_ids: list) -> list:
+    """Runs recorded with the chunk 45 code (nice ticks present) must get direct phase
+    shares; run_share_v3 there means the tick capture regressed."""
+    results = []
+    if not run_ids:
+        return results
+    if not any(r[1] == "nice_ticks_start" for r in conn.execute("PRAGMA table_info(interrupt_samples)")):
+        return results
+    ph = ",".join("?" * len(run_ids))
+    rows = conn.execute(f"""
+        SELECT oe.run_id, COUNT(*) FROM orchestration_events oe
+        WHERE oe.run_id IN ({ph}) AND oe.attribution_method = 'run_share_v3'
+          AND EXISTS (SELECT 1 FROM interrupt_samples i WHERE i.run_id = oe.run_id
+                      AND i.nice_ticks_start IS NOT NULL)
+        GROUP BY oe.run_id""", run_ids).fetchall()
+    for rid, n in rows:
+        results.append(warn(f"phase_fallback run={rid}: {n} phases used run_share_v3 (INFERRED) on a new run"))
+    if not rows:
+        results.append(ok("phase_fallback: no new run needed the run share fallback"))
+    return results
+
+
+def check_sample_coverage(conn, run_ids: list) -> list:
+    """Energy sample coverage of the run window at least the configured minimum."""
+    results = []
+    if not run_ids:
+        return results
+    lim = _energy_consistency("min_sample_coverage_pct")
+    ph = ",".join("?" * len(run_ids))
+    rows = conn.execute(f"SELECT run_id, energy_sample_coverage_pct FROM runs WHERE run_id IN ({ph})",
+                        run_ids).fetchall()
+    low = [(r, c) for r, c in rows if c is not None and c < lim]
+    unknown = [r for r, c in rows if c is None]
+    for r, c in low:
+        results.append(warn(f"sample_coverage run={r}: {c:.1f}% < {lim:.0f}%"))
+    if unknown:
+        results.append(warn(f"sample_coverage: {len(unknown)} runs without a coverage value"))
+    if not low and not unknown:
+        results.append(ok(f"sample_coverage: {len(rows)} runs >= {lim:.0f}%"))
     return results
 
 
@@ -945,7 +1185,7 @@ def print_energy_accounting(conn, exp_id: int, exp_type: str) -> None:
             ge.orchestration_fraction,
             (SELECT SUM(ga2.energy_uj)
              FROM goal_attempt ga2
-             WHERE ga2.goal_id = ge.goal_id) AS sum_attempt_energy,
+             WHERE ga2.run_id = r.run_id) AS sum_attempt_energy,
             (SELECT COUNT(*) FROM goal_attempt ga3
              WHERE ga3.goal_id = ge.goal_id AND ga3.is_retry = 1) AS retry_count
         FROM goal_execution ge
@@ -989,7 +1229,12 @@ def print_energy_accounting(conn, exp_id: int, exp_type: str) -> None:
 
         print(f"  run={row['run_id']}[{wf}] retries={row['retry_count']} method={mth}")
         print(f"  [D4] E_pkg=E_core+E_uncore+E_dram:")
-        print(f"       {_j(pkg)}={_j(core)}({_p(core,pkg)})+{_j(unc)}({_p(unc,pkg)})+{_j(drm)}  {_c(pkg-(core+unc+drm))}")
+        _d4_terms = (row["pkg_energy_uj"], row["core_energy_uj"],
+                     row["uncore_energy_uj"], row["dram_energy_uj"])
+        if any(t is None for t in _d4_terms):
+            print("       not applicable on this platform (a domain is unmeasured)")
+        else:
+            print(f"       {_j(pkg)}={_j(core)}({_p(core,pkg)})+{_j(unc)}({_p(unc,pkg)})+{_j(drm)}  {_c(pkg-(core+unc+drm))}")
         print(f"  [D3] E_pkg=E_baseline+E_dynamic:")
         print(f"       {_j(pkg)}={_j(base)}({_p(base,pkg)})+{_j(dyn)}({_p(dyn,pkg)})  {_c(pkg-(base+dyn))}")
         print(f"  [D1 Activity Partition] E_attr=E_llm_window+E_orchestration:")
@@ -1078,6 +1323,11 @@ def main():
     all_results += check_task_categories(conn)
     all_results += check_task_retry_override(conn)
     all_results += check_energy_conservation(conn, exp_id, run_ids, goal_ids)
+    all_results += check_run_window(conn, run_ids)
+    all_results += check_counter_samples(conn, run_ids)
+    all_results += check_tick_health(conn, run_ids)
+    all_results += check_phase_fallback(conn, run_ids)
+    all_results += check_sample_coverage(conn, run_ids)
     all_results += check_paper_core_query(conn)
     print_energy_accounting(conn, exp_id, exp_type)    
     

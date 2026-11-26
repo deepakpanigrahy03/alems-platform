@@ -8,6 +8,9 @@ import pytest
 class _Obs:
     def __init__(self, interval_ms=10, device=0):
         self.args = (interval_ms, device)
+        self.t_start = None  # no window bound: every sample counts
+        self.t_end = None
+        self.samples = [_Sample(s) for s in self.to_dict()["samples"]]
 
     def start(self):
         return self
@@ -27,13 +30,33 @@ class _Obs:
         return {"gaps": 0}
 
 
+# Counter fields of one stub sample; A-LEMS column names equal the field names here.
+_FIELDS = ("copy_bytes", "kernel_read_miss_bytes", "kernel_write_bytes",
+           "all_read_miss_bytes", "all_write_bytes")
+
+
+class _Sample:
+    """One pravaha sample as the observer exposes it: t0, t1 and counter fields."""
+
+    def __init__(self, row):
+        self.t0, self.t1 = row["t_start_ns"], row["t_end_ns"]
+        for f in _FIELDS:
+            setattr(self, f, row[f])
+
+
 @pytest.fixture
 def fake_pravaha(monkeypatch):
     mod = types.ModuleType("pravaha_mem")
+    mod.__path__ = []  # a package, so pravaha_mem.observer can be imported
     mod.status = lambda: {"ready": True, "fix": [],
                           "provenance": {"pravaha": "1.0.0", "driver": "d", "cuda": "c"}}
     mod.observe = _Obs
+    observer = types.ModuleType("pravaha_mem.observer")
+    observer.FIELDS = _FIELDS
+    observer.JSON_NAMES = {f: f for f in _FIELDS}
+    mod.observer = observer
     monkeypatch.setitem(sys.modules, "pravaha_mem", mod)
+    monkeypatch.setitem(sys.modules, "pravaha_mem.observer", observer)
     return mod
 
 

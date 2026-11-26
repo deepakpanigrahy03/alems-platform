@@ -69,7 +69,7 @@ from core.execution.hardware_collector import (_is_cold_start,
                                                get_process_count,
                                                get_process_memory,
                                                get_turbo_status)
-from core.execution.sample_processor import (calculate_thermal_metrics,
+from core.execution.sample_processor import (calculate_thermal_metrics, samples_in_window,
                                              load_canonical_metrics,
                                              process_cpu_samples,
                                              process_energy_samples)
@@ -308,6 +308,20 @@ class ExperimentHarness:
         self._serving_rows = sampler.stop() if sampler else []
         return self._serving_rows
 
+    def _run_task(self, call):
+        """
+        Run the executor call between the t0 and t1 anchors.
+
+        The engine marks t0 immediately before dispatch and t1 immediately after
+        the call returns or raises; nothing else runs between the marks, so
+        collector startup never counts as task time.
+        """
+        self.energy_engine.mark_task_start()
+        try:
+            return call()
+        finally:
+            self.energy_engine.mark_task_end()
+
     def run_linear(
         self,
         executor,
@@ -348,7 +362,7 @@ class ExperimentHarness:
         # Capture RAPL and CPU ticks BEFORE pre-task instrumentation reads.
         # Opens the diagnostic pre-task energy window (t_before_pretask → t0).
         # read_energy() returns None on non-RAPL platforms — PAC compliant.
-        _rapl_before_pretask = self.energy_engine.rapl.read_energy()
+        _rapl_before_pretask = self.energy_engine.mark_before()   # C(before)
         _gpu_before_pretask  = ReaderFactory.get_gpu_energy_uj(self.energy_engine.rapl)
         _pid_pre             = os.getpid()
         _total_ticks_pre     = read_total_cpu_ticks()
@@ -370,19 +384,19 @@ class ExperimentHarness:
         from core.recording import hook as _recording_hook
         _recording_hook.notify_run_start()   # open recording pauses before the run's start stamp
         run_start_dt = datetime.now()  # Human-readable start time
-        run_start_perf = time.perf_counter()  # High-precision for duration
+
         self._start_serving_sampler()   # KV and queue polling for the measurement window
+        # F3: the sampler reads the workload PID when measurement starts; set it first.
+        self.energy_engine.set_workload_pid(os.getpid())
         self.energy_engine.start_measurement()
-        # F3: t0 anchor — read immediately after start_measurement() before any task work.
-        # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
-        _rapl_at_t0 = self.energy_engine.rapl.read_energy()
+        # C(t0) and C(t1) are marked by the engine around the executor call (_run_task).
         _pid               = os.getpid()
         _total_ticks_start = read_total_cpu_ticks()
         _pid_ticks_start   = read_process_cpu_ticks(_pid)
         self.energy_engine.set_workload_pid(_pid)  # Chunk 5: pass PID to interrupt sampler        
-        exec_result = executor.execute(prompt)
+        exec_result = self._run_task(lambda: executor.execute(prompt))
         # t1: task boundary — executor has returned, task is complete.
-        task_end_perf        = time.perf_counter()
+
         _total_ticks_t1      = read_total_cpu_ticks()
         _pid_ticks_t1        = read_process_cpu_ticks(os.getpid())
         self._stop_serving_sampler()   # rows go to the run result as serving_snapshots
@@ -391,7 +405,7 @@ class ExperimentHarness:
         )  # RawEnergyMeasurement (Layer 1)
         # rapl_after_task captured AFTER stop_measurement() so MAX(pkg_end_uj)
         # from energy_samples cannot overshoot this anchor.
-        _rapl_after_task     = self.energy_engine.rapl.read_energy()
+        _rapl_after_task     = self.energy_engine.mark_after()    # C(after)
         _gpu_after_task      = ReaderFactory.get_gpu_energy_uj(self.energy_engine.rapl)
         run_end_dt           = datetime.now()   # t2: human-readable (post-framework)
         _recording_hook.notify_run_end()     # open recording resumes after the run's end stamp
@@ -399,11 +413,16 @@ class ExperimentHarness:
         _total_ticks_t2      = read_total_cpu_ticks()
         _pid_ticks_t2        = read_process_cpu_ticks(os.getpid())
         # task_duration = executor time only — canonical energy denominator
-        task_duration_sec    = task_end_perf - run_start_perf
-        # post_task_duration = stop_measurement + post-processing cost (t1→t2)
-        post_task_duration_sec = run_end_perf - task_end_perf
-        # pre_task_duration = instrumentation reads before measurement (t_before→t0)
-        pre_task_duration_sec  = run_start_perf - _pre_task_start_perf
+        # Durations share the stamps of their energy: before, t0, t1, after (engine marks).
+        _bounds = self.energy_engine.boundaries()
+        _ticks = self.energy_engine.window_values("cpu_ticks")   # pre, task, post per tick counter
+
+        def _tick(metric, span):
+            w = _ticks.get(metric, {}).get(span)
+            return w.value if w is not None and w.value is not None else 0
+        task_duration_sec      = _bounds["task_s"]
+        post_task_duration_sec = _bounds["post_s"]
+        pre_task_duration_sec  = _bounds["pre_s"]
         # framework_overhead = pre + post (total instrumentation wall time)
         framework_overhead_sec = pre_task_duration_sec + post_task_duration_sec
 
@@ -526,7 +545,8 @@ class ExperimentHarness:
         # Calculate thermal metrics from thermal_samples (primary source)
         # ====================================================================
         start_temp_c, max_temp_c, min_temp_c, thermal_delta_c = (
-            calculate_thermal_metrics(cpu_samples, thermal_samples)
+            calculate_thermal_metrics(samples_in_window(cpu_samples, self.energy_engine._task_window_ns()),
+                                      samples_in_window(thermal_samples, self.energy_engine._task_window_ns()))
         )
 
         # ====================================================================
@@ -636,6 +656,11 @@ class ExperimentHarness:
                 "start_time_ns": int(run_start_dt.timestamp() * 1_000_000_000),
                 "end_time_ns": int(run_end_dt.timestamp() * 1_000_000_000),
                 "start_time_iso": run_start_dt.isoformat(),
+                # Workload window anchors (engine marks): wall ns and perf counter ns.
+                "task_start_ns":         _bounds["t0_ns"],
+                "task_start_perf_ns":    _bounds["t0_perf_ns"],
+                "task_end_ns":           _bounds["t1_ns"],
+                "task_end_perf_ns":      _bounds["t1_perf_ns"],
                 "end_time_iso": run_end_dt.isoformat(),
                 "duration_sec": task_duration_sec,           # task only (corrected)
                 "duration_ms": task_duration_sec * 1000,
@@ -655,31 +680,31 @@ class ExperimentHarness:
                 "measurement_heartbeat_s":     _obs_window.get("measurement_heartbeat_s"),
                 "post_task_duration_sec": post_task_duration_sec,
                 "rapl_before_pretask":    _rapl_before_pretask,   # Dict or None
-                "rapl_at_t0":             _rapl_at_t0,             # Dict or None — t0 anchor
+                "rapl_at_t0":             _bounds["reads"].get("t0"),   # C(t0)
+                "rapl_at_t1":             _bounds["reads"].get("t1"),   # C(t1)
                 "rapl_after_task":        _rapl_after_task,        # Dict or None
                 "gpu_before_pretask":     _gpu_before_pretask,    # µJ or None
                 "gpu_after_task":         _gpu_after_task,         # µJ or None
                 "cpu_frac_pre":           compute_cpu_fraction(
-                    _pid_ticks_start - _pid_ticks_pre,
-                    _total_ticks_start - _total_ticks_pre,
+                    _tick("process_ticks", "pre"),
+                    _tick("total_ticks", "pre"),
                 ),
                 "cpu_frac_post":          compute_cpu_fraction(
-                    _pid_ticks_t2 - _pid_ticks_t1,
-                    _total_ticks_t2 - _total_ticks_t1,
+                    _tick("process_ticks", "post"),
+                    _tick("total_ticks", "post"),
                 ),
                 "duration_includes_overhead": 0,              # corrected run
                 "instructions": derived.instructions,
                 "pkg_energy_uj": derived.package_energy_uj,
                 "core_energy_uj": derived.core_energy_uj,
                 "uncore_energy_uj": derived.uncore_energy_uj,
-                "dram_energy_uj": (
-                    derived.dram_energy_uj if hasattr(derived, "dram_energy_uj") else 0
-                ),
+                # Missing DRAM rail is NULL, never 0 (MIC-1).
+                "dram_energy_uj": getattr(derived, "dram_energy_uj", None),
                 "idle_energy_uj": derived.idle_energy_uj,
                 "dynamic_energy_uj":     derived.workload_energy_uj,
                 "pid":                   _pid,
-                "cpu_fraction":          compute_cpu_fraction(read_process_cpu_ticks(_pid) - _pid_ticks_start, read_total_cpu_ticks() - _total_ticks_start),
-                "attributed_energy_uj":  int((read_process_cpu_ticks(_pid) - _pid_ticks_start) / max(read_total_cpu_ticks() - _total_ticks_start, 1) * max(derived.workload_energy_uj, 0)),              
+                "cpu_fraction":          compute_cpu_fraction(_tick("process_ticks", "task"), _tick("total_ticks", "task")),
+                "attributed_energy_uj":  int(compute_cpu_fraction(_tick("process_ticks", "task"), _tick("total_ticks", "task")) * max(derived.workload_energy_uj, 0)),              
                 "baseline_energy_uj":    derived.idle_energy_uj,
                 "avg_power_watts":       derived.workload_energy_uj / max(1, derived.duration_seconds) / 1_000_000,
                 "orchestration_tax_uj": derived.orchestration_tax_uj,
@@ -924,7 +949,7 @@ class ExperimentHarness:
         # Capture RAPL and timestamp BEFORE pre-task instrumentation reads.
         # This opens the diagnostic pre-task energy window.
         # rapl.read_energy() returns None on non-RAPL platforms (PAC safe).
-        _rapl_before_pretask = self.energy_engine.rapl.read_energy()
+        _rapl_before_pretask = self.energy_engine.mark_before()   # C(before)
         _gpu_before_pretask  = ReaderFactory.get_gpu_energy_uj(self.energy_engine.rapl)
         _pid_pre             = os.getpid()
         _total_ticks_pre     = read_total_cpu_ticks()
@@ -944,12 +969,12 @@ class ExperimentHarness:
         from core.recording import hook as _recording_hook
         _recording_hook.notify_run_start()   # open recording pauses before the run's start stamp
         run_start_dt = datetime.now()  # Human-readable start time
-        run_start_perf = time.perf_counter()  # High-precision for duration
+
         self._start_serving_sampler()   # KV and queue polling for the measurement window
+        # F3: the sampler reads the workload PID when measurement starts; set it first.
+        self.energy_engine.set_workload_pid(os.getpid())
         self.energy_engine.start_measurement()
-        # F3: t0 anchor — read immediately after start_measurement() before any task work.
-        # Enables exact pre_task delta: rapl_at_t0 - rapl_before = pre_task_raw.
-        _rapl_at_t0 = self.energy_engine.rapl.read_energy()
+        # C(t0) and C(t1) are marked by the engine around the executor call (_run_task).
         _pid               = os.getpid()
         _total_ticks_start = read_total_cpu_ticks()
         _pid_ticks_start   = read_process_cpu_ticks(_pid)
@@ -968,7 +993,8 @@ class ExperimentHarness:
                 "task": task,
                 "tool_graph": tool_graph,
             }
-            framework_result = framework.execute_task(task_config, tools=[], engine=None)
+            framework_result = self._run_task(
+                lambda: framework.execute_task(task_config, tools=[], engine=None))
             exec_result = framework_result.metadata
         else:
             # SPEC 35I: energy_reader/db only constructed when a selector
@@ -988,12 +1014,12 @@ class ExperimentHarness:
                 from core.database.manager import DatabaseManager
                 executor._energy_reader = self.energy_engine.rapl
                 executor._db = DatabaseManager(ConfigLoader().get_db_config())
-            exec_result = executor.execute_comparison(
+            exec_result = self._run_task(lambda: executor.execute_comparison(
                 task, tool_graph=tool_graph, tool_selector_config=tool_selector_config,
-            )
+            ))
 
         # t1: task boundary — agentic executor has returned, all phases complete.
-        task_end_perf        = time.perf_counter()
+
         _total_ticks_t1      = read_total_cpu_ticks()
         _pid_ticks_t1        = read_process_cpu_ticks(os.getpid())
         self._stop_serving_sampler()   # rows go to the run result as serving_snapshots
@@ -1002,7 +1028,7 @@ class ExperimentHarness:
         )  # RawEnergyMeasurement (Layer 1)
         # rapl_after_task captured AFTER stop_measurement() so MAX(pkg_end_uj)
         # from energy_samples cannot overshoot this anchor.
-        _rapl_after_task     = self.energy_engine.rapl.read_energy()
+        _rapl_after_task     = self.energy_engine.mark_after()    # C(after)
         _gpu_after_task      = ReaderFactory.get_gpu_energy_uj(self.energy_engine.rapl)
         run_end_dt           = datetime.now()   # t2: human-readable (post-framework)
         _recording_hook.notify_run_end()     # open recording resumes after the run's end stamp
@@ -1010,11 +1036,16 @@ class ExperimentHarness:
         _total_ticks_t2      = read_total_cpu_ticks()
         _pid_ticks_t2        = read_process_cpu_ticks(os.getpid())
         # task_duration = executor time only — canonical energy denominator
-        task_duration_sec    = task_end_perf - run_start_perf
-        # post_task_duration = stop_measurement + post-processing cost (t1→t2)
-        post_task_duration_sec = run_end_perf - task_end_perf
-        # pre_task_duration = instrumentation reads before measurement (t_before→t0)
-        pre_task_duration_sec  = run_start_perf - _pre_task_start_perf
+        # Durations share the stamps of their energy: before, t0, t1, after (engine marks).
+        _bounds = self.energy_engine.boundaries()
+        _ticks = self.energy_engine.window_values("cpu_ticks")   # pre, task, post per tick counter
+
+        def _tick(metric, span):
+            w = _ticks.get(metric, {}).get(span)
+            return w.value if w is not None and w.value is not None else 0
+        task_duration_sec      = _bounds["task_s"]
+        post_task_duration_sec = _bounds["post_s"]
+        pre_task_duration_sec  = _bounds["pre_s"]
         # framework_overhead = pre + post (total instrumentation wall time)
         framework_overhead_sec = pre_task_duration_sec + post_task_duration_sec
         # legacy field kept for backward compat
@@ -1108,7 +1139,8 @@ class ExperimentHarness:
         # Calculate thermal metrics from thermal_samples (primary source)
         # ====================================================================
         start_temp_c, max_temp_c, min_temp_c, thermal_delta_c = (
-            calculate_thermal_metrics(cpu_samples, thermal_samples)
+            calculate_thermal_metrics(samples_in_window(cpu_samples, self.energy_engine._task_window_ns()),
+                                      samples_in_window(thermal_samples, self.energy_engine._task_window_ns()))
         )
 
         # ====================================================================
@@ -1236,6 +1268,11 @@ class ExperimentHarness:
                 "start_time_ns": int(run_start_dt.timestamp() * 1_000_000_000),
                 "end_time_ns": int(run_end_dt.timestamp() * 1_000_000_000),
                 "start_time_iso": run_start_dt.isoformat(),
+                # Workload window anchors (engine marks): wall ns and perf counter ns.
+                "task_start_ns":         _bounds["t0_ns"],
+                "task_start_perf_ns":    _bounds["t0_perf_ns"],
+                "task_end_ns":           _bounds["t1_ns"],
+                "task_end_perf_ns":      _bounds["t1_perf_ns"],
                 "end_time_iso": run_end_dt.isoformat(),
                 "duration_sec": task_duration_sec,           # task only (corrected)
                 "duration_ms": task_duration_sec * 1000,
@@ -1255,31 +1292,31 @@ class ExperimentHarness:
                 "measurement_heartbeat_s":     _obs_window.get("measurement_heartbeat_s"),
                 "post_task_duration_sec":  post_task_duration_sec,
                 "rapl_before_pretask":     _rapl_before_pretask,   # Dict or None
-                "rapl_at_t0":              _rapl_at_t0,             # Dict or None — t0 anchor
+                "rapl_at_t0":              _bounds["reads"].get("t0"),  # C(t0)
+                "rapl_at_t1":              _bounds["reads"].get("t1"),  # C(t1)
                 "rapl_after_task":         _rapl_after_task,        # Dict or None
                 "gpu_before_pretask":      _gpu_before_pretask,    # µJ or None
                 "gpu_after_task":          _gpu_after_task,         # µJ or None
                 "cpu_frac_pre":            compute_cpu_fraction(
-                    _pid_ticks_start - _pid_ticks_pre,
-                    _total_ticks_start - _total_ticks_pre,
+                    _tick("process_ticks", "pre"),
+                    _tick("total_ticks", "pre"),
                 ),
                 "cpu_frac_post":           compute_cpu_fraction(
-                    _pid_ticks_t2 - _pid_ticks_t1,
-                    _total_ticks_t2 - _total_ticks_t1,
+                    _tick("process_ticks", "post"),
+                    _tick("total_ticks", "post"),
                 ),                
                 "duration_includes_overhead": 0,              # corrected run
                 "instructions": derived.instructions,
                 "pkg_energy_uj": derived.package_energy_uj,
                 "core_energy_uj": derived.core_energy_uj,
                 "uncore_energy_uj": derived.uncore_energy_uj,
-                "dram_energy_uj": (
-                    derived.dram_energy_uj if hasattr(derived, "dram_energy_uj") else 0
-                ),
+                # Missing DRAM rail is NULL, never 0 (MIC-1).
+                "dram_energy_uj": getattr(derived, "dram_energy_uj", None),
                 "idle_energy_uj": derived.idle_energy_uj,
                 "dynamic_energy_uj":     derived.workload_energy_uj,
                 "pid":                   _pid,
-                "cpu_fraction":          compute_cpu_fraction(read_process_cpu_ticks(_pid) - _pid_ticks_start, read_total_cpu_ticks() - _total_ticks_start),
-                "attributed_energy_uj":  int((read_process_cpu_ticks(_pid) - _pid_ticks_start) / max(read_total_cpu_ticks() - _total_ticks_start, 1) * max(derived.workload_energy_uj, 0)),              
+                "cpu_fraction":          compute_cpu_fraction(_tick("process_ticks", "task"), _tick("total_ticks", "task")),
+                "attributed_energy_uj":  int(compute_cpu_fraction(_tick("process_ticks", "task"), _tick("total_ticks", "task")) * max(derived.workload_energy_uj, 0)),              
                 "baseline_energy_uj":    derived.idle_energy_uj,
                 "avg_power_watts":       derived.workload_energy_uj / max(1, derived.duration_seconds) / 1_000_000,
                 "orchestration_tax_uj": derived.orchestration_tax_uj,

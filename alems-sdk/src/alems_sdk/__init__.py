@@ -9,6 +9,7 @@ from alems_sdk._kit_measurement import MeasurementKit, MEASUREMENT_GROUPS
 from alems_sdk._kit_execution import ExecutionKit, EXECUTION_GROUPS
 from alems_sdk._kit_persistence import PersistenceKit, OutputKit, PERSISTENCE_GROUPS, OUTPUT_GROUPS
 from alems_sdk.attribution import AttributionModelABC, AttributionPolicy, AttributionError
+from alems_sdk.window import SeriesSample, WindowValue
 
 __all__ = [
     "KitResult",
@@ -26,4 +27,6 @@ __all__ = [
     "AttributionModelABC",
     "AttributionPolicy",
     "AttributionError",
+    "SeriesSample",
+    "WindowValue",
 ]

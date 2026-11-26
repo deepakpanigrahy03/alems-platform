@@ -80,7 +80,7 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-from scripts.tools.path_loader import get_alems_db_path
+from core.storage.resolver import caller_store as get_alems_db_path
 DB_PATH = get_alems_db_path()
 PHASES  = ("planning", "execution", "synthesis")
 
@@ -406,201 +406,246 @@ def _total_run_samples(conn, run_id, use_spbm, cpu_domain_id):
     return row["n"] if row else 0
 
 
+ATTRIBUTION_METHOD_V3       = "sample_direct_v3"
+ATTRIBUTION_METHOD_V3_FALLBACK = "run_share_v3"
+
+
+def _has_column(conn, table, column):
+    # type: (sqlite3.Connection, str, str) -> bool
+    return any(r[1] == column for r in conn.execute("PRAGMA table_info(%s)" % table))
+
+
+def busy_share(conn, run_id, start_ns, end_ns):
+    # type: (sqlite3.Connection, int, int, int) -> Tuple[Optional[float], Optional[str], int]
+    """
+    Process share of user+nice+system ticks inside [start_ns, end_ns] (v3).
+
+    Same denominator as runs.cpu_fraction (read_total_cpu_ticks). Sums per
+    sample deltas, so idle ticks never enter. Rows without nice ticks
+    (before v129) use user+system and say so in the returned basis.
+
+    Returns (share or None, basis 'user_nice_system' | 'user_system' | None, n_samples).
+    share is None when process ticks are unknown or the denominator is not positive.
+    """
+    nice = ("COALESCE(nice_ticks_end - nice_ticks_start, 0)"
+            if _has_column(conn, "interrupt_samples", "nice_ticks_start") else "0")
+    row = conn.execute("""
+        SELECT SUM(proc_ticks_end - proc_ticks_start)                         AS d_proc,
+               COUNT(proc_ticks_start)                                        AS n_proc,
+               SUM((user_ticks_end - user_ticks_start)
+                   + (system_ticks_end - system_ticks_start) + %s)            AS d_busy,
+               SUM(CASE WHEN %s THEN 1 ELSE 0 END)                            AS n_nice,
+               COUNT(*)                                                       AS n
+        FROM interrupt_samples
+        WHERE run_id = ? AND sample_start_ns >= ? AND sample_end_ns <= ?
+    """ % (nice, "nice_ticks_start IS NOT NULL"
+           if _has_column(conn, "interrupt_samples", "nice_ticks_start") else "0"),
+        (run_id, start_ns, end_ns)).fetchone()
+    n = row["n"] or 0
+    if n == 0 or not row["n_proc"] or row["n_proc"] < n or row["d_proc"] is None:
+        return None, None, n
+    if row["d_busy"] is None or row["d_busy"] <= 0 or row["d_proc"] < 0:
+        return None, None, n
+    basis = "user_nice_system" if row["n_nice"] == n else "user_system"
+    return max(0.0, min(1.0, row["d_proc"] / float(row["d_busy"]))), basis, n
+
+
+def _task_window(run):
+    # type: (sqlite3.Row) -> Optional[Tuple[int, int]]
+    """[t0, t1] from the run row (same rule as run_persistence._insert_task_events)."""
+    if run["start_time_ns"] is None or run["pre_task_duration_ns"] is None \
+            or run["task_duration_ns"] is None:
+        return None
+    t0 = run["start_time_ns"] + run["pre_task_duration_ns"]
+    return t0, t0 + run["task_duration_ns"]
+
+
+def _gaps(window, intervals):
+    # type: (Tuple[int, int], list) -> list
+    """Complement of the union of intervals inside window (nested work counted once)."""
+    lo, hi = window
+    merged = []
+    for s, e in sorted((max(lo, s), min(hi, e)) for s, e in intervals):
+        if e <= s:
+            continue
+        if merged and s <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], e)
+        else:
+            merged.append([s, e])
+    out, cur = [], lo
+    for s, e in merged:
+        if s > cur:
+            out.append((cur, s))
+        cur = max(cur, e)
+    if cur < hi:
+        out.append((cur, hi))
+    return out
+
+
+def _covered_ns(conn, run_id, start_ns, end_ns, use_spbm, cpu_domain_id):
+    # type: (sqlite3.Connection, int, int, int, bool, Optional[int]) -> int
+    """Sum of sample intervals counted inside the window (same filter as the raw energy)."""
+    if use_spbm:
+        row = conn.execute("""
+            SELECT COALESCE(SUM(esv.interval_ns), 0) FROM energy_sample_domains esd
+            JOIN energy_samples_v2 esv ON esv.sample_id = esd.sample_id
+            WHERE esd.run_id = ? AND esd.domain_id = ?
+              AND esv.timestamp_ns >= ? AND esv.timestamp_ns <= ?
+        """, (run_id, cpu_domain_id, start_ns, end_ns)).fetchone()
+    else:
+        row = conn.execute("""
+            SELECT COALESCE(SUM(sample_end_ns - sample_start_ns), 0) FROM energy_samples
+            WHERE run_id = ? AND sample_start_ns >= ? AND sample_end_ns <= ?
+              AND pkg_end_uj IS NOT NULL AND pkg_start_uj IS NOT NULL
+        """, (run_id, start_ns, end_ns)).fetchone()
+    return int(row[0] or 0)
+
+
+def _window_estimate(conn, run_id, start_ns, end_ns, use_spbm, cpu_domain_id,
+                     p_base_w, run_share):
+    # type: (...) -> dict
+    """
+    Local attributed estimate for one window: share x (raw - P_baseline x duration).
+    Fallback to the run share (INFERRED) when the window has no tick data.
+    energy None when unknown (MIC-1).
+    """
+    if use_spbm:
+        raw, n_e = _direct_phase_energy_spbm(conn, run_id, start_ns, end_ns, cpu_domain_id)
+    else:
+        raw, n_e = _direct_phase_energy(conn, run_id, start_ns, end_ns)
+    share, basis, n_t = busy_share(conn, run_id, start_ns, end_ns)
+    if share is not None:
+        method, quality = ATTRIBUTION_METHOD_V3, (min(1.0, n_e / 10.0) if n_e > 0 else 0.5)
+    elif run_share is not None:
+        share, basis, method, quality = run_share, "run_cpu_fraction", ATTRIBUTION_METHOD_V3_FALLBACK, 0.3
+    else:
+        method, quality = None, None
+    # Baseline only over the time the energy samples cover: a window part
+    # without samples is unknown, never negative energy (it stays in the residual).
+    covered_ns = _covered_ns(conn, run_id, start_ns, end_ns, use_spbm, cpu_domain_id) \
+        if n_e > 0 else (end_ns - start_ns if raw else 0)
+    dynamic = None
+    if raw is not None and p_base_w is not None:
+        dynamic = raw - p_base_w * covered_ns / 1e3   # W x ns / 1e3 = uJ
+    energy = int(round(share * dynamic)) if share is not None and dynamic is not None else None
+    return {"raw": raw, "dynamic": dynamic, "share": share, "basis": basis,
+            "energy": energy, "method": method, "quality": quality, "n_energy": n_e,
+            "uncovered_ns": max(0, (end_ns - start_ns) - covered_ns)}
+
+
 def compute_phase_attribution(run_id, db_path=DB_PATH, conn=None):
     # type: (int, str, object) -> dict
     """
-    Compute direct sample-based phase attribution for one run (v2).
+    Phase attribution v3 (claude/DESIGN_45_phase_attribution.md).
 
-    Each phase energy is independently measured from hardware samples.
-    inter_phase_energy_uj captures energy between/outside phase boundaries.
-    No normalization forcing — honest measurement with honest residual.
-
-    Platform routing (PAC-4):
-        ARM/GN100  — uses energy_sample_domains JOIN energy_samples_v2
-        x86/RAPL   — uses energy_samples (unchanged original path)
-
-    Args:
-        run_id:  runs.run_id to process
-        db_path: path to SQLite DB
-
-    Returns:
-        dict with planning, execution, synthesis, inter_phase energy values
-        and coverage metrics. Returns {"error": ...} on skip conditions.
+    One basis with the run level: share = d(proc ticks) / d(user+nice+system
+    ticks) and energy = dynamic (raw minus baseline power x duration, the same
+    baseline that produced runs.dynamic_energy_uj). Each phase and each real gap
+    inside [t0, t1] is a local estimate. inter_phase is the energy of the gaps.
+    The signed residual (run attributed minus all local estimates) is returned
+    and stored by the attribution ETL; it is never clamped. Unknown is NULL.
     """
     _own_conn = conn is None
     conn = _conn(db_path, existing=conn)
+    _prev_factory = conn.row_factory
+    conn.row_factory = sqlite3.Row   # restored before return (shared writer connection)
+    try:
+        return _compute_v3(conn, run_id, _own_conn)
+    finally:
+        if not _own_conn:
+            conn.row_factory = _prev_factory
 
-    # Detect platform: SPBM (ARM) or RAPL (x86). Rule PAC-4.
-    # Returns domain_id if SPBM samples exist, None otherwise.
+
+def _compute_v3(conn, run_id, _own_conn):
+    # type: (sqlite3.Connection, int, bool) -> dict
+    """Body of compute_phase_attribution (v3)."""
     cpu_domain_id = _get_cpu_package_domain_id(conn)
-    use_spbm      = cpu_domain_id is not None
+    use_spbm = cpu_domain_id is not None
 
-    logger.info(
-        "phase_attribution v2: run=%d platform=%s cpu_domain_id=%s",
-        run_id,
-        "SPBM/ARM" if use_spbm else "RAPL/x86",
-        cpu_domain_id,
-    )
-
-    # Early return: no phases = no agentic workflow
     phases = _get_phases(conn, run_id)
     if not phases:
         if _own_conn:
             conn.close()
         return {"error": "no phases for run %d" % run_id}
-
-    # Fetch run-level values needed for inter_phase calculation
-    run_row = conn.execute(
-        "SELECT attributed_energy_uj, dynamic_energy_uj FROM runs WHERE run_id=?",
-        (run_id,)
-    ).fetchone()
-
-    if not run_row:
+    run = conn.execute(
+        "SELECT attributed_energy_uj, baseline_energy_uj, duration_ns, cpu_fraction, "
+        "start_time_ns, pre_task_duration_ns, task_duration_ns FROM runs WHERE run_id = ?",
+        (run_id,)).fetchone()
+    if not run:
         if _own_conn:
             conn.close()
         return {"error": "run %d not found" % run_id}
 
-    dynamic_energy = run_row["dynamic_energy_uj"] or 0
-    run_attributed = run_row["attributed_energy_uj"] or 0
-    total_samples  = _total_run_samples(conn, run_id, use_spbm, cpu_domain_id)
+    # Baseline power over the run's energy window (duration_ns; equals the task
+    # window for measurement_boundary_v2 runs).
+    p_base_w = (run["baseline_energy_uj"] / run["duration_ns"] * 1e3
+                if run["baseline_energy_uj"] is not None and run["duration_ns"] else None)
+    run_share = run["cpu_fraction"]
+    window = _task_window(run) or (min(p["start_time_ns"] for p in phases),
+                                   max(p["end_time_ns"] for p in phases))
 
-    # Phase energies partition E_attributed by time window.
-    # D2: E_plan + E_exec + E_synth + E_inter = E_attributed (exact)
-    # inter_phase absorbs residual — not forced to zero.
-
-    # Step 1: measure each phase independently from hardware samples
-    phase_data    = {}
-    phase_totals  = {p: 0 for p in PHASES}
-    samples_in_phases = 0
-
-    for phase in phases:
-        start_ns = phase["start_time_ns"]
-        end_ns   = phase["end_time_ns"]
-
-        # Route to correct energy source based on platform (PAC-4)
-        if use_spbm:
-            raw_energy, n_energy_samples = _direct_phase_energy_spbm(
-                conn, run_id, start_ns, end_ns, cpu_domain_id
-            )
-        else:
-            raw_energy, n_energy_samples = _direct_phase_energy(
-                conn, run_id, start_ns, end_ns
-            )
-
-        # CPU fraction for this phase window (same logic for both platforms)
-        cpu_frac, proc_delta, total_delta, n_tick_samples = _phase_cpu_fraction(
-            conn, run_id, start_ns, end_ns
-        )
-
-        if cpu_frac is None:
-            # Fallback: use run-level cpu_fraction — provenance degrades to INFERRED
-            cpu_frac = _fallback_cpu_fraction(conn, run_id)
-            method   = ATTRIBUTION_METHOD_FALLBACK
-            quality  = 0.3
-            logger.warning(
-                "phase_attribution v2: run=%d phase=%s no tick data — "
-                "fallback cpu_frac=%.4f",
-                run_id, phase["phase"], cpu_frac
-            )
-        else:
-            method  = ATTRIBUTION_METHOD_V2
-            quality = min(1.0, n_energy_samples / 10.0) if n_energy_samples > 0 else 0.5
-
-        # E_phase_i = raw_energy_i x cpu_frac_i (direct measurement)
-        phase_energy = int(raw_energy * cpu_frac)
-
-        # Cap at dynamic_energy to prevent physics violation
-        if dynamic_energy > 0:
-            phase_energy = min(phase_energy, dynamic_energy)
-
-        samples_in_phases += n_energy_samples
-
-        phase_data[phase["event_id"]] = {
-            "phase":        phase["phase"],
-            "raw_energy":   raw_energy,
-            "cpu_frac":     cpu_frac,
-            "phase_energy": phase_energy,
-            "method":       method,
-            "quality":      quality,
-            "proc_delta":   proc_delta,
-            "total_delta":  total_delta,
-            "n_samples":    n_energy_samples,
-        }
-        phase_totals[phase["phase"]] += phase_energy
-
-    # Step 2: inter_phase_energy — honest residual, not forced to 0
-    # Represents energy between phase boundaries: Python overhead,
-    # tool dispatch, framework calls, retry logic.
-    # Positive = real between-phase energy. Negative = overlap (clamped).
-    phase_sum      = sum(phase_totals.values())
-    inter_phase_uj = run_attributed - phase_sum
-
-    if inter_phase_uj < 0:
-        logger.warning(
-            "phase_attribution v2: run=%d inter_phase_uj=%d NEGATIVE "
-            "— phase measurements exceed attributed=%d. "
-            "Possible sample overlap at phase boundaries. Clamping to 0.",
-            run_id, inter_phase_uj, run_attributed
-        )
-        inter_phase_uj = 0
-
-    # Step 3: phase sample coverage
-    # Fraction of total run samples that fell within named phase windows.
-    phase_coverage_pct = (
-        100.0 * samples_in_phases / total_samples
-        if total_samples > 0 else 0.0
-    )
-
-    # Step 4: write per-phase measurements to orchestration_events
-    for event_id, d in phase_data.items():
+    totals = {p: 0 for p in PHASES}
+    unknown = set()
+    n_direct = n_fallback = 0
+    for ph in phases:
+        est = _window_estimate(conn, run_id, ph["start_time_ns"], ph["end_time_ns"],
+                               use_spbm, cpu_domain_id, p_base_w, run_share)
         conn.execute("""
             UPDATE orchestration_events
-            SET raw_energy_uj          = ?,
-                cpu_fraction_per_phase = ?,
-                attributed_energy_uj   = ?,
-                attribution_method     = ?,
-                quality_score          = ?
+            SET raw_energy_uj = ?, cpu_fraction_per_phase = ?, attributed_energy_uj = ?,
+                attribution_method = ?, quality_score = ?
             WHERE event_id = ?
-        """, (
-            d["raw_energy"],
-            d["cpu_frac"],
-            d["phase_energy"],
-            d["method"],
-            d["quality"],
-            event_id,
-        ))
+        """, (est["raw"], est["share"], est["energy"], est["method"], est["quality"],
+              ph["event_id"]))
+        if est["energy"] is None:
+            unknown.add(ph["phase"])
+        else:
+            totals[ph["phase"]] += est["energy"]
+        n_direct += est["method"] == ATTRIBUTION_METHOD_V3
+        n_fallback += est["method"] == ATTRIBUTION_METHOD_V3_FALLBACK
+        if est["method"] == ATTRIBUTION_METHOD_V3_FALLBACK:
+            logger.info("phase_attribution v3: run=%d phase=%s no tick data, run share %.4f (INFERRED)",
+                        run_id, ph["phase"], run_share)
 
-    # Step 5: write phase totals to runs table
+    inter, inter_ns, uncovered_ns = 0, 0, 0
+    for s, e in _gaps(window, [(p["start_time_ns"], p["end_time_ns"]) for p in phases]):
+        inter_ns += e - s
+        est = _window_estimate(conn, run_id, s, e, use_spbm, cpu_domain_id, p_base_w, run_share)
+        uncovered_ns += est["uncovered_ns"]
+        if est["energy"] is None:
+            inter = None
+            break
+        inter += est["energy"]
+
+    phase_vals = {p: (None if p in unknown else totals[p]) for p in PHASES}
+    parts = list(phase_vals.values()) + [inter, run["attributed_energy_uj"]]
+    residual = (run["attributed_energy_uj"] - sum(parts[:4])) if None not in parts else None
+
     conn.execute("""
-        UPDATE runs
-        SET planning_energy_uj        = ?,
-            execution_energy_uj       = ?,
-            synthesis_energy_uj       = ?,
-            inter_phase_energy_uj     = ?,
-            phase_sample_coverage_pct = ?
+        UPDATE runs SET planning_energy_uj = ?, execution_energy_uj = ?,
+               synthesis_energy_uj = ?, inter_phase_energy_uj = ?
         WHERE run_id = ?
-    """, (
-        phase_totals["planning"],
-        phase_totals["execution"],
-        phase_totals["synthesis"],
-        inter_phase_uj,
-        phase_coverage_pct,
-        run_id,
-    ))
-
+    """, (phase_vals["planning"], phase_vals["execution"], phase_vals["synthesis"],
+          inter, run_id))
     conn.commit()
     if _own_conn:
         conn.close()
+    return {"planning": phase_vals["planning"], "execution": phase_vals["execution"],
+            "synthesis": phase_vals["synthesis"], "inter_phase_uj": inter,
+            "inter_phase_ns": inter_ns, "uncovered_ns": uncovered_ns, "residual_uj": residual,
+            "attributed": run["attributed_energy_uj"],
+            "n_direct": n_direct, "n_fallback": n_fallback}
 
-    return {
-        "planning":           phase_totals["planning"],
-        "execution":          phase_totals["execution"],
-        "synthesis":          phase_totals["synthesis"],
-        "inter_phase_uj":     inter_phase_uj,
-        "phase_coverage_pct": phase_coverage_pct,
-        "phase_sum":          phase_sum,
-        "attributed":         run_attributed,
-    }
+
+def phase_residual(conn, run_id):
+    # type: (sqlite3.Connection, int) -> Optional[int]
+    """Signed residual from the stored run row (used by the attribution ETL)."""
+    r = conn.execute("SELECT attributed_energy_uj, planning_energy_uj, execution_energy_uj, "
+                     "synthesis_energy_uj, inter_phase_energy_uj FROM runs WHERE run_id = ?",
+                     (run_id,)).fetchone()
+    if r is None or any(v is None for v in r):
+        return None
+    return r[0] - (r[1] + r[2] + r[3] + r[4])
 
 
 def process_run_async(run_id, db_path=DB_PATH):
@@ -640,13 +685,9 @@ def backfill_all(db_path=DB_PATH):
             err += 1
         else:
             print(
-                "  run %d: plan=%duJ exec=%duJ synth=%duJ inter=%duJ coverage=%.1f%%" % (
-                    row["run_id"],
-                    result["planning"],
-                    result["execution"],
-                    result["synthesis"],
-                    result["inter_phase_uj"],
-                    result["phase_coverage_pct"],
+                "  run %d: plan=%s exec=%s synth=%s inter=%s residual=%s" % (
+                    row["run_id"], result["planning"], result["execution"],
+                    result["synthesis"], result["inter_phase_uj"], result["residual_uj"],
                 )
             )
             ok += 1

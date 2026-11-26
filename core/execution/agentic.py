@@ -298,6 +298,9 @@ class AgenticExecutor:
         # Temperature=0 for reproducibility – same task = same plan
         # This is CRITICAL for experimental reproducibility
         # ====================================================================
+        # Create the live spans (and the NVTX listener) before any phase is stamped, so
+        # setup time never sits between a stored start and its NVTX range (45.4d acceptance).
+        self._live_spans()
         orchestration_start = time.time()
         plan_start = time.time()
         self._live_spans().begin_phase("planning")
@@ -1021,7 +1024,7 @@ You can use tools like calculator or web search if needed.
 
         # Bug 12 fix: use get_alems_db_path() so DatabaseQueryTool opens
         # the correct DB on all machines, not a hardcoded relative path.
-        from scripts.tools.path_loader import get_alems_db_path as _get_db
+        from core.storage.resolver import caller_store as _get_db
         db_path = getattr(self, "db_path", None) or _get_db()
 
         from core.execution.tools.abc import ToolExecutionContext

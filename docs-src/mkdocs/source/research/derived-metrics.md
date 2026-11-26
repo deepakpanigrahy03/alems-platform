@@ -705,3 +705,24 @@ a novel contribution of this research platform.
 - Kwon et al. (2023) — "Efficient Large Language Model Serving" — defines TTFT/TPOT
 - A-LEMS Chunk 6.1 — LLM Wait Energy Finding (docs-src/research/15-llm-wait-energy-finding.md)
 - A-LEMS Chunk 7 — Adapter Infrastructure (docs-src/research/16-model-factory-architecture.md)
+
+
+<a id="phase-attribution-sample-v3"></a>
+## Phase Energy Attribution v3
+
+Method `phase_attribution_sample_v3` (event `attribution_method` = `sample_direct_v3`), chunk 45.
+
+Phase energy uses the same basis as the run's attributed energy:
+
+- **CPU share** of a window = process ticks (utime+stime) divided by user+nice+system ticks of the machine, summed per interrupt sample inside the window. This is the denominator of `runs.cpu_fraction`. Rows recorded before v129 have no nice ticks and use user+system.
+- **Dynamic energy** of a window = package energy of the samples inside it minus baseline power times the time those samples cover. Baseline power is the run baseline over its energy window.
+- **E_phase** = share × dynamic energy, for planning, execution and synthesis.
+- **inter_phase** = the same estimate over the real gaps inside [t0, t1] (the complement of the union of the phase windows). A run whose phases cover the task window has zero inter_phase.
+- **attribution_residual_uj** (energy_attribution) = run attributed energy minus planning, execution, synthesis and inter_phase. It is signed and never clamped. It is non zero because each window uses its own share, and because energy in window parts without samples is not estimated locally.
+
+v2 divided by all ticks including idle and used raw package energy, so phases were undercounted about tenfold and inter_phase absorbed the rest.
+
+<a id="phase-attribution-run-share-v3"></a>
+## Phase Energy Attribution v3 Run Share Fallback
+
+Method `phase_attribution_run_share_v3` (event `attribution_method` = `run_share_v3`). When a window has no process tick data (for example the first run of a process before the chunk 45 PID fix), the share is the run's `cpu_fraction`, measured on the same basis. The phase value is INFERRED. It is NULL when the run share is unknown, never 0.

@@ -233,6 +233,9 @@ class EnergyEngine:
         self.scheduler = _ReaderFactory.get_scheduler_monitor(config)
         self.disk_reader = _ReaderFactory.get_disk_reader(config)         # pid set later via set_workload_pid
         self._io_samples: list = []
+        # Window contract: process and system CPU ticks, read at every boundary mark.
+        from core.utils.proc_reader import CPUTicksSnapshot
+        self.cpu_ticks = CPUTicksSnapshot(os.getpid())
  
         # Log which readers were selected (visible in --verbose mode)
         logger.info(
@@ -741,6 +744,7 @@ class EnergyEngine:
         """Set PID for per-process tick tracking in interrupt sampler."""
         self._workload_pid = pid
         self.disk_reader.pid = pid
+        self.cpu_ticks.pid = pid
 
 
     def _prepare_energy_ids(self):
@@ -770,7 +774,7 @@ class EnergyEngine:
         """
         import sqlite3
         try:
-            from scripts.tools.path_loader import get_alems_db_path
+            from core.storage.resolver import caller_store as get_alems_db_path
             db_path = get_alems_db_path()   # resolves via ~/.alemsrc + socket.gethostname()
             conn = sqlite3.connect(db_path, timeout=5)
             cur = conn.execute("SELECT name, domain_id FROM energy_domains")
@@ -789,7 +793,7 @@ class EnergyEngine:
         """
         import sqlite3
         try:
-            from scripts.tools.path_loader import get_alems_db_path
+            from core.storage.resolver import caller_store as get_alems_db_path
             db_path = get_alems_db_path()   # resolves via ~/.alemsrc + socket.gethostname()
             conn = sqlite3.connect(db_path, timeout=5)
             cur = conn.execute(
@@ -832,6 +836,129 @@ class EnergyEngine:
                 logger.error("_side_sampling_loop error: %s", e)
                 time.sleep(0.01)
 
+    def _snapshot_readers(self):
+        """Readers held by the engine that declare the snapshot window kind (energy counter excluded)."""
+        found, seen = [], set()
+        for name, obj in vars(self).items():
+            if name.startswith("_") or obj is getattr(self, "rapl", None) or id(obj) in seen:
+                continue
+            if getattr(obj, "WINDOW_KIND", None) == "snapshot" and callable(getattr(obj, "snapshot", None)):
+                found.append((name, obj))
+                seen.add(id(obj))   # aliases (perf/cpu_reader, sensor/thermal_reader) read once
+        return found
+
+    def _read_snapshots(self):
+        """One observation per snapshot reader, with its own read interval (perf ns)."""
+        observations = {}
+        for name, reader in self._snapshot_readers():
+            started = time.perf_counter_ns()
+            try:
+                values = reader.snapshot()
+            except Exception as exc:   # a reader must not raise; never let one break a mark
+                logger.warning("snapshot of %s failed: %s", name, exc)
+                values = None
+            observations[name] = {"values": values, "obs_start_ns": started,
+                                  "obs_end_ns": time.perf_counter_ns()}
+        return observations
+
+    def _stamp(self, mark, with_wall):
+        """Stamp the boundary instant on the perf clock (and wall clock when asked)."""
+        mark["perf_ns"] = time.perf_counter_ns()
+        if with_wall:
+            mark["wall_ns"] = time.time_ns()
+
+    def _mark(self, name, with_wall=False, closing=False):
+        """
+        Record one boundary.
+
+        Opening boundaries (before, t0): snapshots, then the energy counter, then the
+        stamp, so the counter is read closest to the instant the workload starts.
+        Closing boundaries (t1, after): the stamp, then the energy counter, then the
+        snapshots. Slow snapshot reads therefore never fall inside the task window.
+        """
+        mark = {}
+        if closing:
+            self._stamp(mark, with_wall)
+            mark["read"] = self.rapl.read_energy()
+            mark["gpu_uj"] = ReaderFactory.get_gpu_energy_uj(self.rapl)   # None where no GPU counter
+            mark["snapshots"] = self._read_snapshots()
+        else:
+            mark["snapshots"] = self._read_snapshots()
+            mark["read"] = self.rapl.read_energy()
+            mark["gpu_uj"] = ReaderFactory.get_gpu_energy_uj(self.rapl)   # None where no GPU counter
+            self._stamp(mark, with_wall)
+        self._bounds[name] = mark
+        return mark["read"]
+
+    def window_values(self, reader_name):
+        """
+        Window values of one snapshot reader, per declared metric.
+
+        Cumulative metrics: {"pre", "task", "post"} as WindowValue (alems_sdk.window).
+        Other metrics: {"at_t0", "at_t1"} observed values.
+        """
+        from alems_sdk.window import cumulative_delta, CUMULATIVE
+        bounds = getattr(self, "_bounds", {})
+        reader = getattr(self, reader_name, None)
+        rollover = getattr(reader, "ROLLOVER", {}) or {}
+
+        def observed(mark, metric):
+            obs = bounds.get(mark, {}).get("snapshots", {}).get(reader_name, {})
+            return (obs.get("values") or {}).get(metric)
+
+        spans = (("pre", "before", "t0"), ("task", "t0", "t1"), ("post", "t1", "after"))
+        result = {}
+        for metric, rep in (getattr(reader, "METRICS", {}) or {}).items():
+            if rep == CUMULATIVE:
+                result[metric] = {w: cumulative_delta(observed(a, metric), observed(z, metric),
+                                                      rollover.get(metric)) for w, a, z in spans}
+            else:
+                result[metric] = {"at_t0": observed("t0", metric), "at_t1": observed("t1", metric)}
+        return result
+
+    def mark_before(self):
+        """C(before): first boundary of a run; clears the previous run's marks."""
+        self._bounds = {}
+        return self._mark("before")
+
+    def mark_task_start(self):
+        """C(t0): immediately before the workload starts."""
+        return self._mark("t0", with_wall=True)
+
+    def mark_task_end(self):
+        """C(t1): immediately after the workload returns or raises."""
+        return self._mark("t1", with_wall=True, closing=True)
+
+    def mark_after(self):
+        """C(after): last boundary of a run, after the collectors stop."""
+        return self._mark("after", closing=True)
+
+    def boundaries(self):
+        """
+        The four boundary reads and stamps, with the durations between them.
+
+        Durations come from the same stamps as the energy: pre = t0 − before,
+        task = t1 − t0, post = after − t1. A duration is None when either of its
+        boundaries was not marked.
+        """
+        b = getattr(self, "_bounds", {})
+
+        def span(a, z):
+            if a in b and z in b:
+                return (b[z]["perf_ns"] - b[a]["perf_ns"]) / 1e9
+            return None
+
+        return {
+            "reads": {k: v["read"] for k, v in b.items()},
+            "t0_ns": b.get("t0", {}).get("wall_ns"),
+            "t1_ns": b.get("t1", {}).get("wall_ns"),
+            "t0_perf_ns": b.get("t0", {}).get("perf_ns"),
+            "t1_perf_ns": b.get("t1", {}).get("perf_ns"),
+            "pre_s": span("before", "t0"),
+            "task_s": span("t0", "t1"),
+            "post_s": span("t1", "after"),
+        }
+
     def start_measurement(self) -> str:
         """
         Start a new measurement session.
@@ -850,6 +977,9 @@ class EnergyEngine:
         # ====================================================================
         # STEP 1: Snapshot readers - capture START values
         # ====================================================================
+        # tm0: the energy window opens at the start read (wall for joins, monotonic for durations).
+        self.tm0_ns, self.tm0_mono_ns = time.time_ns(), time.monotonic_ns()
+        self.tm1_ns, self.tm1_mono_ns = None, None
         rapl_start = self.rapl.read_energy()
         energy_start = self.rapl.read_normalized()
         self.scheduler_start = self.scheduler.read_all()
@@ -1079,10 +1209,15 @@ class EnergyEngine:
  
         idle_power_w = statistics.median(idle_powers)
  
+        window = self._task_window_ns()
         dynamic_uj = 0.0
         for s, power_w in sample_powers:
             residual_w  = max(power_w - idle_power_w, 0.0)
-            duration_s  = s.interval_ns / 1_000_000_000
+            if window:   # only the part of the sample inside [t0, t1)
+                overlap_ns = max(0, min(s.sample_end_ns, window[1]) - max(s.sample_start_ns, window[0]))
+                duration_s = overlap_ns / 1_000_000_000
+            else:
+                duration_s = s.interval_ns / 1_000_000_000
             dynamic_uj += residual_w * duration_s * 1_000_000
  
         return int(dynamic_uj), idle_power_w
@@ -1167,19 +1302,83 @@ class EnergyEngine:
         Never returns 0 for a genuinely unmeasured run, only a real sum
         or None, per MIC-3.
         """
-        msr_total = self._compute_gpu_total(
-            self.start_readings.get("gpu_uj"), gpu_end_uj
-        )
+        window = self._task_window_ns()
+        bounds = getattr(self, "_bounds", {})
+        if window:   # PP1 counter read at the t0 and t1 marks
+            msr_total = self._compute_gpu_total(bounds["t0"].get("gpu_uj"), bounds["t1"].get("gpu_uj"))
+        else:
+            msr_total = self._compute_gpu_total(self.start_readings.get("gpu_uj"), gpu_end_uj)
         if msr_total is not None:
             return msr_total
         if not self.last_gpu_samples:
             return None
+        if window:   # sampled GPU energy clipped to the workload
+            return self._gpu_samples_in_window(*window)
         measured = [
             s.energy_uj for s in self.last_gpu_samples
             if s.energy_uj is not None
         ]
         return sum(measured) if measured else None
     
+    def _task_window_ns(self):
+        """(t0, t1) in wall ns when both were marked, else None (legacy callers)."""
+        bounds = getattr(self, "_bounds", {})
+        t0, t1 = bounds.get("t0", {}).get("wall_ns"), bounds.get("t1", {}).get("wall_ns")
+        return (t0, t1) if t0 is not None and t1 is not None else None
+
+    def _snapshot_at(self, reader_name, mark):
+        """Values a snapshot reader returned at one mark, or None."""
+        obs = getattr(self, "_bounds", {}).get(mark, {}).get("snapshots", {}).get(reader_name, {})
+        return obs.get("values")
+
+    def _gpu_samples_in_window(self, start_ns, end_ns):
+        """GPU sample energy inside [start_ns, end_ns); edge samples split by overlap."""
+        from alems_sdk.window import SeriesSample, interval_count
+        series = [SeriesSample(s.sample_start_ns, s.sample_end_ns, {"e": s.energy_uj})
+                  for s in self.last_gpu_samples]
+        value = interval_count(series, "e", start_ns, end_ns).value
+        return int(value) if value is not None else None
+
+    def _cstate_counter_pair(self):
+        """C-state counters at t0 and t1 when marked, else the legacy start and end snapshots."""
+        start, end = self._snapshot_at("msr", "t0"), self._snapshot_at("msr", "t1")
+        if self._task_window_ns() and start and end:
+            keys = ("c2", "c3", "c6", "c7")
+            return ({k: start[k] for k in keys if start.get(k) is not None},
+                    {k: end[k] for k in keys if end.get(k) is not None})
+        return (self.msr._cstate_start.get("counters", {}),
+                self.msr._cstate_end.get("counters", {}))
+
+    def _thermal_state_pair(self, msr_thermal_end):
+        """MSR thermal state at t0 and t1 when marked, else the legacy start and end snapshots."""
+        start, end = self._snapshot_at("msr", "t0"), self._snapshot_at("msr", "t1")
+        if self._task_window_ns() and start and end:
+            return start.get("thermal_state"), end.get("thermal_state")
+        return self.start_readings.get("msr_thermal"), msr_thermal_end
+
+    def _scheduler_values(self, scheduler_end):
+        """
+        Scheduler metrics for the run.
+
+        With t0 and t1 marked and the scheduler declaring its metrics: cumulative
+        metrics are task deltas, point metrics the value at t1. Otherwise the
+        legacy start to end delta.
+        """
+        if "t1" in getattr(self, "_bounds", {}) and getattr(self.scheduler, "METRICS", None):
+            values = {}
+            for metric, w in self.window_values("scheduler").items():
+                values[metric] = w["task"].value if "task" in w else w["at_t1"]
+            values["swap"] = scheduler_end.get("swap")
+            return values
+        legacy = {}
+        start_sched = self.start_readings.get("scheduler", {})
+        for key in scheduler_end:
+            both_numeric = (key in start_sched
+                            and isinstance(scheduler_end[key], (int, float))
+                            and isinstance(start_sched[key], (int, float)))
+            legacy[key] = scheduler_end[key] - start_sched[key] if both_numeric else scheduler_end[key]
+        return legacy
+
     def stop_measurement(self) -> RawEnergyMeasurement:
         """
         Stop measurement and return raw results.
@@ -1268,8 +1467,14 @@ class EnergyEngine:
             ]
             if spbm_v2:
                 # domain_id 25 = SOC_PKG (SPEC_SPBM_FULL_TELEMETRY, migration v76)
+                window = self._task_window_ns()
+                if window:   # samples and expected count over [t0, t1)
+                    spbm_v2 = [s for s in spbm_v2
+                               if window[0] <= (getattr(s, "timestamp_ns", None) or -1) < window[1]]
+                    run_dur_s = (window[1] - window[0]) / 1e9
+                else:
+                    run_dur_s = (time.time() - self.start_time)
                 observed = sum(1 for s in spbm_v2 if 25 in s.domains)
-                run_dur_s = (time.time() - self.start_time)
                 expected = int(run_dur_s * self.sampling_rate_hz)
                 coverage_pct = round(observed / expected * 100, 2) if expected > 0 else None
                 self.spbm_telemetry_coverage = {
@@ -1309,7 +1514,13 @@ class EnergyEngine:
             self._side_sampling_thread.join(timeout=2.0)
         # Stop perf and get accumulated counters
 
+        window = self._task_window_ns()
+        if window and hasattr(self.perf, "set_window"):
+            self.perf.set_window(*window)          # interval counts clipped to [t0, t1)
         perf_data = self.perf.stop_process_measurement() if self._platform_caps.has_perf else {}
+        if window and hasattr(self.perf, "window_counters"):
+            # snapshot counters (macOS kperf): task deltas from the t0 and t1 marks
+            perf_data = self.perf.window_counters(self.window_values("cpu_reader")) or perf_data
  
         # Stop turbostat and get continuous data
         _has_freq_reader = (
@@ -1317,6 +1528,8 @@ class EnergyEngine:
             (self._platform_caps.arch == "aarch64" and self._platform_caps.has_arm_pmu) or
             self.turbostat.is_available()  # IOReportCPUFreqReader on Darwin
         )
+        if self._task_window_ns() and hasattr(self.turbostat, "set_window"):
+            self.turbostat.set_window(*self._task_window_ns())   # mean frequency over [t0, t1)
         turbostat_data = self.turbostat.stop_monitoring() if _has_freq_reader else {"dataframe": None, "num_samples": 0, "duration_seconds": 0.0, "summary": {}}
         thermal_samples = self._stop_thermal_sampling()
         # ====================================================================
@@ -1324,6 +1537,8 @@ class EnergyEngine:
         # ====================================================================
         rapl_end = self.rapl.read_energy()
         energy_end = self.rapl.read_normalized()
+        # tm1: the energy window closes after the end read.
+        self.tm1_ns, self.tm1_mono_ns = time.time_ns(), time.monotonic_ns()
         # GPU PP1 end counter — paired with start captured in start_measurement()
         gpu_end_uj  = ReaderFactory.get_gpu_energy_uj(self.rapl)
         scheduler_end = self.scheduler.read_all()
@@ -1347,32 +1562,7 @@ class EnergyEngine:
             except Exception as e:
                 logger.warning("could not capture end msr thermal: %s", e)
 
-        # ====================================================================
-        # Calculate C-state deltas (per-run, not cumulative)
-        # ====================================================================
-        cstate_deltas = {}
-        msr_metrics = {}
-        if (
-            hasattr(self, "msr")
-            and hasattr(self.msr, "_cstate_start")
-            and self.msr._cstate_start
-        ):
-            try:
-                self.msr._cstate_end = self.msr.snapshot_cstate_counters()
 
-                for state in ["c2", "c3", "c6", "c7"]:
-                    start_val = self.msr._cstate_start.get(state, 0)
-                    end_val = self.msr._cstate_end.get(state, 0)
-                    delta = max(0, end_val - start_val)
-                    cstate_deltas[f"{state}_time_seconds"] = delta
-
-                logger.debug(f"C-state deltas: {cstate_deltas}")
-
-                # Add to msr_metrics
-                msr_metrics["cstate_deltas"] = cstate_deltas
-
-            except Exception as e:
-                logger.warning(f"Failed to calculate C-state deltas: {e}")
 
         # Set end time IMMEDIATELY after thermal snapshot
         self.end_time = time.time()
@@ -1387,19 +1577,7 @@ class EnergyEngine:
         start_rapl = self.start_readings.get("rapl", {})
 
         # Scheduler delta
-        scheduler_delta = {}
-        start_sched = self.start_readings.get("scheduler", {})
-        for key in scheduler_end:
-            if key in start_sched:
-                if isinstance(scheduler_end[key], (int, float)) and isinstance(
-                    start_sched[key], (int, float)
-                ):
-                    scheduler_delta[key] = scheduler_end[key] - start_sched[key]
-                else:
-                    scheduler_delta[key] = scheduler_end[key]
-            else:
-                scheduler_delta[key] = scheduler_end[key]
-                # ADD THIS DEBUG
+        scheduler_delta = self._scheduler_values(scheduler_end)
         logger.debug("scheduler_delta keys: %s", list(scheduler_delta.keys()))
         logger.info("run queue %s", scheduler_delta.get("runnable", "not found"))
 
@@ -1434,8 +1612,7 @@ class EnergyEngine:
                     # Capture end snapshot
                     self.msr._cstate_end = self.msr.snapshot_cstate_counters()
 
-                    start_counters = self.msr._cstate_start.get("counters", {})
-                    end_counters = self.msr._cstate_end.get("counters", {})
+                    start_counters, end_counters = self._cstate_counter_pair()
 
                     cstate_deltas = {}
                     for state in ["c2", "c3", "c6", "c7"]:
@@ -1476,8 +1653,7 @@ class EnergyEngine:
         # ====================================================================
         # STEP 7: Calculate derived thermal metrics (BEFORE building measurement)
         # ====================================================================
-        thermal_start = self.start_readings.get("msr_thermal")
-        thermal_end = msr_thermal_end
+        thermal_start, thermal_end = self._thermal_state_pair(msr_thermal_end)
 
         thermal_during_experiment = 0
         thermal_now_active = 0
@@ -1518,16 +1694,26 @@ class EnergyEngine:
         # ====================================================================
         # STEP 8: Build raw measurement object
         # ====================================================================
+        # Workload window [t0, t1] when both were marked, else the engine's own reads (tm0, tm1).
+        bounds = getattr(self, "_bounds", {})
+        if "t0" in bounds and "t1" in bounds:
+            start_rapl, rapl_end = bounds["t0"]["read"], bounds["t1"]["read"]
+            window_s = (bounds["t1"]["perf_ns"] - bounds["t0"]["perf_ns"]) / 1e9
+        else:
+            window_s = (self.tm1_mono_ns - self.tm0_mono_ns) / 1e9
         measurement = RawEnergyMeasurement(
             measurement_id=self.measurement_id,
             start_time=self.start_time,
             end_time=self.end_time,
-            duration_seconds=duration_seconds,
+            # Baseline energy = idle power × this duration, the same window as the energy.
+            duration_seconds=window_s,
             # RAPL (snapshot)
             rapl_start_uj=start_rapl,
             rapl_end_uj=rapl_end,
-            energy_start=self.start_readings.get("energy_start"),
-            energy_end=energy_end,
+            # Window marked: package and core energy must come from the same t0 and t1 reads as
+            # pre and post (conservation), so the engine's own normalized reads are not passed.
+            energy_start=None if "t0" in bounds and "t1" in bounds else self.start_readings.get("energy_start"),
+            energy_end=None if "t0" in bounds and "t1" in bounds else energy_end,
             # perf (continuous) - store object directly
             perf=perf_data,
             # turbostat (continuous) - store the full data dictionary

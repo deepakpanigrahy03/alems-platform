@@ -116,3 +116,20 @@ plugins:
 
 thermal_exposure:
   machine_profile: gpu_soc_a
+
+# Phase attribution v3 (chunk 45): signed residual between run attribution and
+# phase estimates. Integrity warns above this share of attributed energy.
+attribution:
+  phase_residual_warn_fraction: 0.10
+
+# Run counter energy vs package samples over [t0, t1], coverage corrected
+# (claude/FINDING_45_prod_energy_consistency.md). Integrity fails outside the band.
+energy_consistency:
+  ratio_low: 0.8
+  ratio_high: 1.25
+  min_sample_coverage_pct: 90
+  tick_min_task_s: 1.0
+
+# Run the integrity validator after every run_experiment call (chunk 45).
+validation:
+  auto_integrity_after_run: true

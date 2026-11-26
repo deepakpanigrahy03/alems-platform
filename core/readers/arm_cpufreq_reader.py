@@ -178,6 +178,10 @@ class ARMCPUFreqReader(TurbostatReaderABC):
         logger.debug("ARMCPUFreqReader: monitoring started, %d CPUs",
                      len(self._cpu_paths))
 
+    def set_window(self, start_ns, end_ns):
+        """Task window (wall ns); stop_monitoring averages only samples inside it."""
+        self._window = (start_ns, end_ns)
+
     def stop_monitoring(self):
         # type: () -> dict
         """
@@ -215,7 +219,11 @@ class ARMCPUFreqReader(TurbostatReaderABC):
         # Flatten all per-CPU per-sample frequencies and compute grand mean.
         # This is equivalent to turbostat Avg_MHz averaged across all cores
         # and all time intervals in the measurement window.
-        all_freqs = [f for snapshot in samples for f in snapshot]
+        window = getattr(self, "_window", None)
+        self._window = None
+        if window:   # point observations inside [t0, t1) only
+            samples = [s for s in samples if window[0] <= s[0] < window[1]] or samples
+        all_freqs = [f for _ts, snapshot in samples for f in snapshot]
         avg_mhz = sum(all_freqs) / len(all_freqs) if all_freqs else 0.0
 
         logger.debug("ARMCPUFreqReader: %d snapshots, %.1f avg MHz",
@@ -283,7 +291,7 @@ class ARMCPUFreqReader(TurbostatReaderABC):
                 freqs = self._read_all_freqs()
                 if freqs:
                     # put_nowait silently drops if queue is full (bounded queue)
-                    self._queue.put_nowait(freqs)
+                    self._queue.put_nowait((time.time_ns(), freqs))   # wall ns, for window clipping
             except queue.Full:
                 # Queue full means experiment ran longer than expected — not fatal
                 pass

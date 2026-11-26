@@ -46,7 +46,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-from scripts.tools.path_loader import get_alems_db_path
+from core.storage.resolver import caller_store as get_alems_db_path
 from core.attribution.energy_window import EnergyWindowResolverFactory, SpbmV2Resolver
 
 DEFAULT_DB = Path(get_alems_db_path())
@@ -353,6 +353,7 @@ def fix_run_with_pretask(
     cpu_frac_post: float,
     db_path: Path = DEFAULT_DB,
     conn=None,
+    rapl_at_t1: dict | None = None,
 ) -> bool:
     """
     Compute and store pre/post task energy for a single run.
@@ -461,6 +462,10 @@ def fix_run_with_pretask(
         # ── Extract values — None when resolver could not compute.
         pre_task_energy_uj   = pre_result.attributed_uj  if pre_result  else None
         post_task_energy_uj  = post_result.attributed_uj if post_result else None
+        # Four boundary rule: post = C(after) − C(t1) when the t1 read exists (new runs).
+        rapl_t1_uj = _pkg_uj(rapl_at_t1)
+        if rapl_t1_uj is not None and rapl_after_uj is not None:
+            post_task_energy_uj = rapl_after_uj - rapl_t1_uj
         pre_task_duration_ns = pre_result.duration_ns    if pre_result  else int(pre_task_duration_sec * 1e9)
         post_task_duration_ns = post_result.duration_ns  if post_result else int(post_task_duration_sec * 1e9)
 

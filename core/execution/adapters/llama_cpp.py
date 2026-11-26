@@ -42,7 +42,7 @@ class LlamaCppAdapter(BaseAdapterMixin, TextGenABC):
             model_config:    model block (model_path, max_tokens, temperature)
         """
         super().__init__(provider_config, model_config)
-        from scripts.tools.path_loader import get_models_dir
+        from core.storage.resolver import models_dir as get_models_dir
         raw_path = model_config.get("model_path", "")
         # Resolve {models_dir} token — machine-aware path via path_loader
         self._model_path = raw_path.replace("{models_dir}", get_models_dir())

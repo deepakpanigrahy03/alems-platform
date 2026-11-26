@@ -189,7 +189,7 @@ methods:
     section: "DCGM Backend (GN100)"
 
   nvtx_span_agreement_v1:
-    doc: "developer/nvtx-span-markers.md"
+    doc: "../developer/nvtx-span-markers.md"
     method_anchor: "nvtx-span-agreement"
     section: "Phase Markers for NVIDIA Profilers (NVTX)"
 
@@ -438,6 +438,16 @@ methods:
     method_anchor: "phase-attribution-sample-v2"
     section: "Phase Energy Attribution v2"
 
+  phase_attribution_sample_v3:
+    doc: "derived-metrics.md"
+    method_anchor: "phase-attribution-sample-v3"
+    section: "Phase Energy Attribution v3"
+
+  phase_attribution_run_share_v3:
+    doc: "derived-metrics.md"
+    method_anchor: "phase-attribution-run-share-v3"
+    section: "Phase Energy Attribution v3 Run Share Fallback"
+
   thermal_penalty_weighted:
     doc: "energy-attribution.md"
     method_anchor: "thermal-penalty-weighted"
@@ -457,6 +467,10 @@ methods:
     doc: "measurement-boundary.md"
     method_anchor: "measurement-boundary-v1"
     section: "Measurement Boundary Methodology"
+  measurement_boundary_v2:
+    doc: "measurement-boundary.md"
+    method_anchor: "measurement-boundary-v2"
+    section: "Measurement Boundary v2"
 
   measurement_coverage_v1:
     doc: "measurement-boundary.md"

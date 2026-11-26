@@ -38,7 +38,7 @@ from core.attribution.legacy_v1 import (
     phase_attribution_etl,
     duration_fix_etl,
 )
-from scripts.tools.path_loader import get_alems_db_path
+from core.storage.resolver import caller_store as get_alems_db_path
 from core.execution.retry_coordinator import RetryCoordinator, RetryPolicy
 import platform
 from core.execution.arm_cpu_sample_builder import _build_arm_cpu_sample_row

@@ -229,6 +229,19 @@ class SensorReader(ThermalReaderABC):
 
         return available
 
+    # Window contract: temperatures are point observations.
+    WINDOW_KIND = "snapshot"
+    METRICS = {"package_temperature_celsius": "point", "gpu_temperature_celsius": "point"}
+
+    def snapshot(self):
+        """Declared temperatures now; None when the sensors cannot be read (never raises)."""
+        try:
+            readings = self.read_temperatures()
+            return {m: getattr(readings, m, None) for m in self.METRICS}
+        except Exception as exc:
+            logger.warning("sensor snapshot failed: %s", exc)
+            return None
+
     def read_temperatures(self) -> ThermalReadings:
         """
         Read all temperature sensors and return ThermalReadings object.

@@ -490,6 +490,10 @@ class GoalTracker:
             entity_id:   goal_id or run_id depending on entity_type.
             etl_name:    ETL script name e.g. 'goal_execution_etl'.
         """
+        # Deprecated (chunk 45, F6): no ETL runner reads etl_queue; rows only ever
+        # stayed 'pending'. Kept as a no-op so callers stay valid; the table and its
+        # historical rows are kept unchanged (Rule B).
+        return
         if entity_type not in ("goal_execution", "run"):
             logger.warning("queue_etl: invalid entity_type=%r — skipping", entity_type)
             return

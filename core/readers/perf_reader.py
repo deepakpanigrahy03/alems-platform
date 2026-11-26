@@ -268,13 +268,19 @@ class PerfReader(CPUReaderABC):
             return
  
         event_str = ",".join(self.events)
+        # Interval output (window contract): one count per event per interval, so the
+        # counts can be clipped to the workload window at stop. Interval from config.
+        interval_ms = int((getattr(self, "config", None) or {}).get("perf_interval_ms", 100))
         cmd = [
             "perf", "stat",
             "-p", str(pid),       # attach to task pid — measures actual work
             "-e", event_str,
+            "-I", str(interval_ms),
             "--field-separator=,",
             "--no-big-num",
         ]
+        self._window = None
+        self._perf_start_wall_ns = time.time_ns()   # interval timestamps are relative to this
         try:
             self._perf_bg_process = subprocess.Popen(
                 cmd,
@@ -306,7 +312,9 @@ class PerfReader(CPUReaderABC):
                     self._perf_bg_process.kill()
                     _, stderr = self._perf_bg_process.communicate()
                     logger.warning("perf stop: communicate timed out, killed")
-                self._parse_perf_output(stderr, counters)
+                for event, value in self._interval_counters(stderr).items():
+                    self._map_event_to_counter(event, value, counters)
+                self._window = None
                 if hasattr(self, "_measurement_start"):
                     counters.duration_ms = int((time.time() - self._measurement_start) * 1000)
                 logger.info(
@@ -329,6 +337,44 @@ class PerfReader(CPUReaderABC):
         duration_ms = int((time.time() - self._measurement_start) * 1000)
         logger.debug("perf stop: no bg process, timed snapshot %dms", duration_ms)
         return self.read_counters(duration_ms=duration_ms)
+
+    def set_window(self, start_ns, end_ns):
+        """Workload window (wall ns); interval counts are clipped to it at stop."""
+        self._window = (start_ns, end_ns)
+
+    def _interval_counters(self, output):
+        """
+        Per event totals from `perf stat -I` CSV output (time, value, unit, event, ...).
+
+        Each line covers [previous line of the same event, its timestamp). With a
+        window set, a straddling interval contributes by overlap (alems_sdk.window);
+        without one, all intervals are summed (legacy callers).
+        """
+        from alems_sdk.window import SeriesSample, interval_count
+        base = getattr(self, "_perf_start_wall_ns", None)
+        series, last = {}, {}
+        for line in output.splitlines():
+            parts = [p.strip() for p in line.strip().split(",")]
+            if base is None or len(parts) < 3:
+                continue
+            try:
+                end_ns = base + int(float(parts[0]) * 1e9)
+                value = int(float(parts[1]))
+            except ValueError:
+                continue                       # header, comment or <not counted>
+            event = next((p.lower() for p in parts[2:] if p), None)
+            if event:
+                series.setdefault(event, []).append(
+                    SeriesSample(last.get(event, base), end_ns, {"v": value}))
+                last[event] = end_ns
+        window = getattr(self, "_window", None)
+        totals = {}
+        for event, samples in series.items():
+            v = (interval_count(samples, "v", *window).value if window
+                 else sum(s.values["v"] for s in samples))
+            if v is not None:
+                totals[event] = int(v)
+        return totals
 
     def _drain_perf_output(self):
         """

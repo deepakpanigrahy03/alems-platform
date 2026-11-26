@@ -149,7 +149,7 @@ class ConfigLoader:
         source of truth. Reads .alems-env (project-level) then ~/.alemsrc
         (machine-level) with full user+project isolation for non-prod envs.
         """
-        from scripts.tools.path_loader import get_alems_db_path
+        from core.storage.resolver import caller_store as get_alems_db_path
         return get_alems_db_path()
 
     def get_hardware_config(self) -> Dict[str, Any]:
