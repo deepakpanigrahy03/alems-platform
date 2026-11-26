@@ -280,6 +280,9 @@ def _setup_experiment(args):
         model=getattr(args, "model", None),
     )
     runner           = ExperimentRunner(config, args)
+    # Safety guard: opened before any experiment row (raises GuardRefused when refused).
+    from core.safety import hook as _safety_hook
+    _safety_hook.ensure_guard("test_harness")
 
     # B3: build serving engine adapter and cache collector from YAML config.
     import core.serving.bootstrap  # noqa: F401
@@ -573,9 +576,20 @@ def main():
     if args.list_tasks:
         return _list_tasks_and_exit()
  
-    setup = _setup_experiment(args)
-    all_linear, all_agentic, all_taxes = _run_experiment(setup, args)
+    from core.safety import hook as _safety_hook
+    from core.safety.thermal_guard import GuardRefused as _GuardRefused
+    try:
+        setup = _setup_experiment(args)
+        all_linear, all_agentic, all_taxes = _run_experiment(setup, args)
+    except _GuardRefused as exc:
+        # The safety guard refused or stopped the work: end cleanly, keep logs and guard records.
+        logger.error("safety guard stopped the experiment: %s", exc)
+        _safety_hook.close(_safety_hook.halted() or exc.code)
+        from core.observability import flush_run_log
+        flush_run_log()
+        return 1
     _display_results(all_linear, all_agentic, all_taxes, args)
+    _safety_hook.close(_safety_hook.halted() or "completed")
     # 39.5.2a: per run logs written after all measurement windows.
     from core.observability import flush_run_log
     flush_run_log()

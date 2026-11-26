@@ -2117,6 +2117,26 @@ def _load_derived_methods() -> List[Dict]:
             "fn":            None,
         },
         {
+            "id":            "thermal_safety_guard_v1",
+            "name":          "Hardware Safety Guard",
+            "provenance":    "CALCULATED",
+            "layer":         "silicon",
+            "confidence":    0.90,
+            "output_metric": "safety_guard_samples.min_headroom_c",
+            "output_unit":   "C",
+            "applicable_on": ["safety_guard_episodes", "safety_guard_events", "safety_guard_samples"],
+            "formula_latex": r"H(t) = \min_{s} h_s(t),\ H_{\mathrm{start}} = \max(H_{\mathrm{floor}}, "
+                             r"H_{\mathrm{idle}} - k),\ \mathrm{stop} \iff H(t) < H_{\mathrm{stop}}",
+            "parameters":    {
+                "version": 1,
+                "config":  "safety.thermal (stored per episode in safety_guard_episodes.config_json)",
+                "sources": "nvml_slowdown_margin",
+            },
+            "doc":           "safety-guard.md",
+            "section":       "Safety Guard Rules",
+            "fn":            None,
+        },
+        {
             "id":            "idle_window_median_v1",
             "name":          "Recording Idle Window Median",
             "provenance":    "CALCULATED",

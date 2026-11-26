@@ -44,6 +44,7 @@ def get_active() -> Optional[Any]:
 
 def notify_run_start() -> None:
     """A run's measurement is about to start: pause the recording."""
+    _safety_boundary(True)   # the safety guard tracks active work (never raises)
     rec = _active
     if rec is None:
         return
@@ -55,6 +56,7 @@ def notify_run_start() -> None:
 
 def notify_run_end() -> None:
     """A run's measurement has stopped: resume the recording."""
+    _safety_boundary(False)  # the safety guard tracks active work (never raises)
     rec = _active
     if rec is None:
         return
@@ -62,3 +64,12 @@ def notify_run_end() -> None:
         rec.resume()
     except Exception as exc:
         logger.warning("recording hook: resume failed: %s", exc)
+
+
+def _safety_boundary(started: bool) -> None:
+    """Tell the safety guard that a run started or ended; never raises."""
+    try:
+        from core.safety import hook as _safety
+        (_safety.workload_started if started else _safety.workload_ended)()
+    except Exception as exc:
+        logger.warning("recording hook: safety notice failed: %s", exc)

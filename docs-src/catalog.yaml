@@ -444,6 +444,12 @@ catalog:
     status: current
     last_validated: "2026-11-18"
     nav_entry: "Experiment Recording: research/experiment-recording.md"
+  - topic: "Safety guard: thermal headroom start gate, watchdog, latched stop, guard records"
+    file: research/safety-guard.md
+    audience: researcher
+    status: current
+    last_validated: "2026-11-25"
+    nav_entry: "Safety Guard: research/safety-guard.md"
   - topic: "Sequencer: controlled experiments, plans, brackets, cycles, counterbalancing, thermal gate, dry run, run, resume, failure rules, result queries, copy benchmark (copy_rate), kernel benchmark over memory placements (kernel_rw), session kernel pass, paper reporting"
     file: user-guide/09-controlled-experiments-sequencer.md
     audience: researcher

@@ -9,6 +9,31 @@ tables:
     - window_label
     owner: attribution
     run_linkage: run_id
+  safety_guard_episodes:
+    evidence: hardware safety guard activation per process; written by the guard for every experiment (v133)
+    golden_class: meta
+    kind: table
+    natural_key:
+    - episode_id
+    owner: core
+    run_linkage: none
+  safety_guard_events:
+    evidence: safety guard decisions and state changes, same ids as the host log (v133)
+    golden_class: meta
+    kind: table
+    natural_key:
+    - event_id
+    owner: core
+    run_linkage: run_id
+  safety_guard_samples:
+    evidence: one second safety guard watchdog evidence (v133)
+    golden_class: meta
+    kind: table
+    natural_key:
+    - episode_id
+    - seq
+    owner: core
+    run_linkage: none
   sandbox_identity:
     evidence: store identity record (design 7.6); written by sandbox create and adopt
     golden_class: meta

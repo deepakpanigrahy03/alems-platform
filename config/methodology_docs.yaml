@@ -547,6 +547,10 @@ methods:
     doc: "experiment-recording.md"
     method_anchor: "recording-spans"
     section: "Recording Spans"
+  thermal_safety_guard_v1:
+    doc: "safety-guard.md"
+    method_anchor: "safety-guard-rules"
+    section: "Safety Guard Rules"
 
   idle_window_median_v1:
     doc: "experiment-recording.md"

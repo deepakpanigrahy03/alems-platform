@@ -82,6 +82,7 @@ nav:
     - Span Vocabulary Agent: research/span-vocabulary-agent.md
     - Energy Readers: research/energy-readers.md
     - Experiment Recording: research/experiment-recording.md
+    - Safety Guard: research/safety-guard.md
     - Plugin Conformance: research/plugin-conformance.md
     - System Measurement: research/system-measurement.md
     - Derived Metrics: research/derived-metrics.md

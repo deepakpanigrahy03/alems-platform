@@ -339,6 +339,8 @@ class ExperimentHarness:
             2. Baseline from BaselineManager (Layer 2)
             3. DerivedEnergyMeasurement from EnergyAnalyzer (Layer 3) ← USED FOR METRICS
         """
+        from core.safety import hook as _safety_hook
+        _safety_hook.before_run("linear")   # safety gate before anything of the run; raises when refused
         progress.info("measure start  linear")
         from core.observability import status as _obs_status
         _obs_status.set_context(phase="linear")
@@ -938,6 +940,8 @@ class ExperimentHarness:
 
         Uses the same 3‑layer architecture and returns ALL THREE LAYERS.
         """
+        from core.safety import hook as _safety_hook
+        _safety_hook.before_run("agentic")  # safety gate before anything of the run; raises when refused
         progress.info("measure start  agentic")
         from core.observability import status as _obs_status
         _obs_status.set_context(phase="agentic")

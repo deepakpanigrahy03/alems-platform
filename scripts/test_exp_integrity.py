@@ -449,6 +449,87 @@ def _recording_idle_problems(conn, sid, run_ids: list) -> list:
     return out
 
 
+def check_safety_guard(conn, run_ids: list) -> list:
+    """Safety guard (EIC-4): guard episodes covering these runs are closed, record a
+    gate opening before each run, keep event order and host log flags, and never
+    store a fresh reading without a value."""
+    # Stores older than the guard migration have no guard tables: nothing to check.
+    if not run_ids or not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                                       "AND name='safety_guard_episodes'").fetchone():
+        return []
+    ph = ",".join("?" * len(run_ids))
+    # Episodes are found by time: admission happens before a run row exists (EEI-4).
+    episodes = conn.execute(
+        f"SELECT DISTINCT e.episode_id, e.status, e.latch_reason FROM safety_guard_episodes e "
+        f"JOIN runs r ON r.start_time_ns >= e.started_utc_ns AND (e.ended_utc_ns IS NULL "
+        f"OR r.start_time_ns < e.ended_utc_ns) WHERE r.run_id IN ({ph})", run_ids).fetchall()
+    # A run with no covering episode ran without the guard (disabled, or code older than the guard).
+    if not episodes:
+        return [warn("safety guard: no guard episode covers these runs")]
+    results = []
+    for eid, status, latch_reason in episodes:
+        results.extend(_safety_guard_episode_problems(conn, eid, status, latch_reason, run_ids))
+    return results
+
+
+def _safety_guard_episode_problems(conn, eid, status, latch_reason, run_ids) -> list:
+    """Problems of one guard episode: open or latched state, order, log flags, admissions, samples."""
+    out = []
+    # "running" after the process ended means close() never ran (kill or crash).
+    if status == "running":
+        out.append(warn(f"safety guard episode={eid}: still open (process ended without close)"))
+    # A latch is a safety stop, not a data error: reported so the reader sees why runs ended.
+    if status == "latched":
+        out.append(warn(f"safety guard episode={eid}: latched ({latch_reason})"))
+    n, lo, hi = conn.execute("SELECT COUNT(*), MIN(seq), MAX(seq) FROM safety_guard_events "
+                             "WHERE episode_id = ?", (eid,)).fetchone()
+    # seq is assigned under the guard lock; a gap means an event row was lost between log and store.
+    if n and (lo != 1 or hi != n):
+        out.append(fail(f"safety guard episode={eid}: event order has gaps ({n} events, seq {lo} to {hi})"))
+    unlogged = conn.execute("SELECT COUNT(*) FROM safety_guard_events WHERE episode_id = ? "
+                            "AND log_written = 0", (eid,)).fetchone()[0]
+    # The host log is the crash-safe copy; a missing line weakens the incident record.
+    if unlogged:
+        out.append(warn(f"safety guard episode={eid}: {unlogged} events missing from the host log"))
+    out.extend(_safety_guard_admission_problems(conn, eid, run_ids))
+    out.extend(_safety_guard_sample_problems(conn, eid))
+    return out
+
+
+def _safety_guard_admission_problems(conn, eid, run_ids) -> list:
+    """Every run inside the episode must follow a gate opening of that episode."""
+    ph = ",".join("?" * len(run_ids))
+    # Only runs that started after the episode began must have passed its gate.
+    missing = conn.execute(
+        f"SELECT COUNT(*) FROM runs r WHERE r.run_id IN ({ph}) AND r.start_time_ns >= "
+        f"(SELECT started_utc_ns FROM safety_guard_episodes WHERE episode_id = ?) AND NOT EXISTS "
+        f"(SELECT 1 FROM safety_guard_events g WHERE g.episode_id = ? AND g.event_type = 'gate_open' "
+        f"AND g.utc_ns <= r.start_time_ns)", list(run_ids) + [eid, eid]).fetchone()[0]
+    # A run without a preceding gate opening means some path bypassed the guard.
+    if missing:
+        return [fail(f"safety guard episode={eid}: {missing} runs without a gate opening before them")]
+    return []
+
+
+def _safety_guard_sample_problems(conn, eid) -> list:
+    """Fresh readings must carry a value (MIC-1); all-zero headroom over 10+ samples is suspect (MIC-3)."""
+    out = []
+    bad = conn.execute("SELECT COUNT(*) FROM safety_guard_samples WHERE episode_id = ? AND "
+                       "min_quality = 'fresh' AND min_headroom_c IS NULL", (eid,)).fetchone()[0]
+    # MIC-1: a fresh reading always has a value; NULL with "fresh" would hide a sensor gap.
+    if bad:
+        out.append(fail(f"safety guard episode={eid}: {bad} fresh samples without a value"))
+    n, zeros = conn.execute("SELECT COUNT(min_headroom_c), SUM(min_headroom_c = 0) FROM "
+                            "safety_guard_samples WHERE episode_id = ?", (eid,)).fetchone()
+    # MIC-3 sentinel: a real margin is never exactly 0 for ten readings in a row.
+    if n >= 10 and zeros == n:
+        out.append(warn(f"safety guard episode={eid}: headroom is 0 in all {n} samples (sensor fault?)"))
+    # No value at all: the guard was blind for the whole episode.
+    if n == 0:
+        out.append(warn(f"safety guard episode={eid}: no sample with a headroom value"))
+    return out
+
+
 def check_dcgm_coverage(conn, run_ids: list) -> list:
     """GPU sampling coverage per run (EIC-4, MIC-3): one row per run with DCGM
     samples, no cap, run window coverage at least 0.99, gaps reported."""
@@ -1345,6 +1426,7 @@ def main():
     all_results += check_gpu_mem_traffic(conn, run_ids)
     all_results += check_spans(conn, exp_id, run_ids)
     all_results += check_recording(conn, run_ids)
+    all_results += check_safety_guard(conn, run_ids)
     all_results += check_expected_empty(conn)
     all_results += check_etl_queue(conn, goal_ids)
     all_results += check_retry_policy(conn)

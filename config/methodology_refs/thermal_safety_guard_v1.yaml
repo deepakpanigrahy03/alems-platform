@@ -1,0 +1,18 @@
+method_id: thermal_safety_guard_v1
+formula: "H(t) = min over required sources of reported margin to the slowdown or critical limit; admit when H >= max(floor, idle - k) for start_stable_s after min_rest_s; latched stop when H < stop or a required source is stale while a run is active"
+parameters:
+  config: "safety.thermal in config/app_settings.yaml, stored per episode in safety_guard_episodes.config_json"
+  sources: "NVML slowdown margin (nvmlDeviceGetMarginTemperature)"
+  quality_words: "fresh, stale, unavailable, failed, invalid"
+confidence: 0.90
+references:
+  - title: "NVIDIA Management Library (NVML) API Reference: nvmlDeviceGetMarginTemperature"
+    authors: "NVIDIA Corporation"
+    year: 2025
+    ref_type: "manual"
+    relevance: "Source of the GPU slowdown margin (T.Limit) used as headroom."
+  - title: "Linux kernel documentation: Generic Thermal Sysfs driver (trip points)"
+    authors: "Linux kernel developers"
+    year: 2024
+    ref_type: "manual"
+    relevance: "Trip point types and temperatures used as limits for thermal zone sources."

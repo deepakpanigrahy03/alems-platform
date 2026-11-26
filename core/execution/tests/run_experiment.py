@@ -572,6 +572,14 @@ def run_all_experiments(args):
         profile=getattr(args, "profile", None) or getattr(args, "config", None),
     )
     runner = ExperimentRunner(config, args)
+    # Safety guard: opened before any experiment row; a refusal ends the call cleanly.
+    from core.safety import hook as _safety_hook
+    from core.safety.thermal_guard import GuardRefused as _GuardRefused
+    try:
+        _safety_hook.ensure_guard("run_experiment")
+    except _GuardRefused as exc:
+        logger.error("safety guard refused to start: %s", exc)
+        return [], config, args
     if getattr(args, "record_continuous", False):
         # opt-in: continuous recording around the whole experiment, closed at exit
         from core.recording.session import open_recording
@@ -606,6 +614,10 @@ def run_all_experiments(args):
             harness, runner, task, providers, repetitions, cool_down, args, config
         )
         all_results.extend(task_results)
+        if _safety_hook.halted():
+            logger.error("safety guard stopped the experiment (%s); remaining tasks not run",
+                         _safety_hook.halted())
+            break
 
         # Inter-task cooldown — prevents rate limiting across tasks for cloud providers
         if inter_task_cooldown > 0 and i < len(selected_tasks) - 1:
@@ -781,6 +793,8 @@ def main():
         display_master_summary(all_results)  # final view: the comparison table
     get_console().line(get_console().style("all experiments complete", "green"))
     # 39.5.2a: per run logs are written only here, after every measurement window.
+    from core.safety import hook as _safety_hook
+    _safety_hook.close(_safety_hook.halted() or "completed")   # a halt is the end reason, not completed
     from core.observability import flush_run_log
     flush_run_log()
     _auto_integrity(_exp_floor)
