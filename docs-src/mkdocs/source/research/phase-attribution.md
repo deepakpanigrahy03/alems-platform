@@ -224,3 +224,28 @@ See `config/methodology_refs/phase_attribution.yaml`.
 - Linux `proc(5)` — `/proc/[pid]/stat` field definitions
 - Linux `proc_stat(5)` — `/proc/stat` aggregate CPU line
 - A-LEMS paper Section 3.4 — Phase Energy Attribution
+
+## Ownership Bounds { #ownership-bounds }
+
+### Overview
+A cumulative energy counter reports increments over update intervals. When an interval straddles two phases, its joules cannot be given to either phase without an allocation rule. Ownership bounds report the range every admissible rule must fall in, instead of one number from one rule.
+
+For a phase P of a run (the union W of all its windows) and one meter:
+
+$$L(W) = \sum_{I_i \subseteq W} e_i, \qquad U(W) = \sum_{I_i \cap W \neq \emptyset} e_i$$
+
+The proportional estimate (overlap share of each straddling increment) lies between them. Across goals the bounds are $[\sum_g L_g / S, \sum_g U_g / S]$ per verified success. A claimed phase saving holds under every allocation only when it exceeds the bound width $U - L$.
+
+The support of an increment is widened by `support_widen_ms` to cover the counter's own update period: an increment seen in one poll may have accrued up to one counter period earlier. DCGM increments use their own sample start and end from `gpu_samples`.
+
+### Usage
+```bash
+python scripts/ownership_bounds.py --db <store> --out-dir <dir> [--runs 24-35] [--tool-calls-only]
+```
+Read only; output `ownership_bounds_runs.csv` (run, phase, meter) and `ownership_bounds_summary.csv` (ratio of sums over runs). Tool calls are reported as an extra window group `tool_call`. Use `--tool-calls-only` on stores made before the chunk 45 phase boundary fixes: only their tool call windows are trusted.
+
+### Configuration
+Section `ownership_bounds` in `config/app_settings.yaml`: `support_widen_ms`, `min_sample_cover` (runs whose samples cover less of the run are flagged), `chunk_runs` (runs per bulk query) and `domains` (meter name to SPBM domain id, or `dcgm`).
+
+### Known Limitations
+Bounds come from counter increments only; they say nothing about energy outside the measured boundary. Missing values are empty cells, never 0.

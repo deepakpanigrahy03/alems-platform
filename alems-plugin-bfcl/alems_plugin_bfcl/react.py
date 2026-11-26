@@ -37,6 +37,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
 from alems_sdk.frameworks import FrameworkAdapterABC, FrameworkResult
+from alems_sdk import tool_latency
 from alems_sdk.tools import ToolExecutionContext
 
 from .provider import BFCLToolProvider
@@ -311,11 +312,12 @@ class AttemptRun:
             # string still goes through the provider and fails there.
             args = {"__invalid_arguments__": fn.get("arguments")}
         res = self.s.provider.execute(name, args, ToolExecutionContext(db_path=""))
+        held = tool_latency.hold(success=res.success)  # config driven wait, inside the tool window
         t1 = _now()
         self.calls_tools.append({"ordinal": self.tool_ordinal, "name": name,
                                  "success": res.success})
         self._event("tool_call", t0, t1, {"tool": name, "ordinal": self.tool_ordinal,
-                                           "success": res.success})
+                                           "success": res.success, **held})
         text = str(res.result)
         if notice:
             text = text + "\n" + ERROR_NOTICE

@@ -59,6 +59,7 @@ def apply_config(args) -> None:
     _apply_tasks_section(args, cfg.get("tasks", []))
     _apply_providers_section(args, cfg.get("providers", []))
     _apply_failure_injection_section(args, cfg.get("failure_injection", {}))  # reads experiment_type after study
+    _apply_tool_latency_section(args, cfg.get("tool_latency"))  # set or clear on every load
 
     # A5: retry_policies list — multiple policies on same workload
     retry_policies = cfg.get("retry_policies", None)
@@ -133,6 +134,20 @@ def _apply_failure_injection_section(args, fi: dict) -> None:
         # Never block experiment startup over injector construction failure
         logger.warning("_apply_failure_injection_section: failed to build injector: %s", e)
         args.failure_injector = None
+
+
+def _apply_tool_latency_section(args, section) -> None:
+    """
+    Validate and activate the tool_latency section (alems_sdk.tool_latency).
+
+    Called on every config load, so an absent section clears any earlier
+    setting in this process. An invalid section stops startup (ValueError):
+    a tool latency arm must never run with a guessed setting.
+    """
+    from alems_sdk import tool_latency
+    args.tool_latency = tool_latency.configure(section)
+    if args.tool_latency is not None:
+        logger.info("_apply_tool_latency_section: active %s", args.tool_latency)
 # ── Section appliers ──────────────────────────────────────────────────────────
 
 def _apply_study_section(args, study: dict) -> None:

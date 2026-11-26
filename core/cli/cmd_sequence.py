@@ -68,6 +68,19 @@ def _kernel_pass(session_id):
     return 0 if rows and all(r["status"] == "completed" for r in rows) else 1
 
 
+def _with_integrity(run):
+    """
+    Run one sequencer session, then the automatic integrity report of every
+    experiment it created (same function and setting as run_experiment).
+    Reporting only: the session's exit code is returned unchanged.
+    """
+    from core.execution.tests.run_experiment import _auto_integrity, _max_exp_id
+    floor = _max_exp_id()
+    rc = run()
+    _auto_integrity(floor)
+    return rc
+
+
 def handle_sequence(argv):
     # type: (List[str]) -> int
     """CLI entry; returns a process exit code."""
@@ -97,8 +110,8 @@ def handle_sequence(argv):
             if not row:
                 print("no session %s" % a.resume, file=sys.stderr)
                 return 2
-            return seq.resume(a.resume, json.loads(row[0]))
-        return seq.start(plan)
+            return _with_integrity(lambda: seq.resume(a.resume, json.loads(row[0])))
+        return _with_integrity(lambda: seq.start(plan))
     except plan_mod.PlanError as exc:
         print("plan error: %s" % exc, file=sys.stderr)
         return 2

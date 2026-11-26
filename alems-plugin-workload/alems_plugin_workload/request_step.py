@@ -17,7 +17,8 @@ from alems_sdk.sequencer import Availability, StepFailed, StepKindABC
 
 from alems_plugin_workload import PROFILE_SPEC, __version__
 from alems_plugin_workload import client
-from alems_plugin_workload.outcome import request_outcome, request_results, step_summary
+from alems_plugin_workload.outcome import (prefix_cache_results, request_outcome, request_results,
+                                           step_summary)
 from alems_plugin_workload.prompts import make_prompt, size_prompt, within
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,8 @@ class RequestProfileStep(StepKindABC):
         "reset_prefix_cache": {"type": "string", "choices": ["auto", "false"]},
         "timeout_s": {"type": "number", "unit": "s", "required": True},
         "max_sizing_iter": {"type": "number"},
+        "prefix_cache_queries_metric": {"type": "string"},
+        "prefix_cache_hits_metric": {"type": "string"},
     }
 
     def prepare(self, step, ctx):
@@ -115,9 +118,11 @@ class RequestProfileStep(StepKindABC):
         """Send the prepared requests back to back; one failure fails the step."""
         prep = ctx["prepared"]
         caps = dict(prep["caps"], ignore_eos_used=step["ignore_eos"] != "false" and prep["caps"].get("ignore_eos"))
+        pc0 = _prefix_counters(step)
         t0 = time.time_ns()
         outcomes = run_requests(step, prep["prompts"], caps, ctx["cancelled"])
         t1 = time.time_ns()
+        pc1 = _prefix_counters(step)
         failed = [i for i, o in enumerate(outcomes) if o["status"] != "ok"]
         if not outcomes:
             raise StepFailed("no_requests", "no request was sent")
@@ -126,7 +131,17 @@ class RequestProfileStep(StepKindABC):
                              % (len(failed), len(outcomes), failed[0], outcomes[failed[0]]["error"]))
         res = step_summary(outcomes, step, caps, t0, t1)
         res.update(request_results(outcomes))
+        res.update(prefix_cache_results(pc0, pc1))
         return res
+
+
+def _prefix_counters(params):
+    # type: (Dict[str, Any]) -> Any
+    """Prefix cache counters when the plan names both metrics; (None, None) otherwise."""
+    q, h = params.get("prefix_cache_queries_metric"), params.get("prefix_cache_hits_metric")
+    if not q or not h:
+        return None, None
+    return client.prefix_cache_counters(params["endpoint"], q, h, float(params["timeout_s"]))
 
 
 def run_requests(params, prompts, caps, cancelled):

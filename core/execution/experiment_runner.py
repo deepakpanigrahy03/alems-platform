@@ -1565,8 +1565,9 @@ class ExperimentRunner:
         if attempt_id is None:
             return goal_id
  
-        # Classify failure type for non-success outcomes — prevents NULL failure_type in paper queries
-        failure_type = None if outcome == "success" else _failure_classifier.classify(run_result=None)
+        # No exception or result reaches this path, so a failure's type is unknown: NULL,
+        # never an invented type (classify(run_result=None) always answered "crashed").
+        failure_type = None
 
         _goal_tracker.finish_attempt(
             conn=conn,
@@ -1613,6 +1614,7 @@ class ExperimentRunner:
             workflow_type: str,
             task_meta: dict = None,
             writer=None,
+            record_goal: bool = True,
         ) -> int:
             """
             Save one run for single-workflow-mode experiments (linear or agentic only).
@@ -1628,6 +1630,8 @@ class ExperimentRunner:
                 result:        Harness result dict — same structure as save_pair() sides.
                 rep_num:       Repetition number (1-indexed).
                 workflow_type: 'linear' or 'agentic' only — never 'comparison'.
+                record_goal:   False for measurement runs that are not goals (sequencer
+                               idle brackets and request profiles): no goal rows.
             """
             if workflow_type not in ("linear", "agentic"):
                 logger.warning(
@@ -1702,9 +1706,9 @@ class ExperimentRunner:
                 logger.info("save_single: run_id=%d workflow=%s rep=%d", run_id, workflow_type, rep_num)
 
 
-                # Goal tracking — single side only
+                # Goal tracking — single side only; skipped for measurement runs (record_goal False)
                 _backfill_span_outcome(_wconn, run_id, outcome)
-                goal_id = self._record_goal_pair(
+                goal_id = None if not record_goal else self._record_goal_pair(
                     db=db,
                     exp_id=exp_id,
                     task_id=task_id,

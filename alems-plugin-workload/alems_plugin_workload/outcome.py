@@ -109,6 +109,28 @@ def step_summary(outcomes, params, caps, t0_ns, t1_ns):
     return {k: v for k, v in res.items() if v[0] is not None}
 
 
+def prefix_cache_results(before, after):
+    # type: (Tuple[Optional[float], Optional[float]], Tuple[Optional[float], Optional[float]]) -> Results
+    """Server prefix cache counter deltas over the measured interval; absent when unknown or reset."""
+    dq, dh = _delta(before[0], after[0]), _delta(before[1], after[1])
+    res = {}  # type: Results
+    if dq is not None:
+        res["prefix_cache_queried_tokens"] = (int(dq), "tokens")
+    if dh is not None:
+        res["prefix_cache_hit_tokens"] = (int(dh), "tokens")
+    if dq and dh is not None:
+        res["prefix_cache_hit_share"] = (round(dh / dq, 4), None)
+    return res
+
+
+def _delta(a, b):
+    # type: (Optional[float], Optional[float]) -> Optional[float]
+    """b minus a; None when either is unknown or the counter went backwards (server restart)."""
+    if a is None or b is None or b < a:
+        return None
+    return b - a
+
+
 def _optional_totals(outcomes, prompt_rep, out_total, work_s):
     # type: (List[Dict[str, Any]], List[Dict[str, Any]], Optional[int], float) -> Results
     """Totals that exist only when the server reported the underlying fields."""

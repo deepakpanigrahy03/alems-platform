@@ -168,3 +168,10 @@ x1_update_rates:
   check:
     pkg_change_p50_ms_low: 80
     pkg_change_p50_ms_high: 120
+
+# Phase ownership bounds (scripts/ownership_bounds.py). CSV only, read only.
+ownership_bounds:
+  support_widen_ms: 100     # counter update period: an increment may have accrued this much before its poll interval
+  min_sample_cover: 0.5     # phase must lie at least this much inside the sampled span, else noted (clock basis check)
+  chunk_runs: 200          # runs per bulk query chunk (memory vs speed)
+  domains: {PACKAGE: 1, CPU_P: 5, CPU_E: 6, GPU: 7, GPU_DCGM: dcgm}   # dcgm: read from gpu_samples

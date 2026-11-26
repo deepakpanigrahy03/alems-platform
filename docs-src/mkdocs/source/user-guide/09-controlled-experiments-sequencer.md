@@ -175,6 +175,9 @@ WHERE s.session_id = :session AND s.role IN ('pre', 'post')
 ORDER BY s.planned_index;
 ```
 
+### Measurement runs are not goals
+Idle brackets and plugin step kinds (`request_profile`, `matmul_load`) are stored as runs with their energy, but write no `goal_execution` or `goal_attempt` rows: they are measurements, not goals. Profile treatments run through the normal runner and record their goals as usual. Stores written before this change hold one failed goal per such step; exclude them by joining goal rows to sequencer steps of kind `profile`.
+
 ## Reporting in a paper
 
 - Report gross energy of each treatment as measured.
@@ -320,6 +323,14 @@ JOIN energy_validation_seq_step_results r USING (attempt_id)
 WHERE s.session_id = :session AND s.kind = 'request_profile'
 GROUP BY s.planned_index ORDER BY s.planned_index;
 ```
+
+#### Server prefix cache counters
+When the plan names both metrics, the step reads the server's Prometheus counters at `<endpoint>/metrics` just before and just after the requests, and stores the deltas: `prefix_cache_queried_tokens`, `prefix_cache_hit_tokens` and `prefix_cache_hit_share`. vLLM 0.23:
+```yaml
+prefix_cache_queries_metric: "vllm:prefix_cache_queries_total"
+prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"
+```
+Without both keys nothing is read. A counter that is absent or went backwards (server restart) gives no row; missing is never stored as 0. This complements `cached_share`, which vLLM leaves empty when nothing was cached.
 
 ### Fixed compute load (matmul_load)
 

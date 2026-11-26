@@ -1,0 +1,33 @@
+# Tool latency arm (Paper 4 Sections B and C): hold every successful tool result
+# for delay_s before the agent sees it, by blocking sleep or by polling.
+# One file per arm; the sequencer runs arms in seeded order with idle brackets.
+# Copy and change only the tool_latency values (and the study name) per arm.
+study:
+  name: "Tool latency arm: 2 s, sleep"
+  experiment_type: "normal"
+  experiment_goal: "Price of waiting: energy per second of tool delay at GPU and package boundary"
+  workflow_modes: ["agentic"]
+
+tasks:
+  - id: tg_sequential_2
+  - id: tg_sequential_3
+  - id: tg_single_db
+
+providers:
+  - name: vllm_local
+    model_id: Mistral-7B-Instruct-v0.3
+
+execution:
+  repetitions: 5
+  cool_down_seconds: 30
+  save_db: true
+
+tool_latency:
+  enabled: true
+  delay_s: 2.0
+  wait_mode: sleep        # sleep | poll
+  poll_ms: 10             # used only by poll; 0 = busy spin
+  apply_to: success       # success | all
+
+quality:
+  enabled: false
