@@ -84,6 +84,11 @@ def apply_config(args) -> None:
         args.record_settings = {k: recording[k] for k in ("idle", "cooldown", "checks", "server")
                                 if k in recording}
 
+    # Session plan: a plan plugin chooses each step; absent = the fixed loop, unchanged.
+    session_plan = cfg.get("session_plan")
+    if session_plan:
+        args.session_plan = dict(session_plan)
+
     # Quality gate (39.5a): controls LLM judge and OutputQualityExtension.persist().
     # Cheap local scorers (exact_match, numeric, structural, semantic) run always
     # per task expectation block regardless of this flag.

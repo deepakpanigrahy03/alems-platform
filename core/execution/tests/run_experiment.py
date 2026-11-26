@@ -607,6 +607,20 @@ def run_all_experiments(args):
 
     inter_task_cooldown = getattr(args, "inter_task_cooldown", 0)
 
+    if getattr(args, "session_plan", None):
+        # Plan-driven session: one plan across tasks and providers; the fixed loop below is
+        # not used for this call and stays unchanged.
+        from core.execution.session_plan import SessionPlanError, production_deps, run_session_plan
+        from core.recording import hook as _recording_hook
+        try:
+            run_session_plan(args.session_plan, [t["id"] for t in selected_tasks], providers,
+                             production_deps(harness, runner, config, args, _goal_tracker,
+                                             _retry_coordinator),
+                             recorder=_recording_hook.get_active())
+        except SessionPlanError as exc:
+            logger.error("session plan refused: %s", exc)
+        return all_results, config, args
+
     for i, task in enumerate(selected_tasks):
         progress.info("task  %s (level %s)", task["name"], task["level"])
 

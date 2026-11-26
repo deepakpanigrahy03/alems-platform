@@ -31,6 +31,7 @@ GROUP_CONTRACT: Dict[str, object] = {
     "alems.readers.disk":        ("alems_sdk.readers", "BaseReader"),
     "alems.readers.traffic":     ("alems_sdk.readers", "TrafficReaderABC"),
     "alems.sequencer.steps":     ("alems_sdk.sequencer", "StepKindABC"),
+    "alems.harness.pacing":      ("alems_sdk.session_plan", "SessionPlanABC"),
     "alems.spans.listeners":     ("alems_sdk.span_listeners", "SpanListenerABC"),
     "alems.engines.text":        ("alems_sdk.generation", "TextGenABC"),
     "alems.engines.media":       ("alems_sdk.generation", "MediaABC"),
