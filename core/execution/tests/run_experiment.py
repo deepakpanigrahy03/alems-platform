@@ -148,14 +148,19 @@ def run_provider_task(
     dummy = type('obj', (object,), {'config': linear_config})()
     preflight(dummy, provider)
 
-    if args.optimizer:
-        from core.execution.optimizer_wrapper import OptimizedExecutorWrapper
+    try:
+        if args.optimizer:
+            from core.execution.optimizer_wrapper import OptimizedExecutorWrapper
 
-        linear = OptimizedExecutorWrapper(linear_config, "linear")
-        agentic = OptimizedExecutorWrapper(agentic_config, "agentic")
-    else:
-        linear = LinearExecutor(linear_config)
-        agentic = AgenticExecutor(agentic_config)
+            linear = OptimizedExecutorWrapper(linear_config, "linear")
+            agentic = OptimizedExecutorWrapper(agentic_config, "agentic")
+        else:
+            linear = LinearExecutor(linear_config)
+            agentic = AgenticExecutor(agentic_config)
+    except Exception as exc:    # a refused provider is one error line, not a traceback
+        logger.error("%s: executor not built: %s; skipping", provider, exc)
+        logger.debug("executor build failure", exc_info=True)
+        return None
 
     progress.info("optimizer  %s", "yes" if args.optimizer else "no")
 
@@ -683,16 +688,23 @@ def display_master_summary(all_results):
     con.line("=" * 85)
 
 
+def _store_path():
+    """The store this run writes to (resolver: honours ALEMS_STORE and the sandbox folder)."""
+    from core.storage.resolver import resolve_store
+    return resolve_store()
+
+
 def _max_exp_id():
     """Highest experiment id in the store before this call's runs (None if unknown)."""
     try:
         import sqlite3 as _sq
-        c = _sq.connect("file:%s?mode=ro" % get_alems_db_path(), uri=True)
+        c = _sq.connect("file:%s?mode=ro" % _store_path(), uri=True)
         try:
             return c.execute("SELECT COALESCE(MAX(exp_id), 0) FROM experiments").fetchone()[0]
         finally:
             c.close()
-    except Exception:
+    except Exception as exc:
+        logger.warning("highest experiment id not read: %s", exc)
         return None
 
 
@@ -709,7 +721,7 @@ def _auto_integrity(exp_floor):
         if exp_floor is None:
             logger.warning("auto integrity skipped (store not available)")
             return
-        c = _sq.connect("file:%s?mode=ro" % get_alems_db_path(), uri=True)
+        c = _sq.connect("file:%s?mode=ro" % _store_path(), uri=True)
         try:
             ids = [r[0] for r in c.execute("SELECT exp_id FROM experiments WHERE exp_id > ? ORDER BY exp_id",
                                            (exp_floor,))]
@@ -718,7 +730,7 @@ def _auto_integrity(exp_floor):
         for eid in ids:
             script = Path(__file__).resolve().parents[3] / "scripts" / "test_exp_integrity.py"
             out = _sp.run([sys.executable, str(script), "--exp-id", str(eid),
-                           "--db", str(get_alems_db_path())],
+                           "--db", str(_store_path())],
                           capture_output=True, text=True, timeout=600).stdout
             keep = [l for l in out.splitlines() if "RESULT" in l or "\u274c" in l or "❌" in l]
             get_console().line("integrity exp %s" % eid)
