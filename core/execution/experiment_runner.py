@@ -611,6 +611,17 @@ def _dispatch_post_run(db: object, run_id: int, result: dict, workflow_type: str
             exc,
         )
             
+def _execution_succeeded(result) -> bool:
+    """
+    True when a harness result reports success at either level: linear results
+    carry execution.status, agentic results execution.execution.status (the
+    same rule save_pair applies). Missing or empty means failure.
+    """
+    outer = (result or {}).get("execution") or {}
+    inner = outer.get("execution") or {}
+    return outer.get("status") == "success" or inner.get("status") == "success"
+
+
 class ExperimentRunner:
     """Shared experiment logic - ONLY duplicate code + new features"""
 
@@ -1655,7 +1666,7 @@ class ExperimentRunner:
             task_meta = task_meta or result.get("task_meta", {}) or {}
             # Inject task_meta into result so _run_quality_scoring can read it.
             result["task_meta"] = task_meta
-            outcome   = "success" if result.get("execution", {}).get("status") == "success" else "failure"
+            outcome   = "success" if _execution_succeeded(result) else "failure"
 
             from core.vocabularies.agent.span_writer import SpanWriter
             _span_writer = SpanWriter()
