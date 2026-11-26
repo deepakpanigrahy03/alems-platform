@@ -96,11 +96,22 @@ def _run_profile(path):
         sys.argv = saved
 
 
+def _caller_path(path):
+    # type: (str) -> str
+    """A relative profile path is relative to the folder alems was run from (the launcher changes folder)."""
+    import os
+    p = Path(path).expanduser()
+    if not p.is_absolute():
+        p = Path(os.environ.get("ALEMS_CALLER_CWD") or os.getcwd()) / p
+    return str(p)
+
+
 def handle_thermal(argv):
     # type: (List[str]) -> int
     """CLI entry; returns a process exit code (2 = invalid profile or plan)."""
     from core.execution.session_plan import SessionPlanError
     a = _args(argv)
+    a.profile = _caller_path(a.profile)
     try:
         doc = _load(a.profile)
         steps = dry_run(doc, a.max_steps)

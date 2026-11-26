@@ -134,3 +134,9 @@ The catalog records per-sensor limits: on GB10 NVML reports GPU slowdown 86 C, s
 
 ## IMP-SENSORS-02: Record catalog-only sensors
 Add a per-sensor recording path for hwmon inputs and Mac helper sensors so that profiles on x86, AMD and Mac can name them.
+
+## IMP-GUARD-01: Start level from the measured idle headroom
+Replace the provisional start floor with `idle headroom - k` once loaded-idle repeatability is measured (the floor was lowered from 28 to 20 C because GB10 idles near 70 C with the model server loaded).
+
+## IMP-WRITER-01: Writer turn timers
+Record how long writers wait for and hold the store turn, and warn on long holds, so long transactions can be found.

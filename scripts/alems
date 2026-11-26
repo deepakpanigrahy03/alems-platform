@@ -49,6 +49,7 @@ for _i in 1 2 3 4 5 6 7 8; do
     _p="$(dirname "${_p}")"
     [ "${_p}" = "/" ] && break
 done
+export ALEMS_CALLER_CWD="${ALEMS_CALLER_CWD:-$PWD}"   # folder the user ran alems from
 cd "$ALEMS_ROOT"
 export PYTHONPATH="${ALEMS_ROOT}"
 # G11: never import from ~/.local (a foreign editable alems_sdk shadowed the engine).
