@@ -89,6 +89,41 @@ def reset_prefix_cache(endpoint, timeout_s):
     return status == 200
 
 
+def prefix_cache_counters(endpoint, queries_metric, hits_metric, timeout_s):
+    # type: (str, str, str, float) -> Tuple[Optional[float], Optional[float]]
+    """GET /metrics; (queried tokens, hit tokens) summed over label sets, None when not found."""
+    try:
+        with urllib.request.urlopen(endpoint + "/metrics", timeout=timeout_s) as resp:
+            text = resp.read().decode()
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        logger.warning("metrics read failed: %s", exc)
+        return None, None
+    return metric_sum(text, queries_metric), metric_sum(text, hits_metric)
+
+
+def metric_sum(text, name):
+    # type: (str, str) -> Optional[float]
+    """Sum of one Prometheus metric over all its label sets; None when the metric is absent."""
+    total, seen = 0.0, False
+    for line in text.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        if "}" in line:
+            head, rest = line.rsplit("}", 1)
+            metric, fields = head.split("{", 1)[0], rest.split()
+        else:
+            parts = line.split()
+            metric, fields = parts[0], parts[1:]
+        if metric != name or not fields:
+            continue
+        try:
+            total += float(fields[0])
+            seen = True
+        except ValueError:
+            continue
+    return total if seen else None
+
+
 def parse_sse(line):
     # type: (bytes) -> Optional[Dict[str, Any]]
     """One server sent event line to a dict; None for keep alives, [DONE] and noise."""

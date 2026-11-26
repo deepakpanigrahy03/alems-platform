@@ -1,0 +1,49 @@
+# Capability registry and store audit (chunk 45, 45.5b and 45.5c). Read only, CSV.
+# Used by scripts/experiment_capabilities.py. Cells are yes, no or unknown.
+# A capability is "yes" for an experiment when at least min_run_share of its runs have it.
+# A missing optional capability never makes an experiment unusable: only the
+# capabilities listed under its usable_for entry count.
+
+stores:
+  dev_chunk45: /mnt/alems-data/gn100-2b96/envs/dpani/dev/alems-wt-chunk45/experiments.db
+  raf_bfcl: /mnt/alems-data/gn100-2b96/users/dpani/sandboxes/raf-mlsys-2027/experiments.db
+  gb10_prod: /mnt/alems-data/gn100-2b96/experiments.db
+  paper1_frozen: /mnt/alems-data/gn100-2b96/experiments_gn100_paper1_r2_frozen_20261013.db
+  sigmetrics_paper1: /mnt/alems-data/gn100-2b96/experiments_gn100_sigmetrics_paper1.db
+  icpe_2027: /mnt/alems-data/gn100-2b96/users/dpani/sandboxes/icpe-2027/experiments.db
+  thermal_check: /mnt/alems-data/gn100-2b96/users/dpani/sandboxes/alems-thermal-check-20261125-1643/experiments.db
+
+min_run_share: 0.95
+# First schema version that carries the chunk 45 phase boundary fixes. null means
+# unknown: phase_boundaries_trusted is then unknown everywhere until this is set.
+phase_boundary_min_schema: null
+
+audit:
+  dcgm_cap_rows: 2000        # early sampler cap (B9): a run with exactly this many DCGM rows is flagged
+  dcgm_min_cover: 0.99       # DCGM shared window coverage below this is flagged
+  run_window_from: start_time_ns
+  run_window_to: end_time_ns
+
+capabilities:
+  spbm_package: {probe: domain, domain_ids: [1]}
+  spbm_gpu: {probe: domain, domain_ids: [7]}
+  spbm_cpu: {probe: domain, domain_ids: [5, 6]}
+  spbm_rails: {probe: domain, domain_ids: [25, 26, 27, 28, 29]}
+  dcgm: {probe: table_rows, table: gpu_samples}
+  tool_events: {probe: table_rows, table: orchestration_events, where: "event_type = 'tool_call'"}
+  tool_outcome: {probe: table_rows, table: orchestration_events, where: "event_type = 'tool_call' AND tool_success IS NOT NULL"}
+  phase_events: {probe: table_rows, table: orchestration_events, where: "phase IN ('planning', 'execution', 'synthesis')"}
+  phase_boundaries_trusted: {probe: schema_min}
+  tokens: {probe: run_column, column: completion_tokens}
+  ttft: {probe: run_column, column: ttft_ms}
+  thermal: {probe: run_column, column: max_temp_c}
+  serving_snapshots: {probe: table_rows, table: serving_runtime_snapshots}
+  sequencer_link: {probe: table_rows, table: energy_validation_seq_attempt_runs}
+
+usable_for:
+  ownership_bounds_tool_windows: [spbm_package, spbm_gpu, tool_events]
+  ownership_bounds_phases: [spbm_package, spbm_gpu, phase_events, phase_boundaries_trusted]
+  gpu_equivalent_goals: [spbm_package, spbm_gpu, dcgm, tool_events, sequencer_link]
+  price_of_waiting: [spbm_package, spbm_gpu, dcgm, tool_events, tool_outcome, sequencer_link]
+  meter_gap_by_phase: [spbm_gpu, dcgm, phase_events, phase_boundaries_trusted]
+  thermal_history: [spbm_package, thermal]
