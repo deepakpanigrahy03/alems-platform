@@ -25,6 +25,13 @@ class LiveSpans:
     def __init__(self):
         self.phase = None   # type: Optional[str]   span id of the phase running now
         self._open = {}     # type: Dict[str, types.SimpleNamespace]
+        # Load listeners now (entry points, settings, NVTX plugin), never inside the
+        # first phase between its stored start and its profiler range (45.4d).
+        try:
+            from core.observability import span_listeners
+            span_listeners.listeners()
+        except Exception:  # observability never breaks the run
+            pass
 
     def begin(self, kind, name, parent_span_id=None):
         # type: (str, str, Optional[str]) -> str

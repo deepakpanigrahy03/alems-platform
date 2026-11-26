@@ -74,6 +74,12 @@ def compare(spans, ranges, tol_ns, stats=None):
         n_start, n_end = ranges[sid]
         d_dur = abs((n_end - n_start) - (s1 - s0))
         d_off = abs((n_start - n0) - (s0 - r0))
+        if kind == "llm_call":
+            # NVTX range = the Python call around the request; stored span = request to
+            # last token (span_builder 45.8). Rule: the range contains the span.
+            a0, a1 = n_start - n0 + r0, n_end - n0 + r0      # range on the store clock
+            early, late = max(0, a0 - s0), max(0, s1 - a1)   # how far the span sticks out
+            d_off, d_dur = early, late
         stats["max_duration_diff_ms"] = max(stats["max_duration_diff_ms"] or 0.0, d_dur / 1e6)
         stats["max_start_offset_ms"] = max(stats["max_start_offset_ms"] or 0.0, d_off / 1e6)
         ok = d_dur <= tol_ns and d_off <= tol_ns
