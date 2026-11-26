@@ -155,3 +155,6 @@ python_functions = ["test_*"]
 addopts = "--ignore=core/execution/tests/test_llm_setup.py --ignore=core/execution/tests/graph_test.py"
 [project.entry-points."alems.recorders"]
 thermal_exposure = "extensions.thermal_exposure.recorder:ExperimentRecorder"
+
+[project.entry-points."alems.sequencer.steps"]
+thermal_session = "core.cli.cmd_thermal:ThermalSessionStep"

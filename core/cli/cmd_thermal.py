@@ -114,3 +114,55 @@ def handle_thermal(argv):
         _print_steps(steps)
         return 0
     return _run_profile(a.profile)
+
+
+def _step_kind_base():
+    # type: () -> Any
+    from alems_sdk.sequencer import StepKindABC
+    return StepKindABC
+
+
+class ThermalSessionStep(_step_kind_base()):
+    """
+    Sequencer step kind thermal_session: one thermal profile as one sequencer step.
+
+    The same checks as `alems thermal run` at plan time, then the session runs in
+    this process. It is a profiling kind: the session records itself (idle window,
+    goals, pauses, cooling tail), so the sequencer adds no measured run around it,
+    and every goal run it saves is linked to the sequencer attempt.
+    """
+
+    KIND = "thermal_session"
+    MEASUREMENT = "profiling"
+    PARAMS = {"profile": {"type": "string", "required": True}}
+
+    @classmethod
+    def validate(cls, params):
+        # type: (Dict[str, Any]) -> List[str]
+        """Missing parameter, missing file, or the profile's own plan errors (dry run)."""
+        errors = super(ThermalSessionStep, cls).validate(params)
+        if errors:
+            return errors
+        path = Path(str(params["profile"])).expanduser()
+        if not path.is_file():
+            return ["thermal_session: profile not found: %s" % path]
+        try:
+            dry_run(_load(str(path)), 500)
+        except (ValueError, OSError) as exc:
+            return ["thermal_session: %s" % exc]
+        return []
+
+    def is_available(self, step, ctx):
+        # type: (Dict[str, Any], Dict[str, Any]) -> Any
+        from alems_sdk.sequencer import Availability
+        path = Path(str(step["profile"])).expanduser()
+        return Availability(True) if path.is_file() else Availability(False, "profile_missing", str(path))
+
+    def measure(self, step, ctx):
+        # type: (Dict[str, Any], Dict[str, Any]) -> Dict[str, Any]
+        """Run the session; a non-zero exit is a failed step."""
+        from alems_sdk.sequencer import StepFailed
+        rc = _run_profile(str(Path(str(step["profile"])).expanduser()))
+        if rc != 0:
+            raise StepFailed("profile_exit", "thermal session exit code %s" % rc)
+        return {"exit_code": (rc, None)}
