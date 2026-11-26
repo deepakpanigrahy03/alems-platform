@@ -923,6 +923,10 @@ You can use tools like calculator or web search if needed.
         )
  
         result = self._dispatch_tool(name, args)  # never raises
+        # Config driven hold of the tool result (alems_sdk.tool_latency): the
+        # wait happens before tool_end, so it is part of the measured tool call.
+        from alems_sdk import tool_latency as _tool_latency
+        _held = _tool_latency.hold(success=result.success)
  
         tool_end = time.time()
  
@@ -945,6 +949,7 @@ You can use tools like calculator or web search if needed.
                 "result_rows":          result.row_count,
                 "result_preview":       str(result.result)[:200],
                 "error":                result.error,
+                **_held,                # injected_delay_ms, tool_wait_mode when active
             })
  
         # Return raw result on success.
