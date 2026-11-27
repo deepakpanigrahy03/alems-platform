@@ -55,6 +55,9 @@ def _db(rows, goals, attempts, spans):
     conn.executemany("INSERT INTO goal_attempt (attempt_id, goal_id, run_id, energy_uj) VALUES (?,?,?,?)",
                      attempts)
     conn.executemany("INSERT INTO spans VALUES (?,?,?,?,?,?)", spans)
+    # read by INV-C2 and INV-C2b since 38efa6d (phase attribution v3); empty means no v3 runs
+    conn.execute("CREATE TABLE orchestration_events (event_id INTEGER, run_id INTEGER, attribution_method TEXT)")
+    conn.execute("CREATE TABLE energy_attribution (run_id INTEGER, attribution_residual_uj INTEGER)")
     return conn
 
 
