@@ -1,0 +1,109 @@
+# Paper 5, P5-C: controlled application level retry simulation with post generation
+# failure injection (plan v1.2, section 8). 11 conditions over the same 10 seeded base
+# prompts (about 1,000 tokens, 256 output tokens, ignore_eos, temperature 0):
+# common baseline k 0, growth k 1 to 4, fixed k 1 to 4, final context single call k 2 and 4.
+# Prefix cache reset before each goal, kept between attempts; counters read per attempt.
+# Server (Deepak starts it): vLLM 0.23, Mistral 7B, dev mode (cache reset), prefix caching
+# on, --max-num-seqs 1, --max-model-len 32768, --gpu-memory-utilization 0.50 (plan 8.1).
+# Thermal gate before every step, proceed after 30 minutes; no temperature abort.
+sequence:
+  name: "paper 5 retry and context growth"
+  seed: 4601
+  cycles: 2
+  baseline: {kind: idle, duration_s: 30}
+  on_baseline_failure: skip_treatment
+  gate:
+    max_temp_c: 65
+    sensor_pattern: ".*"      # regex over sensor names; .* means every sensor
+    poll_s: 15
+    max_wait_s: 1800
+    on_timeout: proceed
+blocks:
+  - condition: baseline_k0
+    treatment: {kind: retry_context, arm: baseline, k: 0, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: growth_k1
+    treatment: {kind: retry_context, arm: growth, k: 1, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: growth_k2
+    treatment: {kind: retry_context, arm: growth, k: 2, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: growth_k3
+    treatment: {kind: retry_context, arm: growth, k: 3, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: growth_k4
+    treatment: {kind: retry_context, arm: growth, k: 4, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: fixed_k1
+    treatment: {kind: retry_context, arm: fixed, k: 1, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: fixed_k2
+    treatment: {kind: retry_context, arm: fixed, k: 2, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: fixed_k3
+    treatment: {kind: retry_context, arm: fixed, k: 3, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: fixed_k4
+    treatment: {kind: retry_context, arm: fixed, k: 4, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: final_single_k2
+    treatment: {kind: retry_context, arm: final_single, k: 2, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: final_single_k4
+    treatment: {kind: retry_context, arm: final_single, k: 4, n_prompts: 10, prompt_tokens: 1000, output_tokens: 256, seed: 4601,
+                retry_note: "The previous answer was rejected by the checker. Solve the task again.",
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3",
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: "true",
+                reset_prefix_cache: auto, timeout_s: 300, max_sizing_iter: 12,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
