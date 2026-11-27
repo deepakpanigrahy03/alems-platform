@@ -332,6 +332,20 @@ prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"
 ```
 Without both keys nothing is read. A counter that is absent or went backwards (server restart) gives no row; missing is never stored as 0. This complements `cached_share`, which vLLM leaves empty when nothing was cached.
 
+### Retries with context growth (retry_context)
+Paper 5 (P5-C) arm step: a controlled application level retry simulation with post generation failure injection. One step runs one arm at one retry count `k` over `n_prompts` seeded base prompts; the prompts depend only on `seed` and their index, so every arm and every `k` of a session sees the same prompts.
+
+| Arm | Calls per goal | Context |
+|---|---|---|
+| `baseline` (k 0) | 1 | base prompt |
+| `fixed` | k + 1 | base prompt every time (context reset) |
+| `growth` | k + 1 | each retry appends the previous answer and a user turn with `retry_note` and the base prompt restated |
+| `final_single` | 1 | shaped like growth's last attempt, with synthetic assistant turns sized to `output_tokens` |
+
+Attempts 1 to k are marked `failed_injected` after generation has completed; attempt k + 1 is the success, so every goal succeeds. With `reset_prefix_cache: auto` the server prefix cache is reset before each goal and kept between attempts. With both `prefix_cache_queries_metric` and `prefix_cache_hits_metric` named, the counters are read around every attempt.
+
+Stored per goal (`g_NNN.*`): `t0_ns`, `t1_ns` (the goal window), `attempts`, `input_tokens_total`, `output_tokens_total`. Per attempt (`g_NNN.a_N.*`): prompt and output tokens, cached tokens, prefix cache deltas, timing, `outcome`. Energy belongs to the step; the analysis allocates it to goal windows. Example plan: `config/sequence_plans/p5c_retry_context.yaml`.
+
 ### Fixed compute load (matmul_load)
 
 `matmul_load` runs a fixed duty cycle matrix multiply (for example 2048 x 2048 bf16, busy 15 ms of every 100 ms) with no model server, through the repository's `scripts/tools/matmul_load.py` under an interpreter that has torch with CUDA.

@@ -8,6 +8,7 @@ dependencies = ["alems-sdk>=1.0,<2.0"]
 [project.entry-points."alems.sequencer.steps"]
 request_profile = "alems_plugin_workload.request_step:RequestProfileStep"
 matmul_load = "alems_plugin_workload.matmul_step:MatmulLoadStep"
+retry_context = "alems_plugin_workload.retry_step:RetryContextStep"
 
 [build-system]
 requires = ["setuptools>=61"]
