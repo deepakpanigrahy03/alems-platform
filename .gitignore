@@ -131,3 +131,6 @@ audit/UBUNTU2505/
 sandbox_traces/
 # Mac die-temperature helper, built per machine by install.sh from vendor/sensors.m
 core/readers/darwin/vendor/sensors
+
+# local patch backups, never in the repo
+bak_*/

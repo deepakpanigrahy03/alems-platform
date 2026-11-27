@@ -72,6 +72,27 @@ def get_attempt_ids(conn, goal_ids: list) -> list:
     return [r[0] for r in rows]
 
 
+# Sequencer step kinds that are measurement runs, not goals: they write no goal rows (45.5e, 7924c26).
+# Must cover core/sequencer/plan.py KNOWN_KINDS_CORE (checked by tests/test_integrity_measurement_steps.py).
+MEASUREMENT_KINDS = ("idle", "profile")
+
+
+def get_measurement_kind(conn, exp_id: int):
+    """Return the sequencer step kind if exp_id is a measurement step, else None."""
+    try:
+        row = conn.execute(
+            "SELECT s.kind FROM energy_validation_seq_attempts a "
+            "JOIN energy_validation_seq_steps s ON s.step_id = a.step_id "
+            "WHERE a.exp_id = ? LIMIT 1",
+            (exp_id,)
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None  # store without sequencer tables: not a sequencer experiment
+    if row is not None and row[0] in MEASUREMENT_KINDS:
+        return row[0]
+    return None
+
+
 def check_runs(conn, exp_id: int, run_ids: list, exp_meta: dict) -> list:
     results = []
     count = len(run_ids)
@@ -1420,8 +1441,13 @@ def main():
 
     all_results = []
     all_results += check_runs(conn, exp_id, run_ids, exp_meta)
-    all_results += check_goal_execution(conn, exp_id, goal_ids)
-    all_results += check_goal_attempt(conn, goal_ids, attempt_ids)
+    measurement_kind = get_measurement_kind(conn, exp_id)
+    if measurement_kind:
+        all_results.append(ok(f"goal_execution: skipped (measurement step: {measurement_kind}, no goal rows by design)"))
+        all_results.append(ok(f"goal_attempt: skipped (measurement step: {measurement_kind}, no goal rows by design)"))
+    else:
+        all_results += check_goal_execution(conn, exp_id, goal_ids)
+        all_results += check_goal_attempt(conn, goal_ids, attempt_ids)
     all_results += check_tool_failure_events(conn, attempt_ids, exp_type)
     all_results += check_normalization_factors(conn, run_ids)
     all_results += check_energy_attribution(conn, run_ids)

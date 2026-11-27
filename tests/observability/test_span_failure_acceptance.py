@@ -24,6 +24,9 @@ from core.vocabularies.agent import span_builder
 class _DB(object):
     """Minimal adapter: transaction() that commits or propagates."""
 
+    # writer connection used by the post ETL (writer contract C3, G77); the ETL steps are stubbed
+    db = type("_Writer", (), {"conn": None})()
+
     @contextlib.contextmanager
     def transaction(self):
         yield
@@ -42,7 +45,7 @@ def svc(monkeypatch, tmp_path):
     for name in ("compute_phase_attribution", "aggregate_hardware_metrics",
                  "populate_tool_failure_wasted_energy", "compute_energy_attribution",
                  "populate_ttft_tpot"):
-        monkeypatch.setattr(rp, name, lambda *a: None)
+        monkeypatch.setattr(rp, name, lambda *a, **k: None)
     yield s, tmp_path
     gate.reset_for_tests()
 
