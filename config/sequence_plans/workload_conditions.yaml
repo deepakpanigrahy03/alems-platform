@@ -1,0 +1,36 @@
+# Workload conditions (coding spec P1.3; run plan X5-B shape).
+# Profiles are prefill heavy and decode heavy request profiles, not isolated
+# phases. Token targets are design values; achieved tokens are stored per request.
+# Needs a running OpenAI compatible server at endpoint (vLLM: VLLM_SERVER_DEV_MODE=1
+# enables the prefix cache reset). Requests run one at a time, back to back.
+sequence:
+  name: "workload conditions v1"
+  seed: 45
+  cycles: 3
+  baseline: {kind: idle, duration_s: 60}
+  on_baseline_failure: skip_treatment
+blocks:
+  - condition: BASE
+    treatment: {kind: request_profile, profile: BASE, profile_version: "workload_conditions/1",
+                prompt_tokens: 1000, output_tokens: 256, n_requests: 40, duration_s: 60,
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3", seed: 451,
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: auto,
+                reset_prefix_cache: auto, timeout_s: 300,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: PREFILL
+    treatment: {kind: request_profile, profile: PREFILL, profile_version: "workload_conditions/1",
+                prompt_tokens: 4000, output_tokens: 32, n_requests: 60, duration_s: 60,
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3", seed: 452,
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: auto,
+                reset_prefix_cache: auto, timeout_s: 300,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}
+  - condition: DECODE
+    treatment: {kind: request_profile, profile: DECODE, profile_version: "workload_conditions/1",
+                prompt_tokens: 300, output_tokens: 1000, n_requests: 10, duration_s: 60,
+                endpoint: "http://127.0.0.1:8000", model: "Mistral-7B-Instruct-v0.3", seed: 453,
+                tolerance_pct: 5, sizing_tolerance_pct: 2, ignore_eos: auto,
+                reset_prefix_cache: auto, timeout_s: 300,
+                prefix_cache_queries_metric: "vllm:prefix_cache_queries_total",
+                prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"}

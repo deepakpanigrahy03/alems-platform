@@ -456,7 +456,7 @@ catalog:
     status: current
     last_validated: "2026-11-26"
     nav_entry: "Session Plans: research/session-plans.md"
-  - topic: "Sequencer: controlled experiments, plans, brackets, cycles, counterbalancing, thermal gate, dry run, run, resume, failure rules, result queries, copy benchmark (copy_rate), kernel benchmark over memory placements (kernel_rw), session kernel pass, paper reporting"
+  - topic: "Sequencer: controlled experiments, plans, brackets, cycles, counterbalancing, thermal gate, dry run, run, resume, failure rules, result queries, copy benchmark (copy_rate), kernel benchmark over memory placements (kernel_rw), session kernel pass, workload conditions (request_profile: BASE, PREFILL, DECODE request profiles; matmul_load: fixed compute load), paper reporting"
     file: user-guide/09-controlled-experiments-sequencer.md
     audience: researcher
     status: current
@@ -483,3 +483,31 @@ catalog:
     status: current
     last_validated: "2026-11-24"
     nav_entry: "Kernel Traffic Pass (Nsight Compute): developer/kernel-traffic-pass.md"
+
+  - topic: "Ownership bounds L and U per phase and meter, scripts/ownership_bounds.py, tool call windows on old stores"
+    file: research/phase-attribution.md
+    audience: researcher
+    status: current
+    last_validated: "2026-11-26"
+    nav_entry: "Phase Attribution: research/phase-attribution.md"
+
+  - topic: "Injected tool latency, tool_latency config section, sleep versus poll waits, price of waiting"
+    file: research/tool-instrumentation.md
+    audience: researcher
+    status: current
+    last_validated: "2026-11-26"
+    nav_entry: "Tool Instrumentation: research/tool-instrumentation.md"
+
+  - topic: "Capability registry and store audit, scripts/experiment_capabilities.py, usable_for, phase_trusted_stores"
+    file: research/run-quality.md
+    audience: researcher
+    status: current
+    last_validated: "2026-11-26"
+    nav_entry: "Run Quality: research/run-quality.md"
+
+  - topic: "Sequencer request_profile server prefix cache counters; sequencer measurement runs write no goal rows"
+    file: user-guide/09-controlled-experiments-sequencer.md
+    audience: researcher
+    status: current
+    last_validated: "2026-11-26"
+    nav_entry: "Controlled Experiments (Sequencer): user-guide/09-controlled-experiments-sequencer.md"

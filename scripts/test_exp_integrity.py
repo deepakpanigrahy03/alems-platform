@@ -632,7 +632,8 @@ def check_serving_snapshots(conn, run_ids: list) -> list:
         return []
     ph = ",".join("?" * len(run_ids))
     rows = conn.execute(f"SELECT snapshot_type, COUNT(*), SUM(kv_occupancy_fraction > 0), "
-                        f"SUM(kv_occupancy_fraction IS NULL) FROM serving_runtime_snapshots "
+                        f"SUM(kv_occupancy_fraction IS NULL), SUM(queue_active > 0), "
+                        f"SUM(queue_active IS NOT NULL) FROM serving_runtime_snapshots "
                         f"WHERE run_id IN ({ph}) GROUP BY snapshot_type", run_ids).fetchall()
     kinds = {r[0]: r for r in rows}
     if not kinds:
@@ -640,9 +641,18 @@ def check_serving_snapshots(conn, run_ids: list) -> list:
     results = []
     if "queue" not in kinds or "kv_cache" not in kinds:
         results.append(fail(f"serving_snapshots: types present {sorted(kinds)}; need kv_cache and queue"))
-    kv = kinds.get("kv_cache")
+    kv, queue = kinds.get("kv_cache"), kinds.get("queue")
     if kv and kv[1] and not kv[2] and kv[3] < kv[1]:
-        results.append(fail("serving_snapshots: kv_occupancy_fraction zero on every sample (sentinel)"))
+        # zero is the true value on an idle server; it is a sentinel only while requests ran
+        if not queue or not queue[5]:
+            results.append(warn("serving_snapshots: kv_occupancy_fraction zero on every sample, "
+                                "request activity unknown"))
+        elif queue[4]:
+            results.append(fail("serving_snapshots: kv_occupancy_fraction zero on every sample "
+                                "while requests were active (sentinel)"))
+        else:
+            results.append(ok("serving_snapshots: idle server (no active requests), kv occupancy 0, "
+                              + ", ".join(f"{k} {v[1]}" for k, v in kinds.items())))
     if not results:
         results.append(ok("serving_snapshots: " + ", ".join(f"{k} {v[1]}" for k, v in kinds.items())))
     return results

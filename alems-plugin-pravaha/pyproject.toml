@@ -12,6 +12,7 @@ pravaha = "alems_plugin_pravaha.reader:PravahaTrafficReader"
 copy_rate = "alems_plugin_pravaha.copy_step:CopyRateStep"
 kernel_traffic = "alems_plugin_pravaha.kernel_pass:KernelTrafficStep"
 kernel_rw = "alems_plugin_pravaha.kernel_step:KernelRWStep"
+schedule_load = "alems_plugin_pravaha.schedule_step:ScheduleLoadStep"
 
 [build-system]
 requires = ["setuptools>=61"]

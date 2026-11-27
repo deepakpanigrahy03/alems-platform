@@ -1430,3 +1430,96 @@ DC_INPUT and SYS_TOTAL have been observed to disagree; DC_INPUT is treated as a 
   Workaround: check `environment_config.git_commit` of the experiment; for older commits, integrate `power_rail_samples` instead of summing these domains.
 - **VCORE and PREREG are not additive**: they overlap other rails and must never appear in a sum with CPU or package rails.
   Workaround: report them as separate channels.
+
+## Telemetry Update Cadence { #telemetry-update-cadence }
+
+---
+**Tool:** `scripts/x1_update_rates.py` (descriptive measurement, no stored method)
+**Platforms verified:** NVIDIA Grace GB10 (GN100, aarch64)
+**Status:** PRODUCTION
+**Last updated:** 2026-11-26
+---
+
+### Overview
+
+Sampling a channel faster than its source updates produces repeated values, not new information.
+This tool measures, for every energy and power channel, how often a new sample arrives and how often the value actually changes, under an idle and a fixed load condition.
+It writes CSV files only and never touches an experiment store.
+
+Channels: the 4 SPBM energy counters (pkg, cpu_p, cpu_e, gpu), the 10 SPBM power rails (sys_total, soc_pkg, cpu_gpu, cpu_p, cpu_e, vcore, dc_input, gpu, prereg, dla) and DCGM field 156 (total GPU energy).
+The SPBM device and every channel are found by hwmon name and label, never by hwmon index, because the index changes across reboots.
+Conditions: IDLE (no serving process) and LOAD (a fixed duty cycle bf16 matrix multiply with no request level variation), alternated I L I L I L, 60 s each.
+
+Definitions used in the output:
+
+| Term | Meaning |
+|---|---|
+| arrival | a new sample: a new source timestamp (DCGM) or a successful read (hwmon has no source timestamp) |
+| change | an arrival whose value differs from the previous arrival |
+| held | hwmon read equal to the previous read |
+| repeated | DCGM sample with a new timestamp and the same value |
+| missing | failed read or blank DCGM value (empty cell, never 0) |
+
+### Platform Coverage
+
+| Platform | Architecture | Source | Canonical Role | Confidence | Status |
+|---|---|---|---|---|---|
+| NVIDIA Grace GB10 (GN100, aarch64) | aarch64 | SPBM hwmon sysfs, DCGM 4 bindings | update cadence of energy and power channels | not applicable (descriptive) | VERIFIED |
+| Other platforms | any | none | not supported | not applicable | NOT_SUPPORTED |
+
+### Schema
+
+No tables or columns. Output files per run, in a timestamped folder:
+
+| File | Content |
+|---|---|
+| `x1_summary.csv` | one row per channel and step plus pooled rows per condition: reads, missing, duplicate and missing timestamps, arrival and value change intervals (p10, p50, p90 in ms), step size percentiles, held, repeated, gaps above the threshold, abort reason, resolution note |
+| `x1_raw.csv` | one row per read: channel, read time (monotonic ns), source time (ns, DCGM only), raw value |
+| `x1_meta.csv` | settings, discovered device, missing channels, DCGM status, load summary per LOAD step, code commit |
+
+### Method Provenance
+
+Descriptive tool; no method_id is seeded and no stored value depends on it.
+Value change intervals start at the second change in a step, because the first change has no earlier change to measure from.
+A hwmon channel whose value change p50 is within 1.5 times the poll interval is marked as not resolvable below the poll interval; DCGM rows are marked when the source arrival p50 is 100 ms or more.
+All intervals, limits and the load size come from `config/app_settings.yaml`, section `x1_update_rates`.
+
+Result on NVIDIA Grace GB10 (GN100, aarch64), 3 repeats of 60 s per condition, hwmon polled every 5 ms:
+
+| Channel | Value change p50, IDLE | Value change p50, LOAD | Note |
+|---|---|---|---|
+| SPBM energy counters (4) | 100.0 ms | 100.0 ms | step size depends on power: pkg p50 2.6 J idle, 5.3 J load |
+| SPBM rail sys_total | 100.0 ms | 100.0 ms | held between updates like the counters |
+| SPBM rails soc_pkg, cpu_gpu, cpu_p, cpu_e, vcore, dc_input, gpu, prereg | every read | every read | not resolvable below the poll interval; a 1 ms idle check also changed at about every read |
+| SPBM rail dla | about 9 s | about 12 s | nearly constant |
+| DCGM field 156 | 99.7 ms | 101.4 ms | source samples every 13 to 14 ms; most samples repeat the previous value |
+
+All 15 channels delivered data in all 6 steps with no missing reads.
+
+### Query Reference
+
+The tool writes CSV, not database rows, so there is no SQL.
+**Value change cadence per channel and condition** (pooled over repeats):
+
+```bash
+grep "^pooled" x1_summary.csv | cut -d, -f4,5,20,23,28 | column -ts,
+```
+
+Expected output: one row per channel and condition with the change p50 in ms, the step size p50 and the resolution note.
+
+### Verification
+
+1. Discovery without writing files: `python scripts/x1_update_rates.py --probe`; every channel is listed with its sysfs path and DCGM reports `open`.
+2. Short idle check: `python scripts/x1_update_rates.py --out-dir <dir> --conditions IDLE --repeats 1 --step-s 10 --settle-s 0`; the run prints `pkg counter IDLE change p50 ... PASS` (band 80 to 120 ms from config).
+3. Unit tests: `pytest tests/test_x1_update_rates.py`.
+
+### Known Limitations
+
+- **Rail cadence below the poll interval is not resolved**: eight rails change at about every read, even at 1 ms, so their true update interval is unknown.
+  Workaround: none; treat these rails as refreshed on read when choosing a sampling rate.
+- **hwmon has no source timestamp**: held reads cannot be told apart from a source that updated with the same value.
+  Workaround: none; DCGM rows report repeated values because DCGM stamps its samples.
+- **Counter step size is not constant**: it scales with power, so a fixed energy step must not be assumed when estimating counter quantization.
+  Workaround: use the measured step distribution of the condition at hand.
+- **One load level**: LOAD is a light fixed matrix multiply chosen to stay within thermal limits; update cadence at higher power was not measured beyond a short check.
+  Workaround: repeat with a different load size from config, attended, with the thermal limits in place.

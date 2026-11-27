@@ -76,6 +76,6 @@ def measured_run(ctx, label, work_fn, goal=None):
     executor = BenchmarkExecutor(label, work_fn)
     result = rt["harness"].run_linear(executor, "", task_id=label, is_cloud=False, run_number=1)
     with attempt_scope(ctx["attempt_id"]):
-        run_id = rt["runner"].save_single(db, exp_id, rt["hw_id"], result, 1, "linear")
+        run_id = rt["runner"].save_single(db, exp_id, rt["hw_id"], result, 1, "linear", record_goal=False)
     return {"exp_id": exp_id, "run_id": run_id, "result": result,
             "value": executor.value, "error": executor.error}

@@ -1,0 +1,18 @@
+[project]
+name = "alems-plugin-workload"
+version = "0.1.0"
+description = "A-LEMS workload step kinds: controlled LLM request profiles and a fixed matmul load"
+requires-python = ">=3.9"
+dependencies = ["alems-sdk>=1.0,<2.0"]
+
+[project.entry-points."alems.sequencer.steps"]
+request_profile = "alems_plugin_workload.request_step:RequestProfileStep"
+matmul_load = "alems_plugin_workload.matmul_step:MatmulLoadStep"
+retry_context = "alems_plugin_workload.retry_step:RetryContextStep"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["alems_plugin_workload"]

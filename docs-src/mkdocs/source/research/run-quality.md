@@ -251,3 +251,30 @@ WHERE method_id = 'quality_scorer_v1';
 ## References
 
 - Panigrahy, D. (2026). *A-LEMS Quality Scoring Methodology*. Internal. Section 5 — Run quality assessment.
+
+## Capability Registry and Store Audit { #capability-registry }
+
+### Overview
+`scripts/experiment_capabilities.py` lists, for every experiment in every configured store, which measurement capabilities its runs carry and which analyses it can support. Each cell is yes, no or unknown. Unknown means the store cannot tell (for example a table without `run_id`); it is never reported as yes or no. A capability is yes for an experiment when at least `min_run_share` of its runs have it; the share is reported next to the cell.
+
+### Usage
+```bash
+python scripts/experiment_capabilities.py --out-dir <dir> [--stores raf_bfcl,gb10_prod] [--per-run]
+```
+Read only. Output `capabilities_experiments.csv` (one row per store and experiment), `capabilities_stores.csv` and, with `--per-run`, `capabilities_runs.csv`.
+
+### Configuration
+`config/experiment_capabilities.yaml`:
+
+| Key | Meaning |
+|---|---|
+| `stores` | name to store path |
+| `capabilities` | probes: `domain` (SPBM domain ids present), `table_rows` (rows in a table, optional `where`), `run_column` (non null column in `runs`), `store_list` |
+| `phase_trusted_stores` | stores made by code with the chunk 45 phase boundary fixes; the schema version cannot tell. Add each new campaign store here |
+| `usable_for` | analysis name to required capabilities; gives `usable_for_<analysis>` and `blocking_<analysis>` columns |
+| `audit` | `dcgm_cap_rows` (early sampler row cap), `dcgm_min_cover`, run window columns |
+
+A missing optional capability never makes an experiment unusable: only the capabilities listed under its `usable_for` entry count.
+
+### Audit columns
+Runs without energy samples; runs with exactly `dcgm_cap_rows` DCGM rows (early cap); median DCGM coverage of the run window and the count below `dcgm_min_cover`.

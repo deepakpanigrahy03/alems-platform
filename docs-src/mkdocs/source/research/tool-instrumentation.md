@@ -196,3 +196,25 @@ All tool instrumentation columns on `orchestration_events` are attributed to
 | `oe.tool_result_rows` | `tool_instrumentation_v1` | MEASURED |
 | `oe.tool_cpu_time_ns` | `tool_instrumentation_v1` | MEASURED |
 | `oe.tool_memory_delta_kb` | `tool_instrumentation_v1` | MEASURED |
+
+## Injected Tool Latency { #injected-tool-latency }
+
+### Overview
+The `tool_latency` section holds each tool result for a fixed time inside the tool call window, after the tool has run. The tool output is unchanged; only the time the agent waits for it changes. It serves two studies: the same goals with a blocking wait versus a polling wait (equal GPU work, different package energy), and the price of waiting (added joules per added second of tool latency).
+
+### Configuration
+```yaml
+tool_latency:
+  enabled: true
+  delay_s: 2.0
+  wait_mode: poll      # sleep (blocking) or poll
+  poll_ms: 0           # required for poll; 0 is a busy spin
+  apply_to: success    # success (only successful tool results) or all
+```
+Every key is required when `enabled` is true; there are no defaults. An invalid section stops startup, so an arm never runs with a guessed setting. The section is read on every config load, so a profile without it runs with no added latency. Example: `config/experiment_configs/tool_latency_example.yaml`.
+
+### Where the hold happens
+Core agentic runs hold inside `_execute_tool` after the tool dispatch; BFCL runs hold inside the plugin's `_tool` before the end timestamp. In both, the held time is part of the stored `tool_call` window (`orchestration_events.duration_ns`).
+
+### Known Limitations
+The configured delay is not stored per tool event (`orchestration_events` has no metadata column). Analyses identify the arm from the sequencer condition and confirm the hold from the measured tool window.

@@ -175,6 +175,9 @@ WHERE s.session_id = :session AND s.role IN ('pre', 'post')
 ORDER BY s.planned_index;
 ```
 
+### Measurement runs are not goals
+Idle brackets and plugin step kinds (`request_profile`, `matmul_load`) are stored as runs with their energy, but write no `goal_execution` or `goal_attempt` rows: they are measurements, not goals. Profile treatments run through the normal runner and record their goals as usual. Stores written before this change hold one failed goal per such step; exclude them by joining goal rows to sequencer steps of kind `profile`.
+
 ## Reporting in a paper
 
 - Report gross energy of each treatment as measured.
@@ -263,3 +266,98 @@ JOIN energy_validation_seq_step_results r USING (attempt_id)
 WHERE s.session_id = :session AND s.kind = 'kernel_rw'
 GROUP BY s.planned_index ORDER BY s.planned_index;
 ```
+
+## Workload Conditions (request_profile, matmul_load)
+
+The workload plugin (`alems-plugin-workload`) adds two step kinds that run a controlled workload inside a sequencer step, so energy, DCGM and traffic are measured over the same bracketed window as every other kind.
+
+### Request profiles (request_profile)
+
+`request_profile` sends seeded chat requests, one at a time and back to back, to any OpenAI compatible server.
+Each profile fixes a prompt length and an output length in tokens; the values come from the plan.
+
+| Profile | Prompt tokens | Output tokens | Character |
+|---|---|---|---|
+| BASE | about 1,000 | 256 | reference request |
+| PREFILL | about 4,000 | 32 | prefill heavy |
+| DECODE | about 300 | 1,000 | decode heavy |
+
+These are prefill heavy and decode heavy request profiles, not isolated phases: every request still has both a prefill and a decode part, and energy is measured for the whole step, not per request or per phase.
+The profile semantics are versioned (`profile_version: workload_conditions/1`) and stored with every step.
+
+**How prompts are made.** Prompts are synthetic text from a fixed word list, generated from the plan seed, so anyone can regenerate them and no dataset licence applies.
+Each prompt starts with a unique marker, and each cycle gets new markers, so requests do not share a prefix beyond what the server's chat template adds.
+Before the bracket's pre idle (outside the measured window), every prompt is sized to the target as the server will see it: the templated chat input including special tokens, counted with the server's `/tokenize` endpoint, or with a one token completion when `/tokenize` is absent.
+The server's reported prompt tokens are stored as the check of the achieved size.
+
+**Endpoint capabilities.** `/tokenize`, `ignore_eos` (full length output) and the prefix cache reset (`/reset_prefix_cache`, vLLM dev mode) are detected per endpoint and recorded, never assumed.
+With `ignore_eos: auto` the plugin uses it when the server accepts it; with `ignore_eos: true` a server without it makes the step unavailable.
+
+**What is recorded per request** (keys `req_NNN.<field>` in `energy_validation_seq_step_results`):
+
+| Field | Meaning |
+|---|---|
+| `prompt_tokens_sized`, `prompt_tokens` | size from the sizing step; size the server reported |
+| `output_tokens` | output tokens the server reported |
+| `cached_tokens` | prompt tokens the server reported as served from its prefix cache; the only evidence of reuse |
+| `finish_reason`, `stop_reason` | as reported by the server's stream |
+| `early_stop` | 1 when the server stopped before the requested output length |
+| `early_eos` | 1 only when the server names an end of sequence token as the cause (`eos_token_ids` in the plan); 0 when the full length was produced; absent when the cause is unknown |
+| `ttft_ms`, `total_ms` | time to first content token and total request time |
+
+A field the server did not report is absent (NULL), never 0.
+Step level keys include `n_requests`, `n_early_stop`, `share_output_within_tol`, `share_prompt_within_tol`, `cached_share`, `output_tokens_total`, `throughput_out_tok_s`, `work_t0_ns`, `work_t1_ns` and the capability flags (`cap_tokenize`, `cap_ignore_eos_used`, `cap_prefix_cache_reset`).
+A failed request fails the step with a reason; a failed step is never stored as a complete or zero energy step.
+
+Example plan: `config/sequence_plans/workload_conditions.yaml` (3 cycles, BASE, PREFILL and DECODE blocks, 60 s idle brackets).
+
+```sql
+SELECT s.condition, s.cycle_id,
+       MAX(CASE WHEN r.key='n_requests' THEN r.value END) AS requests,
+       MAX(CASE WHEN r.key='share_output_within_tol' THEN r.value END) AS output_within_tol,
+       MAX(CASE WHEN r.key='n_early_stop' THEN r.value END) AS early_stops,
+       MAX(CASE WHEN r.key='cached_share' THEN r.value END) AS cached_share
+FROM energy_validation_seq_steps s
+JOIN energy_validation_seq_attempts a USING (step_id)
+JOIN energy_validation_seq_step_results r USING (attempt_id)
+WHERE s.session_id = :session AND s.kind = 'request_profile'
+GROUP BY s.planned_index ORDER BY s.planned_index;
+```
+
+#### Server prefix cache counters
+When the plan names both metrics, the step reads the server's Prometheus counters at `<endpoint>/metrics` just before and just after the requests, and stores the deltas: `prefix_cache_queried_tokens`, `prefix_cache_hit_tokens` and `prefix_cache_hit_share`. vLLM 0.23:
+```yaml
+prefix_cache_queries_metric: "vllm:prefix_cache_queries_total"
+prefix_cache_hits_metric: "vllm:prefix_cache_hits_total"
+```
+Without both keys nothing is read. A counter that is absent or went backwards (server restart) gives no row; missing is never stored as 0. This complements `cached_share`, which vLLM leaves empty when nothing was cached.
+
+### Retries with context growth (retry_context)
+Paper 5 (P5-C) arm step: a controlled application level retry simulation with post generation failure injection. One step runs one arm at one retry count `k` over `n_prompts` seeded base prompts; the prompts depend only on `seed` and their index, so every arm and every `k` of a session sees the same prompts.
+
+| Arm | Calls per goal | Context |
+|---|---|---|
+| `baseline` (k 0) | 1 | base prompt |
+| `fixed` | k + 1 | base prompt every time (context reset) |
+| `growth` | k + 1 | each retry appends the previous answer and a user turn with `retry_note` and the base prompt restated |
+| `final_single` | 1 | shaped like growth's last attempt, with synthetic assistant turns sized to `output_tokens` |
+
+Attempts 1 to k are marked `failed_injected` after generation has completed; attempt k + 1 is the success, so every goal succeeds. With `reset_prefix_cache: auto` the server prefix cache is reset before each goal and kept between attempts. With both `prefix_cache_queries_metric` and `prefix_cache_hits_metric` named, the counters are read around every attempt.
+
+Stored per goal (`g_NNN.*`): `t0_ns`, `t1_ns` (the goal window), `attempts`, `input_tokens_total`, `output_tokens_total`. Per attempt (`g_NNN.a_N.*`): prompt and output tokens, cached tokens, prefix cache deltas, timing, `outcome`. Energy belongs to the step; the analysis allocates it to goal windows. Example plan: `config/sequence_plans/p5c_retry_context.yaml`.
+
+### Fixed compute load (matmul_load)
+
+`matmul_load` runs a fixed duty cycle matrix multiply (for example 2048 x 2048 bf16, busy 15 ms of every 100 ms) with no model server, through the repository's `scripts/tools/matmul_load.py` under an interpreter that has torch with CUDA.
+It gives a steady, repeatable GPU load to compare sensors and conditions against.
+The step is attended only (`attended: true` in the plan); it checks the GPU temperature before it starts, the sequencer's thermal gate still decides admission, and the step fails with `thermal_abort` if the GPU reaches `abort_temp_c`.
+Results include `achieved_duty`, `iters`, `busy_s` and `wall_s`.
+Example plan: `config/sequence_plans/matmul_load_example.yaml`.
+
+### Known limitations
+
+- **Output length depends on the server**: without `ignore_eos` a model may stop early; such requests are recorded with their actual length and flagged, never treated as exact.
+  Workaround: use a server that supports `ignore_eos`, or report the achieved lengths.
+- **Cause of an early stop**: most servers report `stop` without naming the token, so `early_eos` is usually unknown.
+  Workaround: give `eos_token_ids` for servers that report the stop token.
+- **Per request energy is not measured**: energy belongs to the whole step.
