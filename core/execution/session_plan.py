@@ -253,9 +253,14 @@ class _Runtime(object):
 
     def finish(self):
         # type: () -> None
-        """Mark each experiment row of the session completed with its goal count."""
-        for u in self.units.values():
-            self.runner.update_status(self.db, u["exp_id"], "completed", u["goals"])
+        """Mark each experiment row of the session completed, then close the store (releases the writer lock)."""
+        try:
+            for u in self.units.values():
+                self.runner.update_status(self.db, u["exp_id"], "completed", u["goals"])
+        finally:
+            if self.db is not None:
+                self.db.close()
+                self.db = None
 
 
 def _make_unit(rt, task_id, provider):
