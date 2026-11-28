@@ -281,7 +281,12 @@ def open_recording(pre_window_s: float = 30.0, cooldown_max_s: float = 0.0,
         prev_hook(etype, value, tb)
     sys.excepthook = _excepthook
 
+    closed = {"done": False}
+
     def _close() -> None:
+        if closed["done"]:                # closed by the run already; atexit is the backstop
+            return
+        closed["done"] = True
         hook.clear_active(rec)
         try:
             if failed["exc"]:

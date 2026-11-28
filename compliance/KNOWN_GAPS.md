@@ -168,3 +168,15 @@ Mac die sensors, Linux hwmon inputs (Intel coretemp cores, AMD k10temp/amdgpu) a
 
 ## KG-SENSORS-02: Finer GB10 temperature sensors pending evaluation
 The GB10 board-power driver reports soc and gpu temperatures in 0.01 C steps, against 0.1 C (ACPI zones) and 1 C (NVML). Whether they should become the exposure or decision sensors is an E0 decision (response to load, relation to NVML GPU temperature).
+
+## KG-PLAN-01: Sequencer idle brackets around a thermal session
+The sequencer runs idle measurement runs before and after every treatment step, including the `thermal_session` step, in addition to the session's own idle window and cooling tail. Owner: sequencer. Not changed.
+
+## KG-PLAN-02: Sequencer cancellation not passed to steps
+The step context's `cancelled()` always returns False, so a `thermal_session` step cannot be asked to stop early. Owner: sequencer. Not changed.
+
+## KG-PLAN-03: Matmul load helper not gated by the safety guard
+The fixed matmul load helper used by the update-rate script runs outside the harness, so the safety guard does not gate it; it applies its own temperature limits.
+
+## KG-PLAN-04: Calibration load task not chosen
+`calibration_steps` pilots hold a short calculation task, so a hold can end before `hold_s` (`hold_achieved` false). `settled` is left to the calibration analysis.

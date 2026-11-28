@@ -49,6 +49,7 @@ for _i in 1 2 3 4 5 6 7 8; do
     _p="$(dirname "${_p}")"
     [ "${_p}" = "/" ] && break
 done
+export ALEMS_CALLER_CWD="${ALEMS_CALLER_CWD:-$PWD}"   # folder the user ran alems from
 cd "$ALEMS_ROOT"
 export PYTHONPATH="${ALEMS_ROOT}"
 # G11: never import from ~/.local (a foreign editable alems_sdk shadowed the engine).
@@ -397,7 +398,7 @@ print(resolve_store())
         ;;
 
     # ── PYTHON CLI COMMANDS (delegated to core/cli) ───────────────────
-    lock|sandbox|engine|plugins|sequence|profile)
+    lock|sandbox|engine|plugins|sequence|profile|thermal)
         _python_cli "$CMD" "$@"
         exit $?
         ;;
@@ -465,6 +466,7 @@ print(resolve_store())
         echo "    alems measure                     — run energy baseline"
         echo "    alems report                      — generate report"
         echo "    alems sequence <plan.yaml>        — run a step plan (--dry-run, --seed N, --resume ID)"
+        echo "    alems thermal run --profile <file> — run a thermal session from a profile (--dry-run)"
         echo "    alems profile kernels -- CMD      — per kernel L2 traffic under Nsight Compute (separate pass, --probe)"
         echo ""
         echo "  Sandbox commands:"

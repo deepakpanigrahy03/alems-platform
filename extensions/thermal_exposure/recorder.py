@@ -208,6 +208,7 @@ class ExperimentRecorder:
         self._stats = {k: _SourceStats(hz) for k, hz in self.rates.items()}
         self._last_keys: Dict[str, List[Any]] = {k: [] for k in self.rates}
         self._anchors: List[Tuple[int, int]] = []       # (drift_ns, stepped)
+        self._pending_anchors: List[tuple] = []         # anchor rows refused by the store, written next time
         self._runs = 0
         self._workload_start: Optional[int] = None
         self._workload_end: Optional[int] = None
@@ -221,6 +222,9 @@ class ExperimentRecorder:
         self._span_ids: Dict[str, str] = {}
         self._slots: List[Tuple[str, int]] = []      # (run slot span id, run number)
         self._gap_start: Optional[int] = None
+        # which profile and plan ran; a session plan replaces these through record_plan()
+        self._profile_id = PROFILE_ID
+        self._pacing_plugin = PACING_PLUGIN
         # idle reference, cooling rule and recording checks (idle_session.py)
         self.idle = IdleSession(self, settings or {})
 
@@ -229,6 +233,40 @@ class ExperimentRecorder:
     def _ts(self) -> int:
         """Session time: wall at open plus monotonic time elapsed since open."""
         return self._base_wall + (self.clock.mono_ns() - self._base_mono)
+
+    def now_ns(self) -> int:
+        """Current session time (public form of the recording's time line)."""
+        return self._ts()
+
+    def session_ns(self, wall_ns: int) -> int:
+        """A wall-clock time (for example a run start from the store) placed on the session time line."""
+        return int(wall_ns) - (self.clock.wall_ns() - self._ts())
+
+    def record_plan(self, profile_id: str, sha: Optional[str], plugin: str, params: Dict[str, Any]) -> None:
+        """Which profile and session plan ran: te_session row and the session span attributes."""
+        self._profile_id, self._pacing_plugin = profile_id, plugin
+        self._write_rows("UPDATE te_session SET profile_id = ?, profile_sha256 = ?, pacing_plugin = ?, "
+                         "pacing_params_json = ? WHERE session_id = ?",
+                         [(profile_id, sha, plugin, json.dumps(params, sort_keys=True, default=str),
+                           int(self.session_id))])
+
+    def add_plan_span(self, kind: str, name: str, start_ns: int, end_ns: int, attrs: Dict[str, Any]) -> bool:
+        """
+        A closed plan label (goal_slot, pause, calibration_step) under the workload span.
+
+        Written by the regular span flush. A label the vocabulary refuses is logged and
+        dropped (False): labels never stop a session.
+        """
+        parent = self._span_ids.get("workload")
+        if self._spans is None or parent is None:
+            return False
+        try:
+            sid = self._spans.open(kind, name, int(start_ns), parent)
+            self._spans.close(sid, int(end_ns), attrs)
+            return True
+        except Exception as exc:
+            logger.warning("plan span %s refused: %s", name, exc)
+            return False
 
     # ── lifecycle ────────────────────────────────────────────────────────────
 
@@ -467,14 +505,15 @@ class ExperimentRecorder:
         offset, method = self.offset_fn()
         with self._lock:
             self._anchors.append((drift, step_ns if stepped else 0))
+        rows = self._pending_anchors + [(self.session_id, self.node_name, wall, mono, offset, method, stepped)]
         try:
             self._write_rows("INSERT INTO te_clock_anchor (session_id, node_name, wall_ns, "
                              "mono_ns, sync_offset_ns, sync_method, offset_to_control_ns, "
-                             "stepped) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)",
-                             [(self.session_id, self.node_name, wall, mono, offset, method,
-                               stepped)])
-        except Exception as exc:          # store busy: the anchor is kept in memory checks
-            logger.warning("clock anchor write failed: %s", exc)
+                             "stepped) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)", rows)
+            self._pending_anchors = []
+        except Exception as exc:          # store busy: rows kept and written with the next anchor
+            self._pending_anchors = rows
+            logger.warning("clock anchor write failed, %d kept for the next anchor: %s", len(rows), exc)
         return drift
 
     # ── writing ──────────────────────────────────────────────────────────────
@@ -702,8 +741,8 @@ class ExperimentRecorder:
             sp.close(pid, end_ns, {"purpose": "post", "planned_s": self.idle.cfg["post_s"],
                                    "actual_s": (end_ns - post) / 1e9})
         sp.close(ids["session"], end_ns, {
-            "session_id": int(self.session_id), "profile_id": PROFILE_ID,
-            "pacing_plugin": PACING_PLUGIN, "machine_profile": self.machine_profile},
+            "session_id": int(self.session_id), "profile_id": self._profile_id,
+            "pacing_plugin": self._pacing_plugin, "machine_profile": self.machine_profile},
             "closed" if status == "closed" else "error")
 
     def _close_slots(self) -> None:

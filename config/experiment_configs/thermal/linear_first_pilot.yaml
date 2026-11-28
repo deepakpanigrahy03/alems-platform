@@ -1,0 +1,38 @@
+# config/experiment_configs/thermal/linear_first_pilot.yaml
+study:
+  name: "Linear first pilot"
+  experiment_type: "normal"
+  experiment_goal: "session runner pilot: agent only after a linear failure"
+  experiment_notes: "Pilot of the session runner on the GB10 class (plumbing check, not a scientific result). "
+tasks:
+  - id: tg_single_calc
+  - id: gsm8k_basic
+providers:
+  - name: vllm_local
+    model_id: Mistral-7B-Instruct-v0.3
+execution:
+  repetitions: 1
+  cool_down_seconds: 30
+  save_db: true
+retry_policy:
+  name: "no_retry"
+  max_retries: 0
+  retry_on_timeout: false
+  retry_on_tool_error: false
+  retry_on_api_error: false
+  retry_on_wrong_answer: false
+  backoff_seconds: 0.0
+failure_injection:
+  enabled: false
+quality:
+  enabled: false
+recording:
+  enabled: true
+  pre_window_s: 120
+  cooldown_max_s: 600
+session_plan:
+  plugin: linear_first
+  params:
+    goals: [tg_single_calc, gsm8k_basic]
+    repeats: 1
+    seed: 42

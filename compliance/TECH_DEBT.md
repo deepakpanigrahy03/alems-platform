@@ -67,3 +67,12 @@ The worktree dev store applied `e003` before `te_session.idle_baseline_id` was c
 
 ## TD-SENSORS-02: Conformance kit does not run descriptor validation
 `alems_sdk.thermal_catalog.validate_descriptor` is applied by `scripts/detect_thermal.py` and by tests, not yet by the SDK conformance kit for third-party thermal readers.
+
+## TD-PLAN-01: Unused thermal sampling rate setting
+`thermal.sampling_rate_hz` in the settings is ignored (the rate comes from the sampling policy) and logs a warning at start. Remove after checking every settings copy.
+
+## TD-WRITER-01: Raw connection users rely on thread ownership only
+Writers share one connection per store and threads take turns; legacy callers that use the raw `conn` property are protected by the same turn but are not tracked separately. A per-store turn lock with wait and hold timers was reviewed and not adopted (one-connection rule kept).
+
+## TD-PLAN-02: Step kind entry point needs a package reinstall
+`thermal_session` is registered in `pyproject.toml`; an environment installed before the change does not list it until the package is reinstalled.

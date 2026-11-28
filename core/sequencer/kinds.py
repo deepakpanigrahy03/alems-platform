@@ -144,7 +144,8 @@ def _profiling_outcome(kind, params, kctx, step_failed):
     """Profiling kinds: measure() directly, no measured run and no collectors; its own tables keep the data."""
     kind.setup(params, kctx)
     try:
-        results = kind.measure(params, kctx)
+        with attempt_scope(kctx["attempt_id"]):     # runs a kind saves are linked to the attempt
+            results = kind.measure(params, kctx)
     except step_failed as exc:
         return {"status": "failed", "reason_code": exc.code, "reason_detail": str(exc)}
     finally:

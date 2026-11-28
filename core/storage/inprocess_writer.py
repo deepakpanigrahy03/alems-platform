@@ -46,6 +46,12 @@ _registry_lock = threading.Lock()
 # Maps resolved store path (str) -> (SQLiteAdapter, ref_count, owning_session_id)
 _connections: Dict[str, Tuple[Any, int, int]] = {}
 _next_session_id = 0
+# One connection per store, used by one thread at a time: the thread that created it
+# keeps it until its last writer closes; another thread waits for its turn (a SQLite
+# connection refuses use from a second thread, and sharing would mix transactions).
+_turn = threading.Condition(_registry_lock)
+_owner_thread: Dict[str, int] = {}
+ACQUIRE_TIMEOUT_S = 30.0     # longest wait for the turn; then WriterError (callers keep their rows)
 
 
 def _get_session_id() -> int:
@@ -64,7 +70,15 @@ def _acquire_connection(store_path: str) -> Any:
     # Import here to avoid circular imports at module load time.
     from core.database.sqlite_adapter import SQLiteAdapter  # type: ignore
 
-    with _registry_lock:
+    me = threading.get_ident()
+    deadline = time.monotonic() + ACQUIRE_TIMEOUT_S
+    with _turn:
+        while store_path in _connections and _owner_thread.get(store_path) != me:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise WriterError("store %s in use by another thread for %.0f s"
+                                  % (store_path, ACQUIRE_TIMEOUT_S))
+            _turn.wait(remaining)
         if store_path in _connections:
             adapter, ref, sid = _connections[store_path]
             _connections[store_path] = (adapter, ref + 1, sid)
@@ -72,13 +86,14 @@ def _acquire_connection(store_path: str) -> Any:
         adapter = SQLiteAdapter({"path": store_path})
         adapter.connect()
         _connections[store_path] = (adapter, 1, 0)
+        _owner_thread[store_path] = me
         logger.debug("inprocess_writer: opened connection to %s", store_path)
         return adapter
 
 
 def _release_connection(store_path: str) -> None:
     """Decrement ref count; close when it reaches zero."""
-    with _registry_lock:
+    with _turn:
         if store_path not in _connections:
             return
         adapter, ref, sid = _connections[store_path]
@@ -88,6 +103,8 @@ def _release_connection(store_path: str) -> None:
             except Exception:
                 pass
             del _connections[store_path]
+            _owner_thread.pop(store_path, None)
+            _turn.notify_all()                  # next thread's turn
             logger.debug("inprocess_writer: closed connection to %s", store_path)
         else:
             _connections[store_path] = (adapter, ref - 1, sid)

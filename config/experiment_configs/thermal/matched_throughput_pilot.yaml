@@ -1,0 +1,42 @@
+# config/experiment_configs/thermal/matched_throughput_pilot.yaml
+study:
+  name: "Matched throughput pilot"
+  experiment_type: "normal"
+  experiment_goal: "session runner pilot: computed pause for one workflow"
+  experiment_notes: "Pilot of the session runner on the GB10 class (plumbing check, not a scientific result). Pilot values below are plumbing-test numbers, not estimates from a 30-goal pilot."
+tasks:
+  - id: tg_single_calc
+providers:
+  - name: vllm_local
+    model_id: Mistral-7B-Instruct-v0.3
+execution:
+  repetitions: 1
+  cool_down_seconds: 30
+  save_db: true
+retry_policy:
+  name: "no_retry"
+  max_retries: 0
+  retry_on_timeout: false
+  retry_on_tool_error: false
+  retry_on_api_error: false
+  retry_on_wrong_answer: false
+  backoff_seconds: 0.0
+failure_injection:
+  enabled: false
+quality:
+  enabled: false
+recording:
+  enabled: true
+  pre_window_s: 120
+  cooldown_max_s: 600
+session_plan:
+  plugin: matched_throughput
+  params:
+    goals: [tg_single_calc]
+    repeats: 2
+    seed: 42
+    workflow: agentic
+    target_successes_per_hour: 60
+    pilot_success_probability: 1.0
+    pilot_mean_goal_s: 10
+    pilot_goal_ids: [plumbing_test_not_a_pilot]

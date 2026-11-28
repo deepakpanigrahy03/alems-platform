@@ -145,3 +145,15 @@ The continuous-recording and recording-span entries, and the idle and sensor-res
 
 ## Mac thermal reader availability depended on the battery only (fixed)
 `IOKitThermalReader.is_available()` returned the battery check, so a Mac without a battery (Mac mini) reported the reader unavailable although its die-sensor helper worked. No run code reads this flag (runs use `available_sensors`, filled when the helper exists); sensor discovery did, and listed no Mac sensors. Now: battery or helper. Separately, the helper had never been built on the test Mac mini, so its runs recorded no temperature; install step 4d now builds it. Found 2026-11-20.
+
+## Store connection refused across threads (fixed)
+One SQLite connection per store per process was shared by every open writer; a second thread borrowing it was refused ("SQLite objects created in a thread can only be used in that same thread"), seen on recorder sample and clock-anchor writes and guard store writes. Rows were kept and retried except clock anchors (one lost in an 835 s session). Fixed: still one connection per store; another thread waits for its turn (bounded, then WriterError) instead of borrowing it; refused clock anchors are kept and written with the next anchor. Found 2026-11-26.
+
+## Integrity check ran before the recording closed (fixed)
+The automatic integrity check ran at the end of the run while the recording (closed at exit) was still in its cooling tail, so the open workload span failed the span check; a rerun after close passed. Fixed: the run closes the recording before the safety close and the integrity check. Found 2026-11-26.
+
+## Remote-named provider pointing at this machine passed preflight (fixed)
+A `*_remote` provider whose address is this machine passed preflight ("all checks passed") and then failed with a traceback when the executor was built. Fixed: preflight stops it with one message; a refused executor build is one error line. Found 2026-11-25.
+
+## Relative profile paths failed in alems thermal run (fixed)
+The launcher changes to the engine folder before running, so a relative `--profile` path was resolved there. Fixed: the launcher passes the caller's folder and relative paths are resolved against it. Found 2026-11-26.

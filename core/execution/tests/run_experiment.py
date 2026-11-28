@@ -148,14 +148,19 @@ def run_provider_task(
     dummy = type('obj', (object,), {'config': linear_config})()
     preflight(dummy, provider)
 
-    if args.optimizer:
-        from core.execution.optimizer_wrapper import OptimizedExecutorWrapper
+    try:
+        if args.optimizer:
+            from core.execution.optimizer_wrapper import OptimizedExecutorWrapper
 
-        linear = OptimizedExecutorWrapper(linear_config, "linear")
-        agentic = OptimizedExecutorWrapper(agentic_config, "agentic")
-    else:
-        linear = LinearExecutor(linear_config)
-        agentic = AgenticExecutor(agentic_config)
+            linear = OptimizedExecutorWrapper(linear_config, "linear")
+            agentic = OptimizedExecutorWrapper(agentic_config, "agentic")
+        else:
+            linear = LinearExecutor(linear_config)
+            agentic = AgenticExecutor(agentic_config)
+    except Exception as exc:    # a refused provider is one error line, not a traceback
+        logger.error("%s: executor not built: %s; skipping", provider, exc)
+        logger.debug("executor build failure", exc_info=True)
+        return None
 
     progress.info("optimizer  %s", "yes" if args.optimizer else "no")
 
@@ -572,6 +577,14 @@ def run_all_experiments(args):
         profile=getattr(args, "profile", None) or getattr(args, "config", None),
     )
     runner = ExperimentRunner(config, args)
+    # Safety guard: opened before any experiment row; a refusal ends the call cleanly.
+    from core.safety import hook as _safety_hook
+    from core.safety.thermal_guard import GuardRefused as _GuardRefused
+    try:
+        _safety_hook.ensure_guard("run_experiment")
+    except _GuardRefused as exc:
+        logger.error("safety guard refused to start: %s", exc)
+        return [], config, args
     if getattr(args, "record_continuous", False):
         # opt-in: continuous recording around the whole experiment, closed at exit
         from core.recording.session import open_recording
@@ -599,6 +612,21 @@ def run_all_experiments(args):
 
     inter_task_cooldown = getattr(args, "inter_task_cooldown", 0)
 
+    if getattr(args, "session_plan", None):
+        # Plan-driven session: one plan across tasks and providers; the fixed loop below is
+        # not used for this call and stays unchanged.
+        from core.execution.session_plan import SessionPlanError, production_deps, run_session_plan
+        from core.recording import hook as _recording_hook
+        try:
+            run_session_plan(args.session_plan, [t["id"] for t in selected_tasks], providers,
+                             production_deps(harness, runner, config, args, _goal_tracker,
+                                             _retry_coordinator),
+                             recorder=_recording_hook.get_active(),
+                             config_path=getattr(args, "config", None))
+        except SessionPlanError as exc:
+            logger.error("session plan refused: %s", exc)
+        return all_results, config, args
+
     for i, task in enumerate(selected_tasks):
         progress.info("task  %s (level %s)", task["name"], task["level"])
 
@@ -606,6 +634,10 @@ def run_all_experiments(args):
             harness, runner, task, providers, repetitions, cool_down, args, config
         )
         all_results.extend(task_results)
+        if _safety_hook.halted():
+            logger.error("safety guard stopped the experiment (%s); remaining tasks not run",
+                         _safety_hook.halted())
+            break
 
         # Inter-task cooldown — prevents rate limiting across tasks for cloud providers
         if inter_task_cooldown > 0 and i < len(selected_tasks) - 1:
@@ -656,16 +688,23 @@ def display_master_summary(all_results):
     con.line("=" * 85)
 
 
+def _store_path():
+    """The store this run writes to (resolver: honours ALEMS_STORE and the sandbox folder)."""
+    from core.storage.resolver import resolve_store
+    return resolve_store()
+
+
 def _max_exp_id():
     """Highest experiment id in the store before this call's runs (None if unknown)."""
     try:
         import sqlite3 as _sq
-        c = _sq.connect("file:%s?mode=ro" % get_alems_db_path(), uri=True)
+        c = _sq.connect("file:%s?mode=ro" % _store_path(), uri=True)
         try:
             return c.execute("SELECT COALESCE(MAX(exp_id), 0) FROM experiments").fetchone()[0]
         finally:
             c.close()
-    except Exception:
+    except Exception as exc:
+        logger.warning("highest experiment id not read: %s", exc)
         return None
 
 
@@ -682,7 +721,7 @@ def _auto_integrity(exp_floor):
         if exp_floor is None:
             logger.warning("auto integrity skipped (store not available)")
             return
-        c = _sq.connect("file:%s?mode=ro" % get_alems_db_path(), uri=True)
+        c = _sq.connect("file:%s?mode=ro" % _store_path(), uri=True)
         try:
             ids = [r[0] for r in c.execute("SELECT exp_id FROM experiments WHERE exp_id > ? ORDER BY exp_id",
                                            (exp_floor,))]
@@ -691,7 +730,7 @@ def _auto_integrity(exp_floor):
         for eid in ids:
             script = Path(__file__).resolve().parents[3] / "scripts" / "test_exp_integrity.py"
             out = _sp.run([sys.executable, str(script), "--exp-id", str(eid),
-                           "--db", str(get_alems_db_path())],
+                           "--db", str(_store_path())],
                           capture_output=True, text=True, timeout=600).stdout
             keep = [l for l in out.splitlines() if "RESULT" in l or "\u274c" in l or "❌" in l]
             get_console().line("integrity exp %s" % eid)
@@ -781,6 +820,13 @@ def main():
         display_master_summary(all_results)  # final view: the comparison table
     get_console().line(get_console().style("all experiments complete", "green"))
     # 39.5.2a: per run logs are written only here, after every measurement window.
+    # the recording closes here (cooling tail included), so the integrity check sees it closed
+    from core.recording import hook as _recording_hook
+    _rec = _recording_hook.get_active()
+    if _rec is not None and hasattr(_rec, "close_and_cleanup"):
+        _rec.close_and_cleanup()
+    from core.safety import hook as _safety_hook
+    _safety_hook.close(_safety_hook.halted() or "completed")   # a halt is the end reason, not completed
     from core.observability import flush_run_log
     flush_run_log()
     _auto_integrity(_exp_floor)

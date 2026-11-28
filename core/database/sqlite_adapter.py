@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from .base import DatabaseError, DatabaseInterface
 from .schema import (CREATE_STAGE_GRAPH, CREATE_STAGE_EVENT, CREATE_SANDBOX_IDENTITY, CREATE_CPU_SAMPLES, CREATE_ENERGY_SAMPLES, CREATE_RUN_QUALITY, CREATE_SAMPLER_STATS,
+                     CREATE_SAFETY_GUARD,
                      CREATE_SPANS, CREATE_SPAN_PLACEMENTS, CREATE_SPAN_LINKS,
                      CREATE_SPAN_EVENTS, CREATE_SPAN_ATTRIBUTES, CREATE_SPAN_ANNOTATIONS,
                      CREATE_ATTRIBUTION_RESIDUAL,
@@ -456,6 +457,7 @@ class SQLiteAdapter(DatabaseInterface):
         self.conn.executescript(CREATE_ATTRIBUTION_SUMMARY_VIEW)
         self.conn.executescript(CREATE_RUN_QUALITY)
         self.conn.executescript(CREATE_SAMPLER_STATS)  # sampling record per run (v122)  
+        self.conn.executescript(CREATE_SAFETY_GUARD)  # safety guard record (v133)
         self.conn.executescript(CREATE_VIEW_GOAL_ENERGY_DECOMPOSITION)
         self.conn.executescript(CREATE_VIEW_FAILURE_ENERGY_TAXONOMY)
         self.conn.executescript(CREATE_VIEW_QUALITY_ENERGY_FRONTIER)        

@@ -143,6 +143,18 @@ def _run_plugin_preflight(provider, config):
     return False
 
 
+def _check_remote_is_remote(provider, config):
+    """A *_remote provider whose address is this machine stops here (same rule as the model factory)."""
+    import os
+    if not provider.endswith("_remote") or not config.get("base_url"):
+        return
+    from core.execution.model_factory import _refuse_local_remote
+    try:
+        _refuse_local_remote(provider, os.path.expandvars(config["base_url"]))
+    except ValueError as exc:
+        sys.exit("preflight: %s" % exc)
+
+
 def preflight(executor, provider):
     """Run checks."""
     progress.info("preflight  checks")
@@ -161,6 +173,7 @@ def preflight(executor, provider):
             check_msr()
     else:
         check_msr()
+    _check_remote_is_remote(provider, executor.config)
     if provider == "vllm_local":
         # vllm_local uses built-in check for backward compat.
         base_url = executor.config.get("base_url", "http://localhost:8000/v1")
