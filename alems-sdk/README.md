@@ -1,8 +1,8 @@
 # alems-sdk
 
 Stable facade for A-LEMS plugin authors.
-Version 0.10.0 (pre Gate F).
-Gate F sets 1.0.0 and freezes the contract.
+Version 1.1.0.
+Gate F freezes the contract with its own version bump.
 
 Install: `pip install -e alems-sdk`
 
