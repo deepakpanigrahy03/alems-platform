@@ -101,7 +101,11 @@ def test_types_importable():
 def test_version():
     from alems_sdk.version import SDK_VERSION, SUPPORTED_RUNTIME_RANGE
     from packaging.version import Version
-    assert Version(SDK_VERSION) < Version("1.0.0"), "SDK_VERSION must be pre-1.0 until Gate F"
+    import tomllib
+    from pathlib import Path
+    pyproject = Path(__file__).resolve().parents[1] / "alems-sdk" / "pyproject.toml"
+    assert Version(SDK_VERSION) == Version(tomllib.loads(pyproject.read_text())["project"]["version"]), \
+        "SDK_VERSION must equal alems-sdk/pyproject.toml"
     assert ">=1.0.0" in SUPPORTED_RUNTIME_RANGE
 
 
